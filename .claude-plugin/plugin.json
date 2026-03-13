@@ -7,10 +7,7 @@
     "email": "hello@host.uk.com"
   },
   "homepage": "https://forge.lthn.ai/core/go-build",
-  "repository": {
-    "type": "git",
-    "url": "ssh://git@forge.lthn.ai:2223/core/go-build.git"
-  },
+  "repository": "https://forge.lthn.ai/core/go-build.git",
   "license": "EUPL-1.2",
   "keywords": [
     "claude",
@@ -18,27 +15,5 @@
     "qa",
     "build",
     "lint"
-  ],
-  "commands": [
-    {
-      "name": "qa",
-      "description": "Run full QA pipeline and fix all issues iteratively",
-      "file": "commands/qa.md"
-    },
-    {
-      "name": "check",
-      "description": "Run QA checks without fixing (report only)",
-      "file": "commands/check.md"
-    },
-    {
-      "name": "fix",
-      "description": "Fix a specific QA issue",
-      "file": "commands/fix.md"
-    },
-    {
-      "name": "lint",
-      "description": "Run linter and fix issues",
-      "file": "commands/lint.md"
-    }
   ]
 }
