@@ -1,0 +1,30 @@
+{
+  "name": "@lthn/core-claude-build",
+  "version": "0.1.0",
+  "description": "Claude Code plugin for Go QA pipeline, build tooling, and development skills",
+  "license": "EUPL-1.2",
+  "author": {
+    "name": "Host UK",
+    "email": "hello@host.uk.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://forge.lthn.ai/core/go-build.git",
+    "directory": ".claude-plugin"
+  },
+  "files": [
+    "plugin.json",
+    "commands/",
+    "skills/",
+    "hooks.json",
+    "scripts/",
+    "codex-qa/"
+  ],
+  "keywords": [
+    "claude-code-plugin",
+    "go",
+    "golang",
+    "qa",
+    "build"
+  ]
+}
