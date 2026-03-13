@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"forge.lthn.ai/core/go-build/sdk"
+	"forge.lthn.ai/core/go-build/pkg/sdk"
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-i18n"
 )

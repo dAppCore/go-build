@@ -9,7 +9,7 @@ import (
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-i18n"
-	"forge.lthn.ai/core/go-build/release"
+	"forge.lthn.ai/core/go-build/pkg/release"
 )
 
 // Style aliases from shared
