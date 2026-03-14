@@ -3,12 +3,15 @@ module forge.lthn.ai/core/go-build
 go 1.26.0
 
 require (
+	forge.lthn.ai/core/api v0.1.0
 	forge.lthn.ai/core/cli v0.1.0
 	forge.lthn.ai/core/go-i18n v0.1.0
 	forge.lthn.ai/core/go-io v0.0.3
 	forge.lthn.ai/core/go-log v0.0.1
+	forge.lthn.ai/core/go-ws v0.1.0
 	github.com/Snider/Borg v0.2.0
 	github.com/getkin/kin-openapi v0.133.0
+	github.com/gin-gonic/gin v1.11.0
 	github.com/leaanthony/debme v1.2.1
 	github.com/leaanthony/gosod v1.0.4
 	github.com/oasdiff/oasdiff v1.11.10

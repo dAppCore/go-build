@@ -1,0 +1,582 @@
+// SPDX-Licence-Identifier: EUPL-1.2
+
+// Package api provides a service provider that wraps go-build's build,
+// release, and SDK subsystems as REST endpoints with WebSocket event
+// streaming.
+package api
+
+import (
+	"net/http"
+	"os"
+	"path/filepath"
+
+	"forge.lthn.ai/core/api"
+	"forge.lthn.ai/core/api/pkg/provider"
+	"forge.lthn.ai/core/go-build/pkg/build"
+	"forge.lthn.ai/core/go-build/pkg/build/builders"
+	"forge.lthn.ai/core/go-build/pkg/release"
+	"forge.lthn.ai/core/go-build/pkg/sdk"
+	"forge.lthn.ai/core/go-io"
+	"forge.lthn.ai/core/go-ws"
+	"github.com/gin-gonic/gin"
+)
+
+// BuildProvider wraps go-build's build, release, and SDK operations as a
+// service provider. It implements Provider, Streamable, Describable, and
+// Renderable.
+type BuildProvider struct {
+	hub        *ws.Hub
+	projectDir string
+	medium     io.Medium
+}
+
+// compile-time interface checks
+var (
+	_ provider.Provider    = (*BuildProvider)(nil)
+	_ provider.Streamable  = (*BuildProvider)(nil)
+	_ provider.Describable = (*BuildProvider)(nil)
+	_ provider.Renderable  = (*BuildProvider)(nil)
+)
+
+// NewProvider creates a BuildProvider for the given project directory.
+// If projectDir is empty, the current working directory is used.
+// The WS hub is used to emit real-time build events; pass nil if not available.
+func NewProvider(projectDir string, hub *ws.Hub) *BuildProvider {
+	if projectDir == "" {
+		projectDir = "."
+	}
+	return &BuildProvider{
+		hub:        hub,
+		projectDir: projectDir,
+		medium:     io.Local,
+	}
+}
+
+// Name implements api.RouteGroup.
+func (p *BuildProvider) Name() string { return "build" }
+
+// BasePath implements api.RouteGroup.
+func (p *BuildProvider) BasePath() string { return "/api/v1/build" }
+
+// Element implements provider.Renderable.
+func (p *BuildProvider) Element() provider.ElementSpec {
+	return provider.ElementSpec{
+		Tag:    "core-build-panel",
+		Source: "/assets/core-build.js",
+	}
+}
+
+// Channels implements provider.Streamable.
+func (p *BuildProvider) Channels() []string {
+	return []string{
+		"build.started",
+		"build.complete",
+		"build.failed",
+		"release.started",
+		"release.complete",
+		"sdk.generated",
+	}
+}
+
+// RegisterRoutes implements api.RouteGroup.
+func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
+	// Build
+	rg.GET("/config", p.getConfig)
+	rg.GET("/discover", p.discoverProject)
+	rg.POST("/build", p.triggerBuild)
+	rg.GET("/artifacts", p.listArtifacts)
+
+	// Release
+	rg.GET("/release/version", p.getVersion)
+	rg.GET("/release/changelog", p.getChangelog)
+	rg.POST("/release", p.triggerRelease)
+
+	// SDK
+	rg.GET("/sdk/diff", p.getSdkDiff)
+	rg.POST("/sdk/generate", p.generateSdk)
+}
+
+// Describe implements api.DescribableGroup.
+func (p *BuildProvider) Describe() []api.RouteDescription {
+	return []api.RouteDescription{
+		{
+			Method:      "GET",
+			Path:        "/config",
+			Summary:     "Read build configuration",
+			Description: "Loads and returns the .core/build.yaml from the project directory.",
+			Tags:        []string{"build", "config"},
+		},
+		{
+			Method:      "GET",
+			Path:        "/discover",
+			Summary:     "Detect project type",
+			Description: "Scans the project directory for marker files and returns detected project types.",
+			Tags:        []string{"build", "discovery"},
+		},
+		{
+			Method:      "POST",
+			Path:        "/build",
+			Summary:     "Trigger a build",
+			Description: "Runs the full build pipeline for the project, producing artifacts in dist/.",
+			Tags:        []string{"build"},
+		},
+		{
+			Method:      "GET",
+			Path:        "/artifacts",
+			Summary:     "List build artifacts",
+			Description: "Returns the contents of the dist/ directory with file sizes.",
+			Tags:        []string{"build", "artifacts"},
+		},
+		{
+			Method:      "GET",
+			Path:        "/release/version",
+			Summary:     "Get current version",
+			Description: "Determines the current version from git tags.",
+			Tags:        []string{"release", "version"},
+		},
+		{
+			Method:      "GET",
+			Path:        "/release/changelog",
+			Summary:     "Generate changelog",
+			Description: "Generates a conventional-commit changelog from git history.",
+			Tags:        []string{"release", "changelog"},
+		},
+		{
+			Method:      "POST",
+			Path:        "/release",
+			Summary:     "Trigger release pipeline",
+			Description: "Publishes pre-built artifacts from dist/ to configured targets.",
+			Tags:        []string{"release"},
+		},
+		{
+			Method:      "GET",
+			Path:        "/sdk/diff",
+			Summary:     "OpenAPI breaking change diff",
+			Description: "Compares two OpenAPI specs and reports breaking changes. Requires base and revision query parameters.",
+			Tags:        []string{"sdk", "diff"},
+			RequestBody: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"base":     map[string]any{"type": "string", "description": "Path to the base OpenAPI spec"},
+					"revision": map[string]any{"type": "string", "description": "Path to the revision OpenAPI spec"},
+				},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/sdk/generate",
+			Summary:     "Generate SDK",
+			Description: "Generates SDK client libraries for configured languages from the OpenAPI spec.",
+			Tags:        []string{"sdk"},
+			RequestBody: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"language": map[string]any{"type": "string", "description": "Target language (typescript, python, go, php). Omit for all."},
+				},
+			},
+		},
+	}
+}
+
+// resolveDir returns the absolute project directory.
+func (p *BuildProvider) resolveDir() (string, error) {
+	return filepath.Abs(p.projectDir)
+}
+
+// -- Build Handlers -----------------------------------------------------------
+
+func (p *BuildProvider) getConfig(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	cfg, err := build.LoadConfig(p.medium, dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		return
+	}
+
+	hasConfig := build.ConfigExists(p.medium, dir)
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"config":     cfg,
+		"has_config": hasConfig,
+		"path":       build.ConfigPath(dir),
+	}))
+}
+
+func (p *BuildProvider) discoverProject(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	types, err := build.Discover(p.medium, dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
+		return
+	}
+
+	// Convert to string slice for JSON
+	typeStrings := make([]string, len(types))
+	for i, t := range types {
+		typeStrings[i] = string(t)
+	}
+
+	primary := ""
+	if len(types) > 0 {
+		primary = string(types[0])
+	}
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"types":   typeStrings,
+		"primary": primary,
+		"dir":     dir,
+	}))
+}
+
+func (p *BuildProvider) triggerBuild(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	// Load build config
+	cfg, err := build.LoadConfig(p.medium, dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		return
+	}
+
+	// Detect project type
+	projectType, err := build.PrimaryType(p.medium, dir)
+	if err != nil || projectType == "" {
+		c.JSON(http.StatusBadRequest, api.Fail("no_project", "no buildable project detected"))
+		return
+	}
+
+	// Get builder
+	builder, err := getBuilder(projectType)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.Fail("unsupported_type", err.Error()))
+		return
+	}
+
+	// Determine version
+	version, verr := release.DetermineVersion(dir)
+	if verr != nil {
+		version = "dev"
+	}
+
+	// Build name
+	binaryName := cfg.Project.Binary
+	if binaryName == "" {
+		binaryName = cfg.Project.Name
+	}
+	if binaryName == "" {
+		binaryName = filepath.Base(dir)
+	}
+
+	outputDir := filepath.Join(dir, "dist")
+
+	buildConfig := &build.Config{
+		FS:         p.medium,
+		ProjectDir: dir,
+		OutputDir:  outputDir,
+		Name:       binaryName,
+		Version:    version,
+		LDFlags:    cfg.Build.LDFlags,
+		CGO:        cfg.Build.CGO,
+	}
+
+	targets := cfg.ToTargets()
+
+	p.emitEvent("build.started", map[string]any{
+		"project_type": string(projectType),
+		"targets":      targets,
+		"version":      version,
+	})
+
+	artifacts, err := builder.Build(c.Request.Context(), buildConfig, targets)
+	if err != nil {
+		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, api.Fail("build_failed", err.Error()))
+		return
+	}
+
+	// Archive and checksum
+	archived, err := build.ArchiveAll(p.medium, artifacts)
+	if err != nil {
+		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, api.Fail("archive_failed", err.Error()))
+		return
+	}
+
+	checksummed, err := build.ChecksumAll(p.medium, archived)
+	if err != nil {
+		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, api.Fail("checksum_failed", err.Error()))
+		return
+	}
+
+	p.emitEvent("build.complete", map[string]any{
+		"artifact_count": len(checksummed),
+		"version":        version,
+	})
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"artifacts": checksummed,
+		"version":   version,
+	}))
+}
+
+// artifactInfo holds JSON-friendly metadata about a dist/ file.
+type artifactInfo struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Size int64  `json:"size"`
+}
+
+func (p *BuildProvider) listArtifacts(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	distDir := filepath.Join(dir, "dist")
+	if !p.medium.IsDir(distDir) {
+		c.JSON(http.StatusOK, api.OK(map[string]any{
+			"artifacts": []artifactInfo{},
+			"exists":    false,
+		}))
+		return
+	}
+
+	entries, err := p.medium.List(distDir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("list_failed", err.Error()))
+		return
+	}
+
+	var artifacts []artifactInfo
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		artifacts = append(artifacts, artifactInfo{
+			Name: entry.Name(),
+			Path: filepath.Join(distDir, entry.Name()),
+			Size: info.Size(),
+		})
+	}
+
+	if artifacts == nil {
+		artifacts = []artifactInfo{}
+	}
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"artifacts": artifacts,
+		"exists":    true,
+	}))
+}
+
+// -- Release Handlers ---------------------------------------------------------
+
+func (p *BuildProvider) getVersion(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	version, err := release.DetermineVersion(dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("version_failed", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"version": version,
+	}))
+}
+
+func (p *BuildProvider) getChangelog(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	// Optional query params for ref range
+	fromRef := c.Query("from")
+	toRef := c.Query("to")
+
+	changelog, err := release.Generate(dir, fromRef, toRef)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("changelog_failed", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"changelog": changelog,
+	}))
+}
+
+func (p *BuildProvider) triggerRelease(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	cfg, err := release.LoadConfig(dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		return
+	}
+
+	// Parse optional dry_run parameter
+	dryRun := c.Query("dry_run") == "true"
+
+	p.emitEvent("release.started", map[string]any{
+		"dry_run": dryRun,
+	})
+
+	rel, err := release.Publish(c.Request.Context(), cfg, dryRun)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("release_failed", err.Error()))
+		return
+	}
+
+	p.emitEvent("release.complete", map[string]any{
+		"version":        rel.Version,
+		"artifact_count": len(rel.Artifacts),
+		"dry_run":        dryRun,
+	})
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"version":   rel.Version,
+		"artifacts": rel.Artifacts,
+		"changelog": rel.Changelog,
+		"dry_run":   dryRun,
+	}))
+}
+
+// -- SDK Handlers -------------------------------------------------------------
+
+func (p *BuildProvider) getSdkDiff(c *gin.Context) {
+	basePath := c.Query("base")
+	revisionPath := c.Query("revision")
+
+	if basePath == "" || revisionPath == "" {
+		c.JSON(http.StatusBadRequest, api.Fail("missing_params", "base and revision query parameters are required"))
+		return
+	}
+
+	result, err := sdk.Diff(basePath, revisionPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("diff_failed", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.OK(result))
+}
+
+type sdkGenerateRequest struct {
+	Language string `json:"language"`
+}
+
+func (p *BuildProvider) generateSdk(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	var req sdkGenerateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// No body is fine — generate all languages
+		req.Language = ""
+	}
+
+	// Load SDK config from release config
+	relCfg, err := release.LoadConfig(dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		return
+	}
+
+	var sdkCfg *sdk.Config
+	if relCfg.SDK != nil {
+		sdkCfg = &sdk.Config{
+			Spec:      relCfg.SDK.Spec,
+			Languages: relCfg.SDK.Languages,
+			Output:    relCfg.SDK.Output,
+			Package: sdk.PackageConfig{
+				Name:    relCfg.SDK.Package.Name,
+				Version: relCfg.SDK.Package.Version,
+			},
+			Diff: sdk.DiffConfig{
+				Enabled:        relCfg.SDK.Diff.Enabled,
+				FailOnBreaking: relCfg.SDK.Diff.FailOnBreaking,
+			},
+		}
+	}
+
+	s := sdk.New(dir, sdkCfg)
+
+	ctx := c.Request.Context()
+	if req.Language != "" {
+		err = s.GenerateLanguage(ctx, req.Language)
+	} else {
+		err = s.Generate(ctx)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("sdk_generate_failed", err.Error()))
+		return
+	}
+
+	p.emitEvent("sdk.generated", map[string]any{
+		"language": req.Language,
+	})
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"generated": true,
+		"language":  req.Language,
+	}))
+}
+
+// -- Internal Helpers ---------------------------------------------------------
+
+// getBuilder returns the appropriate builder for the project type.
+func getBuilder(projectType build.ProjectType) (build.Builder, error) {
+	switch projectType {
+	case build.ProjectTypeWails:
+		return builders.NewWailsBuilder(), nil
+	case build.ProjectTypeGo:
+		return builders.NewGoBuilder(), nil
+	default:
+		return nil, os.ErrNotExist
+	}
+}
+
+// emitEvent sends a WS event if the hub is available.
+func (p *BuildProvider) emitEvent(channel string, data any) {
+	if p.hub == nil {
+		return
+	}
+	_ = p.hub.SendToChannel(channel, ws.Message{
+		Type: ws.TypeEvent,
+		Data: data,
+	})
+}

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Core Build — Demo</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #f3f4f6;
+        padding: 2rem;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 1.5rem;
+        colour: #111827;
+      }
+
+      .demo-panel {
+        width: 100%;
+        max-width: 960px;
+        margin: 0 auto;
+        height: 80vh;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        overflow: hidden;
+      }
+
+      h2 {
+        font-size: 1.125rem;
+        margin: 2rem auto 1rem;
+        max-width: 960px;
+        colour: #374151;
+      }
+
+      .standalone {
+        max-width: 960px;
+        margin: 0 auto 2rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        background: #fff;
+      }
+    </style>
+    <script type="module" src="./src/index.ts"></script>
+  </head>
+  <body>
+    <h1>Core Build — Custom Element Demo</h1>
+
+    <div class="demo-panel">
+      <core-build-panel api-url=""></core-build-panel>
+    </div>
+
+    <h2>Standalone Elements</h2>
+
+    <div class="standalone">
+      <core-build-config api-url=""></core-build-config>
+    </div>
+
+    <div class="standalone">
+      <core-build-artifacts api-url=""></core-build-artifacts>
+    </div>
+
+    <div class="standalone">
+      <core-build-release api-url=""></core-build-release>
+    </div>
+
+    <div class="standalone">
+      <core-build-sdk api-url=""></core-build-sdk>
+    </div>
+  </body>
+</html>
