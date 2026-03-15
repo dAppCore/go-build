@@ -160,7 +160,7 @@ func runCIReleaseInit() error {
 	cli.Print("%s %s\n\n", dimStyle.Render(i18n.Label("init")), i18n.T("cmd.ci.init.initializing"))
 
 	if release.ConfigExists(cwd) {
-		cli.Text(i18n.T("cmd.ci.init.already_initialized"))
+		cli.Text(i18n.T("cmd.ci.init.already_initialised"))
 		return nil
 	}
 

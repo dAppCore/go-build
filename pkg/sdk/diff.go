@@ -58,6 +58,7 @@ func Diff(basePath, revisionPath string) (*DiffResult, error) {
 
 	localizer := checker.NewDefaultLocalizer()
 	for _, b := range breaks {
+		// GetUncolorizedText uses US spelling — upstream oasdiff API.
 		result.Changes = append(result.Changes, b.GetUncolorizedText(localizer))
 	}
 

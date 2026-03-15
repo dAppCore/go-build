@@ -225,14 +225,14 @@ func (p *AURPublisher) pushToAUR(ctx context.Context, data aurTemplateData, pkgb
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// Clone existing AUR repo (or initialize new one)
+	// Clone existing AUR repo (or initialise new one)
 	fmt.Printf("Cloning AUR package %s-bin...\n", data.PackageName)
 	cmd := exec.CommandContext(ctx, "git", "clone", aurURL, tmpDir)
 	if err := cmd.Run(); err != nil {
 		// If clone fails, init a new repo
 		cmd = exec.CommandContext(ctx, "git", "init", tmpDir)
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("aur.Publish: failed to initialize repo: %w", err)
+			return fmt.Errorf("aur.Publish: failed to initialise repo: %w", err)
 		}
 		cmd = exec.CommandContext(ctx, "git", "-C", tmpDir, "remote", "add", "origin", aurURL)
 		if err := cmd.Run(); err != nil {
