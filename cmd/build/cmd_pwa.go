@@ -8,7 +8,6 @@ package buildcmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,6 +18,8 @@ import (
 	"strings"
 
 	"forge.lthn.ai/core/go-i18n"
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/leaanthony/debme"
 	"github.com/leaanthony/gosod"
 	"golang.org/x/net/html"
@@ -26,8 +27,8 @@ import (
 
 // Error sentinels for build commands
 var (
-	errPathRequired = errors.New("the --path flag is required")
-	errURLRequired  = errors.New("the --url flag is required")
+	errPathRequired = coreerr.E("buildcmd.Init", "the --path flag is required", nil)
+	errURLRequired  = coreerr.E("buildcmd.Init", "the --url flag is required", nil)
 )
 
 // runPwaBuild downloads a PWA from URL and builds it.
@@ -36,13 +37,13 @@ func runPwaBuild(pwaURL string) error {
 
 	tempDir, err := os.MkdirTemp("", "core-pwa-build-*")
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "create temporary directory"}), err)
+		return coreerr.E("pwa.runPwaBuild", i18n.T("common.error.failed", map[string]any{"Action": "create temporary directory"}), err)
 	}
 	// defer os.RemoveAll(tempDir) // Keep temp dir for debugging
 	fmt.Printf("%s %s\n", i18n.T("cmd.build.pwa.downloading_to"), tempDir)
 
 	if err := downloadPWA(pwaURL, tempDir); err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "download PWA"}), err)
+		return coreerr.E("pwa.runPwaBuild", i18n.T("common.error.failed", map[string]any{"Action": "download PWA"}), err)
 	}
 
 	return runBuild(tempDir)
@@ -53,13 +54,13 @@ func downloadPWA(baseURL, destDir string) error {
 	// Fetch the main HTML page
 	resp, err := http.Get(baseURL)
 	if err != nil {
-		return fmt.Errorf("%s %s: %w", i18n.T("common.error.failed", map[string]any{"Action": "fetch URL"}), baseURL, err)
+		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch URL"})+" "+baseURL, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "read response body"}), err)
+		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "read response body"}), err)
 	}
 
 	// Find the manifest URL from the HTML
@@ -67,8 +68,8 @@ func downloadPWA(baseURL, destDir string) error {
 	if err != nil {
 		// If no manifest, it's not a PWA, but we can still try to package it as a simple site.
 		fmt.Printf("%s %s\n", i18n.T("common.label.warning"), i18n.T("cmd.build.pwa.no_manifest"))
-		if err := os.WriteFile(filepath.Join(destDir, "index.html"), body, 0644); err != nil {
-			return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
+		if err := coreio.Local.Write(filepath.Join(destDir, "index.html"), string(body)); err != nil {
+			return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
 		}
 		return nil
 	}
@@ -78,7 +79,7 @@ func downloadPWA(baseURL, destDir string) error {
 	// Fetch and parse the manifest
 	manifest, err := fetchManifest(manifestURL)
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "fetch or parse manifest"}), err)
+		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch or parse manifest"}), err)
 	}
 
 	// Download all assets listed in the manifest
@@ -90,8 +91,8 @@ func downloadPWA(baseURL, destDir string) error {
 	}
 
 	// Also save the root index.html
-	if err := os.WriteFile(filepath.Join(destDir, "index.html"), body, 0644); err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
+	if err := coreio.Local.Write(filepath.Join(destDir, "index.html"), string(body)); err != nil {
+		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
 	}
 
 	fmt.Println(i18n.T("cmd.build.pwa.download_complete"))
@@ -130,7 +131,7 @@ func findManifestURL(htmlContent, baseURL string) (string, error) {
 	f(doc)
 
 	if manifestPath == "" {
-		return "", fmt.Errorf("%s", i18n.T("cmd.build.pwa.error.no_manifest_tag"))
+		return "", coreerr.E("pwa.findManifestURL", i18n.T("cmd.build.pwa.error.no_manifest_tag"), nil)
 	}
 
 	base, err := url.Parse(baseURL)
@@ -203,7 +204,7 @@ func downloadAsset(assetURL, destDir string) error {
 	}
 
 	path := filepath.Join(destDir, filepath.FromSlash(u.Path))
-	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+	if err := coreio.Local.EnsureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
 
@@ -223,10 +224,10 @@ func runBuild(fromPath string) error {
 
 	info, err := os.Stat(fromPath)
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("cmd.build.from_path.error.invalid_path"), err)
+		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.invalid_path"), err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("%s", i18n.T("cmd.build.from_path.error.must_be_directory"))
+		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.must_be_directory"), nil)
 	}
 
 	buildDir := ".core/build/app"
@@ -237,30 +238,30 @@ func runBuild(fromPath string) error {
 	}
 	outputExe := appName
 
-	if err := os.RemoveAll(buildDir); err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "clean build directory"}), err)
+	if err := coreio.Local.DeleteAll(buildDir); err != nil {
+		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "clean build directory"}), err)
 	}
 
 	// 1. Generate the project from the embedded template
 	fmt.Println(i18n.T("cmd.build.from_path.generating_template"))
 	templateFS, err := debme.FS(guiTemplate, "tmpl/gui")
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "anchor template filesystem"}), err)
+		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "anchor template filesystem"}), err)
 	}
 	sod := gosod.New(templateFS)
 	if sod == nil {
-		return fmt.Errorf("%s", i18n.T("common.error.failed", map[string]any{"Action": "create new sod instance"}))
+		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "create new sod instance"}), nil)
 	}
 
 	templateData := map[string]string{"AppName": appName}
 	if err := sod.Extract(buildDir, templateData); err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "extract template"}), err)
+		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "extract template"}), err)
 	}
 
 	// 2. Copy the user's web app files
 	fmt.Println(i18n.T("cmd.build.from_path.copying_files"))
 	if err := copyDir(fromPath, htmlDir); err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "copy application files"}), err)
+		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "copy application files"}), err)
 	}
 
 	// 3. Compile the application
@@ -272,7 +273,7 @@ func runBuild(fromPath string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("cmd.build.from_path.error.go_mod_tidy"), err)
+		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_mod_tidy"), err)
 	}
 
 	// Run go build
@@ -281,7 +282,7 @@ func runBuild(fromPath string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("cmd.build.from_path.error.go_build"), err)
+		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_build"), err)
 	}
 
 	fmt.Printf("\n%s %s/%s\n", i18n.T("cmd.build.from_path.success"), buildDir, outputExe)
@@ -303,7 +304,7 @@ func copyDir(src, dst string) error {
 		dstPath := filepath.Join(dst, relPath)
 
 		if info.IsDir() {
-			return os.MkdirAll(dstPath, info.Mode())
+			return coreio.Local.EnsureDir(dstPath)
 		}
 
 		srcFile, err := os.Open(path)

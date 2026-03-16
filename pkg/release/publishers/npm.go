@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,7 +12,8 @@ import (
 	"strings"
 	"text/template"
 
-	"forge.lthn.ai/core/go-io"
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 //go:embed templates/npm/*.tmpl
@@ -48,7 +48,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 
 	// Validate configuration
 	if npmCfg.Package == "" {
-		return errors.New("npm.Publish: package name is required (set publish.npm.package in config)")
+		return coreerr.E("npm.Publish", "package name is required (set publish.npm.package in config)", nil)
 	}
 
 	// Get repository
@@ -59,7 +59,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 	if repo == "" {
 		detectedRepo, err := detectRepository(release.ProjectDir)
 		if err != nil {
-			return fmt.Errorf("npm.Publish: could not determine repository: %w", err)
+			return coreerr.E("npm.Publish", "could not determine repository", err)
 		}
 		repo = detectedRepo
 	}
@@ -130,7 +130,7 @@ type npmTemplateData struct {
 }
 
 // dryRunPublish shows what would be done without actually publishing.
-func (p *NpmPublisher) dryRunPublish(m io.Medium, data npmTemplateData, cfg *NpmConfig) error {
+func (p *NpmPublisher) dryRunPublish(m coreio.Medium, data npmTemplateData, cfg *NpmConfig) error {
 	fmt.Println()
 	fmt.Println("=== DRY RUN: npm Publish ===")
 	fmt.Println()
@@ -144,7 +144,7 @@ func (p *NpmPublisher) dryRunPublish(m io.Medium, data npmTemplateData, cfg *Npm
 	// Generate and show package.json
 	pkgJSON, err := p.renderTemplate(m, "templates/npm/package.json.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("npm.dryRunPublish: %w", err)
+		return coreerr.E("npm.dryRunPublish", "failed to render template", err)
 	}
 	fmt.Println("Generated package.json:")
 	fmt.Println("---")
@@ -160,56 +160,56 @@ func (p *NpmPublisher) dryRunPublish(m io.Medium, data npmTemplateData, cfg *Npm
 }
 
 // executePublish actually creates and publishes the npm package.
-func (p *NpmPublisher) executePublish(ctx context.Context, m io.Medium, data npmTemplateData, cfg *NpmConfig) error {
+func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data npmTemplateData, cfg *NpmConfig) error {
 	// Check for NPM_TOKEN
 	if os.Getenv("NPM_TOKEN") == "" {
-		return errors.New("npm.Publish: NPM_TOKEN environment variable is required")
+		return coreerr.E("npm.Publish", "NPM_TOKEN environment variable is required", nil)
 	}
 
 	// Create temp directory for package
 	tmpDir, err := os.MkdirTemp("", "npm-publish-*")
 	if err != nil {
-		return fmt.Errorf("npm.Publish: failed to create temp directory: %w", err)
+		return coreerr.E("npm.Publish", "failed to create temp directory", err)
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	defer func() { _ = coreio.Local.DeleteAll(tmpDir) }()
 
 	// Create bin directory
 	binDir := filepath.Join(tmpDir, "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
-		return fmt.Errorf("npm.Publish: failed to create bin directory: %w", err)
+	if err := coreio.Local.EnsureDir(binDir); err != nil {
+		return coreerr.E("npm.Publish", "failed to create bin directory", err)
 	}
 
 	// Generate package.json
 	pkgJSON, err := p.renderTemplate(m, "templates/npm/package.json.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("npm.Publish: failed to render package.json: %w", err)
+		return coreerr.E("npm.Publish", "failed to render package.json", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
-		return fmt.Errorf("npm.Publish: failed to write package.json: %w", err)
+	if err := coreio.Local.Write(filepath.Join(tmpDir, "package.json"), pkgJSON); err != nil {
+		return coreerr.E("npm.Publish", "failed to write package.json", err)
 	}
 
 	// Generate install.js
 	installJS, err := p.renderTemplate(m, "templates/npm/install.js.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("npm.Publish: failed to render install.js: %w", err)
+		return coreerr.E("npm.Publish", "failed to render install.js", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "install.js"), []byte(installJS), 0644); err != nil {
-		return fmt.Errorf("npm.Publish: failed to write install.js: %w", err)
+	if err := coreio.Local.Write(filepath.Join(tmpDir, "install.js"), installJS); err != nil {
+		return coreerr.E("npm.Publish", "failed to write install.js", err)
 	}
 
 	// Generate run.js
 	runJS, err := p.renderTemplate(m, "templates/npm/run.js.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("npm.Publish: failed to render run.js: %w", err)
+		return coreerr.E("npm.Publish", "failed to render run.js", err)
 	}
-	if err := os.WriteFile(filepath.Join(binDir, "run.js"), []byte(runJS), 0755); err != nil {
-		return fmt.Errorf("npm.Publish: failed to write run.js: %w", err)
+	if err := coreio.Local.Write(filepath.Join(binDir, "run.js"), runJS); err != nil {
+		return coreerr.E("npm.Publish", "failed to write run.js", err)
 	}
 
 	// Create .npmrc with token
 	npmrc := "//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n"
-	if err := os.WriteFile(filepath.Join(tmpDir, ".npmrc"), []byte(npmrc), 0600); err != nil {
-		return fmt.Errorf("npm.Publish: failed to write .npmrc: %w", err)
+	if err := coreio.Local.Write(filepath.Join(tmpDir, ".npmrc"), npmrc); err != nil {
+		return coreerr.E("npm.Publish", "failed to write .npmrc", err)
 	}
 
 	// Run npm publish
@@ -221,7 +221,7 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m io.Medium, data npm
 
 	fmt.Printf("Publishing %s@%s to npm...\n", data.Package, data.Version)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("npm.Publish: npm publish failed: %w", err)
+		return coreerr.E("npm.Publish", "npm publish failed", err)
 	}
 
 	fmt.Printf("Published %s@%s to npm\n", data.Package, data.Version)
@@ -231,7 +231,7 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m io.Medium, data npm
 }
 
 // renderTemplate renders an embedded template with the given data.
-func (p *NpmPublisher) renderTemplate(m io.Medium, name string, data npmTemplateData) (string, error) {
+func (p *NpmPublisher) renderTemplate(m coreio.Medium, name string, data npmTemplateData) (string, error) {
 	var content []byte
 	var err error
 
@@ -248,18 +248,18 @@ func (p *NpmPublisher) renderTemplate(m io.Medium, name string, data npmTemplate
 	if content == nil {
 		content, err = npmTemplates.ReadFile(name)
 		if err != nil {
-			return "", fmt.Errorf("failed to read template %s: %w", name, err)
+			return "", coreerr.E("npm.renderTemplate", "failed to read template "+name, err)
 		}
 	}
 
 	tmpl, err := template.New(filepath.Base(name)).Parse(string(content))
 	if err != nil {
-		return "", fmt.Errorf("failed to parse template %s: %w", name, err)
+		return "", coreerr.E("npm.renderTemplate", "failed to parse template "+name, err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", fmt.Errorf("failed to execute template %s: %w", name, err)
+		return "", coreerr.E("npm.renderTemplate", "failed to execute template "+name, err)
 	}
 
 	return buf.String(), nil

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,7 +13,8 @@ import (
 	"text/template"
 
 	"forge.lthn.ai/core/go-build/pkg/build"
-	"forge.lthn.ai/core/go-io"
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 //go:embed templates/homebrew/*.tmpl
@@ -58,7 +58,7 @@ func (p *HomebrewPublisher) Publish(ctx context.Context, release *Release, pubCf
 
 	// Validate configuration
 	if cfg.Tap == "" && (cfg.Official == nil || !cfg.Official.Enabled) {
-		return errors.New("homebrew.Publish: tap is required (set publish.homebrew.tap in config)")
+		return coreerr.E("homebrew.Publish", "tap is required (set publish.homebrew.tap in config)", nil)
 	}
 
 	// Get repository and project info
@@ -69,7 +69,7 @@ func (p *HomebrewPublisher) Publish(ctx context.Context, release *Release, pubCf
 	if repo == "" {
 		detectedRepo, err := detectRepository(release.ProjectDir)
 		if err != nil {
-			return fmt.Errorf("homebrew.Publish: could not determine repository: %w", err)
+			return coreerr.E("homebrew.Publish", "could not determine repository", err)
 		}
 		repo = detectedRepo
 	}
@@ -162,7 +162,7 @@ func (p *HomebrewPublisher) parseConfig(pubCfg PublisherConfig, relCfg ReleaseCo
 }
 
 // dryRunPublish shows what would be done.
-func (p *HomebrewPublisher) dryRunPublish(m io.Medium, data homebrewTemplateData, cfg HomebrewConfig) error {
+func (p *HomebrewPublisher) dryRunPublish(m coreio.Medium, data homebrewTemplateData, cfg HomebrewConfig) error {
 	fmt.Println()
 	fmt.Println("=== DRY RUN: Homebrew Publish ===")
 	fmt.Println()
@@ -175,7 +175,7 @@ func (p *HomebrewPublisher) dryRunPublish(m io.Medium, data homebrewTemplateData
 	// Generate and show formula
 	formula, err := p.renderTemplate(m, "templates/homebrew/formula.rb.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("homebrew.dryRunPublish: %w", err)
+		return coreerr.E("homebrew.dryRunPublish", "failed to render template", err)
 	}
 	fmt.Println("Generated formula.rb:")
 	fmt.Println("---")
@@ -204,7 +204,7 @@ func (p *HomebrewPublisher) executePublish(ctx context.Context, projectDir strin
 	// Generate formula
 	formula, err := p.renderTemplate(release.FS, "templates/homebrew/formula.rb.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("homebrew.Publish: failed to render formula: %w", err)
+		return coreerr.E("homebrew.Publish", "failed to render formula", err)
 	}
 
 	// If official config is enabled, write to output directory
@@ -217,12 +217,12 @@ func (p *HomebrewPublisher) executePublish(ctx context.Context, projectDir strin
 		}
 
 		if err := release.FS.EnsureDir(output); err != nil {
-			return fmt.Errorf("homebrew.Publish: failed to create output directory: %w", err)
+			return coreerr.E("homebrew.Publish", "failed to create output directory", err)
 		}
 
 		formulaPath := filepath.Join(output, fmt.Sprintf("%s.rb", strings.ToLower(data.FormulaClass)))
 		if err := release.FS.Write(formulaPath, formula); err != nil {
-			return fmt.Errorf("homebrew.Publish: failed to write formula: %w", err)
+			return coreerr.E("homebrew.Publish", "failed to write formula", err)
 		}
 		fmt.Printf("Wrote Homebrew formula for official PR: %s\n", formulaPath)
 	}
@@ -242,9 +242,9 @@ func (p *HomebrewPublisher) commitToTap(ctx context.Context, tap string, data ho
 	// Clone tap repo to temp directory
 	tmpDir, err := os.MkdirTemp("", "homebrew-tap-*")
 	if err != nil {
-		return fmt.Errorf("homebrew.Publish: failed to create temp directory: %w", err)
+		return coreerr.E("homebrew.commitToTap", "failed to create temp directory", err)
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	defer func() { _ = coreio.Local.DeleteAll(tmpDir) }()
 
 	// Clone the tap
 	fmt.Printf("Cloning tap %s...\n", tap)
@@ -252,19 +252,19 @@ func (p *HomebrewPublisher) commitToTap(ctx context.Context, tap string, data ho
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("homebrew.Publish: failed to clone tap: %w", err)
+		return coreerr.E("homebrew.commitToTap", "failed to clone tap", err)
 	}
 
 	// Ensure Formula directory exists
 	formulaDir := filepath.Join(tmpDir, "Formula")
-	if err := os.MkdirAll(formulaDir, 0755); err != nil {
-		return fmt.Errorf("homebrew.Publish: failed to create Formula directory: %w", err)
+	if err := coreio.Local.EnsureDir(formulaDir); err != nil {
+		return coreerr.E("homebrew.commitToTap", "failed to create Formula directory", err)
 	}
 
 	// Write formula
 	formulaPath := filepath.Join(formulaDir, fmt.Sprintf("%s.rb", strings.ToLower(data.FormulaClass)))
-	if err := os.WriteFile(formulaPath, []byte(formula), 0644); err != nil {
-		return fmt.Errorf("homebrew.Publish: failed to write formula: %w", err)
+	if err := coreio.Local.Write(formulaPath, formula); err != nil {
+		return coreerr.E("homebrew.commitToTap", "failed to write formula", err)
 	}
 
 	// Git add, commit, push
@@ -273,7 +273,7 @@ func (p *HomebrewPublisher) commitToTap(ctx context.Context, tap string, data ho
 	cmd = exec.CommandContext(ctx, "git", "add", ".")
 	cmd.Dir = tmpDir
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("homebrew.Publish: git add failed: %w", err)
+		return coreerr.E("homebrew.commitToTap", "git add failed", err)
 	}
 
 	cmd = exec.CommandContext(ctx, "git", "commit", "-m", commitMsg)
@@ -281,7 +281,7 @@ func (p *HomebrewPublisher) commitToTap(ctx context.Context, tap string, data ho
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("homebrew.Publish: git commit failed: %w", err)
+		return coreerr.E("homebrew.commitToTap", "git commit failed", err)
 	}
 
 	cmd = exec.CommandContext(ctx, "git", "push")
@@ -289,7 +289,7 @@ func (p *HomebrewPublisher) commitToTap(ctx context.Context, tap string, data ho
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("homebrew.Publish: git push failed: %w", err)
+		return coreerr.E("homebrew.commitToTap", "git push failed", err)
 	}
 
 	fmt.Printf("Updated Homebrew tap: %s\n", tap)
@@ -297,7 +297,7 @@ func (p *HomebrewPublisher) commitToTap(ctx context.Context, tap string, data ho
 }
 
 // renderTemplate renders an embedded template with the given data.
-func (p *HomebrewPublisher) renderTemplate(m io.Medium, name string, data homebrewTemplateData) (string, error) {
+func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data homebrewTemplateData) (string, error) {
 	var content []byte
 	var err error
 
@@ -314,18 +314,18 @@ func (p *HomebrewPublisher) renderTemplate(m io.Medium, name string, data homebr
 	if content == nil {
 		content, err = homebrewTemplates.ReadFile(name)
 		if err != nil {
-			return "", fmt.Errorf("failed to read template %s: %w", name, err)
+			return "", coreerr.E("homebrew.renderTemplate", "failed to read template "+name, err)
 		}
 	}
 
 	tmpl, err := template.New(filepath.Base(name)).Parse(string(content))
 	if err != nil {
-		return "", fmt.Errorf("failed to parse template %s: %w", name, err)
+		return "", coreerr.E("homebrew.renderTemplate", "failed to parse template "+name, err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", fmt.Errorf("failed to execute template %s: %w", name, err)
+		return "", coreerr.E("homebrew.renderTemplate", "failed to execute template "+name, err)
 	}
 
 	return buf.String(), nil
