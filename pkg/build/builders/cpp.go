@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +12,7 @@ import (
 
 	"forge.lthn.ai/core/go-build/pkg/build"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // CPPBuilder implements the Builder interface for C++ projects using CMake + Conan.
@@ -39,7 +39,7 @@ func (b *CPPBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 // Cross-compilation is handled via Conan profiles specified in .core/build.yaml.
 func (b *CPPBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	if cfg == nil {
-		return nil, errors.New("builders.CPPBuilder.Build: config is nil")
+		return nil, coreerr.E("CPPBuilder.Build", "config is nil", nil)
 	}
 
 	// Validate make is available
@@ -61,7 +61,7 @@ func (b *CPPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 	for _, target := range targets {
 		built, err := b.buildTarget(ctx, cfg, target)
 		if err != nil {
-			return artifacts, fmt.Errorf("builders.CPPBuilder.Build: %w", err)
+			return artifacts, coreerr.E("CPPBuilder.Build", "build failed", err)
 		}
 		artifacts = append(artifacts, built...)
 	}
@@ -87,17 +87,17 @@ func (b *CPPBuilder) buildHost(ctx context.Context, cfg *build.Config, target bu
 
 	// Step 1: Configure (runs conan install + cmake configure)
 	if err := b.runMake(ctx, cfg.ProjectDir, "configure"); err != nil {
-		return nil, fmt.Errorf("configure failed: %w", err)
+		return nil, coreerr.E("CPPBuilder.buildHost", "configure failed", err)
 	}
 
 	// Step 2: Build
 	if err := b.runMake(ctx, cfg.ProjectDir, "build"); err != nil {
-		return nil, fmt.Errorf("build failed: %w", err)
+		return nil, coreerr.E("CPPBuilder.buildHost", "build failed", err)
 	}
 
 	// Step 3: Package
 	if err := b.runMake(ctx, cfg.ProjectDir, "package"); err != nil {
-		return nil, fmt.Errorf("package failed: %w", err)
+		return nil, coreerr.E("CPPBuilder.buildHost", "package failed", err)
 	}
 
 	// Discover artifacts from build/packages/
@@ -110,14 +110,14 @@ func (b *CPPBuilder) buildCross(ctx context.Context, cfg *build.Config, target b
 	// Map target to a Conan profile name
 	profile := b.targetToProfile(target)
 	if profile == "" {
-		return nil, fmt.Errorf("no Conan profile mapped for target %s/%s", target.OS, target.Arch)
+		return nil, coreerr.E("CPPBuilder.buildCross", "no Conan profile mapped for target "+target.OS+"/"+target.Arch, nil)
 	}
 
 	fmt.Printf("Building C++ project for %s/%s (cross: %s)\n", target.OS, target.Arch, profile)
 
 	// The Makefile exposes each profile as a top-level target
 	if err := b.runMake(ctx, cfg.ProjectDir, profile); err != nil {
-		return nil, fmt.Errorf("cross-compile for %s failed: %w", profile, err)
+		return nil, coreerr.E("CPPBuilder.buildCross", "cross-compile for "+profile+" failed", err)
 	}
 
 	return b.findArtifacts(cfg.FS, cfg.ProjectDir, target)
@@ -132,7 +132,7 @@ func (b *CPPBuilder) runMake(ctx context.Context, projectDir string, target stri
 	cmd.Env = os.Environ()
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("make %s: %w", target, err)
+		return coreerr.E("CPPBuilder.runMake", "make "+target+" failed", err)
 	}
 	return nil
 }
@@ -148,7 +148,7 @@ func (b *CPPBuilder) findArtifacts(fs io.Medium, projectDir string, target build
 
 	entries, err := fs.List(packagesDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list packages directory: %w", err)
+		return nil, coreerr.E("CPPBuilder.findArtifacts", "failed to list packages directory", err)
 	}
 
 	var artifacts []build.Artifact
@@ -178,12 +178,12 @@ func (b *CPPBuilder) findBinaries(fs io.Medium, projectDir string, target build.
 	binDir := filepath.Join(projectDir, "build", "release", "src")
 
 	if !fs.IsDir(binDir) {
-		return nil, fmt.Errorf("no build output found in %s", binDir)
+		return nil, coreerr.E("CPPBuilder.findBinaries", "no build output found in "+binDir, nil)
 	}
 
 	entries, err := fs.List(binDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list build directory: %w", err)
+		return nil, coreerr.E("CPPBuilder.findBinaries", "failed to list build directory", err)
 	}
 
 	var artifacts []build.Artifact
@@ -245,7 +245,7 @@ func (b *CPPBuilder) targetToProfile(target build.Target) string {
 // validateMake checks if make is available.
 func (b *CPPBuilder) validateMake() error {
 	if _, err := exec.LookPath("make"); err != nil {
-		return errors.New("cpp: make not found. Install build-essential (Linux) or Xcode Command Line Tools (macOS)")
+		return coreerr.E("CPPBuilder.validateMake", "make not found. Install build-essential (Linux) or Xcode Command Line Tools (macOS)", nil)
 	}
 	return nil
 }

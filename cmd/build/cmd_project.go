@@ -19,6 +19,7 @@ import (
 	"forge.lthn.ai/core/go-build/pkg/build/signing"
 	"forge.lthn.ai/core/go-i18n"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // runProjectBuild handles the main `core build` command with auto-detection.
@@ -29,13 +30,13 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	// Get current working directory as project root
 	projectDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "get working directory"}), err)
+		return coreerr.E("build.Run", "failed to get working directory", err)
 	}
 
 	// Load configuration from .core/build.yaml (or defaults)
 	buildCfg, err := build.LoadConfig(fs, projectDir)
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "load config"}), err)
+		return coreerr.E("build.Run", "failed to load config", err)
 	}
 
 	// Detect project type if not specified
@@ -48,10 +49,10 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	} else {
 		projectType, err = build.PrimaryType(fs, projectDir)
 		if err != nil {
-			return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "detect project type"}), err)
+			return coreerr.E("build.Run", "failed to detect project type", err)
 		}
 		if projectType == "" {
-			return fmt.Errorf("%s", i18n.T("cmd.build.error.no_project_type", map[string]any{"Dir": projectDir}))
+			return coreerr.E("build.Run", "no buildable project type found in "+projectDir, nil)
 		}
 	}
 
@@ -257,7 +258,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		// JSON output for CI
 		output, err := json.MarshalIndent(outputArtifacts, "", "  ")
 		if err != nil {
-			return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "marshal artifacts"}), err)
+			return coreerr.E("build.Run", "failed to marshal artifacts", err)
 		}
 		fmt.Println(string(output))
 	} else if !verbose {
@@ -346,7 +347,7 @@ func parseTargets(targetsFlag string) ([]build.Target, error) {
 
 		osArch := strings.Split(part, "/")
 		if len(osArch) != 2 {
-			return nil, fmt.Errorf("%s", i18n.T("cmd.build.error.invalid_target", map[string]any{"Target": part}))
+			return nil, coreerr.E("build.parseTargets", "invalid target format (expected os/arch): "+part, nil)
 		}
 
 		targets = append(targets, build.Target{
@@ -356,7 +357,7 @@ func parseTargets(targetsFlag string) ([]build.Target, error) {
 	}
 
 	if len(targets) == 0 {
-		return nil, fmt.Errorf("%s", i18n.T("cmd.build.error.no_targets"))
+		return nil, coreerr.E("build.parseTargets", "no valid targets specified", nil)
 	}
 
 	return targets, nil
@@ -387,10 +388,10 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 	case build.ProjectTypeCPP:
 		return builders.NewCPPBuilder(), nil
 	case build.ProjectTypeNode:
-		return nil, fmt.Errorf("%s", i18n.T("cmd.build.error.node_not_implemented"))
+		return nil, coreerr.E("build.getBuilder", "node.js builder not yet implemented", nil)
 	case build.ProjectTypePHP:
-		return nil, fmt.Errorf("%s", i18n.T("cmd.build.error.php_not_implemented"))
+		return nil, coreerr.E("build.getBuilder", "PHP builder not yet implemented", nil)
 	default:
-		return nil, fmt.Errorf("%s: %s", i18n.T("cmd.build.error.unsupported_type"), projectType)
+		return nil, coreerr.E("build.getBuilder", "unsupported project type: "+string(projectType), nil)
 	}
 }

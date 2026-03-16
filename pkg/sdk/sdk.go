@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-build/pkg/sdk/generators"
 )
 
@@ -115,7 +116,7 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 
 	gen, ok := registry.Get(lang)
 	if !ok {
-		return fmt.Errorf("sdk.GenerateLanguage: unknown language: %s", lang)
+		return coreerr.E("sdk.GenerateLanguage", "unknown language: "+lang, nil)
 	}
 
 	if !gen.Available() {
@@ -133,7 +134,7 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 
 	fmt.Printf("Generating %s SDK...\n", lang)
 	if err := gen.Generate(ctx, opts); err != nil {
-		return fmt.Errorf("sdk.GenerateLanguage: %s generation failed: %w", lang, err)
+		return coreerr.E("sdk.GenerateLanguage", lang+" generation failed", err)
 	}
 	fmt.Printf("Generated %s SDK at %s\n", lang, outputDir)
 

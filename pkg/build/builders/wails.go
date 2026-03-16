@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 
 	"forge.lthn.ai/core/go-build/pkg/build"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // WailsBuilder implements the Builder interface for Wails v3 projects.
@@ -38,11 +38,11 @@ func (b *WailsBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 // - Wails v2: Uses 'wails build' command
 func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	if cfg == nil {
-		return nil, errors.New("builders.WailsBuilder.Build: config is nil")
+		return nil, coreerr.E("WailsBuilder.Build", "config is nil", nil)
 	}
 
 	if len(targets) == 0 {
-		return nil, errors.New("builders.WailsBuilder.Build: no targets specified")
+		return nil, coreerr.E("WailsBuilder.Build", "no targets specified", nil)
 	}
 
 	// Detect Wails version
@@ -63,7 +63,7 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	// Wails v2 strategy: Use 'wails build'
 	// Ensure output directory exists
 	if err := cfg.FS.EnsureDir(cfg.OutputDir); err != nil {
-		return nil, fmt.Errorf("builders.WailsBuilder.Build: failed to create output directory: %w", err)
+		return nil, coreerr.E("WailsBuilder.Build", "failed to create output directory", err)
 	}
 
 	// Note: Wails v2 handles frontend installation/building automatically via wails.json config
@@ -73,7 +73,7 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	for _, target := range targets {
 		artifact, err := b.buildV2Target(ctx, cfg, target)
 		if err != nil {
-			return artifacts, fmt.Errorf("builders.WailsBuilder.Build: failed to build %s: %w", target.String(), err)
+			return artifacts, coreerr.E("WailsBuilder.Build", "failed to build "+target.String(), err)
 		}
 		artifacts = append(artifacts, artifact)
 	}
@@ -117,7 +117,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Capture output for error messages
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return build.Artifact{}, fmt.Errorf("wails build failed: %w\nOutput: %s", err, string(output))
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "wails build failed: "+string(output), err)
 	}
 
 	// Wails v2 typically outputs to build/bin
@@ -129,14 +129,14 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Find the artifact in Wails output dir
 	sourcePath, err := b.findArtifact(cfg.FS, wailsOutputDir, binaryName, target)
 	if err != nil {
-		return build.Artifact{}, fmt.Errorf("failed to find Wails v2 build artifact: %w", err)
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to find Wails v2 build artifact", err)
 	}
 
 	// Move/Copy to our output dir
 	// Create platform specific dir in our output
 	platformDir := filepath.Join(cfg.OutputDir, fmt.Sprintf("%s_%s", target.OS, target.Arch))
 	if err := cfg.FS.EnsureDir(platformDir); err != nil {
-		return build.Artifact{}, fmt.Errorf("failed to create output dir: %w", err)
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to create output dir", err)
 	}
 
 	destPath := filepath.Join(platformDir, filepath.Base(sourcePath))
@@ -193,7 +193,7 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 	// If no specific candidate found, try to find any executable or package in the directory
 	entries, err := fs.List(platformDir)
 	if err != nil {
-		return "", fmt.Errorf("failed to read platform directory: %w", err)
+		return "", coreerr.E("WailsBuilder.findArtifact", "failed to read platform directory", err)
 	}
 
 	for _, entry := range entries {
@@ -220,7 +220,7 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 		}
 	}
 
-	return "", fmt.Errorf("no artifact found in %s", platformDir)
+	return "", coreerr.E("WailsBuilder.findArtifact", "no artifact found in "+platformDir, nil)
 }
 
 // detectPackageManager detects the frontend package manager based on lock files.

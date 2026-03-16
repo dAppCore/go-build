@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,6 +15,7 @@ import (
 	"forge.lthn.ai/core/go-build/pkg/build"
 	"forge.lthn.ai/core/go-i18n"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 //go:embed templates/chocolatey/*.tmpl templates/chocolatey/tools/*.tmpl
@@ -55,7 +55,7 @@ func (p *ChocolateyPublisher) Publish(ctx context.Context, release *Release, pub
 	if repo == "" {
 		detectedRepo, err := detectRepository(release.ProjectDir)
 		if err != nil {
-			return fmt.Errorf("chocolatey.Publish: could not determine repository: %w", err)
+			return coreerr.E("chocolatey.Publish", "could not determine repository", err)
 		}
 		repo = detectedRepo
 	}
@@ -151,7 +151,7 @@ func (p *ChocolateyPublisher) dryRunPublish(m io.Medium, data chocolateyTemplate
 
 	nuspec, err := p.renderTemplate(m, "templates/chocolatey/package.nuspec.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("chocolatey.dryRunPublish: %w", err)
+		return coreerr.E("chocolatey.dryRunPublish", "failed to render nuspec", err)
 	}
 	fmt.Println("Generated package.nuspec:")
 	fmt.Println("---")
@@ -161,7 +161,7 @@ func (p *ChocolateyPublisher) dryRunPublish(m io.Medium, data chocolateyTemplate
 
 	install, err := p.renderTemplate(m, "templates/chocolatey/tools/chocolateyinstall.ps1.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("chocolatey.dryRunPublish: %w", err)
+		return coreerr.E("chocolatey.dryRunPublish", "failed to render install script", err)
 	}
 	fmt.Println("Generated chocolateyinstall.ps1:")
 	fmt.Println("---")
@@ -183,12 +183,12 @@ func (p *ChocolateyPublisher) dryRunPublish(m io.Medium, data chocolateyTemplate
 func (p *ChocolateyPublisher) executePublish(ctx context.Context, projectDir string, data chocolateyTemplateData, cfg ChocolateyConfig, release *Release) error {
 	nuspec, err := p.renderTemplate(release.FS, "templates/chocolatey/package.nuspec.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("chocolatey.Publish: failed to render nuspec: %w", err)
+		return coreerr.E("chocolatey.Publish", "failed to render nuspec", err)
 	}
 
 	install, err := p.renderTemplate(release.FS, "templates/chocolatey/tools/chocolateyinstall.ps1.tmpl", data)
 	if err != nil {
-		return fmt.Errorf("chocolatey.Publish: failed to render install script: %w", err)
+		return coreerr.E("chocolatey.Publish", "failed to render install script", err)
 	}
 
 	// Create package directory
@@ -202,18 +202,18 @@ func (p *ChocolateyPublisher) executePublish(ctx context.Context, projectDir str
 
 	toolsDir := filepath.Join(output, "tools")
 	if err := release.FS.EnsureDir(toolsDir); err != nil {
-		return fmt.Errorf("chocolatey.Publish: failed to create output directory: %w", err)
+		return coreerr.E("chocolatey.Publish", "failed to create output directory", err)
 	}
 
 	// Write files
 	nuspecPath := filepath.Join(output, fmt.Sprintf("%s.nuspec", data.PackageName))
 	if err := release.FS.Write(nuspecPath, nuspec); err != nil {
-		return fmt.Errorf("chocolatey.Publish: failed to write nuspec: %w", err)
+		return coreerr.E("chocolatey.Publish", "failed to write nuspec", err)
 	}
 
 	installPath := filepath.Join(toolsDir, "chocolateyinstall.ps1")
 	if err := release.FS.Write(installPath, install); err != nil {
-		return fmt.Errorf("chocolatey.Publish: failed to write install script: %w", err)
+		return coreerr.E("chocolatey.Publish", "failed to write install script", err)
 	}
 
 	fmt.Printf("Wrote Chocolatey package files: %s\n", output)
@@ -232,7 +232,7 @@ func (p *ChocolateyPublisher) pushToChocolatey(ctx context.Context, packageDir s
 	// Check for CHOCOLATEY_API_KEY
 	apiKey := os.Getenv("CHOCOLATEY_API_KEY")
 	if apiKey == "" {
-		return errors.New("chocolatey.Publish: CHOCOLATEY_API_KEY environment variable is required for push")
+		return coreerr.E("chocolatey.Publish", "CHOCOLATEY_API_KEY environment variable is required for push", nil)
 	}
 
 	// Pack the package
@@ -242,7 +242,7 @@ func (p *ChocolateyPublisher) pushToChocolatey(ctx context.Context, packageDir s
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("chocolatey.Publish: choco pack failed: %w", err)
+		return coreerr.E("chocolatey.Publish", "choco pack failed", err)
 	}
 
 	// Push the package
@@ -250,7 +250,7 @@ func (p *ChocolateyPublisher) pushToChocolatey(ctx context.Context, packageDir s
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("chocolatey.Publish: choco push failed: %w", err)
+		return coreerr.E("chocolatey.Publish", "choco push failed", err)
 	}
 
 	fmt.Printf("Published to Chocolatey: https://community.chocolatey.org/packages/%s\n", data.PackageName)
@@ -274,18 +274,18 @@ func (p *ChocolateyPublisher) renderTemplate(m io.Medium, name string, data choc
 	if content == nil {
 		content, err = chocolateyTemplates.ReadFile(name)
 		if err != nil {
-			return "", fmt.Errorf("failed to read template %s: %w", name, err)
+			return "", coreerr.E("chocolatey.renderTemplate", "failed to read template "+name, err)
 		}
 	}
 
 	tmpl, err := template.New(filepath.Base(name)).Parse(string(content))
 	if err != nil {
-		return "", fmt.Errorf("failed to parse template %s: %w", name, err)
+		return "", coreerr.E("chocolatey.renderTemplate", "failed to parse template "+name, err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", fmt.Errorf("failed to execute template %s: %w", name, err)
+		return "", coreerr.E("chocolatey.renderTemplate", "failed to execute template "+name, err)
 	}
 
 	return buf.String(), nil

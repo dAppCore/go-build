@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +11,7 @@ import (
 
 	"forge.lthn.ai/core/go-build/pkg/build"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // LinuxKitBuilder builds LinuxKit images.
@@ -79,12 +79,12 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	}
 
 	if configPath == "" {
-		return nil, errors.New("linuxkit.Build: no LinuxKit config file found. Specify with --config or create linuxkit.yml")
+		return nil, coreerr.E("LinuxKitBuilder.Build", "no LinuxKit config file found. Specify with --config or create linuxkit.yml", nil)
 	}
 
 	// Validate config file exists
 	if !cfg.FS.IsFile(configPath) {
-		return nil, fmt.Errorf("linuxkit.Build: config file not found: %s", configPath)
+		return nil, coreerr.E("LinuxKitBuilder.Build", "config file not found: "+configPath, nil)
 	}
 
 	// Determine output formats
@@ -99,7 +99,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 		outputDir = filepath.Join(cfg.ProjectDir, "dist")
 	}
 	if err := cfg.FS.EnsureDir(outputDir); err != nil {
-		return nil, fmt.Errorf("linuxkit.Build: failed to create output directory: %w", err)
+		return nil, coreerr.E("LinuxKitBuilder.Build", "failed to create output directory", err)
 	}
 
 	// Determine base name from config file or project name
@@ -136,7 +136,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 			fmt.Printf("Building LinuxKit image: %s (%s, %s)\n", outputName, format, target.Arch)
 
 			if err := cmd.Run(); err != nil {
-				return nil, fmt.Errorf("linuxkit.Build: build failed for %s/%s: %w", target.Arch, format, err)
+				return nil, coreerr.E("LinuxKitBuilder.Build", "build failed for "+target.Arch+"/"+format, err)
 			}
 
 			// Determine the actual output file path
@@ -147,7 +147,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 				// Try alternate naming conventions
 				artifactPath = b.findArtifact(cfg.FS, outputDir, outputName, format)
 				if artifactPath == "" {
-					return nil, fmt.Errorf("linuxkit.Build: artifact not found after build: expected %s", b.getArtifactPath(outputDir, outputName, format))
+					return nil, coreerr.E("LinuxKitBuilder.Build", "artifact not found after build: expected "+b.getArtifactPath(outputDir, outputName, format), nil)
 				}
 			}
 
@@ -267,5 +267,5 @@ func (b *LinuxKitBuilder) validateLinuxKitCli() error {
 		}
 	}
 
-	return errors.New("linuxkit: linuxkit CLI not found. Install with: brew install linuxkit (macOS) or see https://github.com/linuxkit/linuxkit")
+	return coreerr.E("LinuxKitBuilder.validateLinuxKitCli", "linuxkit CLI not found. Install with: brew install linuxkit (macOS) or see https://github.com/linuxkit/linuxkit", nil)
 }

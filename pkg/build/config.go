@@ -3,13 +3,13 @@
 package build
 
 import (
-	"fmt"
 	"iter"
 	"os"
 	"path/filepath"
 
 	"forge.lthn.ai/core/go-build/pkg/build/signing"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -80,13 +80,13 @@ func LoadConfig(fs io.Medium, dir string) (*BuildConfig, error) {
 		if os.IsNotExist(err) {
 			return DefaultConfig(), nil
 		}
-		return nil, fmt.Errorf("build.LoadConfig: failed to read config file: %w", err)
+		return nil, coreerr.E("build.LoadConfig", "failed to read config file", err)
 	}
 
 	var cfg BuildConfig
 	data := []byte(content)
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("build.LoadConfig: failed to parse config file: %w", err)
+		return nil, coreerr.E("build.LoadConfig", "failed to parse config file", err)
 	}
 
 	// Apply defaults for any missing fields

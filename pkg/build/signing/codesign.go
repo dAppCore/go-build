@@ -2,12 +2,11 @@ package signing
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os/exec"
 	"runtime"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // MacOSSigner signs binaries using macOS codesign.
@@ -43,7 +42,7 @@ func (s *MacOSSigner) Available() bool {
 // Sign codesigns a binary with hardened runtime.
 func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) error {
 	if !s.Available() {
-		return errors.New("codesign.Sign: codesign not available")
+		return coreerr.E("codesign.Sign", "codesign not available", nil)
 	}
 
 	cmd := exec.CommandContext(ctx, "codesign",
@@ -56,7 +55,7 @@ func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) err
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("codesign.Sign: %w\nOutput: %s", err, string(output))
+		return coreerr.E("codesign.Sign", string(output), err)
 	}
 
 	return nil
@@ -66,14 +65,14 @@ func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) err
 // This blocks until Apple responds (typically 1-5 minutes).
 func (s *MacOSSigner) Notarize(ctx context.Context, fs io.Medium, binary string) error {
 	if s.config.AppleID == "" || s.config.TeamID == "" || s.config.AppPassword == "" {
-		return errors.New("codesign.Notarize: missing Apple credentials (apple_id, team_id, app_password)")
+		return coreerr.E("codesign.Notarize", "missing Apple credentials (apple_id, team_id, app_password)", nil)
 	}
 
 	// Create ZIP for submission
 	zipPath := binary + ".zip"
 	zipCmd := exec.CommandContext(ctx, "zip", "-j", zipPath, binary)
 	if output, err := zipCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("codesign.Notarize: failed to create zip: %w\nOutput: %s", err, string(output))
+		return coreerr.E("codesign.Notarize", "failed to create zip: "+string(output), err)
 	}
 	defer func() { _ = fs.Delete(zipPath) }()
 
@@ -86,13 +85,13 @@ func (s *MacOSSigner) Notarize(ctx context.Context, fs io.Medium, binary string)
 		"--wait",
 	)
 	if output, err := submitCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("codesign.Notarize: notarization failed: %w\nOutput: %s", err, string(output))
+		return coreerr.E("codesign.Notarize", "notarization failed: "+string(output), err)
 	}
 
 	// Staple the ticket
 	stapleCmd := exec.CommandContext(ctx, "xcrun", "stapler", "staple", binary)
 	if output, err := stapleCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("codesign.Notarize: failed to staple: %w\nOutput: %s", err, string(output))
+		return coreerr.E("codesign.Notarize", "failed to staple: "+string(output), err)
 	}
 
 	return nil

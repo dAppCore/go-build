@@ -2,7 +2,6 @@ package ci
 
 import (
 	"context"
-	"errors"
 	"os"
 	"os/exec"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-i18n"
 	"forge.lthn.ai/core/go-build/pkg/release"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // Style aliases from shared
@@ -127,7 +127,7 @@ func runCIPublish(dryRun bool, version string, draft, prerelease bool) error {
 	cli.Blank()
 
 	if len(cfg.Publishers) == 0 {
-		return errors.New(i18n.T("cmd.ci.error.no_publishers"))
+		return coreerr.E("ci.Publish", i18n.T("cmd.ci.error.no_publishers"), nil)
 	}
 
 	rel, err := release.Publish(ctx, cfg, dryRun)

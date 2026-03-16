@@ -13,6 +13,7 @@ import (
 
 	"forge.lthn.ai/core/go-build/pkg/sdk"
 	"forge.lthn.ai/core/go-i18n"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // runBuildSDK handles the `core build sdk` command.
@@ -21,7 +22,7 @@ func runBuildSDK(specPath, lang, version string, dryRun bool) error {
 
 	projectDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("common.error.failed", map[string]any{"Action": "get working directory"}), err)
+		return coreerr.E("build.SDK", "failed to get working directory", err)
 	}
 
 	// Load config

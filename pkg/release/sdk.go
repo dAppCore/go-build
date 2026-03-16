@@ -3,10 +3,10 @@ package release
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"forge.lthn.ai/core/go-build/pkg/sdk"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // SDKRelease holds the result of an SDK release.
@@ -23,10 +23,10 @@ type SDKRelease struct {
 // If dryRun is true, it shows what would be done without generating.
 func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) {
 	if cfg == nil {
-		return nil, errors.New("release.RunSDK: config is nil")
+		return nil, coreerr.E("release.RunSDK", "config is nil", nil)
 	}
 	if cfg.SDK == nil {
-		return nil, errors.New("release.RunSDK: sdk not configured in .core/release.yaml")
+		return nil, coreerr.E("release.RunSDK", "sdk not configured in .core/release.yaml", nil)
 	}
 
 	projectDir := cfg.projectDir
@@ -40,7 +40,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 		var err error
 		version, err = DetermineVersion(projectDir)
 		if err != nil {
-			return nil, fmt.Errorf("release.RunSDK: failed to determine version: %w", err)
+			return nil, coreerr.E("release.RunSDK", "failed to determine version", err)
 		}
 	}
 
@@ -52,7 +52,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 			fmt.Printf("Warning: diff check failed: %v\n", err)
 		} else if breaking {
 			if cfg.SDK.Diff.FailOnBreaking {
-				return nil, errors.New("release.RunSDK: breaking API changes detected")
+				return nil, coreerr.E("release.RunSDK", "breaking API changes detected", nil)
 			}
 			fmt.Printf("Warning: breaking API changes detected\n")
 		}
@@ -80,7 +80,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	s.SetVersion(version)
 
 	if err := s.Generate(ctx); err != nil {
-		return nil, fmt.Errorf("release.RunSDK: generation failed: %w", err)
+		return nil, coreerr.E("release.RunSDK", "generation failed", err)
 	}
 
 	return result, nil
@@ -91,7 +91,7 @@ func checkBreakingChanges(projectDir string, cfg *SDKConfig) (bool, error) {
 	// Get previous tag for comparison (uses getPreviousTag from changelog.go)
 	prevTag, err := getPreviousTag(projectDir, "HEAD")
 	if err != nil {
-		return false, fmt.Errorf("no previous tag found: %w", err)
+		return false, coreerr.E("release.checkBreakingChanges", "no previous tag found", err)
 	}
 
 	// Detect spec path

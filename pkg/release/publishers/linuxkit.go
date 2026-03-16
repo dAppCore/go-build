@@ -3,12 +3,13 @@ package publishers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // LinuxKitConfig holds configuration for the LinuxKit publisher.
@@ -49,10 +50,10 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 
 	// Validate config file exists
 	if release.FS == nil {
-		return errors.New("linuxkit.Publish: release filesystem (FS) is nil")
+		return coreerr.E("linuxkit.Publish", "release filesystem (FS) is nil", nil)
 	}
 	if !release.FS.Exists(lkCfg.Config) {
-		return fmt.Errorf("linuxkit.Publish: config file not found: %s", lkCfg.Config)
+		return coreerr.E("linuxkit.Publish", "config file not found: "+lkCfg.Config, nil)
 	}
 
 	// Determine repository for artifact upload
@@ -63,7 +64,7 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 	if repo == "" {
 		detectedRepo, err := detectRepository(release.ProjectDir)
 		if err != nil {
-			return fmt.Errorf("linuxkit.Publish: could not determine repository: %w", err)
+			return coreerr.E("linuxkit.Publish", "could not determine repository", err)
 		}
 		repo = detectedRepo
 	}
@@ -174,7 +175,7 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 
 	// Create output directory
 	if err := release.FS.EnsureDir(outputDir); err != nil {
-		return fmt.Errorf("linuxkit.Publish: failed to create output directory: %w", err)
+		return coreerr.E("linuxkit.Publish", "failed to create output directory", err)
 	}
 
 	baseName := p.buildBaseName(release.Version)
@@ -200,7 +201,7 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 
 			fmt.Printf("Building LinuxKit image: %s (%s)\n", outputName, format)
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("linuxkit.Publish: build failed for %s/%s: %w", platform, format, err)
+				return coreerr.E("linuxkit.Publish", "build failed for "+platform+"/"+format, err)
 			}
 
 			// Track artifact for upload
@@ -212,11 +213,11 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 	// Upload artifacts to GitHub release
 	for _, artifactPath := range artifacts {
 		if !release.FS.Exists(artifactPath) {
-			return fmt.Errorf("linuxkit.Publish: artifact not found after build: %s", artifactPath)
+			return coreerr.E("linuxkit.Publish", "artifact not found after build: "+artifactPath, nil)
 		}
 
 		if err := UploadArtifact(ctx, repo, release.Version, artifactPath); err != nil {
-			return fmt.Errorf("linuxkit.Publish: failed to upload %s: %w", filepath.Base(artifactPath), err)
+			return coreerr.E("linuxkit.Publish", "failed to upload "+filepath.Base(artifactPath), err)
 		}
 
 		// Print helpful usage info for docker format
@@ -298,7 +299,7 @@ func (p *LinuxKitPublisher) getFormatExtension(format string) string {
 func validateLinuxKitCli() error {
 	cmd := exec.Command("linuxkit", "version")
 	if err := cmd.Run(); err != nil {
-		return errors.New("linuxkit: linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit")
+		return coreerr.E("linuxkit.validateLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", nil)
 	}
 	return nil
 }

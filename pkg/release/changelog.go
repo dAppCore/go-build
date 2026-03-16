@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -79,7 +80,7 @@ func Generate(dir, fromRef, toRef string) (string, error) {
 	// Get commits between refs
 	commits, err := getCommits(dir, fromRef, toRef)
 	if err != nil {
-		return "", fmt.Errorf("changelog.Generate: failed to get commits: %w", err)
+		return "", coreerr.E("changelog.Generate", "failed to get commits", err)
 	}
 
 	// Parse conventional commits
@@ -114,7 +115,7 @@ func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (strin
 	// Get commits between refs
 	commits, err := getCommits(dir, fromRef, toRef)
 	if err != nil {
-		return "", fmt.Errorf("changelog.GenerateWithConfig: failed to get commits: %w", err)
+		return "", coreerr.E("changelog.GenerateWithConfig", "failed to get commits", err)
 	}
 
 	// Build include/exclude sets

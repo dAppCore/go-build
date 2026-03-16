@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +11,7 @@ import (
 
 	"forge.lthn.ai/core/go-build/pkg/build"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // DockerBuilder builds Docker images.
@@ -56,7 +56,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Validate Dockerfile exists
 	if !cfg.FS.IsFile(dockerfile) {
-		return nil, fmt.Errorf("docker.Build: Dockerfile not found: %s", dockerfile)
+		return nil, coreerr.E("DockerBuilder.Build", "Dockerfile not found: "+dockerfile, nil)
 	}
 
 	// Determine image name
@@ -153,7 +153,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Create output directory
 	if err := cfg.FS.EnsureDir(cfg.OutputDir); err != nil {
-		return nil, fmt.Errorf("docker.Build: failed to create output directory: %w", err)
+		return nil, coreerr.E("DockerBuilder.Build", "failed to create output directory", err)
 	}
 
 	// Execute build
@@ -167,7 +167,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	fmt.Printf("  Tags: %s\n", strings.Join(imageRefs, ", "))
 
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("docker.Build: buildx build failed: %w", err)
+		return nil, coreerr.E("DockerBuilder.Build", "buildx build failed", err)
 	}
 
 	// Create artifacts for each platform
@@ -187,7 +187,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 func (b *DockerBuilder) validateDockerCli() error {
 	cmd := exec.Command("docker", "--version")
 	if err := cmd.Run(); err != nil {
-		return errors.New("docker: docker CLI not found. Install it from https://docs.docker.com/get-docker/")
+		return coreerr.E("DockerBuilder.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", nil)
 	}
 	return nil
 }
@@ -197,7 +197,7 @@ func (b *DockerBuilder) ensureBuildx(ctx context.Context) error {
 	// Check if buildx is available
 	cmd := exec.CommandContext(ctx, "docker", "buildx", "version")
 	if err := cmd.Run(); err != nil {
-		return errors.New("docker: buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/")
+		return coreerr.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", nil)
 	}
 
 	// Check if we have a builder, create one if not
@@ -208,7 +208,7 @@ func (b *DockerBuilder) ensureBuildx(ctx context.Context) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("docker: failed to create buildx builder: %w", err)
+			return coreerr.E("DockerBuilder.ensureBuildx", "failed to create buildx builder", err)
 		}
 	}
 

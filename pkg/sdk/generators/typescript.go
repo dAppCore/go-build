@@ -2,12 +2,12 @@ package generators
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // TypeScriptGenerator generates TypeScript SDKs from OpenAPI specs.
@@ -41,7 +41,7 @@ func (g *TypeScriptGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
-		return fmt.Errorf("typescript.Generate: failed to create output dir: %w", err)
+		return coreerr.E("typescript.Generate", "failed to create output dir", err)
 	}
 
 	if g.nativeAvailable() {
@@ -106,7 +106,7 @@ func (g *TypeScriptGenerator) generateDocker(ctx context.Context, opts Options) 
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("typescript.generateDocker: %w", err)
+		return coreerr.E("typescript.generateDocker", "docker run failed", err)
 	}
 	return nil
 }

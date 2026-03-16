@@ -1,12 +1,11 @@
 package sdk
 
 import (
-	"errors"
-	"fmt"
 	"path/filepath"
 	"strings"
 
 	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // commonSpecPaths are checked in order when no spec is configured.
@@ -30,7 +29,7 @@ func (s *SDK) DetectSpec() (string, error) {
 		if coreio.Local.IsFile(specPath) {
 			return specPath, nil
 		}
-		return "", fmt.Errorf("sdk.DetectSpec: configured spec not found: %s", s.config.Spec)
+		return "", coreerr.E("sdk.DetectSpec", "configured spec not found: "+s.config.Spec, nil)
 	}
 
 	// 2. Check common paths
@@ -47,14 +46,14 @@ func (s *SDK) DetectSpec() (string, error) {
 		return specPath, nil
 	}
 
-	return "", errors.New("sdk.DetectSpec: no OpenAPI spec found (checked config, common paths, Scramble)")
+	return "", coreerr.E("sdk.DetectSpec", "no OpenAPI spec found (checked config, common paths, Scramble)", nil)
 }
 
 // detectScramble checks for Laravel Scramble and exports the spec.
 func (s *SDK) detectScramble() (string, error) {
 	composerPath := filepath.Join(s.projectDir, "composer.json")
 	if !coreio.Local.IsFile(composerPath) {
-		return "", errors.New("no composer.json")
+		return "", coreerr.E("sdk.detectScramble", "no composer.json", nil)
 	}
 
 	// Check for scramble in composer.json
@@ -65,11 +64,11 @@ func (s *SDK) detectScramble() (string, error) {
 
 	// Simple check for scramble package
 	if !containsScramble(data) {
-		return "", errors.New("scramble not found in composer.json")
+		return "", coreerr.E("sdk.detectScramble", "scramble not found in composer.json", nil)
 	}
 
 	// TODO: Run php artisan scramble:export
-	return "", errors.New("scramble export not implemented")
+	return "", coreerr.E("sdk.detectScramble", "scramble export not implemented", nil)
 }
 
 // containsScramble checks if composer.json includes scramble.

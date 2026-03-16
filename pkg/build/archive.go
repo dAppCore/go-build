@@ -6,13 +6,13 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
-	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 
 	io_interface "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/Snider/Borg/pkg/compress"
 )
 
@@ -49,16 +49,16 @@ func ArchiveXZ(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 // Returns a new Artifact with Path pointing to the archive.
 func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format ArchiveFormat) (Artifact, error) {
 	if artifact.Path == "" {
-		return Artifact{}, errors.New("build.Archive: artifact path is empty")
+		return Artifact{}, coreerr.E("build.Archive", "artifact path is empty", nil)
 	}
 
 	// Verify the source file exists
 	info, err := fs.Stat(artifact.Path)
 	if err != nil {
-		return Artifact{}, fmt.Errorf("build.Archive: source file not found: %w", err)
+		return Artifact{}, coreerr.E("build.Archive", "source file not found", err)
 	}
 	if info.IsDir() {
-		return Artifact{}, errors.New("build.Archive: source path is a directory, expected file")
+		return Artifact{}, coreerr.E("build.Archive", "source path is a directory, expected file", nil)
 	}
 
 	// Determine archive type based on OS and format
@@ -81,7 +81,7 @@ func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format Archive
 
 	// Create the archive
 	if err := archiveFunc(fs, artifact.Path, archivePath); err != nil {
-		return Artifact{}, fmt.Errorf("build.Archive: failed to create archive: %w", err)
+		return Artifact{}, coreerr.E("build.Archive", "failed to create archive", err)
 	}
 
 	return Artifact{
@@ -115,7 +115,7 @@ func ArchiveAllWithFormat(fs io_interface.Medium, artifacts []Artifact, format A
 	for _, artifact := range artifacts {
 		arch, err := ArchiveWithFormat(fs, artifact, format)
 		if err != nil {
-			return archived, fmt.Errorf("build.ArchiveAll: failed to archive %s: %w", artifact.Path, err)
+			return archived, coreerr.E("build.ArchiveAll", "failed to archive "+artifact.Path, err)
 		}
 		archived = append(archived, arch)
 	}
@@ -147,13 +147,13 @@ func createTarXzArchive(fs io_interface.Medium, src, dst string) error {
 	// Open the source file
 	srcFile, err := fs.Open(src)
 	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
+		return coreerr.E("build.createTarXzArchive", "failed to open source file", err)
 	}
 	defer func() { _ = srcFile.Close() }()
 
 	srcInfo, err := srcFile.Stat()
 	if err != nil {
-		return fmt.Errorf("failed to stat source file: %w", err)
+		return coreerr.E("build.createTarXzArchive", "failed to stat source file", err)
 	}
 
 	// Create tar archive in memory
@@ -163,37 +163,37 @@ func createTarXzArchive(fs io_interface.Medium, src, dst string) error {
 	// Create tar header
 	header, err := tar.FileInfoHeader(srcInfo, "")
 	if err != nil {
-		return fmt.Errorf("failed to create tar header: %w", err)
+		return coreerr.E("build.createTarXzArchive", "failed to create tar header", err)
 	}
 	header.Name = filepath.Base(src)
 
 	if err := tarWriter.WriteHeader(header); err != nil {
-		return fmt.Errorf("failed to write tar header: %w", err)
+		return coreerr.E("build.createTarXzArchive", "failed to write tar header", err)
 	}
 
 	if _, err := io.Copy(tarWriter, srcFile); err != nil {
-		return fmt.Errorf("failed to write file content to tar: %w", err)
+		return coreerr.E("build.createTarXzArchive", "failed to write file content to tar", err)
 	}
 
 	if err := tarWriter.Close(); err != nil {
-		return fmt.Errorf("failed to close tar writer: %w", err)
+		return coreerr.E("build.createTarXzArchive", "failed to close tar writer", err)
 	}
 
 	// Compress with xz using Borg
 	xzData, err := compress.Compress(tarBuf.Bytes(), "xz")
 	if err != nil {
-		return fmt.Errorf("failed to compress with xz: %w", err)
+		return coreerr.E("build.createTarXzArchive", "failed to compress with xz", err)
 	}
 
 	// Write to destination file
 	dstFile, err := fs.Create(dst)
 	if err != nil {
-		return fmt.Errorf("failed to create archive file: %w", err)
+		return coreerr.E("build.createTarXzArchive", "failed to create archive file", err)
 	}
 	defer func() { _ = dstFile.Close() }()
 
 	if _, err := dstFile.Write(xzData); err != nil {
-		return fmt.Errorf("failed to write archive file: %w", err)
+		return coreerr.E("build.createTarXzArchive", "failed to write archive file", err)
 	}
 
 	return nil
@@ -204,19 +204,19 @@ func createTarGzArchive(fs io_interface.Medium, src, dst string) error {
 	// Open the source file
 	srcFile, err := fs.Open(src)
 	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
+		return coreerr.E("build.createTarGzArchive", "failed to open source file", err)
 	}
 	defer func() { _ = srcFile.Close() }()
 
 	srcInfo, err := srcFile.Stat()
 	if err != nil {
-		return fmt.Errorf("failed to stat source file: %w", err)
+		return coreerr.E("build.createTarGzArchive", "failed to stat source file", err)
 	}
 
 	// Create the destination file
 	dstFile, err := fs.Create(dst)
 	if err != nil {
-		return fmt.Errorf("failed to create archive file: %w", err)
+		return coreerr.E("build.createTarGzArchive", "failed to create archive file", err)
 	}
 	defer func() { _ = dstFile.Close() }()
 
@@ -231,19 +231,19 @@ func createTarGzArchive(fs io_interface.Medium, src, dst string) error {
 	// Create tar header
 	header, err := tar.FileInfoHeader(srcInfo, "")
 	if err != nil {
-		return fmt.Errorf("failed to create tar header: %w", err)
+		return coreerr.E("build.createTarGzArchive", "failed to create tar header", err)
 	}
 	// Use just the filename, not the full path
 	header.Name = filepath.Base(src)
 
 	// Write header
 	if err := tarWriter.WriteHeader(header); err != nil {
-		return fmt.Errorf("failed to write tar header: %w", err)
+		return coreerr.E("build.createTarGzArchive", "failed to write tar header", err)
 	}
 
 	// Write file content
 	if _, err := io.Copy(tarWriter, srcFile); err != nil {
-		return fmt.Errorf("failed to write file content to tar: %w", err)
+		return coreerr.E("build.createTarGzArchive", "failed to write file content to tar", err)
 	}
 
 	return nil
@@ -254,19 +254,19 @@ func createZipArchive(fs io_interface.Medium, src, dst string) error {
 	// Open the source file
 	srcFile, err := fs.Open(src)
 	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
+		return coreerr.E("build.createZipArchive", "failed to open source file", err)
 	}
 	defer func() { _ = srcFile.Close() }()
 
 	srcInfo, err := srcFile.Stat()
 	if err != nil {
-		return fmt.Errorf("failed to stat source file: %w", err)
+		return coreerr.E("build.createZipArchive", "failed to stat source file", err)
 	}
 
 	// Create the destination file
 	dstFile, err := fs.Create(dst)
 	if err != nil {
-		return fmt.Errorf("failed to create archive file: %w", err)
+		return coreerr.E("build.createZipArchive", "failed to create archive file", err)
 	}
 	defer func() { _ = dstFile.Close() }()
 
@@ -277,7 +277,7 @@ func createZipArchive(fs io_interface.Medium, src, dst string) error {
 	// Create zip header
 	header, err := zip.FileInfoHeader(srcInfo)
 	if err != nil {
-		return fmt.Errorf("failed to create zip header: %w", err)
+		return coreerr.E("build.createZipArchive", "failed to create zip header", err)
 	}
 	// Use just the filename, not the full path
 	header.Name = filepath.Base(src)
@@ -286,12 +286,12 @@ func createZipArchive(fs io_interface.Medium, src, dst string) error {
 	// Create file in archive
 	writer, err := zipWriter.CreateHeader(header)
 	if err != nil {
-		return fmt.Errorf("failed to create zip entry: %w", err)
+		return coreerr.E("build.createZipArchive", "failed to create zip entry", err)
 	}
 
 	// Write file content
 	if _, err := io.Copy(writer, srcFile); err != nil {
-		return fmt.Errorf("failed to write file content to zip: %w", err)
+		return coreerr.E("build.createZipArchive", "failed to write file content to zip", err)
 	}
 
 	return nil

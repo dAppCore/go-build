@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +11,7 @@ import (
 
 	"forge.lthn.ai/core/go-build/pkg/build"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // GoBuilder implements the Builder interface for Go projects.
@@ -38,16 +38,16 @@ func (b *GoBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 // applies ldflags and trimpath, and runs go build.
 func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	if cfg == nil {
-		return nil, errors.New("builders.GoBuilder.Build: config is nil")
+		return nil, coreerr.E("GoBuilder.Build", "config is nil", nil)
 	}
 
 	if len(targets) == 0 {
-		return nil, errors.New("builders.GoBuilder.Build: no targets specified")
+		return nil, coreerr.E("GoBuilder.Build", "no targets specified", nil)
 	}
 
 	// Ensure output directory exists
 	if err := cfg.FS.EnsureDir(cfg.OutputDir); err != nil {
-		return nil, fmt.Errorf("builders.GoBuilder.Build: failed to create output directory: %w", err)
+		return nil, coreerr.E("GoBuilder.Build", "failed to create output directory", err)
 	}
 
 	var artifacts []build.Artifact
@@ -55,7 +55,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	for _, target := range targets {
 		artifact, err := b.buildTarget(ctx, cfg, target)
 		if err != nil {
-			return artifacts, fmt.Errorf("builders.GoBuilder.Build: failed to build %s: %w", target.String(), err)
+			return artifacts, coreerr.E("GoBuilder.Build", "failed to build "+target.String(), err)
 		}
 		artifacts = append(artifacts, artifact)
 	}
@@ -79,7 +79,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	// Create platform-specific output path: output/os_arch/binary
 	platformDir := filepath.Join(cfg.OutputDir, fmt.Sprintf("%s_%s", target.OS, target.Arch))
 	if err := cfg.FS.EnsureDir(platformDir); err != nil {
-		return build.Artifact{}, fmt.Errorf("failed to create platform directory: %w", err)
+		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create platform directory", err)
 	}
 
 	outputPath := filepath.Join(platformDir, binaryName)
@@ -120,7 +120,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	// Capture output for error messages
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return build.Artifact{}, fmt.Errorf("go build failed: %w\nOutput: %s", err, string(output))
+		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "go build failed: "+string(output), err)
 	}
 
 	return build.Artifact{

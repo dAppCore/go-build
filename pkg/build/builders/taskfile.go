@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +11,7 @@ import (
 
 	"forge.lthn.ai/core/go-build/pkg/build"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // TaskfileBuilder builds projects using Taskfile (https://taskfile.dev/).
@@ -60,7 +60,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 		outputDir = filepath.Join(cfg.ProjectDir, "dist")
 	}
 	if err := cfg.FS.EnsureDir(outputDir); err != nil {
-		return nil, fmt.Errorf("taskfile.Build: failed to create output directory: %w", err)
+		return nil, coreerr.E("TaskfileBuilder.Build", "failed to create output directory", err)
 	}
 
 	var artifacts []build.Artifact
@@ -142,7 +142,7 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, goos, 
 	}
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("taskfile.Build: task build failed: %w", err)
+		return coreerr.E("TaskfileBuilder.runTask", "task build failed", err)
 	}
 
 	return nil
@@ -272,5 +272,5 @@ func (b *TaskfileBuilder) validateTaskCli() error {
 		}
 	}
 
-	return errors.New("taskfile: task CLI not found. Install with: brew install go-task (macOS), go install github.com/go-task/task/v3/cmd/task@latest, or see https://taskfile.dev/installation/")
+	return coreerr.E("TaskfileBuilder.validateTaskCli", "task CLI not found. Install with: brew install go-task (macOS), go install github.com/go-task/task/v3/cmd/task@latest, or see https://taskfile.dev/installation/", nil)
 }

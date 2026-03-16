@@ -2,13 +2,12 @@ package generators
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // PHPGenerator generates PHP SDKs from OpenAPI specs.
@@ -38,11 +37,11 @@ func (g *PHPGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
 	if !g.Available() {
-		return errors.New("php.Generate: Docker is required but not available")
+		return coreerr.E("php.Generate", "Docker is required but not available", nil)
 	}
 
 	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
-		return fmt.Errorf("php.Generate: failed to create output dir: %w", err)
+		return coreerr.E("php.Generate", "failed to create output dir", err)
 	}
 
 	specDir := filepath.Dir(opts.SpecPath)
@@ -65,7 +64,7 @@ func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("php.Generate: %w", err)
+		return coreerr.E("php.Generate", "docker run failed", err)
 	}
 	return nil
 }

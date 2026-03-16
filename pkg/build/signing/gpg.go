@@ -2,11 +2,10 @@ package signing
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os/exec"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // GPGSigner signs files using GPG.
@@ -40,7 +39,7 @@ func (s *GPGSigner) Available() bool {
 // For file.txt, creates file.txt.asc
 func (s *GPGSigner) Sign(ctx context.Context, fs io.Medium, file string) error {
 	if !s.Available() {
-		return errors.New("gpg.Sign: gpg not available or key not configured")
+		return coreerr.E("gpg.Sign", "gpg not available or key not configured", nil)
 	}
 
 	cmd := exec.CommandContext(ctx, "gpg",
@@ -53,7 +52,7 @@ func (s *GPGSigner) Sign(ctx context.Context, fs io.Medium, file string) error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("gpg.Sign: %w\nOutput: %s", err, string(output))
+		return coreerr.E("gpg.Sign", string(output), err)
 	}
 
 	return nil

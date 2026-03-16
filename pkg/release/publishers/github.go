@@ -3,12 +3,13 @@ package publishers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // GitHubPublisher publishes releases to GitHub using the gh CLI.
@@ -36,7 +37,7 @@ func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 		// Try to detect from git remote
 		detectedRepo, err := detectRepository(release.ProjectDir)
 		if err != nil {
-			return fmt.Errorf("github.Publish: could not determine repository: %w", err)
+			return coreerr.E("github.Publish", "could not determine repository", err)
 		}
 		repo = detectedRepo
 	}
@@ -104,7 +105,7 @@ func (p *GitHubPublisher) executePublish(ctx context.Context, release *Release, 
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("github.Publish: gh release create failed: %w", err)
+		return coreerr.E("github.Publish", "gh release create failed", err)
 	}
 
 	return nil
@@ -147,18 +148,18 @@ func validateGhCli() error {
 	// Check if gh is installed
 	cmd := exec.Command("gh", "--version")
 	if err := cmd.Run(); err != nil {
-		return errors.New("github: gh CLI not found. Install it from https://cli.github.com")
+		return coreerr.E("github.validateGhCli", "gh CLI not found. Install it from https://cli.github.com", nil)
 	}
 
 	// Check if authenticated
 	cmd = exec.Command("gh", "auth", "status")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return errors.New("github: not authenticated with gh CLI. Run 'gh auth login' first")
+		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", nil)
 	}
 
 	if !strings.Contains(string(output), "Logged in") {
-		return errors.New("github: not authenticated with gh CLI. Run 'gh auth login' first")
+		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", nil)
 	}
 
 	return nil
@@ -170,7 +171,7 @@ func detectRepository(dir string) (string, error) {
 	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to get git remote: %w", err)
+		return "", coreerr.E("github.detectRepository", "failed to get git remote", err)
 	}
 
 	url := strings.TrimSpace(string(output))
@@ -197,7 +198,7 @@ func parseGitHubRepo(url string) (string, error) {
 		return repo, nil
 	}
 
-	return "", fmt.Errorf("not a GitHub URL: %s", url)
+	return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+url, nil)
 }
 
 // UploadArtifact uploads a single artifact to an existing release.
@@ -208,7 +209,7 @@ func UploadArtifact(ctx context.Context, repo, version, artifactPath string) err
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("github.UploadArtifact: failed to upload %s: %w", artifactPath, err)
+		return coreerr.E("github.UploadArtifact", "failed to upload "+artifactPath, err)
 	}
 
 	return nil
@@ -221,7 +222,7 @@ func DeleteRelease(ctx context.Context, repo, version string) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("github.DeleteRelease: failed to delete %s: %w", version, err)
+		return coreerr.E("github.DeleteRelease", "failed to delete "+version, err)
 	}
 
 	return nil

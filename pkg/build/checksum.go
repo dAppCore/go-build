@@ -4,7 +4,6 @@ package build
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -13,25 +12,26 @@ import (
 	"strings"
 
 	io_interface "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // Checksum computes SHA256 for an artifact and returns the artifact with the Checksum field filled.
 func Checksum(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 	if artifact.Path == "" {
-		return Artifact{}, errors.New("build.Checksum: artifact path is empty")
+		return Artifact{}, coreerr.E("build.Checksum", "artifact path is empty", nil)
 	}
 
 	// Open the file
 	file, err := fs.Open(artifact.Path)
 	if err != nil {
-		return Artifact{}, fmt.Errorf("build.Checksum: failed to open file: %w", err)
+		return Artifact{}, coreerr.E("build.Checksum", "failed to open file", err)
 	}
 	defer func() { _ = file.Close() }()
 
 	// Compute SHA256 hash
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {
-		return Artifact{}, fmt.Errorf("build.Checksum: failed to hash file: %w", err)
+		return Artifact{}, coreerr.E("build.Checksum", "failed to hash file", err)
 	}
 
 	checksum := hex.EncodeToString(hasher.Sum(nil))
@@ -55,7 +55,7 @@ func ChecksumAll(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, erro
 	for _, artifact := range artifacts {
 		cs, err := Checksum(fs, artifact)
 		if err != nil {
-			return checksummed, fmt.Errorf("build.ChecksumAll: failed to checksum %s: %w", artifact.Path, err)
+			return checksummed, coreerr.E("build.ChecksumAll", "failed to checksum "+artifact.Path, err)
 		}
 		checksummed = append(checksummed, cs)
 	}
@@ -79,7 +79,7 @@ func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string
 	var lines []string
 	for _, artifact := range artifacts {
 		if artifact.Checksum == "" {
-			return fmt.Errorf("build.WriteChecksumFile: artifact %s has no checksum", artifact.Path)
+			return coreerr.E("build.WriteChecksumFile", "artifact "+artifact.Path+" has no checksum", nil)
 		}
 		filename := filepath.Base(artifact.Path)
 		lines = append(lines, fmt.Sprintf("%s  %s", artifact.Checksum, filename))
@@ -92,7 +92,7 @@ func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string
 
 	// Write the file using the medium (which handles directory creation in Write)
 	if err := fs.Write(path, content); err != nil {
-		return fmt.Errorf("build.WriteChecksumFile: failed to write file: %w", err)
+		return coreerr.E("build.WriteChecksumFile", "failed to write file", err)
 	}
 
 	return nil

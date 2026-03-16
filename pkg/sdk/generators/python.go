@@ -2,12 +2,12 @@ package generators
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // PythonGenerator generates Python SDKs from OpenAPI specs.
@@ -37,7 +37,7 @@ func (g *PythonGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 func (g *PythonGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
-		return fmt.Errorf("python.Generate: failed to create output dir: %w", err)
+		return coreerr.E("python.Generate", "failed to create output dir", err)
 	}
 
 	if g.Available() {

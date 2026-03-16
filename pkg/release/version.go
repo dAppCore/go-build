@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // semverRegex matches semantic version strings with or without 'v' prefix.
@@ -99,7 +101,7 @@ func IncrementMajor(current string) string {
 func ParseVersion(version string) (int, int, int, string, string, error) {
 	matches := semverRegex.FindStringSubmatch(version)
 	if matches == nil {
-		return 0, 0, 0, "", "", fmt.Errorf("invalid semver: %s", version)
+		return 0, 0, 0, "", "", coreerr.E("release.ParseVersion", "invalid semver: "+version, nil)
 	}
 
 	major, _ := strconv.Atoi(matches[1])

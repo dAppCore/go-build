@@ -3,12 +3,13 @@ package publishers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // DockerConfig holds configuration for the Docker publisher.
@@ -52,7 +53,7 @@ func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 
 	// Validate Dockerfile exists
 	if !release.FS.Exists(dockerCfg.Dockerfile) {
-		return fmt.Errorf("docker.Publish: Dockerfile not found: %s", dockerCfg.Dockerfile)
+		return coreerr.E("docker.Publish", "Dockerfile not found: "+dockerCfg.Dockerfile, nil)
 	}
 
 	if dryRun {
@@ -180,7 +181,7 @@ func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, 
 
 	fmt.Printf("Building and pushing Docker image: %s\n", cfg.Image)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker.Publish: buildx build failed: %w", err)
+		return coreerr.E("docker.Publish", "buildx build failed", err)
 	}
 
 	return nil
@@ -251,7 +252,7 @@ func (p *DockerPublisher) ensureBuildx(ctx context.Context) error {
 	// Check if buildx is available
 	cmd := exec.CommandContext(ctx, "docker", "buildx", "version")
 	if err := cmd.Run(); err != nil {
-		return errors.New("docker: buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/")
+		return coreerr.E("docker.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", nil)
 	}
 
 	// Check if we have a builder, create one if not
@@ -262,7 +263,7 @@ func (p *DockerPublisher) ensureBuildx(ctx context.Context) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("docker: failed to create buildx builder: %w", err)
+			return coreerr.E("docker.ensureBuildx", "failed to create buildx builder", err)
 		}
 	}
 
@@ -273,7 +274,7 @@ func (p *DockerPublisher) ensureBuildx(ctx context.Context) error {
 func validateDockerCli() error {
 	cmd := exec.Command("docker", "--version")
 	if err := cmd.Run(); err != nil {
-		return errors.New("docker: docker CLI not found. Install it from https://docs.docker.com/get-docker/")
+		return coreerr.E("docker.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", nil)
 	}
 	return nil
 }

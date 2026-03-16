@@ -3,6 +3,7 @@ package sdk
 import (
 	"fmt"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/oasdiff/oasdiff/checker"
 	"github.com/oasdiff/oasdiff/diff"
@@ -27,18 +28,18 @@ func Diff(basePath, revisionPath string) (*DiffResult, error) {
 	// Load specs
 	baseSpec, err := load.NewSpecInfo(loader, load.NewSource(basePath))
 	if err != nil {
-		return nil, fmt.Errorf("sdk.Diff: failed to load base spec: %w", err)
+		return nil, coreerr.E("sdk.Diff", "failed to load base spec", err)
 	}
 
 	revSpec, err := load.NewSpecInfo(loader, load.NewSource(revisionPath))
 	if err != nil {
-		return nil, fmt.Errorf("sdk.Diff: failed to load revision spec: %w", err)
+		return nil, coreerr.E("sdk.Diff", "failed to load revision spec", err)
 	}
 
 	// Compute diff with operations sources map for better error reporting
 	diffResult, operationsSources, err := diff.GetWithOperationsSourcesMap(diff.NewConfig(), baseSpec, revSpec)
 	if err != nil {
-		return nil, fmt.Errorf("sdk.Diff: failed to compute diff: %w", err)
+		return nil, coreerr.E("sdk.Diff", "failed to compute diff", err)
 	}
 
 	// Check for breaking changes

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	coreio "forge.lthn.ai/core/go-io"
-	"forge.lthn.ai/core/go-log"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // GoGenerator generates Go SDKs from OpenAPI specs.
@@ -38,7 +38,7 @@ func (g *GoGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 func (g *GoGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
-		return log.E("go.Generate", "failed to create output dir", err)
+		return coreerr.E("go.Generate", "failed to create output dir", err)
 	}
 
 	if g.Available() {
@@ -60,7 +60,7 @@ func (g *GoGenerator) generateNative(ctx context.Context, opts Options) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return log.E("go.generateNative", "oapi-codegen failed", err)
+		return coreerr.E("go.generateNative", "oapi-codegen failed", err)
 	}
 
 	goMod := fmt.Sprintf("module %s\n\ngo 1.21\n", opts.PackageName)

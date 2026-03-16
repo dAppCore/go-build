@@ -2,12 +2,12 @@
 package release
 
 import (
-	"fmt"
 	"iter"
 	"os"
 	"path/filepath"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -187,7 +187,7 @@ func LoadConfig(dir string) (*Config, error) {
 	// Convert to absolute path for io.Local
 	absPath, err := filepath.Abs(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("release.LoadConfig: failed to resolve path: %w", err)
+		return nil, coreerr.E("release.LoadConfig", "failed to resolve path", err)
 	}
 
 	content, err := io.Local.Read(absPath)
@@ -197,12 +197,12 @@ func LoadConfig(dir string) (*Config, error) {
 			cfg.projectDir = dir
 			return cfg, nil
 		}
-		return nil, fmt.Errorf("release.LoadConfig: failed to read config file: %w", err)
+		return nil, coreerr.E("release.LoadConfig", "failed to read config file", err)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal([]byte(content), &cfg); err != nil {
-		return nil, fmt.Errorf("release.LoadConfig: failed to parse config file: %w", err)
+		return nil, coreerr.E("release.LoadConfig", "failed to parse config file", err)
 	}
 
 	// Apply defaults for any missing fields
@@ -306,22 +306,22 @@ func WriteConfig(cfg *Config, dir string) error {
 	// Convert to absolute path for io.Local
 	absPath, err := filepath.Abs(configPath)
 	if err != nil {
-		return fmt.Errorf("release.WriteConfig: failed to resolve path: %w", err)
+		return coreerr.E("release.WriteConfig", "failed to resolve path", err)
 	}
 
 	// Ensure directory exists
 	configDir := filepath.Dir(absPath)
 	if err := io.Local.EnsureDir(configDir); err != nil {
-		return fmt.Errorf("release.WriteConfig: failed to create directory: %w", err)
+		return coreerr.E("release.WriteConfig", "failed to create directory", err)
 	}
 
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
-		return fmt.Errorf("release.WriteConfig: failed to marshal config: %w", err)
+		return coreerr.E("release.WriteConfig", "failed to marshal config", err)
 	}
 
 	if err := io.Local.Write(absPath, string(data)); err != nil {
-		return fmt.Errorf("release.WriteConfig: failed to write config file: %w", err)
+		return coreerr.E("release.WriteConfig", "failed to write config file", err)
 	}
 
 	return nil

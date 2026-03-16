@@ -2,11 +2,11 @@ package signing
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // Artifact represents a build output that can be signed.
@@ -41,7 +41,7 @@ func SignBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts [
 
 		fmt.Printf("  Signing %s...\n", artifact.Path)
 		if err := signer.Sign(ctx, fs, artifact.Path); err != nil {
-			return fmt.Errorf("failed to sign %s: %w", artifact.Path, err)
+			return coreerr.E("signing.SignBinaries", "failed to sign "+artifact.Path, err)
 		}
 	}
 
@@ -60,7 +60,7 @@ func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifac
 
 	signer := NewMacOSSigner(cfg.MacOS)
 	if !signer.Available() {
-		return errors.New("notarization requested but codesign not available")
+		return coreerr.E("signing.NotarizeBinaries", "notarization requested but codesign not available", nil)
 	}
 
 	for _, artifact := range artifacts {
@@ -70,7 +70,7 @@ func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifac
 
 		fmt.Printf("  Notarizing %s (this may take a few minutes)...\n", artifact.Path)
 		if err := signer.Notarize(ctx, fs, artifact.Path); err != nil {
-			return fmt.Errorf("failed to notarize %s: %w", artifact.Path, err)
+			return coreerr.E("signing.NotarizeBinaries", "failed to notarize "+artifact.Path, err)
 		}
 	}
 
@@ -90,7 +90,7 @@ func SignChecksums(ctx context.Context, fs io.Medium, cfg SignConfig, checksumFi
 
 	fmt.Printf("  Signing %s with GPG...\n", checksumFile)
 	if err := signer.Sign(ctx, fs, checksumFile); err != nil {
-		return fmt.Errorf("failed to sign checksums: %w", err)
+		return coreerr.E("signing.SignChecksums", "failed to sign checksums", err)
 	}
 
 	return nil

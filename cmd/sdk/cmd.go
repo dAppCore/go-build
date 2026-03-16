@@ -8,13 +8,13 @@
 package sdkcmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
 	"forge.lthn.ai/core/go-build/pkg/sdk"
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-i18n"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 func init() {
@@ -77,7 +77,7 @@ func AddSDKCommands(root *cli.Command) {
 func runSDKDiff(basePath, specPath string) error {
 	projectDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("i18n.fail.get", "working directory"), err)
+		return coreerr.E("sdk.Diff", "failed to get working directory", err)
 	}
 
 	if specPath == "" {
@@ -89,7 +89,7 @@ func runSDKDiff(basePath, specPath string) error {
 	}
 
 	if basePath == "" {
-		return errors.New(i18n.T("cmd.sdk.diff.error.base_required"))
+		return coreerr.E("sdk.Diff", i18n.T("cmd.sdk.diff.error.base_required"), nil)
 	}
 
 	fmt.Printf("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.sdk.diff.label")), i18n.ProgressSubject("check", "breaking changes"))
@@ -117,7 +117,7 @@ func runSDKDiff(basePath, specPath string) error {
 func runSDKValidate(specPath string) error {
 	projectDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("i18n.fail.get", "working directory"), err)
+		return coreerr.E("sdk.Validate", "failed to get working directory", err)
 	}
 
 	s := sdk.New(projectDir, &sdk.Config{Spec: specPath})
