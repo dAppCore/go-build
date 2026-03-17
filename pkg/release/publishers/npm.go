@@ -91,7 +91,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 	}
 
 	if dryRun {
-		return p.dryRunPublish(release.FS, data, &npmCfg)
+		return p.dryRunPublish(release.FS, data)
 	}
 
 	return p.executePublish(ctx, release.FS, data, &npmCfg)
@@ -130,7 +130,7 @@ type npmTemplateData struct {
 }
 
 // dryRunPublish shows what would be done without actually publishing.
-func (p *NpmPublisher) dryRunPublish(m coreio.Medium, data npmTemplateData, cfg *NpmConfig) error {
+func (p *NpmPublisher) dryRunPublish(m coreio.Medium, data npmTemplateData) error {
 	fmt.Println()
 	fmt.Println("=== DRY RUN: npm Publish ===")
 	fmt.Println()

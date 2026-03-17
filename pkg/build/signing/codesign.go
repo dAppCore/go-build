@@ -42,7 +42,13 @@ func (s *MacOSSigner) Available() bool {
 // Sign codesigns a binary with hardened runtime.
 func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) error {
 	if !s.Available() {
-		return coreerr.E("codesign.Sign", "codesign not available", nil)
+		if runtime.GOOS != "darwin" {
+			return coreerr.E("codesign.Sign", "codesign is only available on macOS", nil)
+		}
+		if s.config.Identity == "" {
+			return coreerr.E("codesign.Sign", "codesign identity not configured", nil)
+		}
+		return coreerr.E("codesign.Sign", "codesign tool not found in PATH", nil)
 	}
 
 	cmd := exec.CommandContext(ctx, "codesign",
