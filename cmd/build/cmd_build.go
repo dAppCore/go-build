@@ -2,6 +2,8 @@
 package buildcmd
 
 import (
+	"embed"
+
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-build/locales"
 	"forge.lthn.ai/core/go-i18n"
