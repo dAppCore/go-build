@@ -255,9 +255,10 @@ func (p *ScoopPublisher) renderTemplate(m coreio.Medium, name string, data scoop
 	customPath := filepath.Join(".core", name)
 	if m != nil && m.IsFile(customPath) {
 		customContent, err := m.Read(customPath)
-		if err == nil {
-			content = []byte(customContent)
+		if err != nil {
+			return "", coreerr.E("scoop.renderTemplate", "failed to read custom template "+customPath, err)
 		}
+		content = []byte(customContent)
 	}
 
 	// Fallback to embedded template

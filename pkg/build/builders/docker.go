@@ -187,7 +187,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 func (b *DockerBuilder) validateDockerCli() error {
 	cmd := exec.Command("docker", "--version")
 	if err := cmd.Run(); err != nil {
-		return coreerr.E("DockerBuilder.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", nil)
+		return coreerr.E("DockerBuilder.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
 	}
 	return nil
 }
@@ -197,7 +197,7 @@ func (b *DockerBuilder) ensureBuildx(ctx context.Context) error {
 	// Check if buildx is available
 	cmd := exec.CommandContext(ctx, "docker", "buildx", "version")
 	if err := cmd.Run(); err != nil {
-		return coreerr.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", nil)
+		return coreerr.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", err)
 	}
 
 	// Check if we have a builder, create one if not

@@ -148,14 +148,14 @@ func validateGhCli() error {
 	// Check if gh is installed
 	cmd := exec.Command("gh", "--version")
 	if err := cmd.Run(); err != nil {
-		return coreerr.E("github.validateGhCli", "gh CLI not found. Install it from https://cli.github.com", nil)
+		return coreerr.E("github.validateGhCli", "gh CLI not found. Install it from https://cli.github.com", err)
 	}
 
 	// Check if authenticated
 	cmd = exec.Command("gh", "auth", "status")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", nil)
+		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", err)
 	}
 
 	if !strings.Contains(string(output), "Logged in") {

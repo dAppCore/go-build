@@ -245,8 +245,9 @@ func (p *ChocolateyPublisher) pushToChocolatey(ctx context.Context, packageDir s
 		return coreerr.E("chocolatey.Publish", "choco pack failed", err)
 	}
 
-	// Push the package
-	cmd = exec.CommandContext(ctx, "choco", "push", nupkgPath, "--source", "https://push.chocolatey.org/", "--api-key", apiKey)
+	// Push the package — pass API key via environment variable to avoid exposing it in process listings
+	cmd = exec.CommandContext(ctx, "choco", "push", nupkgPath, "--source", "https://push.chocolatey.org/")
+	cmd.Env = append(os.Environ(), "chocolateyApiKey="+apiKey)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

@@ -90,7 +90,7 @@ func SignChecksums(ctx context.Context, fs io.Medium, cfg SignConfig, checksumFi
 
 	fmt.Printf("  Signing %s with GPG...\n", checksumFile)
 	if err := signer.Sign(ctx, fs, checksumFile); err != nil {
-		return coreerr.E("signing.SignChecksums", "failed to sign checksums", err)
+		return coreerr.E("signing.SignChecksums", "failed to sign checksums file "+checksumFile, err)
 	}
 
 	return nil

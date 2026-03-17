@@ -144,10 +144,10 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Simple copy using the medium
 	content, err := cfg.FS.Read(sourcePath)
 	if err != nil {
-		return build.Artifact{}, err
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to read artifact "+sourcePath, err)
 	}
 	if err := cfg.FS.Write(destPath, content); err != nil {
-		return build.Artifact{}, err
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to write artifact "+destPath, err)
 	}
 
 	return build.Artifact{

@@ -161,12 +161,7 @@ func TestNpmPublisher_DryRunPublish_Good(t *testing.T) {
 			BinaryName:  "mycli",
 			Description: "My CLI",
 		}
-		cfg := &NpmConfig{
-			Package: "@myorg/mycli",
-			Access:  "public",
-		}
-
-		err := p.dryRunPublish(io.Local, data, cfg)
+		err := p.dryRunPublish(io.Local, data)
 
 		_ = w.Close()
 		var buf bytes.Buffer
@@ -199,12 +194,8 @@ func TestNpmPublisher_DryRunPublish_Good(t *testing.T) {
 			Repository: "org/repo",
 			BinaryName: "cli",
 		}
-		cfg := &NpmConfig{
-			Package: "@private/cli",
-			Access:  "restricted",
-		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
+		err := p.dryRunPublish(io.Local, data)
 
 		_ = w.Close()
 		var buf bytes.Buffer
