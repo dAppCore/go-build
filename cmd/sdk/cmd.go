@@ -8,11 +8,10 @@
 package sdkcmd
 
 import (
-	"fmt"
 	"os"
 
-	"forge.lthn.ai/core/go-build/pkg/sdk"
 	"forge.lthn.ai/core/cli/pkg/cli"
+	"forge.lthn.ai/core/go-build/pkg/sdk"
 	"forge.lthn.ai/core/go-i18n"
 	coreerr "forge.lthn.ai/core/go-log"
 )
@@ -97,10 +96,10 @@ func runSDKDiff(basePath, specPath string) error {
 		return coreerr.E("sdk.Diff", i18n.T("cmd.sdk.diff.error.base_required"), nil)
 	}
 
-	fmt.Printf("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.sdk.diff.label")), i18n.ProgressSubject("check", "breaking changes"))
-	fmt.Printf("  %s %s\n", i18n.T("cmd.sdk.diff.base_label"), sdkDimStyle.Render(basePath))
-	fmt.Printf("  %s %s\n", i18n.Label("current"), sdkDimStyle.Render(specPath))
-	fmt.Println()
+	cli.Print("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.sdk.diff.label")), i18n.ProgressSubject("check", "breaking changes"))
+	cli.Print("  %s %s\n", i18n.T("cmd.sdk.diff.base_label"), sdkDimStyle.Render(basePath))
+	cli.Print("  %s %s\n", i18n.Label("current"), sdkDimStyle.Render(specPath))
+	cli.Blank()
 
 	result, err := sdk.Diff(basePath, specPath)
 	if err != nil {
@@ -108,14 +107,14 @@ func runSDKDiff(basePath, specPath string) error {
 	}
 
 	if result.Breaking {
-		fmt.Printf("%s %s\n", sdkErrorStyle.Render(i18n.T("cmd.sdk.diff.breaking")), result.Summary)
+		cli.Print("%s %s\n", sdkErrorStyle.Render(i18n.T("cmd.sdk.diff.breaking")), result.Summary)
 		for _, change := range result.Changes {
-			fmt.Printf("  - %s\n", change)
+			cli.Print("  - %s\n", change)
 		}
 		return cli.Exit(1, cli.Err("%s", result.Summary))
 	}
 
-	fmt.Printf("%s %s\n", sdkSuccessStyle.Render(i18n.T("cmd.sdk.label.ok")), result.Summary)
+	cli.Print("%s %s\n", sdkSuccessStyle.Render(i18n.T("cmd.sdk.label.ok")), result.Summary)
 	return nil
 }
 
@@ -127,15 +126,15 @@ func runSDKValidate(specPath string) error {
 
 	s := sdk.New(projectDir, &sdk.Config{Spec: specPath})
 
-	fmt.Printf("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.sdk.label.sdk")), i18n.T("cmd.sdk.validate.validating"))
+	cli.Print("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.sdk.label.sdk")), i18n.T("cmd.sdk.validate.validating"))
 
 	detectedPath, err := s.DetectSpec()
 	if err != nil {
-		fmt.Printf("%s %v\n", sdkErrorStyle.Render(i18n.Label("error")), err)
+		cli.Print("%s %v\n", sdkErrorStyle.Render(i18n.Label("error")), err)
 		return err
 	}
 
-	fmt.Printf("  %s %s\n", i18n.Label("spec"), sdkDimStyle.Render(detectedPath))
-	fmt.Printf("%s %s\n", sdkSuccessStyle.Render(i18n.T("cmd.sdk.label.ok")), i18n.T("cmd.sdk.validate.valid"))
+	cli.Print("  %s %s\n", i18n.Label("spec"), sdkDimStyle.Render(detectedPath))
+	cli.Print("%s %s\n", sdkSuccessStyle.Render(i18n.T("cmd.sdk.label.ok")), i18n.T("cmd.sdk.validate.valid"))
 	return nil
 }

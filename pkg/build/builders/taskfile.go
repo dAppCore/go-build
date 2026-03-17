@@ -267,7 +267,7 @@ func (b *TaskfileBuilder) validateTaskCli() error {
 	}
 
 	for _, p := range paths {
-		if _, err := os.Stat(p); err == nil {
+		if io.Local.IsFile(p) {
 			return nil
 		}
 	}

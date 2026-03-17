@@ -210,7 +210,7 @@ func (p *ScoopPublisher) commitToBucket(ctx context.Context, bucket string, data
 
 	// Ensure bucket directory exists
 	bucketDir := filepath.Join(tmpDir, "bucket")
-	if _, err := os.Stat(bucketDir); os.IsNotExist(err) {
+	if !coreio.Local.IsDir(bucketDir) {
 		bucketDir = tmpDir // Some repos put manifests in root
 	}
 
