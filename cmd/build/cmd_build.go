@@ -8,8 +8,7 @@ import (
 )
 
 func init() {
-	i18n.LoadFS(locales.FS, ".")
-	cli.RegisterCommands(AddBuildCommands)
+	cli.RegisterCommands(AddBuildCommands, locales.FS)
 }
 
 // Style aliases from shared package
