@@ -36,9 +36,7 @@ var (
 )
 
 var ciCmd = &cli.Command{
-	Use:   "ci",
-	Short: i18n.T("cmd.ci.short"),
-	Long:  i18n.T("cmd.ci.long"),
+	Use: "ci",
 	RunE: func(cmd *cli.Command, args []string) error {
 		dryRun := !ciGoForLaunch
 		return runCIPublish(dryRun, ciVersion, ciDraft, ciPrerelease)
@@ -46,33 +44,38 @@ var ciCmd = &cli.Command{
 }
 
 var ciInitCmd = &cli.Command{
-	Use:   "init",
-	Short: i18n.T("cmd.ci.init.short"),
-	Long:  i18n.T("cmd.ci.init.long"),
+	Use: "init",
 	RunE: func(cmd *cli.Command, args []string) error {
 		return runCIReleaseInit()
 	},
 }
 
 var ciChangelogCmd = &cli.Command{
-	Use:   "changelog",
-	Short: i18n.T("cmd.ci.changelog.short"),
-	Long:  i18n.T("cmd.ci.changelog.long"),
+	Use: "changelog",
 	RunE: func(cmd *cli.Command, args []string) error {
 		return runChangelog(changelogFromRef, changelogToRef)
 	},
 }
 
 var ciVersionCmd = &cli.Command{
-	Use:   "version",
-	Short: i18n.T("cmd.ci.version.short"),
-	Long:  i18n.T("cmd.ci.version.long"),
+	Use: "version",
 	RunE: func(cmd *cli.Command, args []string) error {
 		return runCIReleaseVersion()
 	},
 }
 
-func init() {
+func setCII18n() {
+	ciCmd.Short = i18n.T("cmd.ci.short")
+	ciCmd.Long = i18n.T("cmd.ci.long")
+	ciInitCmd.Short = i18n.T("cmd.ci.init.short")
+	ciInitCmd.Long = i18n.T("cmd.ci.init.long")
+	ciChangelogCmd.Short = i18n.T("cmd.ci.changelog.short")
+	ciChangelogCmd.Long = i18n.T("cmd.ci.changelog.long")
+	ciVersionCmd.Short = i18n.T("cmd.ci.version.short")
+	ciVersionCmd.Long = i18n.T("cmd.ci.version.long")
+}
+
+func initCIFlags() {
 	// Main ci command flags
 	ciCmd.Flags().BoolVar(&ciGoForLaunch, "we-are-go-for-launch", false, i18n.T("cmd.ci.flag.go_for_launch"))
 	ciCmd.Flags().StringVar(&ciVersion, "version", "", i18n.T("cmd.ci.flag.version"))

@@ -30,18 +30,14 @@ var (
 )
 
 var sdkCmd = &cli.Command{
-	Use:   "sdk",
-	Short: i18n.T("cmd.sdk.short"),
-	Long:  i18n.T("cmd.sdk.long"),
+	Use: "sdk",
 }
 
 var diffBasePath string
 var diffSpecPath string
 
 var sdkDiffCmd = &cli.Command{
-	Use:   "diff",
-	Short: i18n.T("cmd.sdk.diff.short"),
-	Long:  i18n.T("cmd.sdk.diff.long"),
+	Use: "diff",
 	RunE: func(cmd *cli.Command, args []string) error {
 		return runSDKDiff(diffBasePath, diffSpecPath)
 	},
@@ -50,16 +46,25 @@ var sdkDiffCmd = &cli.Command{
 var validateSpecPath string
 
 var sdkValidateCmd = &cli.Command{
-	Use:   "validate",
-	Short: i18n.T("cmd.sdk.validate.short"),
-	Long:  i18n.T("cmd.sdk.validate.long"),
+	Use: "validate",
 	RunE: func(cmd *cli.Command, args []string) error {
 		return runSDKValidate(validateSpecPath)
 	},
 }
 
+func setSDKI18n() {
+	sdkCmd.Short = i18n.T("cmd.sdk.short")
+	sdkCmd.Long = i18n.T("cmd.sdk.long")
+	sdkDiffCmd.Short = i18n.T("cmd.sdk.diff.short")
+	sdkDiffCmd.Long = i18n.T("cmd.sdk.diff.long")
+	sdkValidateCmd.Short = i18n.T("cmd.sdk.validate.short")
+	sdkValidateCmd.Long = i18n.T("cmd.sdk.validate.long")
+}
+
 // AddSDKCommands registers the 'sdk' command and all subcommands.
 func AddSDKCommands(root *cli.Command) {
+	setSDKI18n()
+
 	// sdk diff flags
 	sdkDiffCmd.Flags().StringVar(&diffBasePath, "base", "", i18n.T("cmd.sdk.diff.flag.base"))
 	sdkDiffCmd.Flags().StringVar(&diffSpecPath, "spec", "", i18n.T("cmd.sdk.diff.flag.spec"))

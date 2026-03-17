@@ -19,5 +19,7 @@ func init() {
 
 // AddCICommands registers the 'ci' command and all subcommands.
 func AddCICommands(root *cli.Command) {
+	setCII18n()
+	initCIFlags()
 	root.AddCommand(ciCmd)
 }

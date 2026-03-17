@@ -21,15 +21,18 @@ var (
 )
 
 var releaseCmd = &cli.Command{
-	Use:   "release",
-	Short: i18n.T("cmd.build.release.short"),
-	Long:  i18n.T("cmd.build.release.long"),
+	Use: "release",
 	RunE: func(cmd *cli.Command, args []string) error {
 		return runRelease(cmd.Context(), !releaseGoForLaunch, releaseVersion, releaseDraft, releasePrerelease)
 	},
 }
 
-func init() {
+func setReleaseI18n() {
+	releaseCmd.Short = i18n.T("cmd.build.release.short")
+	releaseCmd.Long = i18n.T("cmd.build.release.long")
+}
+
+func initReleaseFlags() {
 	releaseCmd.Flags().BoolVar(&releaseGoForLaunch, "we-are-go-for-launch", false, i18n.T("cmd.build.release.flag.go_for_launch"))
 	releaseCmd.Flags().StringVar(&releaseVersion, "version", "", i18n.T("cmd.build.release.flag.version"))
 	releaseCmd.Flags().BoolVar(&releaseDraft, "draft", false, i18n.T("cmd.build.release.flag.draft"))
@@ -38,6 +41,8 @@ func init() {
 
 // AddReleaseCommand adds the release subcommand to the build command.
 func AddReleaseCommand(buildCmd *cli.Command) {
+	setReleaseI18n()
+	initReleaseFlags()
 	buildCmd.AddCommand(releaseCmd)
 }
 

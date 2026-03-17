@@ -59,17 +59,14 @@ var (
 )
 
 var buildCmd = &cli.Command{
-	Use:   "build",
-	Short: i18n.T("cmd.build.short"),
-	Long:  i18n.T("cmd.build.long"),
+	Use: "build",
 	RunE: func(cmd *cli.Command, args []string) error {
 		return runProjectBuild(cmd.Context(), buildType, ciMode, targets, outputDir, doArchive, doChecksum, configPath, format, push, imageName, noSign, notarize, verbose)
 	},
 }
 
 var fromPathCmd = &cli.Command{
-	Use:   "from-path",
-	Short: i18n.T("cmd.build.from_path.short"),
+	Use: "from-path",
 	RunE: func(cmd *cli.Command, args []string) error {
 		if fromPath == "" {
 			return errPathRequired
@@ -79,8 +76,7 @@ var fromPathCmd = &cli.Command{
 }
 
 var pwaCmd = &cli.Command{
-	Use:   "pwa",
-	Short: i18n.T("cmd.build.pwa.short"),
+	Use: "pwa",
 	RunE: func(cmd *cli.Command, args []string) error {
 		if pwaURL == "" {
 			return errURLRequired
@@ -90,12 +86,19 @@ var pwaCmd = &cli.Command{
 }
 
 var sdkBuildCmd = &cli.Command{
-	Use:   "sdk",
-	Short: i18n.T("cmd.build.sdk.short"),
-	Long:  i18n.T("cmd.build.sdk.long"),
+	Use: "sdk",
 	RunE: func(cmd *cli.Command, args []string) error {
 		return runBuildSDK(sdkSpec, sdkLang, sdkVersion, sdkDryRun)
 	},
+}
+
+func setBuildI18n() {
+	buildCmd.Short = i18n.T("cmd.build.short")
+	buildCmd.Long = i18n.T("cmd.build.long")
+	fromPathCmd.Short = i18n.T("cmd.build.from_path.short")
+	pwaCmd.Short = i18n.T("cmd.build.pwa.short")
+	sdkBuildCmd.Short = i18n.T("cmd.build.sdk.short")
+	sdkBuildCmd.Long = i18n.T("cmd.build.sdk.long")
 }
 
 func initBuildFlags() {
@@ -138,6 +141,7 @@ func initBuildFlags() {
 
 // AddBuildCommands registers the 'build' command and all subcommands.
 func AddBuildCommands(root *cli.Command) {
+	setBuildI18n()
 	initBuildFlags()
 	AddReleaseCommand(buildCmd)
 	root.AddCommand(buildCmd)
