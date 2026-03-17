@@ -60,7 +60,7 @@ All file operations use `io.Medium` from `forge.lthn.ai/core/go-io`. Production 
 
 - **UK English** in comments and strings (colour, organisation, notarisation)
 - **Strict types** — all parameters and return types explicitly typed
-- **Error wrapping** — `fmt.Errorf("package.Function: message: %w", err)`
+- **Error wrapping** — `coreerr.E("package.Function", "message", err)` via `coreerr "forge.lthn.ai/core/go-log"`
 - **testify** (`assert`/`require`) for assertions
 - **Test naming** — `_Good` (happy path), `_Bad` (expected errors), `_Ugly` (edge cases)
 - **Conventional commits** — `type(scope): description`

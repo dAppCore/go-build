@@ -5,12 +5,12 @@ import (
 	"embed"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/go-build/locales"
+	_ "forge.lthn.ai/core/go-build/locales" // registers locale translations
 	"forge.lthn.ai/core/go-i18n"
 )
 
 func init() {
-	cli.RegisterCommands(AddBuildCommands, locales.FS)
+	cli.RegisterCommands(AddBuildCommands)
 }
 
 // Style aliases from shared package

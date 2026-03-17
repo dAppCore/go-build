@@ -3,9 +3,12 @@
 package api
 
 import (
+	"os"
 	"testing"
 
+	"forge.lthn.ai/core/go-build/pkg/build"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildProvider_Good_Identity(t *testing.T) {
@@ -74,4 +77,39 @@ func TestBuildProvider_Good_NilHub(t *testing.T) {
 	p := NewProvider(".", nil)
 	// emitEvent should not panic with nil hub
 	p.emitEvent("build.started", map[string]any{"test": true})
+}
+
+func TestGetBuilder_Good_SupportedTypes(t *testing.T) {
+	b, err := getBuilder(build.ProjectTypeGo)
+	require.NoError(t, err)
+	assert.Equal(t, "go", b.Name())
+
+	b, err = getBuilder(build.ProjectTypeWails)
+	require.NoError(t, err)
+	assert.Equal(t, "wails", b.Name())
+}
+
+func TestGetBuilder_Bad_UnsupportedType(t *testing.T) {
+	_, err := getBuilder(build.ProjectType("unknown"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestBuildProvider_Good_ResolveDir(t *testing.T) {
+	p := NewProvider("/tmp", nil)
+	dir, err := p.resolveDir()
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp", dir)
+}
+
+func TestBuildProvider_Good_ResolveDirRelative(t *testing.T) {
+	p := NewProvider(".", nil)
+	dir, err := p.resolveDir()
+	require.NoError(t, err)
+	// Should return an absolute path
+	assert.True(t, len(dir) > 1 && dir[0] == '/')
+}
+
+func TestBuildProvider_Good_MediumSet(t *testing.T) {
+	p := NewProvider(".", nil)
+	assert.NotNil(t, p.medium, "medium should be set to io.Local")
 }

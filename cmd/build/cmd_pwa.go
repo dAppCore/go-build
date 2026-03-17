@@ -222,11 +222,7 @@ func downloadAsset(assetURL, destDir string) error {
 func runBuild(fromPath string) error {
 	fmt.Printf("%s %s\n", i18n.T("cmd.build.from_path.starting"), fromPath)
 
-	info, err := os.Stat(fromPath)
-	if err != nil {
-		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.invalid_path"), err)
-	}
-	if !info.IsDir() {
+	if !coreio.Local.IsDir(fromPath) {
 		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.must_be_directory"), nil)
 	}
 
