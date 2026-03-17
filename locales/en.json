@@ -1,0 +1,206 @@
+{
+  "common": {
+    "error": {
+      "failed": "Failed to {{.Action}}"
+    },
+    "flag": {
+      "spec": "Path to OpenAPI spec file",
+      "verbose": "Enable verbose output"
+    },
+    "label": {
+      "error": "Error",
+      "spec": "Spec:",
+      "success": "Done",
+      "warning": "Warning"
+    }
+  },
+  "cmd": {
+    "build": {
+      "short": "Build project artefacts",
+      "long": "Build binaries, archives, and checksums for the current project. Supports Go, Docker, and PWA builds with cross-compilation and code signing.",
+      "building_project": "Building project...",
+      "built_artifacts": "Built {{.Count}} artefact(s)",
+      "computing_checksums": "Computing checksums...",
+      "creating_archives": "Creating archives...",
+      "signing_binaries": "Signing binaries...",
+      "error": {
+        "archive_failed": "Archive creation failed",
+        "checksum_failed": "Checksum computation failed",
+        "gpg_signing_failed": "GPG signing failed",
+        "notarization_failed": "Notarisation failed",
+        "signing_failed": "Code signing failed"
+      },
+      "flag": {
+        "archive": "Create release archives",
+        "checksum": "Generate checksums for artefacts",
+        "ci": "Run in CI mode (all targets, JSON output)",
+        "config": "Path to build configuration file",
+        "format": "Output format (e.g. json, text)",
+        "image": "Container image name",
+        "no_sign": "Skip code signing",
+        "notarize": "Notarise macOS binaries",
+        "output": "Output directory for build artefacts",
+        "push": "Push container image after build",
+        "targets": "Comma-separated build targets (os/arch)",
+        "type": "Project type override (go, docker, pwa)"
+      },
+      "from_path": {
+        "short": "Build a Go binary from a local path",
+        "compiling": "Compiling...",
+        "copying_files": "Copying application files...",
+        "generating_template": "Generating build template...",
+        "starting": "Starting build from path:",
+        "success": "Build complete:",
+        "error": {
+          "go_build": "Go build failed",
+          "go_mod_tidy": "go mod tidy failed",
+          "invalid_path": "Invalid path",
+          "must_be_directory": "Path must be a directory"
+        },
+        "flag": {
+          "path": "Path to source directory"
+        }
+      },
+      "label": {
+        "archive": "Archive",
+        "binary": "Binary:",
+        "build": "Build",
+        "checksum": "Checksum",
+        "ok": "OK",
+        "output": "Output:",
+        "sign": "Sign",
+        "targets": "Targets:",
+        "type": "Type:"
+      },
+      "pwa": {
+        "short": "Build a PWA from a URL",
+        "download_complete": "Download complete",
+        "downloading_to": "Downloading to:",
+        "found_manifest": "Found manifest:",
+        "no_manifest": "No manifest found; saving raw HTML",
+        "starting": "Starting PWA build:",
+        "error": {
+          "no_manifest_tag": "No manifest link tag found in HTML"
+        },
+        "flag": {
+          "url": "URL of the PWA to build"
+        }
+      },
+      "release": {
+        "short": "Build and publish a release",
+        "long": "Build all artefacts and publish them to configured release channels (GitHub, Homebrew, Scoop, etc.).",
+        "building_and_publishing": "Building and publishing release...",
+        "completed": "Release published successfully",
+        "dry_run_hint": "Dry run — no artefacts will be published",
+        "error": {
+          "no_config": "No build configuration found"
+        },
+        "flag": {
+          "draft": "Create release as draft",
+          "go_for_launch": "Confirm publish (required for non-dry-run)",
+          "prerelease": "Mark release as pre-release",
+          "version": "Release version (e.g. v1.2.3)"
+        },
+        "hint": {
+          "create_config": "Create a .core/build.yaml to configure builds"
+        },
+        "label": {
+          "artifacts": "Artefacts:",
+          "published": "Published:",
+          "release": "Release"
+        }
+      },
+      "sdk": {
+        "short": "Generate SDK client libraries",
+        "long": "Generate typed SDK client libraries from an OpenAPI spec. Supports multiple languages and versioned output.",
+        "complete": "SDK generation complete",
+        "dry_run_mode": "Dry run — no files will be written",
+        "generated_label": "Generated:",
+        "generating": "Generating SDK...",
+        "label": "SDK",
+        "language_label": "Language:",
+        "languages_label": "Languages:",
+        "would_generate": "Would generate SDK (dry run)",
+        "flag": {
+          "dry_run": "Preview without generating files",
+          "lang": "Target language (e.g. go, typescript, python)",
+          "version": "SDK version to generate"
+        }
+      }
+    },
+    "ci": {
+      "short": "Run CI pipeline",
+      "long": "Execute the full CI pipeline: build, test, and publish artefacts to configured release channels.",
+      "dry_run_hint": "Dry run — no artefacts will be published",
+      "go_for_launch": "We are go for launch!",
+      "publish_completed": "Publish completed successfully",
+      "publishing": "Publishing...",
+      "error": {
+        "no_publishers": "No publishers configured"
+      },
+      "flag": {
+        "draft": "Create release as draft",
+        "go_for_launch": "Confirm publish (required for non-dry-run)",
+        "prerelease": "Mark release as pre-release",
+        "version": "Release version (e.g. v1.2.3)"
+      },
+      "label": {
+        "artifacts": "Artefacts:",
+        "ci": "CI",
+        "published": "Published:"
+      },
+      "changelog": {
+        "short": "Generate a changelog",
+        "long": "Generate a changelog from git history between two references (tags, commits, or branches).",
+        "generating": "Generating changelog",
+        "no_tags": "No tags found in repository",
+        "flag": {
+          "from": "Start reference (tag, commit, or branch)",
+          "to": "End reference (defaults to HEAD)"
+        }
+      },
+      "init": {
+        "short": "Initialise CI configuration",
+        "long": "Create a default .core/build.yaml configuration file for the current project.",
+        "already_initialised": "Configuration already exists",
+        "created_config": "Created .core/build.yaml",
+        "edit_config": "1. Edit .core/build.yaml to configure your build",
+        "initializing": "Initialising CI configuration...",
+        "next_steps": "Next steps:",
+        "run_ci": "2. Run 'core ci' to build and publish"
+      },
+      "version": {
+        "short": "Show or bump the project version",
+        "long": "Display the current project version or compute the next version based on conventional commits."
+      }
+    },
+    "sdk": {
+      "short": "OpenAPI SDK tools",
+      "long": "Tools for validating OpenAPI specs and generating SDK client libraries with breaking-change detection.",
+      "label": {
+        "ok": "OK",
+        "sdk": "SDK"
+      },
+      "diff": {
+        "short": "Detect breaking API changes",
+        "long": "Compare two OpenAPI specs and report any breaking changes between versions.",
+        "base_label": "Base:",
+        "breaking": "Breaking changes detected",
+        "label": "Diff",
+        "error": {
+          "base_required": "Base spec path is required"
+        },
+        "flag": {
+          "base": "Path to base (previous) OpenAPI spec",
+          "spec": "Path to current OpenAPI spec"
+        }
+      },
+      "validate": {
+        "short": "Validate an OpenAPI spec",
+        "long": "Parse and validate an OpenAPI specification file for correctness.",
+        "valid": "Spec is valid",
+        "validating": "Validating spec..."
+      }
+    }
+  }
+}
