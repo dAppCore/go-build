@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	coreio "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // PHPGenerator generates PHP SDKs from OpenAPI specs.

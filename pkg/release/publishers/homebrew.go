@@ -13,8 +13,8 @@ import (
 	"text/template"
 
 	"forge.lthn.ai/core/go-build/pkg/build"
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	coreio "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 //go:embed templates/homebrew/*.tmpl

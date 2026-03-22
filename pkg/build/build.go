@@ -6,7 +6,7 @@ package build
 import (
 	"context"
 
-	"forge.lthn.ai/core/go-io"
+	"dappco.re/go/core/io"
 )
 
 // ProjectType represents a detected project type.

@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"testing"
 
-	"forge.lthn.ai/core/go-io"
+	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,7 +39,7 @@ func TestMacOSSigner_Sign_Bad(t *testing.T) {
 		s := NewMacOSSigner(MacOSConfig{Identity: "test"})
 		err := s.Sign(context.Background(), fs, "test")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not available")
+		assert.Contains(t, err.Error(), "only available on macOS")
 	})
 }
 

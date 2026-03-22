@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-i18n"
+	"dappco.re/go/core/log"
+	"dappco.re/go/core/i18n"
 	"forge.lthn.ai/core/go-build/pkg/release"
 )
 

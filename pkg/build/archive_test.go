@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/Snider/Borg/pkg/compress"
-	io_interface "forge.lthn.ai/core/go-io"
+	io_interface "dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

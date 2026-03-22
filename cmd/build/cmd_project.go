@@ -17,9 +17,9 @@ import (
 	"forge.lthn.ai/core/go-build/pkg/build"
 	"forge.lthn.ai/core/go-build/pkg/build/builders"
 	"forge.lthn.ai/core/go-build/pkg/build/signing"
-	"forge.lthn.ai/core/go-i18n"
-	"forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/i18n"
+	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // runProjectBuild handles the main `core build` command with auto-detection.

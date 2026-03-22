@@ -6,7 +6,7 @@ import (
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 	_ "forge.lthn.ai/core/go-build/locales" // registers locale translations
-	"forge.lthn.ai/core/go-i18n"
+	"dappco.re/go/core/i18n"
 )
 
 func init() {

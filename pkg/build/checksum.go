@@ -11,8 +11,8 @@ import (
 
 	"strings"
 
-	io_interface "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	io_interface "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // Checksum computes SHA256 for an artifact and returns the artifact with the Checksum field filled.

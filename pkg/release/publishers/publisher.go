@@ -5,7 +5,7 @@ import (
 	"context"
 
 	"forge.lthn.ai/core/go-build/pkg/build"
-	"forge.lthn.ai/core/go-io"
+	"dappco.re/go/core/io"
 )
 
 // Release represents a release to be published.

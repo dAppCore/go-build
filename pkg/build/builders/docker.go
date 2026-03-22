@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"forge.lthn.ai/core/go-build/pkg/build"
-	"forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // DockerBuilder builds Docker images.
