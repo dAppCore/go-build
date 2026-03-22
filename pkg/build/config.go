@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"forge.lthn.ai/core/go-build/pkg/build/signing"
-	"forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/build/pkg/build/signing"
+	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
 )
 

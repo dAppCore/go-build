@@ -6,10 +6,10 @@ import (
 	"context"
 	"os"
 
+	"dappco.re/go/core/build/pkg/release"
+	"dappco.re/go/core/i18n"
+	coreerr "dappco.re/go/core/log"
 	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-i18n"
-	"forge.lthn.ai/core/go-build/pkg/release"
 )
 
 // Flag variables for release command
@@ -51,7 +51,7 @@ func runRelease(ctx context.Context, dryRun bool, version string, draft, prerele
 	// Get current directory
 	projectDir, err := os.Getwd()
 	if err != nil {
-		return log.E("release", "get working directory", err)
+		return coreerr.E("release", "get working directory", err)
 	}
 
 	// Check for release config
@@ -61,13 +61,13 @@ func runRelease(ctx context.Context, dryRun bool, version string, draft, prerele
 			i18n.T("cmd.build.release.error.no_config"),
 		)
 		cli.Print("  %s\n", buildDimStyle.Render(i18n.T("cmd.build.release.hint.create_config")))
-		return log.E("release", "config not found", nil)
+		return coreerr.E("release", "config not found", nil)
 	}
 
 	// Load configuration
 	cfg, err := release.LoadConfig(projectDir)
 	if err != nil {
-		return log.E("release", "load config", err)
+		return coreerr.E("release", "load config", err)
 	}
 
 	// Apply CLI overrides

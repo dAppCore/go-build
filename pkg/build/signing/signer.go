@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"forge.lthn.ai/core/go-io"
+	"dappco.re/go/core/io"
 )
 
 // Signer defines the interface for code signing implementations.
