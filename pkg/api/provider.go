@@ -10,14 +10,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"forge.lthn.ai/core/api"
-	"forge.lthn.ai/core/api/pkg/provider"
-	"forge.lthn.ai/core/go-build/pkg/build"
-	"forge.lthn.ai/core/go-build/pkg/build/builders"
-	"forge.lthn.ai/core/go-build/pkg/release"
-	"forge.lthn.ai/core/go-build/pkg/sdk"
-	"forge.lthn.ai/core/go-io"
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/core/api"
+	"dappco.re/go/core/api/pkg/provider"
+	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/build/pkg/build/builders"
+	"dappco.re/go/core/build/pkg/release"
+	"dappco.re/go/core/build/pkg/sdk"
+	"dappco.re/go/core/io"
+	"dappco.re/go/core/ws"
 	"github.com/gin-gonic/gin"
 )
 

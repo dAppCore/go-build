@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`core/go-build` is the build system, release pipeline, and SDK generation tool for the Core ecosystem. Three subsystems under `pkg/` — **build**, **release**, **sdk** — can be used as libraries or wired together via CLI commands in `cmd/`. This repo produces no standalone binary; `cmd/` packages register commands via `cli.RegisterCommands()` in `init()` functions, compiled into the `core` binary from `forge.lthn.ai/core/cli`.
+`core/go-build` is the build system, release pipeline, and SDK generation tool for the Core ecosystem. Three subsystems under `pkg/` — **build**, **release**, **sdk** — can be used as libraries or wired together via CLI commands in `cmd/`. This repo produces no standalone binary; `cmd/` packages register commands via `cli.RegisterCommands()` in `init()` functions, compiled into the `core` binary from `forge.lthn.ai/core/cli`. Module path: `dappco.re/go/core/build`.
 
 ## Build & Test
 
@@ -15,7 +15,7 @@ go test ./pkg/build/... -run TestLoadConfig_Good        # single test by name
 go test -race ./...                                     # with race detection
 ```
 
-**Go workspace**: this module is part of `~/Code/go.work`. Run `go work sync` after cloning. Set `GOPRIVATE=forge.lthn.ai/*` for private module fetching.
+**Go workspace**: this module is part of `~/Code/go.work`. Run `go work sync` after cloning. Set `GOPRIVATE=dappco.re/*,forge.lthn.ai/*` for private module fetching.
 
 ## Architecture
 
@@ -49,7 +49,7 @@ project dir      -> Discover()   -> ProjectType -> getBuilder() -> Builder.Build
 
 ### Filesystem Abstraction
 
-All file operations use `io.Medium` from `forge.lthn.ai/core/go-io`. Production uses `io.Local`; tests inject mocks for isolation.
+All file operations use `io.Medium` from `dappco.re/go/core/io`. Production uses `io.Local`; tests inject mocks for isolation.
 
 ### Configuration Files
 
@@ -60,7 +60,7 @@ All file operations use `io.Medium` from `forge.lthn.ai/core/go-io`. Production 
 
 - **UK English** in comments and strings (colour, organisation, notarisation)
 - **Strict types** — all parameters and return types explicitly typed
-- **Error wrapping** — `coreerr.E("package.Function", "message", err)` via `coreerr "forge.lthn.ai/core/go-log"`
+- **Error wrapping** — `coreerr.E("package.Function", "message", err)` via `coreerr "dappco.re/go/core/log"`
 - **testify** (`assert`/`require`) for assertions
 - **Test naming** — `_Good` (happy path), `_Bad` (expected errors), `_Ugly` (edge cases)
 - **Conventional commits** — `type(scope): description`
@@ -76,9 +76,9 @@ All file operations use `io.Medium` from `forge.lthn.ai/core/go-io`. Production 
 
 ## Dependencies
 
-- `forge.lthn.ai/core/cli` — Command registration (`cli.RegisterCommands`, `cli.Command`)
-- `forge.lthn.ai/core/go-io` — Filesystem abstraction (`io.Medium`, `io.Local`)
-- `forge.lthn.ai/core/go-i18n` — Internationalisation (`i18n.T()`, `i18n.Label()`)
-- `forge.lthn.ai/core/go-log` — Structured logging
+- `forge.lthn.ai/core/cli` — Command registration (`cli.RegisterCommands`, `cli.Command`) *(not yet migrated)*
+- `dappco.re/go/core/io` — Filesystem abstraction (`io.Medium`, `io.Local`)
+- `dappco.re/go/core/i18n` — Internationalisation (`i18n.T()`, `i18n.Label()`)
+- `dappco.re/go/core/log` — Structured logging
 - `github.com/Snider/Borg` — XZ compression for archives
 - `github.com/getkin/kin-openapi` + `github.com/oasdiff/oasdiff` — OpenAPI parsing and diff

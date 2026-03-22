@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 )
 
 // GitHubPublisher publishes releases to GitHub using the gh CLI.

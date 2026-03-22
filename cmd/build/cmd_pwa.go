@@ -17,9 +17,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"forge.lthn.ai/core/go-i18n"
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/i18n"
+	coreio "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 	"github.com/leaanthony/debme"
 	"github.com/leaanthony/gosod"
 	"golang.org/x/net/html"
