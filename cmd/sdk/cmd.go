@@ -10,10 +10,10 @@ package sdkcmd
 import (
 	"os"
 
+	"dappco.re/go/core/build/pkg/sdk"
+	"dappco.re/go/core/i18n"
+	coreerr "dappco.re/go/core/log"
 	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/go-build/pkg/sdk"
-	"forge.lthn.ai/core/go-i18n"
-	coreerr "forge.lthn.ai/core/go-log"
 )
 
 func init() {

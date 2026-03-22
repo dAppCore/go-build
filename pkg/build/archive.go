@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	io_interface "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	io_interface "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 	"github.com/Snider/Borg/pkg/compress"
 )
 

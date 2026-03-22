@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
-	"forge.lthn.ai/core/go-build/pkg/sdk"
-	coreerr "forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/build/pkg/sdk"
+	coreerr "dappco.re/go/core/log"
 )
 
 // SDKRelease holds the result of an SDK release.

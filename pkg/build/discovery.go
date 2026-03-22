@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"forge.lthn.ai/core/go-io"
+	"dappco.re/go/core/io"
 )
 
 // Marker files for project type detection.

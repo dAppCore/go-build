@@ -4,7 +4,7 @@ package locales
 import (
 	"embed"
 
-	"forge.lthn.ai/core/go-i18n"
+	"dappco.re/go/core/i18n"
 )
 
 //go:embed *.json

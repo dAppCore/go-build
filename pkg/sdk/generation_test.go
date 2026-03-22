@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"forge.lthn.ai/core/go-build/pkg/sdk/generators"
+	"dappco.re/go/core/build/pkg/sdk/generators"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

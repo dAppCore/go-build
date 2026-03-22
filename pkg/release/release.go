@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"forge.lthn.ai/core/go-build/pkg/build"
-	"forge.lthn.ai/core/go-build/pkg/build/builders"
-	"forge.lthn.ai/core/go-build/pkg/release/publishers"
-	"forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/build/pkg/build/builders"
+	"dappco.re/go/core/build/pkg/release/publishers"
+	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // Release represents a release with its version, artifacts, and changelog.
