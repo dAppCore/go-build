@@ -1,4 +1,4 @@
-module forge.lthn.ai/core/go-build
+module dappco.re/go/core/build
 
 go 1.26.0
 
@@ -23,7 +23,7 @@ require (
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
-	dappco.re/go/core v0.5.0 // indirect
+	dappco.re/go/core v0.6.0 // indirect
 	forge.lthn.ai/core/go v0.3.2 // indirect
 	forge.lthn.ai/core/go-i18n v0.1.7 // indirect
 	forge.lthn.ai/core/go-inference v0.1.7 // indirect
@@ -154,4 +154,15 @@ require (
 	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
+)
+
+replace (
+	dappco.re/go/core => /Users/snider/Code/core/go
+	dappco.re/go/core/api => /Users/snider/Code/core/api
+	dappco.re/go/core/i18n => /Users/snider/Code/core/go-i18n
+	dappco.re/go/core/io => /Users/snider/Code/core/go-io
+	dappco.re/go/core/log => /Users/snider/Code/core/go-log
+	dappco.re/go/core/ws => /Users/snider/Code/core/go-ws
+	forge.lthn.ai/core/cli => /Users/snider/Code/core/cli
+	forge.lthn.ai/core/go-inference => /Users/snider/Code/core/go-inference
 )

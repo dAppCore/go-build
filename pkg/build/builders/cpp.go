@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"forge.lthn.ai/core/go-build/pkg/build"
+	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )

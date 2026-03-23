@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"forge.lthn.ai/core/go-build/pkg/build"
+	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

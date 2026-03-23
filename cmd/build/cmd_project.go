@@ -14,9 +14,9 @@ import (
 	"runtime"
 	"strings"
 
-	"forge.lthn.ai/core/go-build/pkg/build"
-	"forge.lthn.ai/core/go-build/pkg/build/builders"
-	"forge.lthn.ai/core/go-build/pkg/build/signing"
+	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/build/pkg/build/builders"
+	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"

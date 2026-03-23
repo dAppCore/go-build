@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 
-	"forge.lthn.ai/core/go-build/pkg/sdk"
+	"dappco.re/go/core/build/pkg/sdk"
 	coreerr "dappco.re/go/core/log"
 )
 

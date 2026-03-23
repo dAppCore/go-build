@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"forge.lthn.ai/core/go-build/pkg/build"
-	"forge.lthn.ai/core/go-build/pkg/build/builders"
-	"forge.lthn.ai/core/go-build/pkg/release/publishers"
+	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/build/pkg/build/builders"
+	"dappco.re/go/core/build/pkg/release/publishers"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -30,93 +30,81 @@ type Release struct {
 	FS io.Medium
 }
 
-// resolveProjectDir validates cfg is non-nil and returns the absolute project directory.
-func resolveProjectDir(cfg *Config, caller string) (string, error) {
-	if cfg == nil {
-		return "", coreerr.E(caller, "config is nil", nil)
-	}
-	projectDir := cfg.projectDir
-	if projectDir == "" {
-		projectDir = "."
-	}
-	absProjectDir, err := filepath.Abs(projectDir)
-	if err != nil {
-		return "", coreerr.E(caller, "failed to resolve project directory", err)
-	}
-	return absProjectDir, nil
-}
-
-// resolveVersion returns cfg.version if set, otherwise determines it from git tags.
-func resolveVersion(cfg *Config, absProjectDir, caller string) (string, error) {
-	if cfg.version != "" {
-		return cfg.version, nil
-	}
-	version, err := DetermineVersion(absProjectDir)
-	if err != nil {
-		return "", coreerr.E(caller, "failed to determine version", err)
-	}
-	return version, nil
-}
-
-// newRelease constructs a Release with the changelog generated (non-fatal on failure).
-func newRelease(version string, artifacts []build.Artifact, absProjectDir string) *Release {
-	changelog, err := Generate(absProjectDir, "", version)
-	if err != nil {
-		changelog = fmt.Sprintf("Release %s", version)
-	}
-	return &Release{
-		Version:    version,
-		Artifacts:  artifacts,
-		Changelog:  changelog,
-		ProjectDir: absProjectDir,
-		FS:         io.Local,
-	}
-}
-
-// publishAll dispatches the release to all configured publishers.
-func publishAll(ctx context.Context, cfg *Config, release *Release, dryRun bool, caller string) error {
-	if len(cfg.Publishers) == 0 {
-		return nil
-	}
-	pubRelease := publishers.NewRelease(release.Version, release.Artifacts, release.Changelog, release.ProjectDir, release.FS)
-	for _, pubCfg := range cfg.Publishers {
-		publisher, err := getPublisher(pubCfg.Type)
-		if err != nil {
-			return coreerr.E(caller, "unsupported publisher", err)
-		}
-		publisherCfg := publishers.NewPublisherConfig(pubCfg.Type, pubCfg.Prerelease, pubCfg.Draft, buildExtendedConfig(pubCfg))
-		if err := publisher.Publish(ctx, pubRelease, publisherCfg, cfg, dryRun); err != nil {
-			return coreerr.E(caller, "publish to "+pubCfg.Type+" failed", err)
-		}
-	}
-	return nil
-}
-
 // Publish publishes pre-built artifacts from dist/ to configured targets.
 // Use this after `core build` to separate build and publish concerns.
 // If dryRun is true, it will show what would be done without actually publishing.
 func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
-	absProjectDir, err := resolveProjectDir(cfg, "release.Publish")
-	if err != nil {
-		return nil, err
+	if cfg == nil {
+		return nil, coreerr.E("release.Publish", "config is nil", nil)
 	}
 
-	version, err := resolveVersion(cfg, absProjectDir, "release.Publish")
-	if err != nil {
-		return nil, err
+	m := io.Local
+
+	projectDir := cfg.projectDir
+	if projectDir == "" {
+		projectDir = "."
 	}
 
+	// Resolve to absolute path
+	absProjectDir, err := filepath.Abs(projectDir)
+	if err != nil {
+		return nil, coreerr.E("release.Publish", "failed to resolve project directory", err)
+	}
+
+	// Step 1: Determine version
+	version := cfg.version
+	if version == "" {
+		version, err = DetermineVersion(absProjectDir)
+		if err != nil {
+			return nil, coreerr.E("release.Publish", "failed to determine version", err)
+		}
+	}
+
+	// Step 2: Find pre-built artifacts in dist/
 	distDir := filepath.Join(absProjectDir, "dist")
-	artifacts, err := findArtifacts(io.Local, distDir)
+	artifacts, err := findArtifacts(m, distDir)
 	if err != nil {
 		return nil, coreerr.E("release.Publish", "failed to find artifacts", err)
 	}
+
 	if len(artifacts) == 0 {
 		return nil, coreerr.E("release.Publish", "no artifacts found in dist/\nRun 'core build' first to create artifacts", nil)
 	}
 
-	release := newRelease(version, artifacts, absProjectDir)
-	return release, publishAll(ctx, cfg, release, dryRun, "release.Publish")
+	// Step 3: Generate changelog
+	changelog, err := Generate(absProjectDir, "", version)
+	if err != nil {
+		// Non-fatal: continue with empty changelog
+		changelog = fmt.Sprintf("Release %s", version)
+	}
+
+	release := &Release{
+		Version:    version,
+		Artifacts:  artifacts,
+		Changelog:  changelog,
+		ProjectDir: absProjectDir,
+		FS:         m,
+	}
+
+	// Step 4: Publish to configured targets
+	if len(cfg.Publishers) > 0 {
+		pubRelease := publishers.NewRelease(release.Version, release.Artifacts, release.Changelog, release.ProjectDir, release.FS)
+
+		for _, pubCfg := range cfg.Publishers {
+			publisher, err := getPublisher(pubCfg.Type)
+			if err != nil {
+				return release, coreerr.E("release.Publish", "unsupported publisher", err)
+			}
+
+			extendedCfg := buildExtendedConfig(pubCfg)
+			publisherCfg := publishers.NewPublisherConfig(pubCfg.Type, pubCfg.Prerelease, pubCfg.Draft, extendedCfg)
+			if err := publisher.Publish(ctx, pubRelease, publisherCfg, cfg, dryRun); err != nil {
+				return release, coreerr.E("release.Publish", "publish to "+pubCfg.Type+" failed", err)
+			}
+		}
+	}
+
+	return release, nil
 }
 
 // findArtifacts discovers pre-built artifacts in the dist directory.
@@ -157,23 +145,74 @@ func findArtifacts(m io.Medium, distDir string) ([]build.Artifact, error) {
 // For separated concerns, prefer using `core build` then `core ci` (Publish).
 // If dryRun is true, it will show what would be done without actually publishing.
 func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
-	absProjectDir, err := resolveProjectDir(cfg, "release.Run")
-	if err != nil {
-		return nil, err
+	if cfg == nil {
+		return nil, coreerr.E("release.Run", "config is nil", nil)
 	}
 
-	version, err := resolveVersion(cfg, absProjectDir, "release.Run")
-	if err != nil {
-		return nil, err
+	m := io.Local
+
+	projectDir := cfg.projectDir
+	if projectDir == "" {
+		projectDir = "."
 	}
 
-	artifacts, err := buildArtifacts(ctx, io.Local, cfg, absProjectDir, version)
+	// Resolve to absolute path
+	absProjectDir, err := filepath.Abs(projectDir)
+	if err != nil {
+		return nil, coreerr.E("release.Run", "failed to resolve project directory", err)
+	}
+
+	// Step 1: Determine version
+	version := cfg.version
+	if version == "" {
+		version, err = DetermineVersion(absProjectDir)
+		if err != nil {
+			return nil, coreerr.E("release.Run", "failed to determine version", err)
+		}
+	}
+
+	// Step 2: Generate changelog
+	changelog, err := Generate(absProjectDir, "", version)
+	if err != nil {
+		// Non-fatal: continue with empty changelog
+		changelog = fmt.Sprintf("Release %s", version)
+	}
+
+	// Step 3: Build artifacts
+	artifacts, err := buildArtifacts(ctx, m, cfg, absProjectDir, version)
 	if err != nil {
 		return nil, coreerr.E("release.Run", "build failed", err)
 	}
 
-	release := newRelease(version, artifacts, absProjectDir)
-	return release, publishAll(ctx, cfg, release, dryRun, "release.Run")
+	release := &Release{
+		Version:    version,
+		Artifacts:  artifacts,
+		Changelog:  changelog,
+		ProjectDir: absProjectDir,
+		FS:         m,
+	}
+
+	// Step 4: Publish to configured targets
+	if len(cfg.Publishers) > 0 {
+		// Convert to publisher types
+		pubRelease := publishers.NewRelease(release.Version, release.Artifacts, release.Changelog, release.ProjectDir, release.FS)
+
+		for _, pubCfg := range cfg.Publishers {
+			publisher, err := getPublisher(pubCfg.Type)
+			if err != nil {
+				return release, coreerr.E("release.Run", "unsupported publisher", err)
+			}
+
+			// Build extended config for publisher-specific settings
+			extendedCfg := buildExtendedConfig(pubCfg)
+			publisherCfg := publishers.NewPublisherConfig(pubCfg.Type, pubCfg.Prerelease, pubCfg.Draft, extendedCfg)
+			if err := publisher.Publish(ctx, pubRelease, publisherCfg, cfg, dryRun); err != nil {
+				return release, coreerr.E("release.Run", "publish to "+pubCfg.Type+" failed", err)
+			}
+		}
+	}
+
+	return release, nil
 }
 
 // buildArtifacts builds all artifacts for the release.

@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"forge.lthn.ai/core/go-build/pkg/sdk"
+	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
 )

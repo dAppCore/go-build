@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Snider/Borg/pkg/compress"
 	io_interface "dappco.re/go/core/io"
+	"github.com/Snider/Borg/pkg/compress"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

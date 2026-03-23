@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"dappco.re/go/core/build/pkg/sdk/generators"
 	coreerr "dappco.re/go/core/log"
-	"forge.lthn.ai/core/go-build/pkg/sdk/generators"
 )
 
 // Config holds SDK generation configuration from .core/release.yaml.

@@ -6,10 +6,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/i18n"
-	"forge.lthn.ai/core/go-build/pkg/release"
 	coreerr "dappco.re/go/core/log"
+	"forge.lthn.ai/core/cli/pkg/cli"
 )
 
 // Style aliases from shared

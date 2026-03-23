@@ -4,9 +4,9 @@ package buildcmd
 import (
 	"embed"
 
-	"forge.lthn.ai/core/cli/pkg/cli"
-	_ "forge.lthn.ai/core/go-build/locales" // registers locale translations
+	_ "dappco.re/go/core/build/locales" // registers locale translations
 	"dappco.re/go/core/i18n"
+	"forge.lthn.ai/core/cli/pkg/cli"
 )
 
 func init() {
