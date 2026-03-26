@@ -2,11 +2,12 @@
 package release
 
 import (
-	"os/exec"
+	"context"
 	"regexp"
 	"strconv"
 
 	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -18,6 +19,8 @@ var semverRegex = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.-]+)
 //  1. Git tag on HEAD
 //  2. Most recent tag + increment patch
 //  3. Default to v0.0.1 if no tags exist
+//
+// Usage example: call release.DetermineVersion(...) from integrating code.
 func DetermineVersion(dir string) (string, error) {
 	// Check if HEAD has a tag
 	headTag, err := getTagOnHead(dir)
@@ -41,6 +44,8 @@ func DetermineVersion(dir string) (string, error) {
 //   - "v1.2.3" -> "v1.2.4"
 //   - "1.2.3" -> "v1.2.4"
 //   - "v1.2.3-alpha" -> "v1.2.4" (strips prerelease)
+//
+// Usage example: call release.IncrementVersion(...) from integrating code.
 func IncrementVersion(current string) string {
 	matches := semverRegex.FindStringSubmatch(current)
 	if matches == nil {
@@ -62,6 +67,8 @@ func IncrementVersion(current string) string {
 // Examples:
 //   - "v1.2.3" -> "v1.3.0"
 //   - "1.2.3" -> "v1.3.0"
+//
+// Usage example: call release.IncrementMinor(...) from integrating code.
 func IncrementMinor(current string) string {
 	matches := semverRegex.FindStringSubmatch(current)
 	if matches == nil {
@@ -81,6 +88,8 @@ func IncrementMinor(current string) string {
 // Examples:
 //   - "v1.2.3" -> "v2.0.0"
 //   - "1.2.3" -> "v2.0.0"
+//
+// Usage example: call release.IncrementMajor(...) from integrating code.
 func IncrementMajor(current string) string {
 	matches := semverRegex.FindStringSubmatch(current)
 	if matches == nil {
@@ -97,6 +106,7 @@ func IncrementMajor(current string) string {
 
 // ParseVersion parses a semver string into its components.
 // Returns (major, minor, patch, prerelease, build, error).
+// Usage example: call release.ParseVersion(...) from integrating code.
 func ParseVersion(version string) (int, int, int, string, string, error) {
 	matches := semverRegex.FindStringSubmatch(version)
 	if matches == nil {
@@ -113,6 +123,7 @@ func ParseVersion(version string) (int, int, int, string, string, error) {
 }
 
 // ValidateVersion checks if a string is a valid semver.
+// Usage example: call release.ValidateVersion(...) from integrating code.
 func ValidateVersion(version string) bool {
 	return semverRegex.MatchString(version)
 }
@@ -127,24 +138,20 @@ func normalizeVersion(version string) string {
 
 // getTagOnHead returns the tag on HEAD, if any.
 func getTagOnHead(dir string) (string, error) {
-	cmd := exec.Command("git", "describe", "--tags", "--exact-match", "HEAD")
-	cmd.Dir = dir
-	output, err := cmd.Output()
+	output, err := ax.RunDir(context.Background(), dir, "git", "describe", "--tags", "--exact-match", "HEAD")
 	if err != nil {
 		return "", err
 	}
-	return core.Trim(string(output)), nil
+	return core.Trim(output), nil
 }
 
 // getLatestTag returns the most recent tag in the repository.
 func getLatestTag(dir string) (string, error) {
-	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
-	cmd.Dir = dir
-	output, err := cmd.Output()
+	output, err := ax.RunDir(context.Background(), dir, "git", "describe", "--tags", "--abbrev=0")
 	if err != nil {
 		return "", err
 	}
-	return core.Trim(string(output)), nil
+	return core.Trim(output), nil
 }
 
 // CompareVersions compares two semver strings.
@@ -153,6 +160,8 @@ func getLatestTag(dir string) (string, error) {
 //	-1 if a < b
 //	 0 if a == b
 //	 1 if a > b
+//
+// Usage example: call release.CompareVersions(...) from integrating code.
 func CompareVersions(a, b string) int {
 	aMajor, aMinor, aPatch, _, _, errA := ParseVersion(a)
 	bMajor, bMinor, bPatch, _, _, errB := ParseVersion(b)

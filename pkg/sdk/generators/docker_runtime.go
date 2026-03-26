@@ -1,9 +1,10 @@
 package generators
 
 import (
-	"io"
-	"os/exec"
+	"context"
 	"sync"
+
+	"dappco.re/go/core/build/internal/ax"
 )
 
 var (
@@ -13,10 +14,7 @@ var (
 
 func dockerRuntimeAvailable() bool {
 	dockerRuntimeOnce.Do(func() {
-		cmd := exec.Command("docker", "info")
-		cmd.Stdout = io.Discard
-		cmd.Stderr = io.Discard
-		dockerRuntimeOK = cmd.Run() == nil
+		dockerRuntimeOK = ax.Exec(context.Background(), "docker", "info") == nil
 	})
 	return dockerRuntimeOK
 }

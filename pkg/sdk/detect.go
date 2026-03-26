@@ -1,9 +1,8 @@
 package sdk
 
 import (
-	"path/filepath"
-
 	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -22,10 +21,11 @@ var commonSpecPaths = []string{
 
 // DetectSpec finds the OpenAPI spec file.
 // Priority: config path -> common paths -> Laravel Scramble.
+// Usage example: call value.DetectSpec(...) from integrating code.
 func (s *SDK) DetectSpec() (string, error) {
 	// 1. Check configured path
 	if s.config.Spec != "" {
-		specPath := filepath.Join(s.projectDir, s.config.Spec)
+		specPath := ax.Join(s.projectDir, s.config.Spec)
 		if coreio.Local.IsFile(specPath) {
 			return specPath, nil
 		}
@@ -34,7 +34,7 @@ func (s *SDK) DetectSpec() (string, error) {
 
 	// 2. Check common paths
 	for _, p := range commonSpecPaths {
-		specPath := filepath.Join(s.projectDir, p)
+		specPath := ax.Join(s.projectDir, p)
 		if coreio.Local.IsFile(specPath) {
 			return specPath, nil
 		}
@@ -51,7 +51,7 @@ func (s *SDK) DetectSpec() (string, error) {
 
 // detectScramble checks for Laravel Scramble and exports the spec.
 func (s *SDK) detectScramble() (string, error) {
-	composerPath := filepath.Join(s.projectDir, "composer.json")
+	composerPath := ax.Join(s.projectDir, "composer.json")
 	if !coreio.Local.IsFile(composerPath) {
 		return "", coreerr.E("sdk.detectScramble", "no composer.json", nil)
 	}

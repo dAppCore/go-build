@@ -8,6 +8,7 @@ require (
 	dappco.re/go/core/i18n v0.2.0
 	dappco.re/go/core/io v0.2.0
 	dappco.re/go/core/log v0.1.0
+	dappco.re/go/core/process v0.3.0
 	dappco.re/go/core/ws v0.3.0
 	forge.lthn.ai/core/cli v0.3.7
 	github.com/Snider/Borg v0.2.0

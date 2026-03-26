@@ -1,25 +1,24 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
-	"os"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/io"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestChocolateyPublisher_Name_Good(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherName_Good(t *testing.T) {
 	t.Run("returns chocolatey", func(t *testing.T) {
 		p := NewChocolateyPublisher()
 		assert.Equal(t, "chocolatey", p.Name())
 	})
 }
 
-func TestChocolateyPublisher_ParseConfig_Good(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherParseConfig_Good(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -107,7 +106,7 @@ func TestChocolateyPublisher_ParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestChocolateyPublisher_RenderTemplate_Good(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherRenderTemplate_Good(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("renders nuspec template with data", func(t *testing.T) {
@@ -160,7 +159,7 @@ func TestChocolateyPublisher_RenderTemplate_Good(t *testing.T) {
 	})
 }
 
-func TestChocolateyPublisher_RenderTemplate_Bad(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherRenderTemplate_Bad(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
@@ -171,14 +170,10 @@ func TestChocolateyPublisher_RenderTemplate_Bad(t *testing.T) {
 	})
 }
 
-func TestChocolateyPublisher_DryRunPublish_Good(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherDryRunPublish_Good(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := chocolateyTemplateData{
 			PackageName: "myapp",
 			Version:     "1.0.0",
@@ -192,15 +187,11 @@ func TestChocolateyPublisher_DryRunPublish_Good(t *testing.T) {
 			Push: false,
 		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: Chocolatey Publish")
 		assert.Contains(t, output, "Package:    myapp")
@@ -214,10 +205,6 @@ func TestChocolateyPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 
 	t.Run("shows push message when push is enabled", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := chocolateyTemplateData{
 			PackageName: "myapp",
 			Version:     "1.0.0",
@@ -230,37 +217,25 @@ func TestChocolateyPublisher_DryRunPublish_Good(t *testing.T) {
 			Push: true,
 		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "Push:       true")
 		assert.Contains(t, output, "Would push to Chocolatey community repo")
 	})
 }
 
-func TestChocolateyPublisher_ExecutePublish_Bad(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherExecutePublish_Bad(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("fails when CHOCOLATEY_API_KEY not set for push", func(t *testing.T) {
-		// Ensure CHOCOLATEY_API_KEY is not set
-		oldKey := os.Getenv("CHOCOLATEY_API_KEY")
-		_ = os.Unsetenv("CHOCOLATEY_API_KEY")
-		defer func() {
-			if oldKey != "" {
-				_ = os.Setenv("CHOCOLATEY_API_KEY", oldKey)
-			}
-		}()
+		t.Setenv("CHOCOLATEY_API_KEY", "")
 
 		// Create a temp directory for the test
-		tmpDir, err := os.MkdirTemp("", "choco-test-*")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
+		require.True(t, ax.IsDir(tmpDir))
 
 		data := chocolateyTemplateData{
 			PackageName: "testpkg",
@@ -272,13 +247,13 @@ func TestChocolateyPublisher_ExecutePublish_Bad(t *testing.T) {
 			Checksums:   ChecksumMap{},
 		}
 
-		err = p.pushToChocolatey(context.TODO(), tmpDir, data)
+		err := p.pushToChocolatey(context.TODO(), tmpDir, data)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "CHOCOLATEY_API_KEY environment variable is required")
 	})
 }
 
-func TestChocolateyConfig_Defaults_Good(t *testing.T) {
+func TestChocolatey_ChocolateyConfigDefaults_Good(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewChocolateyPublisher()
 		pubCfg := PublisherConfig{Type: "chocolatey"}
@@ -292,7 +267,7 @@ func TestChocolateyConfig_Defaults_Good(t *testing.T) {
 	})
 }
 
-func TestChocolateyTemplateData_Good(t *testing.T) {
+func TestChocolatey_ChocolateyTemplateData_Good(t *testing.T) {
 	t.Run("struct has all expected fields", func(t *testing.T) {
 		data := chocolateyTemplateData{
 			PackageName: "myapp",

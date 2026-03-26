@@ -7,16 +7,13 @@
 package buildcmd
 
 import (
-	"encoding/json"
-	"fmt"
+	"context"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/i18n"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -33,14 +30,14 @@ var (
 
 // runPwaBuild downloads a PWA from URL and builds it.
 func runPwaBuild(pwaURL string) error {
-	fmt.Printf("%s %s\n", i18n.T("cmd.build.pwa.starting"), pwaURL)
+	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.starting"), pwaURL)
 
-	tempDir, err := os.MkdirTemp("", "core-pwa-build-*")
+	tempDir, err := ax.TempDir("core-pwa-build-*")
 	if err != nil {
 		return coreerr.E("pwa.runPwaBuild", i18n.T("common.error.failed", map[string]any{"Action": "create temporary directory"}), err)
 	}
 	// defer os.RemoveAll(tempDir) // Keep temp dir for debugging
-	fmt.Printf("%s %s\n", i18n.T("cmd.build.pwa.downloading_to"), tempDir)
+	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.downloading_to"), tempDir)
 
 	if err := downloadPWA(pwaURL, tempDir); err != nil {
 		return coreerr.E("pwa.runPwaBuild", i18n.T("common.error.failed", map[string]any{"Action": "download PWA"}), err)
@@ -67,14 +64,14 @@ func downloadPWA(baseURL, destDir string) error {
 	manifestURL, err := findManifestURL(string(body), baseURL)
 	if err != nil {
 		// If no manifest, it's not a PWA, but we can still try to package it as a simple site.
-		fmt.Printf("%s %s\n", i18n.T("common.label.warning"), i18n.T("cmd.build.pwa.no_manifest"))
-		if err := coreio.Local.Write(filepath.Join(destDir, "index.html"), string(body)); err != nil {
+		core.Print(nil, "%s %s", i18n.T("common.label.warning"), i18n.T("cmd.build.pwa.no_manifest"))
+		if err := coreio.Local.Write(ax.Join(destDir, "index.html"), string(body)); err != nil {
 			return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
 		}
 		return nil
 	}
 
-	fmt.Printf("%s %s\n", i18n.T("cmd.build.pwa.found_manifest"), manifestURL)
+	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.found_manifest"), manifestURL)
 
 	// Fetch and parse the manifest
 	manifest, err := fetchManifest(manifestURL)
@@ -86,22 +83,22 @@ func downloadPWA(baseURL, destDir string) error {
 	assets := collectAssets(manifest, manifestURL)
 	for _, assetURL := range assets {
 		if err := downloadAsset(assetURL, destDir); err != nil {
-			fmt.Printf("%s %s %s: %v\n", i18n.T("common.label.warning"), i18n.T("common.error.failed", map[string]any{"Action": "download asset"}), assetURL, err)
+			core.Print(nil, "%s %s %s: %v", i18n.T("common.label.warning"), i18n.T("common.error.failed", map[string]any{"Action": "download asset"}), assetURL, err)
 		}
 	}
 
 	// Also save the root index.html
-	if err := coreio.Local.Write(filepath.Join(destDir, "index.html"), string(body)); err != nil {
+	if err := coreio.Local.Write(ax.Join(destDir, "index.html"), string(body)); err != nil {
 		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
 	}
 
-	fmt.Println(i18n.T("cmd.build.pwa.download_complete"))
+	core.Println(i18n.T("cmd.build.pwa.download_complete"))
 	return nil
 }
 
 // findManifestURL extracts the manifest URL from HTML content.
 func findManifestURL(htmlContent, baseURL string) (string, error) {
-	doc, err := html.Parse(strings.NewReader(htmlContent))
+	doc, err := html.Parse(core.NewReader(htmlContent))
 	if err != nil {
 		return "", err
 	}
@@ -155,8 +152,13 @@ func fetchManifest(manifestURL string) (map[string]any, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
 	var manifest map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
+	if err := ax.JSONUnmarshal(body, &manifest); err != nil {
 		return nil, err
 	}
 	return manifest, nil
@@ -203,12 +205,13 @@ func downloadAsset(assetURL, destDir string) error {
 		return err
 	}
 
-	path := filepath.Join(destDir, filepath.FromSlash(u.Path))
-	if err := coreio.Local.EnsureDir(filepath.Dir(path)); err != nil {
+	assetPath := core.TrimPrefix(ax.FromSlash(u.Path), ax.DS())
+	path := ax.Join(destDir, assetPath)
+	if err := coreio.Local.EnsureDir(ax.Dir(path)); err != nil {
 		return err
 	}
 
-	out, err := os.Create(path)
+	out, err := ax.Create(path)
 	if err != nil {
 		return err
 	}
@@ -220,16 +223,16 @@ func downloadAsset(assetURL, destDir string) error {
 
 // runBuild builds a desktop application from a local directory.
 func runBuild(fromPath string) error {
-	fmt.Printf("%s %s\n", i18n.T("cmd.build.from_path.starting"), fromPath)
+	core.Print(nil, "%s %s", i18n.T("cmd.build.from_path.starting"), fromPath)
 
 	if !coreio.Local.IsDir(fromPath) {
 		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.must_be_directory"), nil)
 	}
 
 	buildDir := ".core/build/app"
-	htmlDir := filepath.Join(buildDir, "html")
-	appName := filepath.Base(fromPath)
-	if strings.HasPrefix(appName, "core-pwa-build-") {
+	htmlDir := ax.Join(buildDir, "html")
+	appName := ax.Base(fromPath)
+	if core.HasPrefix(appName, "core-pwa-build-") {
 		appName = "pwa-app"
 	}
 	outputExe := appName
@@ -239,7 +242,7 @@ func runBuild(fromPath string) error {
 	}
 
 	// 1. Generate the project from the embedded template
-	fmt.Println(i18n.T("cmd.build.from_path.generating_template"))
+	core.Println(i18n.T("cmd.build.from_path.generating_template"))
 	templateFS, err := debme.FS(guiTemplate, "tmpl/gui")
 	if err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "anchor template filesystem"}), err)
@@ -255,67 +258,75 @@ func runBuild(fromPath string) error {
 	}
 
 	// 2. Copy the user's web app files
-	fmt.Println(i18n.T("cmd.build.from_path.copying_files"))
+	core.Println(i18n.T("cmd.build.from_path.copying_files"))
 	if err := copyDir(fromPath, htmlDir); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "copy application files"}), err)
 	}
 
 	// 3. Compile the application
-	fmt.Println(i18n.T("cmd.build.from_path.compiling"))
+	core.Println(i18n.T("cmd.build.from_path.compiling"))
 
 	// Run go mod tidy
-	cmd := exec.Command("go", "mod", "tidy")
-	cmd.Dir = buildDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := ax.ExecDir(context.Background(), buildDir, "go", "mod", "tidy"); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_mod_tidy"), err)
 	}
 
 	// Run go build
-	cmd = exec.Command("go", "build", "-o", outputExe)
-	cmd.Dir = buildDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := ax.ExecDir(context.Background(), buildDir, "go", "build", "-o", outputExe); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_build"), err)
 	}
 
-	fmt.Printf("\n%s %s/%s\n", i18n.T("cmd.build.from_path.success"), buildDir, outputExe)
+	core.Println()
+	core.Print(nil, "%s %s/%s", i18n.T("cmd.build.from_path.success"), buildDir, outputExe)
 	return nil
 }
 
 // copyDir recursively copies a directory from src to dst.
 func copyDir(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-
-		dstPath := filepath.Join(dst, relPath)
-
-		if info.IsDir() {
-			return coreio.Local.EnsureDir(dstPath)
-		}
-
-		srcFile, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = srcFile.Close() }()
-
-		dstFile, err := os.Create(dstPath)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = dstFile.Close() }()
-
-		_, err = io.Copy(dstFile, srcFile)
+	if err := coreio.Local.EnsureDir(dst); err != nil {
 		return err
-	})
+	}
+
+	entries, err := coreio.Local.List(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := ax.Join(src, entry.Name())
+		dstPath := ax.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+			continue
+		}
+
+		srcFile, err := ax.Open(srcPath)
+		if err != nil {
+			return err
+		}
+
+		dstFile, err := ax.Create(dstPath)
+		if err != nil {
+			_ = srcFile.Close()
+			return err
+		}
+
+		if _, err := io.Copy(dstFile, srcFile); err != nil {
+			_ = srcFile.Close()
+			_ = dstFile.Close()
+			return err
+		}
+		if err := srcFile.Close(); err != nil {
+			_ = dstFile.Close()
+			return err
+		}
+		if err := dstFile.Close(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -6,17 +6,17 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
-	"fmt"
 	"io"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	io_interface "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"github.com/Snider/Borg/pkg/compress"
 )
 
 // ArchiveFormat specifies the compression format for archives.
+// Usage example: declare a value of type build.ArchiveFormat in integrating code.
 type ArchiveFormat string
 
 const (
@@ -32,6 +32,7 @@ const (
 // Uses tar.gz for linux/darwin and zip for windows.
 // The archive is created alongside the binary (e.g., dist/myapp_linux_amd64.tar.gz).
 // Returns a new Artifact with Path pointing to the archive.
+// Usage example: call build.Archive(...) from integrating code.
 func Archive(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 	return ArchiveWithFormat(fs, artifact, ArchiveFormatGzip)
 }
@@ -39,6 +40,7 @@ func Archive(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 // ArchiveXZ creates an archive for a single artifact using xz compression.
 // Uses tar.xz for linux/darwin and zip for windows.
 // Returns a new Artifact with Path pointing to the archive.
+// Usage example: call build.ArchiveXZ(...) from integrating code.
 func ArchiveXZ(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 	return ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
 }
@@ -47,6 +49,7 @@ func ArchiveXZ(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 // Uses tar.gz or tar.xz for linux/darwin and zip for windows.
 // The archive is created alongside the binary (e.g., dist/myapp_linux_amd64.tar.xz).
 // Returns a new Artifact with Path pointing to the archive.
+// Usage example: call build.ArchiveWithFormat(...) from integrating code.
 func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format ArchiveFormat) (Artifact, error) {
 	if artifact.Path == "" {
 		return Artifact{}, coreerr.E("build.Archive", "artifact path is empty", nil)
@@ -94,18 +97,21 @@ func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format Archive
 
 // ArchiveAll archives all artifacts using gzip compression.
 // Returns a slice of new artifacts pointing to the archives.
+// Usage example: call build.ArchiveAll(...) from integrating code.
 func ArchiveAll(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, error) {
 	return ArchiveAllWithFormat(fs, artifacts, ArchiveFormatGzip)
 }
 
 // ArchiveAllXZ archives all artifacts using xz compression.
 // Returns a slice of new artifacts pointing to the archives.
+// Usage example: call build.ArchiveAllXZ(...) from integrating code.
 func ArchiveAllXZ(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, error) {
 	return ArchiveAllWithFormat(fs, artifacts, ArchiveFormatXZ)
 }
 
 // ArchiveAllWithFormat archives all artifacts with the specified format.
 // Returns a slice of new artifacts pointing to the archives.
+// Usage example: call build.ArchiveAllWithFormat(...) from integrating code.
 func ArchiveAllWithFormat(fs io_interface.Medium, artifacts []Artifact, format ArchiveFormat) ([]Artifact, error) {
 	if len(artifacts) == 0 {
 		return nil, nil
@@ -127,18 +133,18 @@ func ArchiveAllWithFormat(fs io_interface.Medium, artifacts []Artifact, format A
 // Format: dist/myapp_linux_amd64.tar.gz (binary name taken from artifact path).
 func archiveFilename(artifact Artifact, ext string) string {
 	// Get the directory containing the binary (e.g., dist/linux_amd64)
-	dir := filepath.Dir(artifact.Path)
+	dir := ax.Dir(artifact.Path)
 	// Go up one level to the output directory (e.g., dist)
-	outputDir := filepath.Dir(dir)
+	outputDir := ax.Dir(dir)
 
 	// Get the binary name without extension
-	binaryName := filepath.Base(artifact.Path)
-	binaryName = strings.TrimSuffix(binaryName, ".exe")
+	binaryName := ax.Base(artifact.Path)
+	binaryName = core.TrimSuffix(binaryName, ".exe")
 
 	// Construct archive name: myapp_linux_amd64.tar.gz
-	archiveName := fmt.Sprintf("%s_%s_%s%s", binaryName, artifact.OS, artifact.Arch, ext)
+	archiveName := core.Sprintf("%s_%s_%s%s", binaryName, artifact.OS, artifact.Arch, ext)
 
-	return filepath.Join(outputDir, archiveName)
+	return ax.Join(outputDir, archiveName)
 }
 
 // createTarXzArchive creates a tar.xz archive containing a single file.
@@ -165,7 +171,7 @@ func createTarXzArchive(fs io_interface.Medium, src, dst string) error {
 	if err != nil {
 		return coreerr.E("build.createTarXzArchive", "failed to create tar header", err)
 	}
-	header.Name = filepath.Base(src)
+	header.Name = ax.Base(src)
 
 	if err := tarWriter.WriteHeader(header); err != nil {
 		return coreerr.E("build.createTarXzArchive", "failed to write tar header", err)
@@ -234,7 +240,7 @@ func createTarGzArchive(fs io_interface.Medium, src, dst string) error {
 		return coreerr.E("build.createTarGzArchive", "failed to create tar header", err)
 	}
 	// Use just the filename, not the full path
-	header.Name = filepath.Base(src)
+	header.Name = ax.Base(src)
 
 	// Write header
 	if err := tarWriter.WriteHeader(header); err != nil {
@@ -280,7 +286,7 @@ func createZipArchive(fs io_interface.Medium, src, dst string) error {
 		return coreerr.E("build.createZipArchive", "failed to create zip header", err)
 	}
 	// Use just the filename, not the full path
-	header.Name = filepath.Base(src)
+	header.Name = ax.Base(src)
 	header.Method = zip.Deflate
 
 	// Create file in archive

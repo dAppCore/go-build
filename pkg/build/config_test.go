@@ -1,9 +1,9 @@
 package build
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
@@ -16,19 +16,19 @@ func setupConfigTestDir(t *testing.T, configContent string) string {
 	dir := t.TempDir()
 
 	if configContent != "" {
-		coreDir := filepath.Join(dir, ConfigDir)
-		err := os.MkdirAll(coreDir, 0755)
+		coreDir := ax.Join(dir, ConfigDir)
+		err := ax.MkdirAll(coreDir, 0755)
 		require.NoError(t, err)
 
-		configPath := filepath.Join(coreDir, ConfigFileName)
-		err = os.WriteFile(configPath, []byte(configContent), 0644)
+		configPath := ax.Join(coreDir, ConfigFileName)
+		err = ax.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 	}
 
 	return dir
 }
 
-func TestLoadConfig_Good(t *testing.T) {
+func TestConfig_LoadConfig_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("loads valid config", func(t *testing.T) {
 		content := `
@@ -142,7 +142,7 @@ targets:
 	})
 }
 
-func TestLoadConfig_Bad(t *testing.T) {
+func TestConfig_LoadConfig_Bad(t *testing.T) {
 	fs := io.Local
 	t.Run("returns error for invalid YAML", func(t *testing.T) {
 		content := `
@@ -160,13 +160,13 @@ project:
 
 	t.Run("returns error for unreadable file", func(t *testing.T) {
 		dir := t.TempDir()
-		coreDir := filepath.Join(dir, ConfigDir)
-		err := os.MkdirAll(coreDir, 0755)
+		coreDir := ax.Join(dir, ConfigDir)
+		err := ax.MkdirAll(coreDir, 0755)
 		require.NoError(t, err)
 
 		// Create config as a directory instead of file
-		configPath := filepath.Join(coreDir, ConfigFileName)
-		err = os.Mkdir(configPath, 0755)
+		configPath := ax.Join(coreDir, ConfigFileName)
+		err = ax.Mkdir(configPath, 0755)
 		require.NoError(t, err)
 
 		cfg, err := LoadConfig(fs, dir)
@@ -176,7 +176,7 @@ project:
 	})
 }
 
-func TestDefaultConfig_Good(t *testing.T) {
+func TestConfig_DefaultConfig_Good(t *testing.T) {
 	t.Run("returns sensible defaults", func(t *testing.T) {
 		cfg := DefaultConfig()
 
@@ -212,14 +212,14 @@ func TestDefaultConfig_Good(t *testing.T) {
 	})
 }
 
-func TestConfigPath_Good(t *testing.T) {
+func TestConfig_ConfigPath_Good(t *testing.T) {
 	t.Run("returns correct path", func(t *testing.T) {
 		path := ConfigPath("/project/root")
 		assert.Equal(t, "/project/root/.core/build.yaml", path)
 	})
 }
 
-func TestConfigExists_Good(t *testing.T) {
+func TestConfig_ConfigExists_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("returns true when config exists", func(t *testing.T) {
 		dir := setupConfigTestDir(t, "version: 1")
@@ -237,10 +237,10 @@ func TestConfigExists_Good(t *testing.T) {
 	})
 }
 
-func TestLoadConfig_Good_SignConfig(t *testing.T) {
+func TestConfig_LoadConfigSignConfig_Good(t *testing.T) {
 	tmpDir := t.TempDir()
-	coreDir := filepath.Join(tmpDir, ".core")
-	_ = os.MkdirAll(coreDir, 0755)
+	coreDir := ax.Join(tmpDir, ".core")
+	_ = ax.MkdirAll(coreDir, 0755)
 
 	configContent := `version: 1
 sign:
@@ -251,7 +251,7 @@ sign:
     identity: "Developer ID Application: Test"
     notarize: true
 `
-	_ = os.WriteFile(filepath.Join(coreDir, "build.yaml"), []byte(configContent), 0644)
+	_ = ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(configContent), 0644)
 
 	cfg, err := LoadConfig(io.Local, tmpDir)
 	if err != nil {
@@ -272,7 +272,7 @@ sign:
 	}
 }
 
-func TestBuildConfig_ToTargets_Good(t *testing.T) {
+func TestConfig_BuildConfigToTargets_Good(t *testing.T) {
 	t.Run("converts TargetConfig to Target", func(t *testing.T) {
 		cfg := &BuildConfig{
 			Targets: []TargetConfig{
@@ -301,9 +301,9 @@ func TestBuildConfig_ToTargets_Good(t *testing.T) {
 }
 
 // TestLoadConfig_Testdata tests loading from the testdata fixture.
-func TestLoadConfig_Testdata(t *testing.T) {
+func TestConfig_LoadConfigTestdata_Good(t *testing.T) {
 	fs := io.Local
-	abs, err := filepath.Abs("testdata/config-project")
+	abs, err := ax.Abs("testdata/config-project")
 	require.NoError(t, err)
 
 	t.Run("loads config-project fixture", func(t *testing.T) {

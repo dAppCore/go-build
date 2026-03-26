@@ -2,43 +2,47 @@ package generators
 
 import (
 	"context"
-	"os"
-	"os/exec"
-	"path/filepath"
 
+	"dappco.re/go/core/build/internal/ax"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // TypeScriptGenerator generates TypeScript SDKs from OpenAPI specs.
+// Usage example: declare a value of type generators.TypeScriptGenerator in integrating code.
 type TypeScriptGenerator struct{}
 
 // NewTypeScriptGenerator creates a new TypeScript generator.
+// Usage example: call generators.NewTypeScriptGenerator(...) from integrating code.
 func NewTypeScriptGenerator() *TypeScriptGenerator {
 	return &TypeScriptGenerator{}
 }
 
 // Language returns the generator's target language identifier.
+// Usage example: call value.Language(...) from integrating code.
 func (g *TypeScriptGenerator) Language() string {
 	return "typescript"
 }
 
 // Available checks if generator dependencies are installed.
+// Usage example: call value.Available(...) from integrating code.
 func (g *TypeScriptGenerator) Available() bool {
-	_, err := exec.LookPath("openapi-typescript-codegen")
+	_, err := ax.LookPath("openapi-typescript-codegen")
 	if err == nil {
 		return true
 	}
-	_, err = exec.LookPath("npx")
+	_, err = ax.LookPath("npx")
 	return err == nil
 }
 
 // Install returns instructions for installing the generator.
+// Usage example: call value.Install(...) from integrating code.
 func (g *TypeScriptGenerator) Install() string {
 	return "npm install -g openapi-typescript-codegen"
 }
 
 // Generate creates SDK from OpenAPI spec.
+// Usage example: call value.Generate(...) from integrating code.
 func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
 		return coreerr.E("typescript.Generate", "failed to create output dir", err)
@@ -57,40 +61,34 @@ func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) error 
 }
 
 func (g *TypeScriptGenerator) nativeAvailable() bool {
-	_, err := exec.LookPath("openapi-typescript-codegen")
+	_, err := ax.LookPath("openapi-typescript-codegen")
 	return err == nil
 }
 
 func (g *TypeScriptGenerator) npxAvailable() bool {
-	_, err := exec.LookPath("npx")
+	_, err := ax.LookPath("npx")
 	return err == nil
 }
 
 func (g *TypeScriptGenerator) generateNative(ctx context.Context, opts Options) error {
-	cmd := exec.CommandContext(ctx, "openapi-typescript-codegen",
+	return ax.Exec(ctx, "openapi-typescript-codegen",
 		"--input", opts.SpecPath,
 		"--output", opts.OutputDir,
 		"--name", opts.PackageName,
 	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func (g *TypeScriptGenerator) generateNpx(ctx context.Context, opts Options) error {
-	cmd := exec.CommandContext(ctx, "npx", "openapi-typescript-codegen",
+	return ax.Exec(ctx, "npx", "openapi-typescript-codegen",
 		"--input", opts.SpecPath,
 		"--output", opts.OutputDir,
 		"--name", opts.PackageName,
 	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func (g *TypeScriptGenerator) generateDocker(ctx context.Context, opts Options) error {
-	specDir := filepath.Dir(opts.SpecPath)
-	specName := filepath.Base(opts.SpecPath)
+	specDir := ax.Dir(opts.SpecPath)
+	specName := ax.Base(opts.SpecPath)
 
 	args := []string{"run", "--rm"}
 	args = append(args, dockerUserArgs()...)
@@ -104,11 +102,7 @@ func (g *TypeScriptGenerator) generateDocker(ctx context.Context, opts Options) 
 		"--additional-properties=npmName="+opts.PackageName,
 	)
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	if err := ax.Exec(ctx, "docker", args...); err != nil {
 		return coreerr.E("typescript.generateDocker", "docker run failed", err)
 	}
 	return nil

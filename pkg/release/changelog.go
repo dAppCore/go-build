@@ -4,17 +4,19 @@ package release
 import (
 	"bufio"
 	"bytes"
-	"os/exec"
+	"context"
 	"regexp"
 	"sort"
 
 	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
 // ConventionalCommit represents a parsed conventional commit.
+// Usage example: declare a value of type release.ConventionalCommit in integrating code.
 type ConventionalCommit struct {
 	Type        string // feat, fix, etc.
 	Scope       string // optional scope in parentheses
@@ -60,6 +62,7 @@ var conventionalCommitRegex = regexp.MustCompile(`^(\w+)(?:\(([^)]+)\))?(!)?:\s*
 // Generate generates a markdown changelog from git commits between two refs.
 // If fromRef is empty, it uses the previous tag or initial commit.
 // If toRef is empty, it uses HEAD.
+// Usage example: call release.Generate(...) from integrating code.
 func Generate(dir, fromRef, toRef string) (string, error) {
 	if toRef == "" {
 		toRef = "HEAD"
@@ -96,6 +99,7 @@ func Generate(dir, fromRef, toRef string) (string, error) {
 }
 
 // GenerateWithConfig generates a changelog with filtering based on config.
+// Usage example: call release.GenerateWithConfig(...) from integrating code.
 func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
 	if toRef == "" {
 		toRef = "HEAD"
@@ -151,13 +155,11 @@ func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (strin
 
 // getPreviousTag returns the tag before the given ref.
 func getPreviousTag(dir, ref string) (string, error) {
-	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0", ref+"^")
-	cmd.Dir = dir
-	output, err := cmd.Output()
+	output, err := ax.RunDir(context.Background(), dir, "git", "describe", "--tags", "--abbrev=0", ref+"^")
 	if err != nil {
 		return "", err
 	}
-	return core.Trim(string(output)), nil
+	return core.Trim(output), nil
 }
 
 // getCommits returns a slice of commit strings between two refs.
@@ -172,15 +174,13 @@ func getCommits(dir, fromRef, toRef string) ([]string, error) {
 		args = []string{"log", "--oneline", "--no-merges", fromRef + ".." + toRef}
 	}
 
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	output, err := cmd.Output()
+	output, err := ax.RunDir(context.Background(), dir, "git", args...)
 	if err != nil {
 		return nil, err
 	}
 
 	var commits []string
-	scanner := bufio.NewScanner(bytes.NewReader(output))
+	scanner := bufio.NewScanner(bytes.NewReader([]byte(output)))
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line != "" {
@@ -305,6 +305,7 @@ func formatCommitLine(commit ConventionalCommit) string {
 
 // ParseCommitType extracts the type from a conventional commit subject.
 // Returns empty string if not a conventional commit.
+// Usage example: call release.ParseCommitType(...) from integrating code.
 func ParseCommitType(subject string) string {
 	matches := conventionalCommitRegex.FindStringSubmatch(subject)
 	if matches == nil {

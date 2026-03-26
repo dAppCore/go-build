@@ -4,9 +4,8 @@ package build
 
 import (
 	"iter"
-	"os"
-	"path/filepath"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -14,13 +13,16 @@ import (
 )
 
 // ConfigFileName is the name of the build configuration file.
+// Usage example: reference build.ConfigFileName from package consumers.
 const ConfigFileName = "build.yaml"
 
 // ConfigDir is the directory where build configuration is stored.
+// Usage example: reference build.ConfigDir from package consumers.
 const ConfigDir = ".core"
 
 // BuildConfig holds the complete build configuration loaded from .core/build.yaml.
 // This is distinct from Config which holds runtime build parameters.
+// Usage example: declare a value of type build.BuildConfig in integrating code.
 type BuildConfig struct {
 	// Version is the config file format version.
 	Version int `yaml:"version"`
@@ -35,6 +37,7 @@ type BuildConfig struct {
 }
 
 // Project holds project metadata.
+// Usage example: declare a value of type build.Project in integrating code.
 type Project struct {
 	// Name is the project name.
 	Name string `yaml:"name"`
@@ -47,6 +50,7 @@ type Project struct {
 }
 
 // Build holds build-time settings.
+// Usage example: declare a value of type build.Build in integrating code.
 type Build struct {
 	// Type overrides project type auto-detection (e.g., "go", "wails", "docker").
 	Type string `yaml:"type"`
@@ -62,6 +66,7 @@ type Build struct {
 
 // TargetConfig defines a build target in the config file.
 // This is separate from Target to allow for additional config-specific fields.
+// Usage example: declare a value of type build.TargetConfig in integrating code.
 type TargetConfig struct {
 	// OS is the target operating system (e.g., "linux", "darwin", "windows").
 	OS string `yaml:"os"`
@@ -72,12 +77,13 @@ type TargetConfig struct {
 // LoadConfig loads build configuration from the .core/build.yaml file in the given directory.
 // If the config file does not exist, it returns DefaultConfig().
 // Returns an error if the file exists but cannot be parsed.
+// Usage example: call build.LoadConfig(...) from integrating code.
 func LoadConfig(fs io.Medium, dir string) (*BuildConfig, error) {
-	configPath := filepath.Join(dir, ConfigDir, ConfigFileName)
+	configPath := ax.Join(dir, ConfigDir, ConfigFileName)
 
 	content, err := fs.Read(configPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if !fs.Exists(configPath) {
 			return DefaultConfig(), nil
 		}
 		return nil, coreerr.E("build.LoadConfig", "failed to read config file", err)
@@ -96,6 +102,7 @@ func LoadConfig(fs io.Medium, dir string) (*BuildConfig, error) {
 }
 
 // DefaultConfig returns sensible defaults for Go projects.
+// Usage example: call build.DefaultConfig(...) from integrating code.
 func DefaultConfig() *BuildConfig {
 	return &BuildConfig{
 		Version: 1,
@@ -153,16 +160,19 @@ func applyDefaults(cfg *BuildConfig) {
 }
 
 // ConfigPath returns the path to the build config file for a given directory.
+// Usage example: call build.ConfigPath(...) from integrating code.
 func ConfigPath(dir string) string {
-	return filepath.Join(dir, ConfigDir, ConfigFileName)
+	return ax.Join(dir, ConfigDir, ConfigFileName)
 }
 
 // ConfigExists checks if a build config file exists in the given directory.
+// Usage example: call build.ConfigExists(...) from integrating code.
 func ConfigExists(fs io.Medium, dir string) bool {
 	return fileExists(fs, ConfigPath(dir))
 }
 
 // TargetsIter returns an iterator for the build targets.
+// Usage example: call value.TargetsIter(...) from integrating code.
 func (cfg *BuildConfig) TargetsIter() iter.Seq[TargetConfig] {
 	return func(yield func(TargetConfig) bool) {
 		for _, t := range cfg.Targets {
@@ -174,6 +184,7 @@ func (cfg *BuildConfig) TargetsIter() iter.Seq[TargetConfig] {
 }
 
 // ToTargets converts TargetConfig slice to Target slice for use with builders.
+// Usage example: call value.ToTargets(...) from integrating code.
 func (cfg *BuildConfig) ToTargets() []Target {
 	targets := make([]Target, len(cfg.Targets))
 	for i, t := range cfg.Targets {

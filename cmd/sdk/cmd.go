@@ -8,8 +8,7 @@
 package sdkcmd
 
 import (
-	"os"
-
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
@@ -61,6 +60,7 @@ func setSDKI18n() {
 }
 
 // AddSDKCommands registers the 'sdk' command and all subcommands.
+// Usage example: call sdkcmd.AddSDKCommands(...) from integrating code.
 func AddSDKCommands(root *cli.Command) {
 	setSDKI18n()
 
@@ -79,7 +79,7 @@ func AddSDKCommands(root *cli.Command) {
 }
 
 func runSDKDiff(basePath, specPath string) error {
-	projectDir, err := os.Getwd()
+	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("sdk.Diff", "failed to get working directory", err)
 	}
@@ -119,7 +119,7 @@ func runSDKDiff(basePath, specPath string) error {
 }
 
 func runSDKValidate(specPath string) error {
-	projectDir, err := os.Getwd()
+	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("sdk.Validate", "failed to get working directory", err)
 	}

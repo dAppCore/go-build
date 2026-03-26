@@ -3,32 +3,33 @@ package builders
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // GoBuilder implements the Builder interface for Go projects.
+// Usage example: declare a value of type builders.GoBuilder in integrating code.
 type GoBuilder struct{}
 
 // NewGoBuilder creates a new GoBuilder instance.
+// Usage example: call builders.NewGoBuilder(...) from integrating code.
 func NewGoBuilder() *GoBuilder {
 	return &GoBuilder{}
 }
 
 // Name returns the builder's identifier.
+// Usage example: call value.Name(...) from integrating code.
 func (b *GoBuilder) Name() string {
 	return "go"
 }
 
 // Detect checks if this builder can handle the project in the given directory.
 // Uses IsGoProject from the build package which checks for go.mod or wails.json.
+// Usage example: call value.Detect(...) from integrating code.
 func (b *GoBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	return build.IsGoProject(fs, dir), nil
 }
@@ -36,6 +37,7 @@ func (b *GoBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 // Build compiles the Go project for the specified targets.
 // It sets GOOS, GOARCH, and CGO_ENABLED environment variables,
 // applies ldflags and trimpath, and runs go build.
+// Usage example: call value.Build(...) from integrating code.
 func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	if cfg == nil {
 		return nil, coreerr.E("GoBuilder.Build", "config is nil", nil)
@@ -68,21 +70,21 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	// Determine output binary name
 	binaryName := cfg.Name
 	if binaryName == "" {
-		binaryName = filepath.Base(cfg.ProjectDir)
+		binaryName = ax.Base(cfg.ProjectDir)
 	}
 
 	// Add .exe extension for Windows
-	if target.OS == "windows" && !strings.HasSuffix(binaryName, ".exe") {
+	if target.OS == "windows" && !core.HasSuffix(binaryName, ".exe") {
 		binaryName += ".exe"
 	}
 
 	// Create platform-specific output path: output/os_arch/binary
-	platformDir := filepath.Join(cfg.OutputDir, fmt.Sprintf("%s_%s", target.OS, target.Arch))
+	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 	if err := cfg.FS.EnsureDir(platformDir); err != nil {
 		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create platform directory", err)
 	}
 
-	outputPath := filepath.Join(platformDir, binaryName)
+	outputPath := ax.Join(platformDir, binaryName)
 
 	// Build the go build arguments
 	args := []string{"build"}
@@ -92,7 +94,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 
 	// Add ldflags if specified
 	if len(cfg.LDFlags) > 0 {
-		ldflags := strings.Join(cfg.LDFlags, " ")
+		ldflags := core.Join(" ", cfg.LDFlags...)
 		args = append(args, "-ldflags", ldflags)
 	}
 
@@ -102,25 +104,21 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	// Add the project directory as the build target (current directory)
 	args = append(args, ".")
 
-	// Create the command
-	cmd := exec.CommandContext(ctx, "go", args...)
-	cmd.Dir = cfg.ProjectDir
-
 	// Set up environment
-	env := os.Environ()
-	env = append(env, fmt.Sprintf("GOOS=%s", target.OS))
-	env = append(env, fmt.Sprintf("GOARCH=%s", target.Arch))
+	env := []string{
+		core.Sprintf("GOOS=%s", target.OS),
+		core.Sprintf("GOARCH=%s", target.Arch),
+	}
 	if cfg.CGO {
 		env = append(env, "CGO_ENABLED=1")
 	} else {
 		env = append(env, "CGO_ENABLED=0")
 	}
-	cmd.Env = env
 
 	// Capture output for error messages
-	output, err := cmd.CombinedOutput()
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, "go", args...)
 	if err != nil {
-		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "go build failed: "+string(output), err)
+		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "go build failed: "+output, err)
 	}
 
 	return build.Artifact{

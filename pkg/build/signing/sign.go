@@ -2,15 +2,16 @@ package signing
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // Artifact represents a build output that can be signed.
 // This mirrors build.Artifact to avoid import cycles.
+// Usage example: declare a value of type signing.Artifact in integrating code.
 type Artifact struct {
 	Path string
 	OS   string
@@ -19,6 +20,7 @@ type Artifact struct {
 
 // SignBinaries signs macOS binaries in the artifacts list.
 // Only signs darwin binaries when running on macOS with a configured identity.
+// Usage example: call signing.SignBinaries(...) from integrating code.
 func SignBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts []Artifact) error {
 	if !cfg.Enabled {
 		return nil
@@ -39,7 +41,7 @@ func SignBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts [
 			continue
 		}
 
-		fmt.Printf("  Signing %s...\n", artifact.Path)
+		core.Print(nil, "  Signing %s...", artifact.Path)
 		if err := signer.Sign(ctx, fs, artifact.Path); err != nil {
 			return coreerr.E("signing.SignBinaries", "failed to sign "+artifact.Path, err)
 		}
@@ -49,6 +51,7 @@ func SignBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts [
 }
 
 // NotarizeBinaries notarizes macOS binaries if enabled.
+// Usage example: call signing.NotarizeBinaries(...) from integrating code.
 func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts []Artifact) error {
 	if !cfg.Enabled || !cfg.MacOS.Notarize {
 		return nil
@@ -68,7 +71,7 @@ func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifac
 			continue
 		}
 
-		fmt.Printf("  Notarizing %s (this may take a few minutes)...\n", artifact.Path)
+		core.Print(nil, "  Notarizing %s (this may take a few minutes)...", artifact.Path)
 		if err := signer.Notarize(ctx, fs, artifact.Path); err != nil {
 			return coreerr.E("signing.NotarizeBinaries", "failed to notarize "+artifact.Path, err)
 		}
@@ -78,6 +81,7 @@ func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifac
 }
 
 // SignChecksums signs the checksums file with GPG.
+// Usage example: call signing.SignChecksums(...) from integrating code.
 func SignChecksums(ctx context.Context, fs io.Medium, cfg SignConfig, checksumFile string) error {
 	if !cfg.Enabled {
 		return nil
@@ -88,7 +92,7 @@ func SignChecksums(ctx context.Context, fs io.Medium, cfg SignConfig, checksumFi
 		return nil // Silently skip if not configured
 	}
 
-	fmt.Printf("  Signing %s with GPG...\n", checksumFile)
+	core.Print(nil, "  Signing %s with GPG...", checksumFile)
 	if err := signer.Sign(ctx, fs, checksumFile); err != nil {
 		return coreerr.E("signing.SignChecksums", "failed to sign checksums file "+checksumFile, err)
 	}

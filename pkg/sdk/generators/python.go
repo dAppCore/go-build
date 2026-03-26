@@ -2,39 +2,43 @@ package generators
 
 import (
 	"context"
-	"os"
-	"os/exec"
-	"path/filepath"
 
+	"dappco.re/go/core/build/internal/ax"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // PythonGenerator generates Python SDKs from OpenAPI specs.
+// Usage example: declare a value of type generators.PythonGenerator in integrating code.
 type PythonGenerator struct{}
 
 // NewPythonGenerator creates a new Python generator.
+// Usage example: call generators.NewPythonGenerator(...) from integrating code.
 func NewPythonGenerator() *PythonGenerator {
 	return &PythonGenerator{}
 }
 
 // Language returns the generator's target language identifier.
+// Usage example: call value.Language(...) from integrating code.
 func (g *PythonGenerator) Language() string {
 	return "python"
 }
 
 // Available checks if generator dependencies are installed.
+// Usage example: call value.Available(...) from integrating code.
 func (g *PythonGenerator) Available() bool {
-	_, err := exec.LookPath("openapi-python-client")
+	_, err := ax.LookPath("openapi-python-client")
 	return err == nil
 }
 
 // Install returns instructions for installing the generator.
+// Usage example: call value.Install(...) from integrating code.
 func (g *PythonGenerator) Install() string {
 	return "pip install openapi-python-client"
 }
 
 // Generate creates SDK from OpenAPI spec.
+// Usage example: call value.Generate(...) from integrating code.
 func (g *PythonGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
 		return coreerr.E("python.Generate", "failed to create output dir", err)
@@ -50,21 +54,17 @@ func (g *PythonGenerator) Generate(ctx context.Context, opts Options) error {
 }
 
 func (g *PythonGenerator) generateNative(ctx context.Context, opts Options) error {
-	parentDir := filepath.Dir(opts.OutputDir)
+	parentDir := ax.Dir(opts.OutputDir)
 
-	cmd := exec.CommandContext(ctx, "openapi-python-client", "generate",
+	return ax.ExecDir(ctx, parentDir, "openapi-python-client", "generate",
 		"--path", opts.SpecPath,
 		"--output-path", opts.OutputDir,
 	)
-	cmd.Dir = parentDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func (g *PythonGenerator) generateDocker(ctx context.Context, opts Options) error {
-	specDir := filepath.Dir(opts.SpecPath)
-	specName := filepath.Base(opts.SpecPath)
+	specDir := ax.Dir(opts.SpecPath)
+	specName := ax.Base(opts.SpecPath)
 
 	args := []string{"run", "--rm"}
 	args = append(args, dockerUserArgs()...)
@@ -78,8 +78,5 @@ func (g *PythonGenerator) generateDocker(ctx context.Context, opts Options) erro
 		"--additional-properties=packageName="+opts.PackageName,
 	)
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return ax.Exec(ctx, "docker", args...)
 }

@@ -1,9 +1,9 @@
 package builders
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
@@ -11,17 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCPPBuilder_Name_Good(t *testing.T) {
+func TestCPP_CPPBuilderName_Good(t *testing.T) {
 	builder := NewCPPBuilder()
 	assert.Equal(t, "cpp", builder.Name())
 }
 
-func TestCPPBuilder_Detect_Good(t *testing.T) {
+func TestCPP_CPPBuilderDetect_Good(t *testing.T) {
 	fs := io.Local
 
 	t.Run("detects C++ project with CMakeLists.txt", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)"), 0644)
 		require.NoError(t, err)
 
 		builder := NewCPPBuilder()
@@ -32,7 +32,7 @@ func TestCPPBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("returns false for non-C++ project", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644)
 		require.NoError(t, err)
 
 		builder := NewCPPBuilder()
@@ -51,7 +51,7 @@ func TestCPPBuilder_Detect_Good(t *testing.T) {
 	})
 }
 
-func TestCPPBuilder_Build_Bad(t *testing.T) {
+func TestCPP_CPPBuilderBuild_Bad(t *testing.T) {
 	t.Run("returns error for nil config", func(t *testing.T) {
 		builder := NewCPPBuilder()
 		artifacts, err := builder.Build(nil, nil, []build.Target{{OS: "linux", Arch: "amd64"}})
@@ -61,7 +61,7 @@ func TestCPPBuilder_Build_Bad(t *testing.T) {
 	})
 }
 
-func TestCPPBuilder_TargetToProfile_Good(t *testing.T) {
+func TestCPP_CPPBuilderTargetToProfile_Good(t *testing.T) {
 	builder := NewCPPBuilder()
 
 	tests := []struct {
@@ -84,7 +84,7 @@ func TestCPPBuilder_TargetToProfile_Good(t *testing.T) {
 	}
 }
 
-func TestCPPBuilder_TargetToProfile_Bad(t *testing.T) {
+func TestCPP_CPPBuilderTargetToProfile_Bad(t *testing.T) {
 	builder := NewCPPBuilder()
 
 	t.Run("returns empty for unknown target", func(t *testing.T) {
@@ -93,18 +93,18 @@ func TestCPPBuilder_TargetToProfile_Bad(t *testing.T) {
 	})
 }
 
-func TestCPPBuilder_FindArtifacts_Good(t *testing.T) {
+func TestCPP_CPPBuilderFindArtifacts_Good(t *testing.T) {
 	fs := io.Local
 
 	t.Run("finds packages in build/packages", func(t *testing.T) {
 		dir := t.TempDir()
-		packagesDir := filepath.Join(dir, "build", "packages")
-		require.NoError(t, os.MkdirAll(packagesDir, 0755))
+		packagesDir := ax.Join(dir, "build", "packages")
+		require.NoError(t, ax.MkdirAll(packagesDir, 0755))
 
 		// Create mock package files
-		require.NoError(t, os.WriteFile(filepath.Join(packagesDir, "test-1.0-linux-x86_64.tar.xz"), []byte("pkg"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(packagesDir, "test-1.0-linux-x86_64.tar.xz.sha256"), []byte("checksum"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(packagesDir, "test-1.0-linux-x86_64.rpm"), []byte("rpm"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(packagesDir, "test-1.0-linux-x86_64.tar.xz"), []byte("pkg"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(packagesDir, "test-1.0-linux-x86_64.tar.xz.sha256"), []byte("checksum"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(packagesDir, "test-1.0-linux-x86_64.rpm"), []byte("rpm"), 0644))
 
 		builder := NewCPPBuilder()
 		target := build.Target{OS: "linux", Arch: "amd64"}
@@ -116,21 +116,21 @@ func TestCPPBuilder_FindArtifacts_Good(t *testing.T) {
 		for _, a := range artifacts {
 			assert.Equal(t, "linux", a.OS)
 			assert.Equal(t, "amd64", a.Arch)
-			assert.False(t, filepath.Ext(a.Path) == ".sha256")
+			assert.False(t, ax.Ext(a.Path) == ".sha256")
 		}
 	})
 
 	t.Run("falls back to binaries in build/release/src", func(t *testing.T) {
 		dir := t.TempDir()
-		binDir := filepath.Join(dir, "build", "release", "src")
-		require.NoError(t, os.MkdirAll(binDir, 0755))
+		binDir := ax.Join(dir, "build", "release", "src")
+		require.NoError(t, ax.MkdirAll(binDir, 0755))
 
 		// Create mock binary (executable)
-		binPath := filepath.Join(binDir, "test-daemon")
-		require.NoError(t, os.WriteFile(binPath, []byte("binary"), 0755))
+		binPath := ax.Join(binDir, "test-daemon")
+		require.NoError(t, ax.WriteFile(binPath, []byte("binary"), 0755))
 
 		// Create a library (should be skipped)
-		require.NoError(t, os.WriteFile(filepath.Join(binDir, "libcrypto.a"), []byte("lib"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(binDir, "libcrypto.a"), []byte("lib"), 0644))
 
 		builder := NewCPPBuilder()
 		target := build.Target{OS: "linux", Arch: "amd64"}
@@ -143,7 +143,7 @@ func TestCPPBuilder_FindArtifacts_Good(t *testing.T) {
 	})
 }
 
-func TestCPPBuilder_Interface_Good(t *testing.T) {
+func TestCPP_CPPBuilderInterface_Good(t *testing.T) {
 	var _ build.Builder = (*CPPBuilder)(nil)
 	var _ build.Builder = NewCPPBuilder()
 }

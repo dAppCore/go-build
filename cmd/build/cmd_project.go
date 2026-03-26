@@ -7,19 +7,17 @@ package buildcmd
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+	"forge.lthn.ai/core/cli/pkg/cli"
 )
 
 // runProjectBuild handles the main `core build` command with auto-detection.
@@ -28,7 +26,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	fs := io.Local
 
 	// Get current working directory as project root
-	projectDir, err := os.Getwd()
+	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("build.Run", "failed to get working directory", err)
 	}
@@ -78,14 +76,14 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	if outputDir == "" {
 		outputDir = "dist"
 	}
-	if !filepath.IsAbs(outputDir) {
-		outputDir = filepath.Join(projectDir, outputDir)
+	if !ax.IsAbs(outputDir) {
+		outputDir = ax.Join(projectDir, outputDir)
 	}
-	outputDir = filepath.Clean(outputDir)
+	outputDir = ax.Clean(outputDir)
 
 	// Ensure config path is absolute if provided
-	if configPath != "" && !filepath.IsAbs(configPath) {
-		configPath = filepath.Join(projectDir, configPath)
+	if configPath != "" && !ax.IsAbs(configPath) {
+		configPath = ax.Join(projectDir, configPath)
 	}
 
 	// Determine binary name
@@ -94,17 +92,17 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		binaryName = buildCfg.Project.Name
 	}
 	if binaryName == "" {
-		binaryName = filepath.Base(projectDir)
+		binaryName = ax.Base(projectDir)
 	}
 
 	// Print build info (verbose mode only)
 	if verbose && !ciMode {
-		fmt.Printf("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.build")), i18n.T("cmd.build.building_project"))
-		fmt.Printf("  %s %s\n", i18n.T("cmd.build.label.type"), buildTargetStyle.Render(string(projectType)))
-		fmt.Printf("  %s %s\n", i18n.T("cmd.build.label.output"), buildTargetStyle.Render(outputDir))
-		fmt.Printf("  %s %s\n", i18n.T("cmd.build.label.binary"), buildTargetStyle.Render(binaryName))
-		fmt.Printf("  %s %s\n", i18n.T("cmd.build.label.targets"), buildTargetStyle.Render(formatTargets(buildTargets)))
-		fmt.Println()
+		cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.build")), i18n.T("cmd.build.building_project"))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.label.type"), buildTargetStyle.Render(string(projectType)))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.label.output"), buildTargetStyle.Render(outputDir))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.label.binary"), buildTargetStyle.Render(binaryName))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.label.targets"), buildTargetStyle.Render(formatTargets(buildTargets)))
+		cli.Blank()
 	}
 
 	// Get the appropriate builder
@@ -131,30 +129,30 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Parse formats for LinuxKit
 	if format != "" {
-		cfg.Formats = strings.Split(format, ",")
+		cfg.Formats = core.Split(format, ",")
 	}
 
 	// Execute build
 	artifacts, err := builder.Build(ctx, cfg, buildTargets)
 	if err != nil {
 		if !ciMode {
-			fmt.Printf("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
+			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
 		}
 		return err
 	}
 
 	if verbose && !ciMode {
-		fmt.Printf("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}))
-		fmt.Println()
+		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}))
+		cli.Blank()
 		for _, artifact := range artifacts {
-			relPath, err := filepath.Rel(projectDir, artifact.Path)
+			relPath, err := ax.Rel(projectDir, artifact.Path)
 			if err != nil {
 				relPath = artifact.Path
 			}
-			fmt.Printf("  %s %s %s\n",
+			cli.Print("  %s %s %s\n",
 				buildSuccessStyle.Render("*"),
 				buildTargetStyle.Render(relPath),
-				buildDimStyle.Render(fmt.Sprintf("(%s/%s)", artifact.OS, artifact.Arch)),
+				buildDimStyle.Render(core.Sprintf("(%s/%s)", artifact.OS, artifact.Arch)),
 			)
 		}
 	}
@@ -170,8 +168,8 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	if signCfg.Enabled && runtime.GOOS == "darwin" {
 		if verbose && !ciMode {
-			fmt.Println()
-			fmt.Printf("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.sign")), i18n.T("cmd.build.signing_binaries"))
+			cli.Blank()
+			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.sign")), i18n.T("cmd.build.signing_binaries"))
 		}
 
 		// Convert build.Artifact to signing.Artifact
@@ -182,7 +180,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 		if err := signing.SignBinaries(ctx, fs, signCfg, signingArtifacts); err != nil {
 			if !ciMode {
-				fmt.Printf("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.signing_failed"), err)
+				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.signing_failed"), err)
 			}
 			return err
 		}
@@ -190,7 +188,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		if signCfg.MacOS.Notarize {
 			if err := signing.NotarizeBinaries(ctx, fs, signCfg, signingArtifacts); err != nil {
 				if !ciMode {
-					fmt.Printf("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.notarization_failed"), err)
+					cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.notarization_failed"), err)
 				}
 				return err
 			}
@@ -201,28 +199,28 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	var archivedArtifacts []build.Artifact
 	if doArchive && len(artifacts) > 0 {
 		if verbose && !ciMode {
-			fmt.Println()
-			fmt.Printf("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.archive")), i18n.T("cmd.build.creating_archives"))
+			cli.Blank()
+			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.archive")), i18n.T("cmd.build.creating_archives"))
 		}
 
 		archivedArtifacts, err = build.ArchiveAll(fs, artifacts)
 		if err != nil {
 			if !ciMode {
-				fmt.Printf("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.archive_failed"), err)
+				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.archive_failed"), err)
 			}
 			return err
 		}
 
 		if verbose && !ciMode {
 			for _, artifact := range archivedArtifacts {
-				relPath, err := filepath.Rel(projectDir, artifact.Path)
+				relPath, err := ax.Rel(projectDir, artifact.Path)
 				if err != nil {
 					relPath = artifact.Path
 				}
-				fmt.Printf("  %s %s %s\n",
+				cli.Print("  %s %s %s\n",
 					buildSuccessStyle.Render("*"),
 					buildTargetStyle.Render(relPath),
-					buildDimStyle.Render(fmt.Sprintf("(%s/%s)", artifact.OS, artifact.Arch)),
+					buildDimStyle.Render(core.Sprintf("(%s/%s)", artifact.OS, artifact.Arch)),
 				)
 			}
 		}
@@ -256,17 +254,17 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		}
 
 		// JSON output for CI
-		output, err := json.MarshalIndent(outputArtifacts, "", "  ")
+		output, err := ax.JSONMarshal(outputArtifacts)
 		if err != nil {
 			return coreerr.E("build.Run", "failed to marshal artifacts", err)
 		}
-		fmt.Println(string(output))
+		cli.Print("%s\n", output)
 	} else if !verbose {
 		// Minimal output: just success with artifact count
-		fmt.Printf("%s %s %s\n",
+		cli.Print("%s %s %s\n",
 			buildSuccessStyle.Render(i18n.T("common.label.success")),
 			i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}),
-			buildDimStyle.Render(fmt.Sprintf("(%s)", outputDir)),
+			buildDimStyle.Render(core.Sprintf("(%s)", outputDir)),
 		)
 	}
 
@@ -277,23 +275,23 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 func computeAndWriteChecksums(ctx context.Context, projectDir, outputDir string, artifacts []build.Artifact, signCfg signing.SignConfig, ciMode bool, verbose bool) ([]build.Artifact, error) {
 	fs := io.Local
 	if verbose && !ciMode {
-		fmt.Println()
-		fmt.Printf("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.checksum")), i18n.T("cmd.build.computing_checksums"))
+		cli.Blank()
+		cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.checksum")), i18n.T("cmd.build.computing_checksums"))
 	}
 
 	checksummedArtifacts, err := build.ChecksumAll(fs, artifacts)
 	if err != nil {
 		if !ciMode {
-			fmt.Printf("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.checksum_failed"), err)
+			cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.checksum_failed"), err)
 		}
 		return nil, err
 	}
 
 	// Write CHECKSUMS.txt
-	checksumPath := filepath.Join(outputDir, "CHECKSUMS.txt")
+	checksumPath := ax.Join(outputDir, "CHECKSUMS.txt")
 	if err := build.WriteChecksumFile(fs, checksummedArtifacts, checksumPath); err != nil {
 		if !ciMode {
-			fmt.Printf("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("common.error.failed", map[string]any{"Action": "write CHECKSUMS.txt"}), err)
+			cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("common.error.failed", map[string]any{"Action": "write CHECKSUMS.txt"}), err)
 		}
 		return nil, err
 	}
@@ -302,7 +300,7 @@ func computeAndWriteChecksums(ctx context.Context, projectDir, outputDir string,
 	if signCfg.Enabled {
 		if err := signing.SignChecksums(ctx, fs, signCfg, checksumPath); err != nil {
 			if !ciMode {
-				fmt.Printf("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.gpg_signing_failed"), err)
+				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.gpg_signing_failed"), err)
 			}
 			return nil, err
 		}
@@ -310,22 +308,22 @@ func computeAndWriteChecksums(ctx context.Context, projectDir, outputDir string,
 
 	if verbose && !ciMode {
 		for _, artifact := range checksummedArtifacts {
-			relPath, err := filepath.Rel(projectDir, artifact.Path)
+			relPath, err := ax.Rel(projectDir, artifact.Path)
 			if err != nil {
 				relPath = artifact.Path
 			}
-			fmt.Printf("  %s %s\n",
+			cli.Print("  %s %s\n",
 				buildSuccessStyle.Render("*"),
 				buildTargetStyle.Render(relPath),
 			)
-			fmt.Printf("    %s\n", buildDimStyle.Render(artifact.Checksum))
+			cli.Print("    %s\n", buildDimStyle.Render(artifact.Checksum))
 		}
 
-		relChecksumPath, err := filepath.Rel(projectDir, checksumPath)
+		relChecksumPath, err := ax.Rel(projectDir, checksumPath)
 		if err != nil {
 			relChecksumPath = checksumPath
 		}
-		fmt.Printf("  %s %s\n",
+		cli.Print("  %s %s\n",
 			buildSuccessStyle.Render("*"),
 			buildTargetStyle.Render(relChecksumPath),
 		)
@@ -336,23 +334,23 @@ func computeAndWriteChecksums(ctx context.Context, projectDir, outputDir string,
 
 // parseTargets parses a comma-separated list of OS/arch pairs.
 func parseTargets(targetsFlag string) ([]build.Target, error) {
-	parts := strings.Split(targetsFlag, ",")
+	parts := core.Split(targetsFlag, ",")
 	var targets []build.Target
 
 	for _, part := range parts {
-		part = strings.TrimSpace(part)
+		part = core.Trim(part)
 		if part == "" {
 			continue
 		}
 
-		osArch := strings.Split(part, "/")
+		osArch := core.Split(part, "/")
 		if len(osArch) != 2 {
 			return nil, coreerr.E("build.parseTargets", "invalid target format (expected os/arch): "+part, nil)
 		}
 
 		targets = append(targets, build.Target{
-			OS:   strings.TrimSpace(osArch[0]),
-			Arch: strings.TrimSpace(osArch[1]),
+			OS:   core.Trim(osArch[0]),
+			Arch: core.Trim(osArch[1]),
 		})
 	}
 
@@ -369,7 +367,7 @@ func formatTargets(targets []build.Target) string {
 	for _, t := range targets {
 		parts = append(parts, t.String())
 	}
-	return strings.Join(parts, ", ")
+	return core.Join(", ", parts...)
 }
 
 // getBuilder returns the appropriate builder for the project type.

@@ -1,10 +1,9 @@
 package release
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,19 +14,19 @@ func setupConfigTestDir(t *testing.T, configContent string) string {
 	dir := t.TempDir()
 
 	if configContent != "" {
-		coreDir := filepath.Join(dir, ConfigDir)
-		err := os.MkdirAll(coreDir, 0755)
+		coreDir := ax.Join(dir, ConfigDir)
+		err := ax.MkdirAll(coreDir, 0755)
 		require.NoError(t, err)
 
-		configPath := filepath.Join(coreDir, ConfigFileName)
-		err = os.WriteFile(configPath, []byte(configContent), 0644)
+		configPath := ax.Join(coreDir, ConfigFileName)
+		err = ax.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 	}
 
 	return dir
 }
 
-func TestLoadConfig_Good(t *testing.T) {
+func TestConfig_LoadConfig_Good(t *testing.T) {
 	t.Run("loads valid config", func(t *testing.T) {
 		content := `
 version: 1
@@ -119,7 +118,7 @@ project:
 	})
 }
 
-func TestLoadConfig_Bad(t *testing.T) {
+func TestConfig_LoadConfig_Bad(t *testing.T) {
 	t.Run("returns error for invalid YAML", func(t *testing.T) {
 		content := `
 version: 1
@@ -134,25 +133,26 @@ project:
 		assert.Contains(t, err.Error(), "failed to parse config file")
 	})
 
-	t.Run("returns error for unreadable file", func(t *testing.T) {
+	t.Run("returns default config when config path is a directory", func(t *testing.T) {
 		dir := t.TempDir()
-		coreDir := filepath.Join(dir, ConfigDir)
-		err := os.MkdirAll(coreDir, 0755)
+		coreDir := ax.Join(dir, ConfigDir)
+		err := ax.MkdirAll(coreDir, 0755)
 		require.NoError(t, err)
 
 		// Create config as a directory instead of file
-		configPath := filepath.Join(coreDir, ConfigFileName)
-		err = os.Mkdir(configPath, 0755)
+		configPath := ax.Join(coreDir, ConfigFileName)
+		err = ax.Mkdir(configPath, 0755)
 		require.NoError(t, err)
 
 		cfg, err := LoadConfig(dir)
-		assert.Error(t, err)
-		assert.Nil(t, cfg)
-		assert.Contains(t, err.Error(), "failed to read config file")
+		assert.NoError(t, err)
+		require.NotNil(t, cfg)
+		assert.Equal(t, 1, cfg.Version)
+		assert.Equal(t, dir, cfg.projectDir)
 	})
 }
 
-func TestDefaultConfig_Good(t *testing.T) {
+func TestConfig_DefaultConfig_Good(t *testing.T) {
 	t.Run("returns sensible defaults", func(t *testing.T) {
 		cfg := DefaultConfig()
 
@@ -194,14 +194,14 @@ func TestDefaultConfig_Good(t *testing.T) {
 	})
 }
 
-func TestConfigPath_Good(t *testing.T) {
+func TestConfig_ConfigPath_Good(t *testing.T) {
 	t.Run("returns correct path", func(t *testing.T) {
 		path := ConfigPath("/project/root")
 		assert.Equal(t, "/project/root/.core/release.yaml", path)
 	})
 }
 
-func TestConfigExists_Good(t *testing.T) {
+func TestConfig_ConfigExists_Good(t *testing.T) {
 	t.Run("returns true when config exists", func(t *testing.T) {
 		dir := setupConfigTestDir(t, "version: 1")
 		assert.True(t, ConfigExists(dir))
@@ -218,7 +218,7 @@ func TestConfigExists_Good(t *testing.T) {
 	})
 }
 
-func TestWriteConfig_Good(t *testing.T) {
+func TestConfig_WriteConfig_Good(t *testing.T) {
 	t.Run("writes config to file", func(t *testing.T) {
 		dir := t.TempDir()
 
@@ -247,8 +247,8 @@ func TestWriteConfig_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check directory was created
-		coreDir := filepath.Join(dir, ConfigDir)
-		info, err := os.Stat(coreDir)
+		coreDir := ax.Join(dir, ConfigDir)
+		info, err := ax.Stat(coreDir)
 		require.NoError(t, err)
 		assert.True(t, info.IsDir())
 	})
@@ -302,22 +302,22 @@ func TestConfig_SetProjectDir_Good(t *testing.T) {
 	})
 }
 
-func TestWriteConfig_Bad(t *testing.T) {
+func TestConfig_WriteConfig_Bad(t *testing.T) {
 	t.Run("returns error for unwritable directory", func(t *testing.T) {
-		if os.Geteuid() == 0 {
+		if ax.Geteuid() == 0 {
 			t.Skip("root can write to any directory")
 		}
 		dir := t.TempDir()
 
 		// Create .core directory and make it unwritable
-		coreDir := filepath.Join(dir, ConfigDir)
-		err := os.MkdirAll(coreDir, 0755)
+		coreDir := ax.Join(dir, ConfigDir)
+		err := ax.MkdirAll(coreDir, 0755)
 		require.NoError(t, err)
 
 		// Make directory read-only
-		err = os.Chmod(coreDir, 0555)
+		err = ax.Chmod(coreDir, 0555)
 		require.NoError(t, err)
-		defer func() { _ = os.Chmod(coreDir, 0755) }()
+		defer func() { _ = ax.Chmod(coreDir, 0755) }()
 
 		cfg := DefaultConfig()
 		err = WriteConfig(cfg, dir)
@@ -326,7 +326,7 @@ func TestWriteConfig_Bad(t *testing.T) {
 	})
 
 	t.Run("returns error when directory creation fails", func(t *testing.T) {
-		if os.Geteuid() == 0 {
+		if ax.Geteuid() == 0 {
 			t.Skip("root can create directories anywhere")
 		}
 		// Use a path that doesn't exist and can't be created
@@ -336,7 +336,7 @@ func TestWriteConfig_Bad(t *testing.T) {
 	})
 }
 
-func TestApplyDefaults_Good(t *testing.T) {
+func TestConfig_ApplyDefaults_Good(t *testing.T) {
 	t.Run("applies version default when zero", func(t *testing.T) {
 		cfg := &Config{Version: 0}
 		applyDefaults(cfg)

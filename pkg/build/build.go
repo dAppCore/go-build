@@ -10,6 +10,7 @@ import (
 )
 
 // ProjectType represents a detected project type.
+// Usage example: declare a value of type build.ProjectType in integrating code.
 type ProjectType string
 
 // Project type constants for build detection.
@@ -33,17 +34,20 @@ const (
 )
 
 // Target represents a build target platform.
+// Usage example: declare a value of type build.Target in integrating code.
 type Target struct {
 	OS   string
 	Arch string
 }
 
 // String returns the target in GOOS/GOARCH format.
+// Usage example: call value.String(...) from integrating code.
 func (t Target) String() string {
 	return t.OS + "/" + t.Arch
 }
 
 // Artifact represents a build output file.
+// Usage example: declare a value of type build.Artifact in integrating code.
 type Artifact struct {
 	Path     string
 	OS       string
@@ -52,6 +56,7 @@ type Artifact struct {
 }
 
 // Config holds build configuration.
+// Usage example: declare a value of type build.Config in integrating code.
 type Config struct {
 	// FS is the medium used for file operations.
 	FS io.Medium
@@ -82,6 +87,7 @@ type Config struct {
 }
 
 // Builder defines the interface for project-specific build implementations.
+// Usage example: declare a value of type build.Builder in integrating code.
 type Builder interface {
 	// Name returns the builder's identifier.
 	Name() string

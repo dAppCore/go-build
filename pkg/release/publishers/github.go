@@ -3,30 +3,31 @@ package publishers
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
 )
 
 // GitHubPublisher publishes releases to GitHub using the gh CLI.
+// Usage example: declare a value of type publishers.GitHubPublisher in integrating code.
 type GitHubPublisher struct{}
 
 // NewGitHubPublisher creates a new GitHub publisher.
+// Usage example: call publishers.NewGitHubPublisher(...) from integrating code.
 func NewGitHubPublisher() *GitHubPublisher {
 	return &GitHubPublisher{}
 }
 
 // Name returns the publisher's identifier.
+// Usage example: call value.Name(...) from integrating code.
 func (p *GitHubPublisher) Name() string {
 	return "github"
 }
 
 // Publish publishes the release to GitHub.
 // Uses the gh CLI for creating releases and uploading assets.
+// Usage example: call value.Publish(...) from integrating code.
 func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	// Determine repository
 	repo := ""
@@ -56,34 +57,34 @@ func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 
 // dryRunPublish shows what would be done without actually publishing.
 func (p *GitHubPublisher) dryRunPublish(release *Release, pubCfg PublisherConfig, repo string) error {
-	fmt.Println()
-	fmt.Println("=== DRY RUN: GitHub Release ===")
-	fmt.Println()
-	fmt.Printf("Repository: %s\n", repo)
-	fmt.Printf("Version:    %s\n", release.Version)
-	fmt.Printf("Draft:      %t\n", pubCfg.Draft)
-	fmt.Printf("Prerelease: %t\n", pubCfg.Prerelease)
-	fmt.Println()
+	publisherPrintln()
+	publisherPrintln("=== DRY RUN: GitHub Release ===")
+	publisherPrintln()
+	publisherPrint("Repository: %s", repo)
+	publisherPrint("Version:    %s", release.Version)
+	publisherPrint("Draft:      %t", pubCfg.Draft)
+	publisherPrint("Prerelease: %t", pubCfg.Prerelease)
+	publisherPrintln()
 
-	fmt.Println("Would create release with command:")
+	publisherPrintln("Would create release with command:")
 	args := p.buildCreateArgs(release, pubCfg, repo)
-	fmt.Printf("  gh %s\n", strings.Join(args, " "))
-	fmt.Println()
+	publisherPrint("  gh %s", core.Join(" ", args...))
+	publisherPrintln()
 
 	if len(release.Artifacts) > 0 {
-		fmt.Println("Would upload artifacts:")
+		publisherPrintln("Would upload artifacts:")
 		for _, artifact := range release.Artifacts {
-			fmt.Printf("  - %s\n", filepath.Base(artifact.Path))
+			publisherPrint("  - %s", ax.Base(artifact.Path))
 		}
 	}
 
-	fmt.Println()
-	fmt.Println("Changelog:")
-	fmt.Println("---")
-	fmt.Println(release.Changelog)
-	fmt.Println("---")
-	fmt.Println()
-	fmt.Println("=== END DRY RUN ===")
+	publisherPrintln()
+	publisherPrintln("Changelog:")
+	publisherPrintln("---")
+	publisherPrintln(release.Changelog)
+	publisherPrintln("---")
+	publisherPrintln()
+	publisherPrintln("=== END DRY RUN ===")
 
 	return nil
 }
@@ -99,12 +100,7 @@ func (p *GitHubPublisher) executePublish(ctx context.Context, release *Release, 
 	}
 
 	// Execute gh release create
-	cmd := exec.CommandContext(ctx, "gh", args...)
-	cmd.Dir = release.ProjectDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	if err := publisherRun(ctx, release.ProjectDir, nil, "gh", args...); err != nil {
 		return coreerr.E("github.Publish", "gh release create failed", err)
 	}
 
@@ -145,20 +141,16 @@ func (p *GitHubPublisher) buildCreateArgs(release *Release, pubCfg PublisherConf
 
 // validateGhCli checks if the gh CLI is available and authenticated.
 func validateGhCli() error {
-	// Check if gh is installed
-	cmd := exec.Command("gh", "--version")
-	if err := cmd.Run(); err != nil {
+	if _, err := ax.LookPath("gh"); err != nil {
 		return coreerr.E("github.validateGhCli", "gh CLI not found. Install it from https://cli.github.com", err)
 	}
 
-	// Check if authenticated
-	cmd = exec.Command("gh", "auth", "status")
-	output, err := cmd.CombinedOutput()
+	output, err := ax.CombinedOutput(context.Background(), "", nil, "gh", "auth", "status")
 	if err != nil {
 		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", err)
 	}
 
-	if !strings.Contains(string(output), "Logged in") {
+	if !core.Contains(output, "Logged in") {
 		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", nil)
 	}
 
@@ -167,15 +159,12 @@ func validateGhCli() error {
 
 // detectRepository detects the GitHub repository from git remote.
 func detectRepository(dir string) (string, error) {
-	cmd := exec.Command("git", "remote", "get-url", "origin")
-	cmd.Dir = dir
-	output, err := cmd.Output()
+	output, err := ax.RunDir(context.Background(), dir, "git", "remote", "get-url", "origin")
 	if err != nil {
 		return "", coreerr.E("github.detectRepository", "failed to get git remote", err)
 	}
 
-	url := strings.TrimSpace(string(output))
-	return parseGitHubRepo(url)
+	return parseGitHubRepo(core.Trim(output))
 }
 
 // parseGitHubRepo extracts owner/repo from a GitHub URL.
@@ -185,16 +174,16 @@ func detectRepository(dir string) (string, error) {
 //   - https://github.com/owner/repo
 func parseGitHubRepo(url string) (string, error) {
 	// SSH format
-	if strings.HasPrefix(url, "git@github.com:") {
-		repo := strings.TrimPrefix(url, "git@github.com:")
-		repo = strings.TrimSuffix(repo, ".git")
+	if core.HasPrefix(url, "git@github.com:") {
+		repo := core.TrimPrefix(url, "git@github.com:")
+		repo = core.TrimSuffix(repo, ".git")
 		return repo, nil
 	}
 
 	// HTTPS format
-	if strings.HasPrefix(url, "https://github.com/") {
-		repo := strings.TrimPrefix(url, "https://github.com/")
-		repo = strings.TrimSuffix(repo, ".git")
+	if core.HasPrefix(url, "https://github.com/") {
+		repo := core.TrimPrefix(url, "https://github.com/")
+		repo = core.TrimSuffix(repo, ".git")
 		return repo, nil
 	}
 
@@ -203,12 +192,9 @@ func parseGitHubRepo(url string) (string, error) {
 
 // UploadArtifact uploads a single artifact to an existing release.
 // This can be used to add artifacts to a release after creation.
+// Usage example: call publishers.UploadArtifact(...) from integrating code.
 func UploadArtifact(ctx context.Context, repo, version, artifactPath string) error {
-	cmd := exec.CommandContext(ctx, "gh", "release", "upload", version, artifactPath, "--repo", repo)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	if err := publisherRun(ctx, "", nil, "gh", "release", "upload", version, artifactPath, "--repo", repo); err != nil {
 		return coreerr.E("github.UploadArtifact", "failed to upload "+artifactPath, err)
 	}
 
@@ -216,12 +202,9 @@ func UploadArtifact(ctx context.Context, repo, version, artifactPath string) err
 }
 
 // DeleteRelease deletes a release by tag name.
+// Usage example: call publishers.DeleteRelease(...) from integrating code.
 func DeleteRelease(ctx context.Context, repo, version string) error {
-	cmd := exec.CommandContext(ctx, "gh", "release", "delete", version, "--repo", repo, "--yes")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	if err := publisherRun(ctx, "", nil, "gh", "release", "delete", version, "--repo", repo, "--yes"); err != nil {
 		return coreerr.E("github.DeleteRelease", "failed to delete "+version, err)
 	}
 
@@ -229,7 +212,7 @@ func DeleteRelease(ctx context.Context, repo, version string) error {
 }
 
 // ReleaseExists checks if a release exists for the given version.
+// Usage example: call publishers.ReleaseExists(...) from integrating code.
 func ReleaseExists(ctx context.Context, repo, version string) bool {
-	cmd := exec.CommandContext(ctx, "gh", "release", "view", version, "--repo", repo)
-	return cmd.Run() == nil
+	return ax.Exec(ctx, "gh", "release", "view", version, "--repo", repo) == nil
 }

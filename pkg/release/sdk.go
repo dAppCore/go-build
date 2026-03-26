@@ -10,6 +10,7 @@ import (
 )
 
 // SDKRelease holds the result of an SDK release.
+// Usage example: declare a value of type release.SDKRelease in integrating code.
 type SDKRelease struct {
 	// Version is the SDK version.
 	Version string
@@ -21,6 +22,7 @@ type SDKRelease struct {
 
 // RunSDK executes SDK-only release: diff check + generate.
 // If dryRun is true, it shows what would be done without generating.
+// Usage example: call release.RunSDK(...) from integrating code.
 func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) {
 	if cfg == nil {
 		return nil, coreerr.E("release.RunSDK", "config is nil", nil)

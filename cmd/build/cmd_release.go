@@ -4,8 +4,8 @@ package buildcmd
 
 import (
 	"context"
-	"os"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
@@ -40,6 +40,7 @@ func initReleaseFlags() {
 }
 
 // AddReleaseCommand adds the release subcommand to the build command.
+// Usage example: call buildcmd.AddReleaseCommand(...) from integrating code.
 func AddReleaseCommand(buildCmd *cli.Command) {
 	setReleaseI18n()
 	initReleaseFlags()
@@ -49,7 +50,7 @@ func AddReleaseCommand(buildCmd *cli.Command) {
 // runRelease executes the full release workflow: build + archive + checksum + publish.
 func runRelease(ctx context.Context, dryRun bool, version string, draft, prerelease bool) error {
 	// Get current directory
-	projectDir, err := os.Getwd()
+	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("release", "get working directory", err)
 	}

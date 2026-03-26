@@ -3,12 +3,10 @@ package builders
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
+	"path"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -16,19 +14,23 @@ import (
 
 // TaskfileBuilder builds projects using Taskfile (https://taskfile.dev/).
 // This is a generic builder that can handle any project type that has a Taskfile.
+// Usage example: declare a value of type builders.TaskfileBuilder in integrating code.
 type TaskfileBuilder struct{}
 
 // NewTaskfileBuilder creates a new Taskfile builder.
+// Usage example: call builders.NewTaskfileBuilder(...) from integrating code.
 func NewTaskfileBuilder() *TaskfileBuilder {
 	return &TaskfileBuilder{}
 }
 
 // Name returns the builder's identifier.
+// Usage example: call value.Name(...) from integrating code.
 func (b *TaskfileBuilder) Name() string {
 	return "taskfile"
 }
 
 // Detect checks if a Taskfile exists in the directory.
+// Usage example: call value.Detect(...) from integrating code.
 func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	// Check for Taskfile.yml, Taskfile.yaml, or Taskfile
 	taskfiles := []string{
@@ -40,7 +42,7 @@ func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	}
 
 	for _, tf := range taskfiles {
-		if fs.IsFile(filepath.Join(dir, tf)) {
+		if fs.IsFile(ax.Join(dir, tf)) {
 			return true, nil
 		}
 	}
@@ -48,6 +50,7 @@ func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 }
 
 // Build runs the Taskfile build task for each target platform.
+// Usage example: call value.Build(...) from integrating code.
 func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	// Validate task CLI is available
 	if err := b.validateTaskCli(); err != nil {
@@ -57,7 +60,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	// Create output directory
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
-		outputDir = filepath.Join(cfg.ProjectDir, "dist")
+		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
 	if err := cfg.FS.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("TaskfileBuilder.Build", "failed to create output directory", err)
@@ -94,54 +97,42 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, goos, goarch string) error {
 	// Build task command
 	args := []string{"build"}
+	env := []string{}
 
 	// Pass variables if targets are specified
 	if goos != "" {
-		args = append(args, fmt.Sprintf("GOOS=%s", goos))
+		value := core.Sprintf("GOOS=%s", goos)
+		args = append(args, value)
+		env = append(env, value)
 	}
 	if goarch != "" {
-		args = append(args, fmt.Sprintf("GOARCH=%s", goarch))
+		value := core.Sprintf("GOARCH=%s", goarch)
+		args = append(args, value)
+		env = append(env, value)
 	}
 	if cfg.OutputDir != "" {
-		args = append(args, fmt.Sprintf("OUTPUT_DIR=%s", cfg.OutputDir))
+		value := core.Sprintf("OUTPUT_DIR=%s", cfg.OutputDir)
+		args = append(args, value)
+		env = append(env, value)
 	}
 	if cfg.Name != "" {
-		args = append(args, fmt.Sprintf("NAME=%s", cfg.Name))
+		value := core.Sprintf("NAME=%s", cfg.Name)
+		args = append(args, value)
+		env = append(env, value)
 	}
 	if cfg.Version != "" {
-		args = append(args, fmt.Sprintf("VERSION=%s", cfg.Version))
-	}
-
-	cmd := exec.CommandContext(ctx, "task", args...)
-	cmd.Dir = cfg.ProjectDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	// Set environment variables
-	cmd.Env = os.Environ()
-	if goos != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("GOOS=%s", goos))
-	}
-	if goarch != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("GOARCH=%s", goarch))
-	}
-	if cfg.OutputDir != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("OUTPUT_DIR=%s", cfg.OutputDir))
-	}
-	if cfg.Name != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("NAME=%s", cfg.Name))
-	}
-	if cfg.Version != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("VERSION=%s", cfg.Version))
+		value := core.Sprintf("VERSION=%s", cfg.Version)
+		args = append(args, value)
+		env = append(env, value)
 	}
 
 	if goos != "" && goarch != "" {
-		fmt.Printf("Running task build for %s/%s\n", goos, goarch)
+		core.Print(nil, "Running task build for %s/%s", goos, goarch)
 	} else {
-		fmt.Println("Running task build")
+		core.Print(nil, "Running task build")
 	}
 
-	if err := cmd.Run(); err != nil {
+	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, env, "task", args...); err != nil {
 		return coreerr.E("TaskfileBuilder.runTask", "task build failed", err)
 	}
 
@@ -164,12 +155,12 @@ func (b *TaskfileBuilder) findArtifacts(fs io.Medium, outputDir string) []build.
 
 		// Skip common non-artifact files
 		name := entry.Name()
-		if strings.HasPrefix(name, ".") || name == "CHECKSUMS.txt" {
+		if core.HasPrefix(name, ".") || name == "CHECKSUMS.txt" {
 			continue
 		}
 
 		artifacts = append(artifacts, build.Artifact{
-			Path: filepath.Join(outputDir, name),
+			Path: ax.Join(outputDir, name),
 			OS:   "",
 			Arch: "",
 		})
@@ -183,15 +174,15 @@ func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string,
 	var artifacts []build.Artifact
 
 	// 1. Look for platform-specific subdirectory: output/os_arch/
-	platformSubdir := filepath.Join(outputDir, fmt.Sprintf("%s_%s", target.OS, target.Arch))
+	platformSubdir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 	if fs.IsDir(platformSubdir) {
 		entries, _ := fs.List(platformSubdir)
 		for _, entry := range entries {
 			if entry.IsDir() {
 				// Handle .app bundles on macOS
-				if target.OS == "darwin" && strings.HasSuffix(entry.Name(), ".app") {
+				if target.OS == "darwin" && core.HasSuffix(entry.Name(), ".app") {
 					artifacts = append(artifacts, build.Artifact{
-						Path: filepath.Join(platformSubdir, entry.Name()),
+						Path: ax.Join(platformSubdir, entry.Name()),
 						OS:   target.OS,
 						Arch: target.Arch,
 					})
@@ -199,11 +190,11 @@ func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string,
 				continue
 			}
 			// Skip hidden files
-			if strings.HasPrefix(entry.Name(), ".") {
+			if core.HasPrefix(entry.Name(), ".") {
 				continue
 			}
 			artifacts = append(artifacts, build.Artifact{
-				Path: filepath.Join(platformSubdir, entry.Name()),
+				Path: ax.Join(platformSubdir, entry.Name()),
 				OS:   target.OS,
 				Arch: target.Arch,
 			})
@@ -215,9 +206,9 @@ func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string,
 
 	// 2. Look for files matching the target pattern in the root output dir
 	patterns := []string{
-		fmt.Sprintf("*-%s-%s*", target.OS, target.Arch),
-		fmt.Sprintf("*_%s_%s*", target.OS, target.Arch),
-		fmt.Sprintf("*-%s*", target.Arch),
+		core.Sprintf("*-%s-%s*", target.OS, target.Arch),
+		core.Sprintf("*_%s_%s*", target.OS, target.Arch),
+		core.Sprintf("*-%s*", target.Arch),
 	}
 
 	for _, pattern := range patterns {
@@ -226,7 +217,7 @@ func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string,
 			match := entry.Name()
 			// Simple glob matching
 			if b.matchPattern(match, pattern) {
-				fullPath := filepath.Join(outputDir, match)
+				fullPath := ax.Join(outputDir, match)
 				if fs.IsDir(fullPath) {
 					continue
 				}
@@ -249,14 +240,14 @@ func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string,
 
 // matchPattern implements glob matching for Taskfile artifacts.
 func (b *TaskfileBuilder) matchPattern(name, pattern string) bool {
-	matched, _ := filepath.Match(pattern, name)
+	matched, _ := path.Match(pattern, name)
 	return matched
 }
 
 // validateTaskCli checks if the task CLI is available.
 func (b *TaskfileBuilder) validateTaskCli() error {
 	// Check PATH first
-	if _, err := exec.LookPath("task"); err == nil {
+	if _, err := ax.LookPath("task"); err == nil {
 		return nil
 	}
 

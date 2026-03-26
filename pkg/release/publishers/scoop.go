@@ -5,13 +5,10 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"text/template"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -21,6 +18,7 @@ import (
 var scoopTemplates embed.FS
 
 // ScoopConfig holds Scoop-specific configuration.
+// Usage example: declare a value of type publishers.ScoopConfig in integrating code.
 type ScoopConfig struct {
 	// Bucket is the Scoop bucket repository (e.g., "host-uk/scoop-bucket").
 	Bucket string
@@ -29,19 +27,23 @@ type ScoopConfig struct {
 }
 
 // ScoopPublisher publishes releases to Scoop.
+// Usage example: declare a value of type publishers.ScoopPublisher in integrating code.
 type ScoopPublisher struct{}
 
 // NewScoopPublisher creates a new Scoop publisher.
+// Usage example: call publishers.NewScoopPublisher(...) from integrating code.
 func NewScoopPublisher() *ScoopPublisher {
 	return &ScoopPublisher{}
 }
 
 // Name returns the publisher's identifier.
+// Usage example: call value.Name(...) from integrating code.
 func (p *ScoopPublisher) Name() string {
 	return "scoop"
 }
 
 // Publish publishes the release to Scoop.
+// Usage example: call value.Publish(...) from integrating code.
 func (p *ScoopPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	cfg := p.parseConfig(pubCfg, relCfg)
 
@@ -66,16 +68,16 @@ func (p *ScoopPublisher) Publish(ctx context.Context, release *Release, pubCfg P
 		projectName = relCfg.GetProjectName()
 	}
 	if projectName == "" {
-		parts := strings.Split(repo, "/")
+		parts := core.Split(repo, "/")
 		projectName = parts[len(parts)-1]
 	}
 
-	version := strings.TrimPrefix(release.Version, "v")
+	version := core.TrimPrefix(release.Version, "v")
 	checksums := buildChecksumMap(release.Artifacts)
 
 	data := scoopTemplateData{
 		PackageName: projectName,
-		Description: fmt.Sprintf("%s CLI", projectName),
+		Description: core.Sprintf("%s CLI", projectName),
 		Repository:  repo,
 		Version:     version,
 		License:     "MIT",
@@ -122,37 +124,37 @@ func (p *ScoopPublisher) parseConfig(pubCfg PublisherConfig, relCfg ReleaseConfi
 }
 
 func (p *ScoopPublisher) dryRunPublish(m coreio.Medium, data scoopTemplateData, cfg ScoopConfig) error {
-	fmt.Println()
-	fmt.Println("=== DRY RUN: Scoop Publish ===")
-	fmt.Println()
-	fmt.Printf("Package:    %s\n", data.PackageName)
-	fmt.Printf("Version:    %s\n", data.Version)
-	fmt.Printf("Bucket:     %s\n", cfg.Bucket)
-	fmt.Printf("Repository: %s\n", data.Repository)
-	fmt.Println()
+	publisherPrintln()
+	publisherPrintln("=== DRY RUN: Scoop Publish ===")
+	publisherPrintln()
+	publisherPrint("Package:    %s", data.PackageName)
+	publisherPrint("Version:    %s", data.Version)
+	publisherPrint("Bucket:     %s", cfg.Bucket)
+	publisherPrint("Repository: %s", data.Repository)
+	publisherPrintln()
 
 	manifest, err := p.renderTemplate(m, "templates/scoop/manifest.json.tmpl", data)
 	if err != nil {
 		return coreerr.E("scoop.dryRunPublish", "failed to render template", err)
 	}
-	fmt.Println("Generated manifest.json:")
-	fmt.Println("---")
-	fmt.Println(manifest)
-	fmt.Println("---")
-	fmt.Println()
+	publisherPrintln("Generated manifest.json:")
+	publisherPrintln("---")
+	publisherPrintln(manifest)
+	publisherPrintln("---")
+	publisherPrintln()
 
 	if cfg.Bucket != "" {
-		fmt.Printf("Would commit to bucket: %s\n", cfg.Bucket)
+		publisherPrint("Would commit to bucket: %s", cfg.Bucket)
 	}
 	if cfg.Official != nil && cfg.Official.Enabled {
 		output := cfg.Official.Output
 		if output == "" {
 			output = "dist/scoop"
 		}
-		fmt.Printf("Would write files for official PR to: %s\n", output)
+		publisherPrint("Would write files for official PR to: %s", output)
 	}
-	fmt.Println()
-	fmt.Println("=== END DRY RUN ===")
+	publisherPrintln()
+	publisherPrintln("=== END DRY RUN ===")
 
 	return nil
 }
@@ -167,20 +169,20 @@ func (p *ScoopPublisher) executePublish(ctx context.Context, projectDir string, 
 	if cfg.Official != nil && cfg.Official.Enabled {
 		output := cfg.Official.Output
 		if output == "" {
-			output = filepath.Join(projectDir, "dist", "scoop")
-		} else if !filepath.IsAbs(output) {
-			output = filepath.Join(projectDir, output)
+			output = ax.Join(projectDir, "dist", "scoop")
+		} else if !ax.IsAbs(output) {
+			output = ax.Join(projectDir, output)
 		}
 
 		if err := release.FS.EnsureDir(output); err != nil {
 			return coreerr.E("scoop.Publish", "failed to create output directory", err)
 		}
 
-		manifestPath := filepath.Join(output, fmt.Sprintf("%s.json", data.PackageName))
+		manifestPath := ax.Join(output, core.Sprintf("%s.json", data.PackageName))
 		if err := release.FS.Write(manifestPath, manifest); err != nil {
 			return coreerr.E("scoop.Publish", "failed to write manifest", err)
 		}
-		fmt.Printf("Wrote Scoop manifest for official PR: %s\n", manifestPath)
+		publisherPrint("Wrote Scoop manifest for official PR: %s", manifestPath)
 	}
 
 	// If bucket is configured, commit to it
@@ -194,56 +196,43 @@ func (p *ScoopPublisher) executePublish(ctx context.Context, projectDir string, 
 }
 
 func (p *ScoopPublisher) commitToBucket(ctx context.Context, bucket string, data scoopTemplateData, manifest string) error {
-	tmpDir, err := os.MkdirTemp("", "scoop-bucket-*")
+	tmpDir, err := ax.TempDir("scoop-bucket-*")
 	if err != nil {
 		return coreerr.E("scoop.commitToBucket", "failed to create temp directory", err)
 	}
-	defer func() { _ = coreio.Local.DeleteAll(tmpDir) }()
+	defer func() { _ = ax.RemoveAll(tmpDir) }()
 
-	fmt.Printf("Cloning bucket %s...\n", bucket)
-	cmd := exec.CommandContext(ctx, "gh", "repo", "clone", bucket, tmpDir, "--", "--depth=1")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	publisherPrint("Cloning bucket %s...", bucket)
+	if err := publisherRun(ctx, "", nil, "gh", "repo", "clone", bucket, tmpDir, "--", "--depth=1"); err != nil {
 		return coreerr.E("scoop.commitToBucket", "failed to clone bucket", err)
 	}
 
 	// Ensure bucket directory exists
-	bucketDir := filepath.Join(tmpDir, "bucket")
+	bucketDir := ax.Join(tmpDir, "bucket")
 	if !coreio.Local.IsDir(bucketDir) {
 		bucketDir = tmpDir // Some repos put manifests in root
 	}
 
-	manifestPath := filepath.Join(bucketDir, fmt.Sprintf("%s.json", data.PackageName))
+	manifestPath := ax.Join(bucketDir, core.Sprintf("%s.json", data.PackageName))
 	if err := coreio.Local.Write(manifestPath, manifest); err != nil {
 		return coreerr.E("scoop.commitToBucket", "failed to write manifest", err)
 	}
 
-	commitMsg := fmt.Sprintf("Update %s to %s", data.PackageName, data.Version)
+	commitMsg := core.Sprintf("Update %s to %s", data.PackageName, data.Version)
 
-	cmd = exec.CommandContext(ctx, "git", "add", ".")
-	cmd.Dir = tmpDir
-	if err := cmd.Run(); err != nil {
+	if err := ax.ExecDir(ctx, tmpDir, "git", "add", "."); err != nil {
 		return coreerr.E("scoop.commitToBucket", "git add failed", err)
 	}
 
-	cmd = exec.CommandContext(ctx, "git", "commit", "-m", commitMsg)
-	cmd.Dir = tmpDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := publisherRun(ctx, tmpDir, nil, "git", "commit", "-m", commitMsg); err != nil {
 		return coreerr.E("scoop.commitToBucket", "git commit failed", err)
 	}
 
-	cmd = exec.CommandContext(ctx, "git", "push")
-	cmd.Dir = tmpDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := publisherRun(ctx, tmpDir, nil, "git", "push"); err != nil {
 		return coreerr.E("scoop.commitToBucket", "git push failed", err)
 	}
 
-	fmt.Printf("Updated Scoop bucket: %s\n", bucket)
+	publisherPrint("Updated Scoop bucket: %s", bucket)
 	return nil
 }
 
@@ -252,7 +241,7 @@ func (p *ScoopPublisher) renderTemplate(m coreio.Medium, name string, data scoop
 	var err error
 
 	// Try custom template from medium
-	customPath := filepath.Join(".core", name)
+	customPath := ax.Join(".core", name)
 	if m != nil && m.IsFile(customPath) {
 		customContent, err := m.Read(customPath)
 		if err != nil {
@@ -269,7 +258,7 @@ func (p *ScoopPublisher) renderTemplate(m coreio.Medium, name string, data scoop
 		}
 	}
 
-	tmpl, err := template.New(filepath.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("scoop.renderTemplate", "failed to parse template "+name, err)
 	}

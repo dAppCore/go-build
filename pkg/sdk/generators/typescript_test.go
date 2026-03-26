@@ -2,20 +2,15 @@ package generators
 
 import (
 	"context"
-	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
 	"time"
+
+	"dappco.re/go/core/build/internal/ax"
 )
 
 // dockerAvailable checks if docker is available for fallback generation.
 func dockerAvailable() bool {
-	cmd := exec.Command("docker", "info")
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
-	return cmd.Run() == nil
+	return ax.Exec(context.Background(), "docker", "info") == nil
 }
 
 // createTestSpec creates a minimal OpenAPI spec for testing.
@@ -33,14 +28,14 @@ paths:
         "200":
           description: OK
 `
-	specPath := filepath.Join(dir, "openapi.yaml")
-	if err := os.WriteFile(specPath, []byte(spec), 0644); err != nil {
+	specPath := ax.Join(dir, "openapi.yaml")
+	if err := ax.WriteFile(specPath, []byte(spec), 0o644); err != nil {
 		t.Fatalf("failed to write test spec: %v", err)
 	}
 	return specPath
 }
 
-func TestTypeScriptGenerator_Good_Available(t *testing.T) {
+func TestTypeScript_TypeScriptGeneratorAvailable_Good(t *testing.T) {
 	g := NewTypeScriptGenerator()
 
 	// These should not panic
@@ -57,7 +52,7 @@ func TestTypeScriptGenerator_Good_Available(t *testing.T) {
 	}
 }
 
-func TestTypeScriptGenerator_Good_Generate(t *testing.T) {
+func TestTypeScript_TypeScriptGeneratorGenerate_Good(t *testing.T) {
 	g := NewTypeScriptGenerator()
 	if !g.Available() && !dockerAvailable() {
 		t.Skip("no TypeScript generator available (neither native nor docker)")
@@ -66,7 +61,7 @@ func TestTypeScriptGenerator_Good_Generate(t *testing.T) {
 	// Create temp directories
 	tmpDir := t.TempDir()
 	specPath := createTestSpec(t, tmpDir)
-	outputDir := filepath.Join(tmpDir, "output")
+	outputDir := ax.Join(tmpDir, "output")
 
 	opts := Options{
 		SpecPath:    specPath,
@@ -84,7 +79,7 @@ func TestTypeScriptGenerator_Good_Generate(t *testing.T) {
 	}
 
 	// Verify output directory was created
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+	if !ax.Exists(outputDir) {
 		t.Error("output directory was not created")
 	}
 }

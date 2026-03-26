@@ -3,7 +3,7 @@
 package api
 
 import (
-	"os"
+	"io/fs"
 	"testing"
 
 	"dappco.re/go/core/build/pkg/build"
@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildProvider_Good_Identity(t *testing.T) {
+func TestProvider_BuildProviderIdentity_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 
 	assert.Equal(t, "build", p.Name())
 	assert.Equal(t, "/api/v1/build", p.BasePath())
 }
 
-func TestBuildProvider_Good_Element(t *testing.T) {
+func TestProvider_BuildProviderElement_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	el := p.Element()
 
@@ -26,7 +26,7 @@ func TestBuildProvider_Good_Element(t *testing.T) {
 	assert.Equal(t, "/assets/core-build.js", el.Source)
 }
 
-func TestBuildProvider_Good_Channels(t *testing.T) {
+func TestProvider_BuildProviderChannels_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	channels := p.Channels()
 
@@ -39,7 +39,7 @@ func TestBuildProvider_Good_Channels(t *testing.T) {
 	assert.Len(t, channels, 6)
 }
 
-func TestBuildProvider_Good_Describe(t *testing.T) {
+func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	routes := p.Describe()
 
@@ -63,23 +63,23 @@ func TestBuildProvider_Good_Describe(t *testing.T) {
 	assert.Equal(t, "POST", paths["/sdk/generate"])
 }
 
-func TestBuildProvider_Good_DefaultProjectDir(t *testing.T) {
+func TestProvider_BuildProviderDefaultProjectDir_Good(t *testing.T) {
 	p := NewProvider("", nil)
 	assert.Equal(t, ".", p.projectDir)
 }
 
-func TestBuildProvider_Good_CustomProjectDir(t *testing.T) {
+func TestProvider_BuildProviderCustomProjectDir_Good(t *testing.T) {
 	p := NewProvider("/tmp/myproject", nil)
 	assert.Equal(t, "/tmp/myproject", p.projectDir)
 }
 
-func TestBuildProvider_Good_NilHub(t *testing.T) {
+func TestProvider_BuildProviderNilHub_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	// emitEvent should not panic with nil hub
 	p.emitEvent("build.started", map[string]any{"test": true})
 }
 
-func TestGetBuilder_Good_SupportedTypes(t *testing.T) {
+func TestProvider_GetBuilderSupportedTypes_Good(t *testing.T) {
 	b, err := getBuilder(build.ProjectTypeGo)
 	require.NoError(t, err)
 	assert.Equal(t, "go", b.Name())
@@ -89,19 +89,19 @@ func TestGetBuilder_Good_SupportedTypes(t *testing.T) {
 	assert.Equal(t, "wails", b.Name())
 }
 
-func TestGetBuilder_Bad_UnsupportedType(t *testing.T) {
+func TestProvider_GetBuilderUnsupportedType_Bad(t *testing.T) {
 	_, err := getBuilder(build.ProjectType("unknown"))
-	assert.ErrorIs(t, err, os.ErrNotExist)
+	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestBuildProvider_Good_ResolveDir(t *testing.T) {
+func TestProvider_BuildProviderResolveDir_Good(t *testing.T) {
 	p := NewProvider("/tmp", nil)
 	dir, err := p.resolveDir()
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp", dir)
 }
 
-func TestBuildProvider_Good_ResolveDirRelative(t *testing.T) {
+func TestProvider_BuildProviderResolveDirRelative_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	dir, err := p.resolveDir()
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestBuildProvider_Good_ResolveDirRelative(t *testing.T) {
 	assert.True(t, len(dir) > 1 && dir[0] == '/')
 }
 
-func TestBuildProvider_Good_MediumSet(t *testing.T) {
+func TestProvider_BuildProviderMediumSet_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	assert.NotNil(t, p.medium, "medium should be set to io.Local")
 }

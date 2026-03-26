@@ -10,6 +10,7 @@ import (
 )
 
 // DiffResult holds the result of comparing two OpenAPI specs.
+// Usage example: declare a value of type sdk.DiffResult in integrating code.
 type DiffResult struct {
 	// Breaking is true if breaking changes were detected.
 	Breaking bool
@@ -20,6 +21,7 @@ type DiffResult struct {
 }
 
 // Diff compares two OpenAPI specs and detects breaking changes.
+// Usage example: call sdk.Diff(...) from integrating code.
 func Diff(basePath, revisionPath string) (*DiffResult, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
@@ -73,6 +75,7 @@ func Diff(basePath, revisionPath string) (*DiffResult, error) {
 
 // DiffExitCode returns the exit code for CI integration.
 // 0 = no breaking changes, 1 = breaking changes, 2 = error
+// Usage example: call sdk.DiffExitCode(...) from integrating code.
 func DiffExitCode(result *DiffResult, err error) int {
 	if err != nil {
 		return 2

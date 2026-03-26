@@ -5,13 +5,10 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"text/template"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -20,6 +17,7 @@ import (
 var npmTemplates embed.FS
 
 // NpmConfig holds npm-specific configuration.
+// Usage example: declare a value of type publishers.NpmConfig in integrating code.
 type NpmConfig struct {
 	// Package is the npm package name (e.g., "@host-uk/core").
 	Package string
@@ -28,20 +26,24 @@ type NpmConfig struct {
 }
 
 // NpmPublisher publishes releases to npm using the binary wrapper pattern.
+// Usage example: declare a value of type publishers.NpmPublisher in integrating code.
 type NpmPublisher struct{}
 
 // NewNpmPublisher creates a new npm publisher.
+// Usage example: call publishers.NewNpmPublisher(...) from integrating code.
 func NewNpmPublisher() *NpmPublisher {
 	return &NpmPublisher{}
 }
 
 // Name returns the publisher's identifier.
+// Usage example: call value.Name(...) from integrating code.
 func (p *NpmPublisher) Name() string {
 	return "npm"
 }
 
 // Publish publishes the release to npm.
 // It generates a binary wrapper package that downloads the correct platform binary on postinstall.
+// Usage example: call value.Publish(...) from integrating code.
 func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	// Parse npm config
 	npmCfg := p.parseConfig(pubCfg, relCfg)
@@ -71,18 +73,18 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 	}
 	if projectName == "" {
 		// Try to infer from package name
-		parts := strings.Split(npmCfg.Package, "/")
+		parts := core.Split(npmCfg.Package, "/")
 		projectName = parts[len(parts)-1]
 	}
 
 	// Strip leading 'v' from version for npm
-	version := strings.TrimPrefix(release.Version, "v")
+	version := core.TrimPrefix(release.Version, "v")
 
 	// Template data
 	data := npmTemplateData{
 		Package:     npmCfg.Package,
 		Version:     version,
-		Description: fmt.Sprintf("%s CLI", projectName),
+		Description: core.Sprintf("%s CLI", projectName),
 		License:     "MIT",
 		Repository:  repo,
 		BinaryName:  projectName,
@@ -131,30 +133,30 @@ type npmTemplateData struct {
 
 // dryRunPublish shows what would be done without actually publishing.
 func (p *NpmPublisher) dryRunPublish(m coreio.Medium, data npmTemplateData) error {
-	fmt.Println()
-	fmt.Println("=== DRY RUN: npm Publish ===")
-	fmt.Println()
-	fmt.Printf("Package:    %s\n", data.Package)
-	fmt.Printf("Version:    %s\n", data.Version)
-	fmt.Printf("Access:     %s\n", data.Access)
-	fmt.Printf("Repository: %s\n", data.Repository)
-	fmt.Printf("Binary:     %s\n", data.BinaryName)
-	fmt.Println()
+	publisherPrintln()
+	publisherPrintln("=== DRY RUN: npm Publish ===")
+	publisherPrintln()
+	publisherPrint("Package:    %s", data.Package)
+	publisherPrint("Version:    %s", data.Version)
+	publisherPrint("Access:     %s", data.Access)
+	publisherPrint("Repository: %s", data.Repository)
+	publisherPrint("Binary:     %s", data.BinaryName)
+	publisherPrintln()
 
 	// Generate and show package.json
 	pkgJSON, err := p.renderTemplate(m, "templates/npm/package.json.tmpl", data)
 	if err != nil {
 		return coreerr.E("npm.dryRunPublish", "failed to render template", err)
 	}
-	fmt.Println("Generated package.json:")
-	fmt.Println("---")
-	fmt.Println(pkgJSON)
-	fmt.Println("---")
-	fmt.Println()
+	publisherPrintln("Generated package.json:")
+	publisherPrintln("---")
+	publisherPrintln(pkgJSON)
+	publisherPrintln("---")
+	publisherPrintln()
 
-	fmt.Println("Would run: npm publish --access", data.Access)
-	fmt.Println()
-	fmt.Println("=== END DRY RUN ===")
+	publisherPrintln("Would run: npm publish --access", data.Access)
+	publisherPrintln()
+	publisherPrintln("=== END DRY RUN ===")
 
 	return nil
 }
@@ -162,19 +164,20 @@ func (p *NpmPublisher) dryRunPublish(m coreio.Medium, data npmTemplateData) erro
 // executePublish actually creates and publishes the npm package.
 func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data npmTemplateData, cfg *NpmConfig) error {
 	// Check for NPM_TOKEN
-	if os.Getenv("NPM_TOKEN") == "" {
+	npmToken := core.Env("NPM_TOKEN")
+	if npmToken == "" {
 		return coreerr.E("npm.Publish", "NPM_TOKEN environment variable is required", nil)
 	}
 
 	// Create temp directory for package
-	tmpDir, err := os.MkdirTemp("", "npm-publish-*")
+	tmpDir, err := ax.TempDir("npm-publish-*")
 	if err != nil {
 		return coreerr.E("npm.Publish", "failed to create temp directory", err)
 	}
-	defer func() { _ = coreio.Local.DeleteAll(tmpDir) }()
+	defer func() { _ = ax.RemoveAll(tmpDir) }()
 
 	// Create bin directory
-	binDir := filepath.Join(tmpDir, "bin")
+	binDir := ax.Join(tmpDir, "bin")
 	if err := coreio.Local.EnsureDir(binDir); err != nil {
 		return coreerr.E("npm.Publish", "failed to create bin directory", err)
 	}
@@ -184,7 +187,7 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 	if err != nil {
 		return coreerr.E("npm.Publish", "failed to render package.json", err)
 	}
-	if err := coreio.Local.Write(filepath.Join(tmpDir, "package.json"), pkgJSON); err != nil {
+	if err := coreio.Local.Write(ax.Join(tmpDir, "package.json"), pkgJSON); err != nil {
 		return coreerr.E("npm.Publish", "failed to write package.json", err)
 	}
 
@@ -193,7 +196,7 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 	if err != nil {
 		return coreerr.E("npm.Publish", "failed to render install.js", err)
 	}
-	if err := coreio.Local.Write(filepath.Join(tmpDir, "install.js"), installJS); err != nil {
+	if err := coreio.Local.Write(ax.Join(tmpDir, "install.js"), installJS); err != nil {
 		return coreerr.E("npm.Publish", "failed to write install.js", err)
 	}
 
@@ -202,30 +205,24 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 	if err != nil {
 		return coreerr.E("npm.Publish", "failed to render run.js", err)
 	}
-	if err := coreio.Local.Write(filepath.Join(binDir, "run.js"), runJS); err != nil {
+	if err := coreio.Local.Write(ax.Join(binDir, "run.js"), runJS); err != nil {
 		return coreerr.E("npm.Publish", "failed to write run.js", err)
 	}
 
 	// Create .npmrc with token
 	npmrc := "//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n"
-	if err := coreio.Local.Write(filepath.Join(tmpDir, ".npmrc"), npmrc); err != nil {
+	if err := coreio.Local.Write(ax.Join(tmpDir, ".npmrc"), npmrc); err != nil {
 		return coreerr.E("npm.Publish", "failed to write .npmrc", err)
 	}
 
 	// Run npm publish
-	cmd := exec.CommandContext(ctx, "npm", "publish", "--access", data.Access)
-	cmd.Dir = tmpDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(), "NPM_TOKEN="+os.Getenv("NPM_TOKEN"))
-
-	fmt.Printf("Publishing %s@%s to npm...\n", data.Package, data.Version)
-	if err := cmd.Run(); err != nil {
+	publisherPrint("Publishing %s@%s to npm...", data.Package, data.Version)
+	if err := publisherRun(ctx, tmpDir, []string{"NPM_TOKEN=" + npmToken}, "npm", "publish", "--access", data.Access); err != nil {
 		return coreerr.E("npm.Publish", "npm publish failed", err)
 	}
 
-	fmt.Printf("Published %s@%s to npm\n", data.Package, data.Version)
-	fmt.Printf("  https://www.npmjs.com/package/%s\n", data.Package)
+	publisherPrint("Published %s@%s to npm", data.Package, data.Version)
+	publisherPrint("  https://www.npmjs.com/package/%s", data.Package)
 
 	return nil
 }
@@ -236,7 +233,7 @@ func (p *NpmPublisher) renderTemplate(m coreio.Medium, name string, data npmTemp
 	var err error
 
 	// Try custom template from medium
-	customPath := filepath.Join(".core", name)
+	customPath := ax.Join(".core", name)
 	if m != nil && m.IsFile(customPath) {
 		customContent, err := m.Read(customPath)
 		if err == nil {
@@ -252,7 +249,7 @@ func (p *NpmPublisher) renderTemplate(m coreio.Medium, name string, data npmTemp
 		}
 	}
 
-	tmpl, err := template.New(filepath.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("npm.renderTemplate", "failed to parse template "+name, err)
 	}

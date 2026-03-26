@@ -5,10 +5,9 @@ package release
 
 import (
 	"context"
-	"fmt"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/release/publishers"
@@ -17,6 +16,7 @@ import (
 )
 
 // Release represents a release with its version, artifacts, and changelog.
+// Usage example: declare a value of type release.Release in integrating code.
 type Release struct {
 	// Version is the semantic version string (e.g., "v1.2.3").
 	Version string
@@ -33,6 +33,7 @@ type Release struct {
 // Publish publishes pre-built artifacts from dist/ to configured targets.
 // Use this after `core build` to separate build and publish concerns.
 // If dryRun is true, it will show what would be done without actually publishing.
+// Usage example: call release.Publish(...) from integrating code.
 func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	if cfg == nil {
 		return nil, coreerr.E("release.Publish", "config is nil", nil)
@@ -46,7 +47,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Resolve to absolute path
-	absProjectDir, err := filepath.Abs(projectDir)
+	absProjectDir, err := ax.Abs(projectDir)
 	if err != nil {
 		return nil, coreerr.E("release.Publish", "failed to resolve project directory", err)
 	}
@@ -61,7 +62,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Step 2: Find pre-built artifacts in dist/
-	distDir := filepath.Join(absProjectDir, "dist")
+	distDir := ax.Join(absProjectDir, "dist")
 	artifacts, err := findArtifacts(m, distDir)
 	if err != nil {
 		return nil, coreerr.E("release.Publish", "failed to find artifacts", err)
@@ -75,7 +76,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	changelog, err := Generate(absProjectDir, "", version)
 	if err != nil {
 		// Non-fatal: continue with empty changelog
-		changelog = fmt.Sprintf("Release %s", version)
+		changelog = core.Sprintf("Release %s", version)
 	}
 
 	release := &Release{
@@ -126,13 +127,13 @@ func findArtifacts(m io.Medium, distDir string) ([]build.Artifact, error) {
 		}
 
 		name := entry.Name()
-		path := filepath.Join(distDir, name)
+		path := ax.Join(distDir, name)
 
 		// Include archives and checksums
-		if strings.HasSuffix(name, ".tar.gz") ||
-			strings.HasSuffix(name, ".zip") ||
-			strings.HasSuffix(name, ".txt") ||
-			strings.HasSuffix(name, ".sig") {
+		if core.HasSuffix(name, ".tar.gz") ||
+			core.HasSuffix(name, ".zip") ||
+			core.HasSuffix(name, ".txt") ||
+			core.HasSuffix(name, ".sig") {
 			artifacts = append(artifacts, build.Artifact{Path: path})
 		}
 	}
@@ -144,6 +145,7 @@ func findArtifacts(m io.Medium, distDir string) ([]build.Artifact, error) {
 // generate changelog, and publish to configured targets.
 // For separated concerns, prefer using `core build` then `core ci` (Publish).
 // If dryRun is true, it will show what would be done without actually publishing.
+// Usage example: call release.Run(...) from integrating code.
 func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	if cfg == nil {
 		return nil, coreerr.E("release.Run", "config is nil", nil)
@@ -157,7 +159,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Resolve to absolute path
-	absProjectDir, err := filepath.Abs(projectDir)
+	absProjectDir, err := ax.Abs(projectDir)
 	if err != nil {
 		return nil, coreerr.E("release.Run", "failed to resolve project directory", err)
 	}
@@ -175,7 +177,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	changelog, err := Generate(absProjectDir, "", version)
 	if err != nil {
 		// Non-fatal: continue with empty changelog
-		changelog = fmt.Sprintf("Release %s", version)
+		changelog = core.Sprintf("Release %s", version)
 	}
 
 	// Step 3: Build artifacts
@@ -250,11 +252,11 @@ func buildArtifacts(ctx context.Context, fs io.Medium, cfg *Config, projectDir, 
 		binaryName = buildCfg.Project.Name
 	}
 	if binaryName == "" {
-		binaryName = filepath.Base(projectDir)
+		binaryName = ax.Base(projectDir)
 	}
 
 	// Determine output directory
-	outputDir := filepath.Join(projectDir, "dist")
+	outputDir := ax.Join(projectDir, "dist")
 
 	// Get builder (detect project type)
 	projectType, err := build.PrimaryType(fs, projectDir)
@@ -296,7 +298,7 @@ func buildArtifacts(ctx context.Context, fs io.Medium, cfg *Config, projectDir, 
 	}
 
 	// Write CHECKSUMS.txt
-	checksumPath := filepath.Join(outputDir, "CHECKSUMS.txt")
+	checksumPath := ax.Join(outputDir, "CHECKSUMS.txt")
 	if err := build.WriteChecksumFile(fs, checksummedArtifacts, checksumPath); err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to write checksums file", err)
 	}

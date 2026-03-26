@@ -2,13 +2,13 @@ package generators
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
+
+	"dappco.re/go/core/build/internal/ax"
 )
 
-func TestPHPGenerator_Good_Available(t *testing.T) {
+func TestPHP_PHPGeneratorAvailable_Good(t *testing.T) {
 	g := NewPHPGenerator()
 
 	// These should not panic
@@ -25,7 +25,7 @@ func TestPHPGenerator_Good_Available(t *testing.T) {
 	}
 }
 
-func TestPHPGenerator_Good_Generate(t *testing.T) {
+func TestPHP_PHPGeneratorGenerate_Good(t *testing.T) {
 	g := NewPHPGenerator()
 	if !g.Available() {
 		t.Skip("no PHP generator available (docker not installed)")
@@ -34,7 +34,7 @@ func TestPHPGenerator_Good_Generate(t *testing.T) {
 	// Create temp directories
 	tmpDir := t.TempDir()
 	specPath := createTestSpec(t, tmpDir)
-	outputDir := filepath.Join(tmpDir, "output")
+	outputDir := ax.Join(tmpDir, "output")
 
 	opts := Options{
 		SpecPath:    specPath,
@@ -52,7 +52,7 @@ func TestPHPGenerator_Good_Generate(t *testing.T) {
 	}
 
 	// Verify output directory was created
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+	if !ax.Exists(outputDir) {
 		t.Error("output directory was not created")
 	}
 }

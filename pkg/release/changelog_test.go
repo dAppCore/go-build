@@ -1,16 +1,15 @@
 package release
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseConventionalCommit_Good(t *testing.T) {
+func TestChangelog_ParseConventionalCommit_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -108,7 +107,7 @@ func TestParseConventionalCommit_Good(t *testing.T) {
 	}
 }
 
-func TestParseConventionalCommit_Bad(t *testing.T) {
+func TestChangelog_ParseConventionalCommit_Bad(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -143,7 +142,7 @@ func TestParseConventionalCommit_Bad(t *testing.T) {
 	}
 }
 
-func TestFormatChangelog_Good(t *testing.T) {
+func TestChangelog_FormatChangelog_Good(t *testing.T) {
 	t.Run("formats commits by type", func(t *testing.T) {
 		commits := []ConventionalCommit{
 			{Type: "feat", Description: "add feature A", Hash: "abc1234"},
@@ -194,7 +193,7 @@ func TestFormatChangelog_Good(t *testing.T) {
 	})
 }
 
-func TestParseCommitType_Good(t *testing.T) {
+func TestChangelog_ParseCommitType_Good(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
@@ -213,7 +212,7 @@ func TestParseCommitType_Good(t *testing.T) {
 	}
 }
 
-func TestParseCommitType_Bad(t *testing.T) {
+func TestChangelog_ParseCommitType_Bad(t *testing.T) {
 	tests := []struct {
 		input string
 	}{
@@ -230,7 +229,7 @@ func TestParseCommitType_Bad(t *testing.T) {
 	}
 }
 
-func TestGenerateWithConfig_ConfigValues(t *testing.T) {
+func TestChangelog_GenerateWithConfigConfigValues_Good(t *testing.T) {
 	t.Run("config filters are parsed correctly", func(t *testing.T) {
 		cfg := &ChangelogConfig{
 			Include: []string{"feat", "fix"},
@@ -261,18 +260,11 @@ func setupChangelogGitRepo(t *testing.T) string {
 	dir := t.TempDir()
 
 	// Initialize git repo
-	cmd := exec.Command("git", "init")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "init")
 
 	// Configure git user for commits
-	cmd = exec.Command("git", "config", "user.email", "test@example.com")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
-
-	cmd = exec.Command("git", "config", "user.name", "Test User")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test User")
 
 	return dir
 }
@@ -282,30 +274,23 @@ func createChangelogCommit(t *testing.T, dir, message string) {
 	t.Helper()
 
 	// Create or modify a file
-	filePath := filepath.Join(dir, "changelog_test.txt")
-	content, _ := os.ReadFile(filePath)
+	filePath := ax.Join(dir, "changelog_test.txt")
+	content, _ := ax.ReadFile(filePath)
 	content = append(content, []byte(message+"\n")...)
-	require.NoError(t, os.WriteFile(filePath, content, 0644))
+	require.NoError(t, ax.WriteFile(filePath, content, 0644))
 
 	// Stage and commit
-	cmd := exec.Command("git", "add", ".")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
-
-	cmd = exec.Command("git", "commit", "-m", message)
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", message)
 }
 
 // createChangelogTag creates a tag in the given directory.
 func createChangelogTag(t *testing.T, dir, tag string) {
 	t.Helper()
-	cmd := exec.Command("git", "tag", tag)
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "tag", tag)
 }
 
-func TestGenerate_Good(t *testing.T) {
+func TestChangelog_Generate_Good(t *testing.T) {
 	t.Run("generates changelog from commits", func(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: add new feature")
@@ -386,7 +371,7 @@ func TestGenerate_Good(t *testing.T) {
 	})
 }
 
-func TestGenerate_Bad(t *testing.T) {
+func TestChangelog_Generate_Bad(t *testing.T) {
 	t.Run("returns error for non-git directory", func(t *testing.T) {
 		dir := t.TempDir()
 
@@ -395,7 +380,7 @@ func TestGenerate_Bad(t *testing.T) {
 	})
 }
 
-func TestGenerateWithConfig_Good(t *testing.T) {
+func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 	t.Run("filters commits by include list", func(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: new feature")
@@ -452,7 +437,7 @@ func TestGenerateWithConfig_Good(t *testing.T) {
 	})
 }
 
-func TestGetCommits_Good(t *testing.T) {
+func TestChangelog_GetCommits_Good(t *testing.T) {
 	t.Run("returns all commits when fromRef is empty", func(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: first")
@@ -503,7 +488,7 @@ func TestGetCommits_Good(t *testing.T) {
 	})
 }
 
-func TestGetCommits_Bad(t *testing.T) {
+func TestChangelog_GetCommits_Bad(t *testing.T) {
 	t.Run("returns error for invalid ref", func(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: commit")
@@ -520,7 +505,7 @@ func TestGetCommits_Bad(t *testing.T) {
 	})
 }
 
-func TestGetPreviousTag_Good(t *testing.T) {
+func TestChangelog_GetPreviousTag_Good(t *testing.T) {
 	t.Run("returns previous tag", func(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: first")
@@ -545,7 +530,7 @@ func TestGetPreviousTag_Good(t *testing.T) {
 	})
 }
 
-func TestGetPreviousTag_Bad(t *testing.T) {
+func TestChangelog_GetPreviousTag_Bad(t *testing.T) {
 	t.Run("returns error when no previous tag exists", func(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: first")
@@ -565,7 +550,7 @@ func TestGetPreviousTag_Bad(t *testing.T) {
 	})
 }
 
-func TestFormatCommitLine_Good(t *testing.T) {
+func TestChangelog_FormatCommitLine_Good(t *testing.T) {
 	t.Run("formats commit without scope", func(t *testing.T) {
 		commit := ConventionalCommit{
 			Type:        "feat",
@@ -590,7 +575,7 @@ func TestFormatCommitLine_Good(t *testing.T) {
 	})
 }
 
-func TestFormatChangelog_Ugly(t *testing.T) {
+func TestChangelog_FormatChangelog_Ugly(t *testing.T) {
 	t.Run("handles custom commit type not in order", func(t *testing.T) {
 		commits := []ConventionalCommit{
 			{Type: "custom", Description: "custom type", Hash: "abc1234"},
@@ -616,7 +601,7 @@ func TestFormatChangelog_Ugly(t *testing.T) {
 	})
 }
 
-func TestGenerateWithConfig_Bad(t *testing.T) {
+func TestChangelog_GenerateWithConfig_Bad(t *testing.T) {
 	t.Run("returns error for non-git directory", func(t *testing.T) {
 		dir := t.TempDir()
 		cfg := &ChangelogConfig{
@@ -628,7 +613,7 @@ func TestGenerateWithConfig_Bad(t *testing.T) {
 	})
 }
 
-func TestGenerateWithConfig_EdgeCases(t *testing.T) {
+func TestChangelog_GenerateWithConfigEdgeCases_Ugly(t *testing.T) {
 	t.Run("uses HEAD when toRef is empty", func(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: new feature")

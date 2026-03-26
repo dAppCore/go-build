@@ -2,10 +2,9 @@ package ci
 
 import (
 	"context"
-	"os"
-	"os/exec"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
@@ -96,7 +95,7 @@ func initCIFlags() {
 func runCIPublish(dryRun bool, version string, draft, prerelease bool) error {
 	ctx := context.Background()
 
-	projectDir, err := os.Getwd()
+	projectDir, err := ax.Getwd()
 	if err != nil {
 		return cli.WrapVerb(err, "get", "working directory")
 	}
@@ -155,7 +154,7 @@ func runCIPublish(dryRun bool, version string, draft, prerelease bool) error {
 
 // runCIReleaseInit scaffolds a release config.
 func runCIReleaseInit() error {
-	cwd, err := os.Getwd()
+	cwd, err := ax.Getwd()
 	if err != nil {
 		return cli.Err("%s: %w", i18n.T("i18n.fail.get", "working directory"), err)
 	}
@@ -184,7 +183,7 @@ func runCIReleaseInit() error {
 
 // runChangelog generates a changelog between two git refs.
 func runChangelog(fromRef, toRef string) error {
-	cwd, err := os.Getwd()
+	cwd, err := ax.Getwd()
 	if err != nil {
 		return cli.Err("%s: %w", i18n.T("i18n.fail.get", "working directory"), err)
 	}
@@ -217,7 +216,7 @@ func runChangelog(fromRef, toRef string) error {
 
 // runCIReleaseVersion shows the determined version.
 func runCIReleaseVersion() error {
-	projectDir, err := os.Getwd()
+	projectDir, err := ax.Getwd()
 	if err != nil {
 		return cli.WrapVerb(err, "get", "working directory")
 	}
@@ -232,11 +231,9 @@ func runCIReleaseVersion() error {
 }
 
 func latestTag(dir string) (string, error) {
-	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
-	cmd.Dir = dir
-	out, err := cmd.Output()
+	out, err := ax.RunDir(context.Background(), dir, "git", "describe", "--tags", "--abbrev=0")
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(out)), nil
+	return core.Trim(out), nil
 }
