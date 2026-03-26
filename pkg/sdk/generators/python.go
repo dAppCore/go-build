@@ -43,6 +43,9 @@ func (g *PythonGenerator) Generate(ctx context.Context, opts Options) error {
 	if g.Available() {
 		return g.generateNative(ctx, opts)
 	}
+	if !dockerRuntimeAvailable() {
+		return coreerr.E("python.Generate", "Docker is required for fallback generation but not available", nil)
+	}
 	return g.generateDocker(ctx, opts)
 }
 

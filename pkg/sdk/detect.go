@@ -2,8 +2,8 @@ package sdk
 
 import (
 	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -73,6 +73,6 @@ func (s *SDK) detectScramble() (string, error) {
 
 // containsScramble checks if composer.json includes scramble.
 func containsScramble(content string) bool {
-	return strings.Contains(content, "dedoc/scramble") ||
-		strings.Contains(content, "\"scramble\"")
+	return core.Contains(content, "dedoc/scramble") ||
+		core.Contains(content, "\"scramble\"")
 }

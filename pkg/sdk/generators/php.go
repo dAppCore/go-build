@@ -25,8 +25,7 @@ func (g *PHPGenerator) Language() string {
 
 // Available checks if generator dependencies are installed.
 func (g *PHPGenerator) Available() bool {
-	_, err := exec.LookPath("docker")
-	return err == nil
+	return dockerRuntimeAvailable()
 }
 
 // Install returns instructions for installing the generator.

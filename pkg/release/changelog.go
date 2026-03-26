@@ -4,12 +4,11 @@ package release
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"os/exec"
 	"regexp"
-	"slices"
-	"strings"
+	"sort"
 
+	"dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -158,7 +157,7 @@ func getPreviousTag(dir, ref string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(output)), nil
+	return core.Trim(string(output)), nil
 }
 
 // getCommits returns a slice of commit strings between two refs.
@@ -196,7 +195,7 @@ func getCommits(dir, fromRef, toRef string) ([]string, error) {
 // Returns nil if the commit doesn't follow conventional commit format.
 func parseConventionalCommit(commitLine string) *ConventionalCommit {
 	// Split hash and subject
-	parts := strings.SplitN(commitLine, " ", 2)
+	parts := core.SplitN(commitLine, " ", 2)
 	if len(parts) != 2 {
 		return nil
 	}
@@ -211,7 +210,7 @@ func parseConventionalCommit(commitLine string) *ConventionalCommit {
 	}
 
 	return &ConventionalCommit{
-		Type:        strings.ToLower(matches[1]),
+		Type:        core.Lower(matches[1]),
 		Scope:       matches[2],
 		Breaking:    matches[3] == "!",
 		Description: matches[4],
@@ -222,7 +221,7 @@ func parseConventionalCommit(commitLine string) *ConventionalCommit {
 // formatChangelog formats parsed commits into markdown.
 func formatChangelog(commits []ConventionalCommit, version string) string {
 	if len(commits) == 0 {
-		return fmt.Sprintf("## %s\n\nNo notable changes.", version)
+		return core.Sprintf("## %s\n\nNo notable changes.", version)
 	}
 
 	// Group commits by type
@@ -236,8 +235,8 @@ func formatChangelog(commits []ConventionalCommit, version string) string {
 		grouped[commit.Type] = append(grouped[commit.Type], commit)
 	}
 
-	var buf strings.Builder
-	buf.WriteString(fmt.Sprintf("## %s\n\n", version))
+	buf := core.NewBuilder()
+	buf.WriteString(core.Sprintf("## %s\n\n", version))
 
 	// Breaking changes first
 	if len(breaking) > 0 {
@@ -260,7 +259,7 @@ func formatChangelog(commits []ConventionalCommit, version string) string {
 			label = cases.Title(language.English).String(commitType)
 		}
 
-		buf.WriteString(fmt.Sprintf("### %s\n\n", label))
+		buf.WriteString(core.Sprintf("### %s\n\n", label))
 		for _, commit := range commits {
 			buf.WriteString(formatCommitLine(commit))
 		}
@@ -270,36 +269,36 @@ func formatChangelog(commits []ConventionalCommit, version string) string {
 	// Any remaining types not in the order list
 	var remainingTypes []string
 	for commitType := range grouped {
-		if !slices.Contains(commitTypeOrder, commitType) {
+		if !containsCommitType(commitTypeOrder, commitType) {
 			remainingTypes = append(remainingTypes, commitType)
 		}
 	}
-	slices.Sort(remainingTypes)
+	sort.Strings(remainingTypes)
 
 	for _, commitType := range remainingTypes {
 		commits := grouped[commitType]
 		label := cases.Title(language.English).String(commitType)
-		buf.WriteString(fmt.Sprintf("### %s\n\n", label))
+		buf.WriteString(core.Sprintf("### %s\n\n", label))
 		for _, commit := range commits {
 			buf.WriteString(formatCommitLine(commit))
 		}
 		buf.WriteString("\n")
 	}
 
-	return strings.TrimSuffix(buf.String(), "\n")
+	return core.TrimSuffix(buf.String(), "\n")
 }
 
 // formatCommitLine formats a single commit as a changelog line.
 func formatCommitLine(commit ConventionalCommit) string {
-	var buf strings.Builder
+	buf := core.NewBuilder()
 	buf.WriteString("- ")
 
 	if commit.Scope != "" {
-		buf.WriteString(fmt.Sprintf("**%s**: ", commit.Scope))
+		buf.WriteString(core.Sprintf("**%s**: ", commit.Scope))
 	}
 
 	buf.WriteString(commit.Description)
-	buf.WriteString(fmt.Sprintf(" (%s)\n", commit.Hash))
+	buf.WriteString(core.Sprintf(" (%s)\n", commit.Hash))
 
 	return buf.String()
 }
@@ -311,5 +310,14 @@ func ParseCommitType(subject string) string {
 	if matches == nil {
 		return ""
 	}
-	return strings.ToLower(matches[1])
+	return core.Lower(matches[1])
+}
+
+func containsCommitType(types []string, target string) bool {
+	for _, item := range types {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }

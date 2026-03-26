@@ -3,9 +3,9 @@ package sdk
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/pkg/sdk/generators"
 	coreerr "dappco.re/go/core/log"
 )
@@ -120,8 +120,8 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 	}
 
 	if !gen.Available() {
-		fmt.Printf("Warning: %s generator not available. Install with: %s\n", lang, gen.Install())
-		fmt.Printf("Falling back to Docker...\n")
+		core.Print(nil, "Warning: %s generator not available. Install with: %s", lang, gen.Install())
+		core.Print(nil, "Falling back to Docker...")
 	}
 
 	outputDir := filepath.Join(s.projectDir, s.config.Output, lang)
@@ -132,11 +132,11 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 		Version:     s.config.Package.Version,
 	}
 
-	fmt.Printf("Generating %s SDK...\n", lang)
+	core.Print(nil, "Generating %s SDK...", lang)
 	if err := gen.Generate(ctx, opts); err != nil {
 		return coreerr.E("sdk.GenerateLanguage", lang+" generation failed", err)
 	}
-	fmt.Printf("Generated %s SDK at %s\n", lang, outputDir)
+	core.Print(nil, "Generated %s SDK at %s", lang, outputDir)
 
 	return nil
 }

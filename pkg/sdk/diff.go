@@ -1,8 +1,7 @@
 package sdk
 
 import (
-	"fmt"
-
+	"dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 	"github.com/oasdiff/kin-openapi/openapi3"
 	"github.com/oasdiff/oasdiff/checker"
@@ -64,7 +63,7 @@ func Diff(basePath, revisionPath string) (*DiffResult, error) {
 	}
 
 	if result.Breaking {
-		result.Summary = fmt.Sprintf("%d breaking change(s) detected", len(breaks))
+		result.Summary = core.Sprintf("%d breaking change(s) detected", len(breaks))
 	} else {
 		result.Summary = "No breaking changes"
 	}

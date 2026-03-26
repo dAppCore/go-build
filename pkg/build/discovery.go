@@ -2,8 +2,8 @@ package build
 
 import (
 	"path/filepath"
-	"slices"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 )
 
@@ -40,7 +40,7 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		path := filepath.Join(dir, m.file)
 		if fileExists(fs, path) {
 			// Avoid duplicates (shouldn't happen with current markers, but defensive)
-			if !slices.Contains(detected, m.projectType) {
+			if !core.NewArray(detected...).Contains(m.projectType) {
 				detected = append(detected, m.projectType)
 			}
 		}

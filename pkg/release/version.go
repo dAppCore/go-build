@@ -2,12 +2,11 @@
 package release
 
 import (
-	"fmt"
 	"os/exec"
 	"regexp"
 	"strconv"
-	"strings"
 
+	"dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -56,7 +55,7 @@ func IncrementVersion(current string) string {
 	// Increment patch
 	patch++
 
-	return fmt.Sprintf("v%d.%d.%d", major, minor, patch)
+	return core.Sprintf("v%d.%d.%d", major, minor, patch)
 }
 
 // IncrementMinor increments the minor version of a semver string.
@@ -75,7 +74,7 @@ func IncrementMinor(current string) string {
 	// Increment minor, reset patch
 	minor++
 
-	return fmt.Sprintf("v%d.%d.0", major, minor)
+	return core.Sprintf("v%d.%d.0", major, minor)
 }
 
 // IncrementMajor increments the major version of a semver string.
@@ -93,7 +92,7 @@ func IncrementMajor(current string) string {
 	// Increment major, reset minor and patch
 	major++
 
-	return fmt.Sprintf("v%d.0.0", major)
+	return core.Sprintf("v%d.0.0", major)
 }
 
 // ParseVersion parses a semver string into its components.
@@ -120,7 +119,7 @@ func ValidateVersion(version string) bool {
 
 // normalizeVersion ensures the version starts with 'v'.
 func normalizeVersion(version string) string {
-	if !strings.HasPrefix(version, "v") {
+	if !core.HasPrefix(version, "v") {
 		return "v" + version
 	}
 	return version
@@ -134,7 +133,7 @@ func getTagOnHead(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(output)), nil
+	return core.Trim(string(output)), nil
 }
 
 // getLatestTag returns the most recent tag in the repository.
@@ -145,7 +144,7 @@ func getLatestTag(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(output)), nil
+	return core.Trim(string(output)), nil
 }
 
 // CompareVersions compares two semver strings.
@@ -160,7 +159,14 @@ func CompareVersions(a, b string) int {
 
 	// Invalid versions are considered less than valid ones
 	if errA != nil && errB != nil {
-		return strings.Compare(a, b)
+		switch {
+		case a < b:
+			return -1
+		case a > b:
+			return 1
+		default:
+			return 0
+		}
 	}
 	if errA != nil {
 		return -1

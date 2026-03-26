@@ -3,12 +3,12 @@ package generators
 
 import (
 	"context"
-	"fmt"
 	"iter"
-	"maps"
 	"os"
 	"runtime"
-	"slices"
+	"sort"
+
+	"dappco.re/go/core"
 )
 
 // Options holds common generation options.
@@ -65,14 +65,23 @@ func (r *Registry) Register(g Generator) {
 
 // Languages returns all registered language identifiers.
 func (r *Registry) Languages() []string {
-	return slices.Collect(r.LanguagesIter())
+	var languages []string
+	for lang := range r.LanguagesIter() {
+		languages = append(languages, lang)
+	}
+	return languages
 }
 
 // LanguagesIter returns an iterator for all registered language identifiers.
 func (r *Registry) LanguagesIter() iter.Seq[string] {
 	return func(yield func(string) bool) {
 		// Sort keys for deterministic iteration
-		for _, lang := range slices.Sorted(maps.Keys(r.generators)) {
+		keys := make([]string, 0, len(r.generators))
+		for lang := range r.generators {
+			keys = append(keys, lang)
+		}
+		sort.Strings(keys)
+		for _, lang := range keys {
 			if !yield(lang) {
 				return
 			}
@@ -86,5 +95,5 @@ func dockerUserArgs() []string {
 	if runtime.GOOS == "windows" {
 		return nil
 	}
-	return []string{"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())}
+	return []string{"--user", core.Sprintf("%d:%d", os.Getuid(), os.Getgid())}
 }

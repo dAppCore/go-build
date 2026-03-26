@@ -2,6 +2,7 @@ package generators
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,8 +12,10 @@ import (
 
 // dockerAvailable checks if docker is available for fallback generation.
 func dockerAvailable() bool {
-	_, err := exec.LookPath("docker")
-	return err == nil
+	cmd := exec.Command("docker", "info")
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	return cmd.Run() == nil
 }
 
 // createTestSpec creates a minimal OpenAPI spec for testing.

@@ -50,6 +50,9 @@ func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) error 
 	if g.npxAvailable() {
 		return g.generateNpx(ctx, opts)
 	}
+	if !dockerRuntimeAvailable() {
+		return coreerr.E("typescript.Generate", "Docker is required for fallback generation but not available", nil)
+	}
 	return g.generateDocker(ctx, opts)
 }
 

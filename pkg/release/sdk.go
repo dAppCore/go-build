@@ -3,8 +3,8 @@ package release
 
 import (
 	"context"
-	"fmt"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/pkg/sdk"
 	coreerr "dappco.re/go/core/log"
 )
@@ -49,12 +49,12 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 		breaking, err := checkBreakingChanges(projectDir, cfg.SDK)
 		if err != nil {
 			// Non-fatal: warn and continue
-			fmt.Printf("Warning: diff check failed: %v\n", err)
+			core.Print(nil, "Warning: diff check failed: %v", err)
 		} else if breaking {
 			if cfg.SDK.Diff.FailOnBreaking {
 				return nil, coreerr.E("release.RunSDK", "breaking API changes detected", nil)
 			}
-			fmt.Printf("Warning: breaking API changes detected\n")
+			core.Print(nil, "Warning: breaking API changes detected")
 		}
 	}
 

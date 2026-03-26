@@ -4,13 +4,10 @@ package build
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"io"
-	"path/filepath"
-	"slices"
+	"sort"
 
-	"strings"
-
+	"dappco.re/go/core"
 	io_interface "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -81,14 +78,14 @@ func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string
 		if artifact.Checksum == "" {
 			return coreerr.E("build.WriteChecksumFile", "artifact "+artifact.Path+" has no checksum", nil)
 		}
-		filename := filepath.Base(artifact.Path)
-		lines = append(lines, fmt.Sprintf("%s  %s", artifact.Checksum, filename))
+		filename := core.PathBase(artifact.Path)
+		lines = append(lines, core.Sprintf("%s  %s", artifact.Checksum, filename))
 	}
 
 	// Sort lines for consistent output
-	slices.Sort(lines)
+	sort.Strings(lines)
 
-	content := strings.Join(lines, "\n") + "\n"
+	content := core.Concat(core.Join("\n", lines...), "\n")
 
 	// Write the file using the medium (which handles directory creation in Write)
 	if err := fs.Write(path, content); err != nil {
