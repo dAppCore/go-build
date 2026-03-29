@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"io/fs"
+	"os"
+	"runtime"
 	"syscall"
 
 	"dappco.re/go/core"
@@ -17,7 +19,13 @@ import (
 //
 // Usage example: read ax.DS() when building Core-aware filesystem paths.
 func DS() string {
-	return core.Env("DS")
+	if sep := core.Env("DS"); sep != "" {
+		return sep
+	}
+	if runtime.GOOS == "windows" {
+		return "\\"
+	}
+	return "/"
 }
 
 // Clean normalises a filesystem path using Core path primitives.
@@ -117,7 +125,11 @@ func FromSlash(path string) string {
 func Getwd() (string, error) {
 	cwd := core.Env("DIR_CWD")
 	if cwd == "" {
-		return "", coreerr.E("ax.Getwd", "current working directory is unavailable", nil)
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", coreerr.E("ax.Getwd", "failed to get current working directory", err)
+		}
+		return wd, nil
 	}
 	return cwd, nil
 }
@@ -139,7 +151,7 @@ func TempDir(prefix string) (string, error) {
 func ReadFile(path string) ([]byte, error) {
 	content, err := coreio.Local.Read(path)
 	if err != nil {
-		return nil, err
+		return nil, coreerr.E("ax.ReadFile", "failed to read file "+path, err)
 	}
 	return []byte(content), nil
 }
@@ -148,63 +160,94 @@ func ReadFile(path string) ([]byte, error) {
 //
 // Usage example: err := ax.WriteFile("README.md", []byte("hi"), 0o644)
 func WriteFile(path string, data []byte, mode fs.FileMode) error {
-	return coreio.Local.WriteMode(path, string(data), mode)
+	if err := coreio.Local.WriteMode(path, string(data), mode); err != nil {
+		return coreerr.E("ax.WriteFile", "failed to write file "+path, err)
+	}
+	return nil
 }
 
 // WriteString writes text via io.Local with an explicit mode.
 //
 // Usage example: err := ax.WriteString("README.md", "hi", 0o644)
 func WriteString(path, data string, mode fs.FileMode) error {
-	return coreio.Local.WriteMode(path, data, mode)
+	if err := coreio.Local.WriteMode(path, data, mode); err != nil {
+		return coreerr.E("ax.WriteString", "failed to write file "+path, err)
+	}
+	return nil
 }
 
 // MkdirAll ensures a directory exists.
 //
 // Usage example: err := ax.MkdirAll("dist/linux_arm64", 0o755)
-func MkdirAll(path string, _ fs.FileMode) error {
-	return coreio.Local.EnsureDir(path)
+func MkdirAll(path string, mode fs.FileMode) error {
+	if mode == 0 {
+		mode = 0o755
+	}
+	if err := os.MkdirAll(path, mode); err != nil {
+		return coreerr.E("ax.MkdirAll", "failed to create directory "+path, err)
+	}
+	return nil
 }
 
 // Mkdir ensures a directory exists.
 //
 // Usage example: err := ax.Mkdir(".core", 0o755)
-func Mkdir(path string, _ fs.FileMode) error {
-	return coreio.Local.EnsureDir(path)
+func Mkdir(path string, mode fs.FileMode) error {
+	return MkdirAll(path, mode)
 }
 
 // RemoveAll removes a file or directory tree.
 //
 // Usage example: err := ax.RemoveAll("dist")
 func RemoveAll(path string) error {
-	return coreio.Local.DeleteAll(path)
+	if err := coreio.Local.DeleteAll(path); err != nil {
+		return coreerr.E("ax.RemoveAll", "failed to remove path "+path, err)
+	}
+	return nil
 }
 
 // Stat returns file metadata from io.Local.
 //
 // Usage example: info, err := ax.Stat("go.mod")
 func Stat(path string) (fs.FileInfo, error) {
-	return coreio.Local.Stat(path)
+	info, err := coreio.Local.Stat(path)
+	if err != nil {
+		return nil, coreerr.E("ax.Stat", "failed to stat path "+path, err)
+	}
+	return info, nil
 }
 
 // ReadDir lists directory entries via io.Local.
 //
 // Usage example: entries, err := ax.ReadDir("dist")
 func ReadDir(path string) ([]fs.DirEntry, error) {
-	return coreio.Local.List(path)
+	entries, err := coreio.Local.List(path)
+	if err != nil {
+		return nil, coreerr.E("ax.ReadDir", "failed to list directory "+path, err)
+	}
+	return entries, nil
 }
 
 // Open opens a file for reading via io.Local.
 //
 // Usage example: file, err := ax.Open("README.md")
 func Open(path string) (fs.File, error) {
-	return coreio.Local.Open(path)
+	file, err := coreio.Local.Open(path)
+	if err != nil {
+		return nil, coreerr.E("ax.Open", "failed to open file "+path, err)
+	}
+	return file, nil
 }
 
 // Create opens a file for writing via io.Local.
 //
 // Usage example: file, err := ax.Create("dist/output.txt")
 func Create(path string) (io.WriteCloser, error) {
-	return coreio.Local.Create(path)
+	file, err := coreio.Local.Create(path)
+	if err != nil {
+		return nil, coreerr.E("ax.Create", "failed to create file "+path, err)
+	}
+	return file, nil
 }
 
 // Exists reports whether a path exists.
@@ -232,7 +275,10 @@ func IsDir(path string) bool {
 //
 // Usage example: err := ax.Chmod("dist/app", 0o755)
 func Chmod(path string, mode fs.FileMode) error {
-	return syscall.Chmod(path, uint32(mode))
+	if err := os.Chmod(path, mode); err != nil {
+		return coreerr.E("ax.Chmod", "failed to change permissions on "+path, err)
+	}
+	return nil
 }
 
 // Getuid returns the current process UID.
@@ -262,9 +308,17 @@ func Geteuid() int {
 func JSONMarshal(value any) (string, error) {
 	result := core.JSONMarshal(value)
 	if !result.OK {
-		return "", result.Value.(error)
+		err, ok := result.Value.(error)
+		if !ok {
+			return "", coreerr.E("ax.JSONMarshal", "failed to marshal JSON", nil)
+		}
+		return "", coreerr.E("ax.JSONMarshal", "failed to marshal JSON", err)
 	}
-	return string(result.Value.([]byte)), nil
+	encoded, ok := result.Value.([]byte)
+	if !ok {
+		return "", coreerr.E("ax.JSONMarshal", "failed to marshal JSON", nil)
+	}
+	return string(encoded), nil
 }
 
 // JSONUnmarshal decodes JSON into target using Core's JSON wrapper.
@@ -273,7 +327,11 @@ func JSONMarshal(value any) (string, error) {
 func JSONUnmarshal(data []byte, target any) error {
 	result := core.JSONUnmarshal(data, target)
 	if !result.OK {
-		return result.Value.(error)
+		err, ok := result.Value.(error)
+		if !ok {
+			return coreerr.E("ax.JSONUnmarshal", "failed to unmarshal JSON", nil)
+		}
+		return coreerr.E("ax.JSONUnmarshal", "failed to unmarshal JSON", err)
 	}
 	return nil
 }
@@ -284,7 +342,7 @@ func JSONUnmarshal(data []byte, target any) error {
 func LookPath(name string) (string, error) {
 	program := process.Program{Name: name}
 	if err := program.Find(); err != nil {
-		return "", err
+		return "", coreerr.E("ax.LookPath", "failed to locate command "+name, err)
 	}
 	return program.Path, nil
 }
