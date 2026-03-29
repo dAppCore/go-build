@@ -1,12 +1,12 @@
 package sdk
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 )
 
-func TestDiff_Good_NoBreaking(t *testing.T) {
+func TestDiff_NoBreaking_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	baseSpec := `openapi: "3.0.0"
@@ -39,10 +39,10 @@ paths:
         "200":
           description: OK
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	_ = os.WriteFile(basePath, []byte(baseSpec), 0644)
-	_ = os.WriteFile(revPath, []byte(revSpec), 0644)
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	_ = ax.WriteFile(basePath, []byte(baseSpec), 0644)
+	_ = ax.WriteFile(revPath, []byte(revSpec), 0644)
 
 	result, err := Diff(basePath, revPath)
 	if err != nil {
@@ -53,7 +53,7 @@ paths:
 	}
 }
 
-func TestDiff_Good_Breaking(t *testing.T) {
+func TestDiff_Breaking_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	baseSpec := `openapi: "3.0.0"
@@ -86,10 +86,10 @@ paths:
         "200":
           description: OK
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	_ = os.WriteFile(basePath, []byte(baseSpec), 0644)
-	_ = os.WriteFile(revPath, []byte(revSpec), 0644)
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	_ = ax.WriteFile(basePath, []byte(baseSpec), 0644)
+	_ = ax.WriteFile(revPath, []byte(revSpec), 0644)
 
 	result, err := Diff(basePath, revPath)
 	if err != nil {

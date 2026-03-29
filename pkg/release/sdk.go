@@ -3,13 +3,14 @@ package release
 
 import (
 	"context"
-	"fmt"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/pkg/sdk"
 	coreerr "dappco.re/go/core/log"
 )
 
 // SDKRelease holds the result of an SDK release.
+// Usage example: declare a value of type release.SDKRelease in integrating code.
 type SDKRelease struct {
 	// Version is the SDK version.
 	Version string
@@ -21,6 +22,7 @@ type SDKRelease struct {
 
 // RunSDK executes SDK-only release: diff check + generate.
 // If dryRun is true, it shows what would be done without generating.
+// Usage example: call release.RunSDK(...) from integrating code.
 func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) {
 	if cfg == nil {
 		return nil, coreerr.E("release.RunSDK", "config is nil", nil)
@@ -49,12 +51,12 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 		breaking, err := checkBreakingChanges(projectDir, cfg.SDK)
 		if err != nil {
 			// Non-fatal: warn and continue
-			fmt.Printf("Warning: diff check failed: %v\n", err)
+			core.Print(nil, "Warning: diff check failed: %v", err)
 		} else if breaking {
 			if cfg.SDK.Diff.FailOnBreaking {
 				return nil, coreerr.E("release.RunSDK", "breaking API changes detected", nil)
 			}
-			fmt.Printf("Warning: breaking API changes detected\n")
+			core.Print(nil, "Warning: breaking API changes detected")
 		}
 	}
 

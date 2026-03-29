@@ -3,33 +3,34 @@ package builders
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // DockerBuilder builds Docker images.
+// Usage example: declare a value of type builders.DockerBuilder in integrating code.
 type DockerBuilder struct{}
 
 // NewDockerBuilder creates a new Docker builder.
+// Usage example: call builders.NewDockerBuilder(...) from integrating code.
 func NewDockerBuilder() *DockerBuilder {
 	return &DockerBuilder{}
 }
 
 // Name returns the builder's identifier.
+// Usage example: call value.Name(...) from integrating code.
 func (b *DockerBuilder) Name() string {
 	return "docker"
 }
 
 // Detect checks if a Dockerfile exists in the directory.
+// Usage example: call value.Detect(...) from integrating code.
 func (b *DockerBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	dockerfilePath := filepath.Join(dir, "Dockerfile")
+	dockerfilePath := ax.Join(dir, "Dockerfile")
 	if fs.IsFile(dockerfilePath) {
 		return true, nil
 	}
@@ -37,6 +38,7 @@ func (b *DockerBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 }
 
 // Build builds Docker images for the specified targets.
+// Usage example: call value.Build(...) from integrating code.
 func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	// Validate docker CLI is available
 	if err := b.validateDockerCli(); err != nil {
@@ -51,7 +53,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	// Determine Dockerfile path
 	dockerfile := cfg.Dockerfile
 	if dockerfile == "" {
-		dockerfile = filepath.Join(cfg.ProjectDir, "Dockerfile")
+		dockerfile = ax.Join(cfg.ProjectDir, "Dockerfile")
 	}
 
 	// Validate Dockerfile exists
@@ -65,13 +67,13 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 		imageName = cfg.Name
 	}
 	if imageName == "" {
-		imageName = filepath.Base(cfg.ProjectDir)
+		imageName = ax.Base(cfg.ProjectDir)
 	}
 
 	// Build platform string from targets
 	var platforms []string
 	for _, t := range targets {
-		platforms = append(platforms, fmt.Sprintf("%s/%s", t.OS, t.Arch))
+		platforms = append(platforms, core.Sprintf("%s/%s", t.OS, t.Arch))
 	}
 
 	// If no targets specified, use current platform
@@ -98,13 +100,13 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	var imageRefs []string
 	for _, tag := range tags {
 		// Expand version template
-		expandedTag := strings.ReplaceAll(tag, "{{.Version}}", cfg.Version)
-		expandedTag = strings.ReplaceAll(expandedTag, "{{Version}}", cfg.Version)
+		expandedTag := core.Replace(tag, "{{.Version}}", cfg.Version)
+		expandedTag = core.Replace(expandedTag, "{{Version}}", cfg.Version)
 
 		if registry != "" {
-			imageRefs = append(imageRefs, fmt.Sprintf("%s/%s:%s", registry, imageName, expandedTag))
+			imageRefs = append(imageRefs, core.Sprintf("%s/%s:%s", registry, imageName, expandedTag))
 		} else {
-			imageRefs = append(imageRefs, fmt.Sprintf("%s:%s", imageName, expandedTag))
+			imageRefs = append(imageRefs, core.Sprintf("%s:%s", imageName, expandedTag))
 		}
 	}
 
@@ -112,7 +114,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	args := []string{"buildx", "build"}
 
 	// Multi-platform support
-	args = append(args, "--platform", strings.Join(platforms, ","))
+	args = append(args, "--platform", core.Join(",", platforms...))
 
 	// Add all tags
 	for _, ref := range imageRefs {
@@ -124,14 +126,14 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Build arguments
 	for k, v := range cfg.BuildArgs {
-		expandedValue := strings.ReplaceAll(v, "{{.Version}}", cfg.Version)
-		expandedValue = strings.ReplaceAll(expandedValue, "{{Version}}", cfg.Version)
-		args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, expandedValue))
+		expandedValue := core.Replace(v, "{{.Version}}", cfg.Version)
+		expandedValue = core.Replace(expandedValue, "{{Version}}", cfg.Version)
+		args = append(args, "--build-arg", core.Sprintf("%s=%s", k, expandedValue))
 	}
 
 	// Always add VERSION build arg if version is set
 	if cfg.Version != "" {
-		args = append(args, "--build-arg", fmt.Sprintf("VERSION=%s", cfg.Version))
+		args = append(args, "--build-arg", core.Sprintf("VERSION=%s", cfg.Version))
 	}
 
 	// Output to local docker images or push
@@ -143,8 +145,8 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 			args = append(args, "--load")
 		} else {
 			// Multi-platform builds can't use --load, output to tarball
-			outputPath := filepath.Join(cfg.OutputDir, fmt.Sprintf("%s.tar", imageName))
-			args = append(args, "--output", fmt.Sprintf("type=oci,dest=%s", outputPath))
+			outputPath := ax.Join(cfg.OutputDir, core.Sprintf("%s.tar", imageName))
+			args = append(args, "--output", core.Sprintf("type=oci,dest=%s", outputPath))
 		}
 	}
 
@@ -156,17 +158,11 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 		return nil, coreerr.E("DockerBuilder.Build", "failed to create output directory", err)
 	}
 
-	// Execute build
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Dir = cfg.ProjectDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	core.Print(nil, "Building Docker image: %s", imageName)
+	core.Print(nil, "  Platforms: %s", core.Join(", ", platforms...))
+	core.Print(nil, "  Tags: %s", core.Join(", ", imageRefs...))
 
-	fmt.Printf("Building Docker image: %s\n", imageName)
-	fmt.Printf("  Platforms: %s\n", strings.Join(platforms, ", "))
-	fmt.Printf("  Tags: %s\n", strings.Join(imageRefs, ", "))
-
-	if err := cmd.Run(); err != nil {
+	if err := ax.ExecDir(ctx, cfg.ProjectDir, "docker", args...); err != nil {
 		return nil, coreerr.E("DockerBuilder.Build", "buildx build failed", err)
 	}
 
@@ -185,8 +181,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 // validateDockerCli checks if the docker CLI is available.
 func (b *DockerBuilder) validateDockerCli() error {
-	cmd := exec.Command("docker", "--version")
-	if err := cmd.Run(); err != nil {
+	if _, err := ax.LookPath("docker"); err != nil {
 		return coreerr.E("DockerBuilder.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
 	}
 	return nil
@@ -195,19 +190,14 @@ func (b *DockerBuilder) validateDockerCli() error {
 // ensureBuildx ensures docker buildx is available and has a builder.
 func (b *DockerBuilder) ensureBuildx(ctx context.Context) error {
 	// Check if buildx is available
-	cmd := exec.CommandContext(ctx, "docker", "buildx", "version")
-	if err := cmd.Run(); err != nil {
+	if err := ax.Exec(ctx, "docker", "buildx", "version"); err != nil {
 		return coreerr.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", err)
 	}
 
 	// Check if we have a builder, create one if not
-	cmd = exec.CommandContext(ctx, "docker", "buildx", "inspect", "--bootstrap")
-	if err := cmd.Run(); err != nil {
+	if err := ax.Exec(ctx, "docker", "buildx", "inspect", "--bootstrap"); err != nil {
 		// Try to create a builder
-		cmd = exec.CommandContext(ctx, "docker", "buildx", "create", "--use", "--bootstrap")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		if err := ax.Exec(ctx, "docker", "buildx", "create", "--use", "--bootstrap"); err != nil {
 			return coreerr.E("DockerBuilder.ensureBuildx", "failed to create buildx builder", err)
 		}
 	}

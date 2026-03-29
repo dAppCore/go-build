@@ -2,13 +2,13 @@ package generators
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
+
+	"dappco.re/go/core/build/internal/ax"
 )
 
-func TestPythonGenerator_Good_Available(t *testing.T) {
+func TestPython_PythonGeneratorAvailable_Good(t *testing.T) {
 	g := NewPythonGenerator()
 
 	// These should not panic
@@ -25,7 +25,7 @@ func TestPythonGenerator_Good_Available(t *testing.T) {
 	}
 }
 
-func TestPythonGenerator_Good_Generate(t *testing.T) {
+func TestPython_PythonGeneratorGenerate_Good(t *testing.T) {
 	g := NewPythonGenerator()
 	if !g.Available() && !dockerAvailable() {
 		t.Skip("no Python generator available (neither native nor docker)")
@@ -34,7 +34,7 @@ func TestPythonGenerator_Good_Generate(t *testing.T) {
 	// Create temp directories
 	tmpDir := t.TempDir()
 	specPath := createTestSpec(t, tmpDir)
-	outputDir := filepath.Join(tmpDir, "output")
+	outputDir := ax.Join(tmpDir, "output")
 
 	opts := Options{
 		SpecPath:    specPath,
@@ -52,7 +52,7 @@ func TestPythonGenerator_Good_Generate(t *testing.T) {
 	}
 
 	// Verify output directory was created
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+	if !ax.Exists(outputDir) {
 		t.Error("output directory was not created")
 	}
 }

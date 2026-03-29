@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMacOSSigner_Good_Name(t *testing.T) {
+func TestCodesign_MacOSSignerName_Good(t *testing.T) {
 	s := NewMacOSSigner(MacOSConfig{Identity: "Developer ID Application: Test"})
 	assert.Equal(t, "codesign", s.Name())
 }
 
-func TestMacOSSigner_Good_Available(t *testing.T) {
+func TestCodesign_MacOSSignerAvailable_Good(t *testing.T) {
 	s := NewMacOSSigner(MacOSConfig{Identity: "Developer ID Application: Test"})
 
 	if runtime.GOOS == "darwin" {
@@ -25,12 +25,12 @@ func TestMacOSSigner_Good_Available(t *testing.T) {
 	}
 }
 
-func TestMacOSSigner_Bad_NoIdentity(t *testing.T) {
+func TestCodesign_MacOSSignerNoIdentity_Bad(t *testing.T) {
 	s := NewMacOSSigner(MacOSConfig{})
 	assert.False(t, s.Available())
 }
 
-func TestMacOSSigner_Sign_Bad(t *testing.T) {
+func TestCodesign_MacOSSignerSign_Bad(t *testing.T) {
 	t.Run("fails when not available", func(t *testing.T) {
 		if runtime.GOOS == "darwin" {
 			t.Skip("skipping on macOS")
@@ -39,11 +39,11 @@ func TestMacOSSigner_Sign_Bad(t *testing.T) {
 		s := NewMacOSSigner(MacOSConfig{Identity: "test"})
 		err := s.Sign(context.Background(), fs, "test")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not available")
+		assert.Contains(t, err.Error(), "only available on macOS")
 	})
 }
 
-func TestMacOSSigner_Notarize_Bad(t *testing.T) {
+func TestCodesign_MacOSSignerNotarize_Bad(t *testing.T) {
 	fs := io.Local
 	t.Run("fails with missing credentials", func(t *testing.T) {
 		s := NewMacOSSigner(MacOSConfig{})
@@ -53,7 +53,7 @@ func TestMacOSSigner_Notarize_Bad(t *testing.T) {
 	})
 }
 
-func TestMacOSSigner_ShouldNotarize(t *testing.T) {
+func TestCodesign_MacOSSignerShouldNotarize_Good(t *testing.T) {
 	s := NewMacOSSigner(MacOSConfig{Notarize: true})
 	assert.True(t, s.ShouldNotarize())
 

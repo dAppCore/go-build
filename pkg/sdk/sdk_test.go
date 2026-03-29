@@ -2,22 +2,22 @@ package sdk
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestSDK_Good_SetVersion(t *testing.T) {
+func TestSDK_SetVersion_Good(t *testing.T) {
 	s := New("/tmp", nil)
 	s.SetVersion("v1.2.3")
 
 	assert.Equal(t, "v1.2.3", s.version)
 }
 
-func TestSDK_Good_VersionPassedToGenerator(t *testing.T) {
+func TestSDK_VersionPassedToGenerator_Good(t *testing.T) {
 	config := &Config{
 		Languages: []string{"typescript"},
 		Output:    "sdk",
@@ -31,14 +31,14 @@ func TestSDK_Good_VersionPassedToGenerator(t *testing.T) {
 	assert.Equal(t, "v2.0.0", s.config.Package.Version)
 }
 
-func TestDefaultConfig(t *testing.T) {
+func TestSDK_DefaultConfig_Good(t *testing.T) {
 	cfg := DefaultConfig()
 	assert.Contains(t, cfg.Languages, "typescript")
 	assert.Equal(t, "sdk", cfg.Output)
 	assert.True(t, cfg.Diff.Enabled)
 }
 
-func TestSDK_New(t *testing.T) {
+func TestSDK_New_Good(t *testing.T) {
 	t.Run("with nil config", func(t *testing.T) {
 		s := New("/tmp", nil)
 		assert.NotNil(t, s.config)
@@ -58,9 +58,9 @@ func TestSDK_GenerateLanguage_Bad(t *testing.T) {
 
 		tmpDir := t.TempDir()
 
-		specPath := filepath.Join(tmpDir, "openapi.yaml")
+		specPath := ax.Join(tmpDir, "openapi.yaml")
 
-		err := os.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644)
+		err := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644)
 
 		require.NoError(t, err)
 

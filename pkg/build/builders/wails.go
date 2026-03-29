@@ -3,31 +3,33 @@ package builders
 
 import (
 	"context"
-	"fmt"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // WailsBuilder implements the Builder interface for Wails v3 projects.
+// Usage example: declare a value of type builders.WailsBuilder in integrating code.
 type WailsBuilder struct{}
 
 // NewWailsBuilder creates a new WailsBuilder instance.
+// Usage example: call builders.NewWailsBuilder(...) from integrating code.
 func NewWailsBuilder() *WailsBuilder {
 	return &WailsBuilder{}
 }
 
 // Name returns the builder's identifier.
+// Usage example: call value.Name(...) from integrating code.
 func (b *WailsBuilder) Name() string {
 	return "wails"
 }
 
 // Detect checks if this builder can handle the project in the given directory.
 // Uses IsWailsProject from the build package which checks for wails.json.
+// Usage example: call value.Detect(...) from integrating code.
 func (b *WailsBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	return build.IsWailsProject(fs, dir), nil
 }
@@ -36,6 +38,7 @@ func (b *WailsBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 // It detects the Wails version and chooses the appropriate build strategy:
 // - Wails v3: Delegates to Taskfile (error if missing)
 // - Wails v2: Uses 'wails build' command
+// Usage example: call value.Build(...) from integrating code.
 func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	if cfg == nil {
 		return nil, coreerr.E("WailsBuilder.Build", "config is nil", nil)
@@ -83,12 +86,12 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 
 // isWailsV3 checks if the project uses Wails v3 by inspecting go.mod.
 func (b *WailsBuilder) isWailsV3(fs io.Medium, dir string) bool {
-	goModPath := filepath.Join(dir, "go.mod")
+	goModPath := ax.Join(dir, "go.mod")
 	content, err := fs.Read(goModPath)
 	if err != nil {
 		return false
 	}
-	return strings.Contains(content, "github.com/wailsapp/wails/v3")
+	return core.Contains(content, "github.com/wailsapp/wails/v3")
 }
 
 // buildV2Target compiles for a single target platform using wails (v2).
@@ -96,35 +99,31 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Determine output binary name
 	binaryName := cfg.Name
 	if binaryName == "" {
-		binaryName = filepath.Base(cfg.ProjectDir)
+		binaryName = ax.Base(cfg.ProjectDir)
 	}
 
 	// Build the wails build arguments
 	args := []string{"build"}
 
 	// Platform
-	args = append(args, "-platform", fmt.Sprintf("%s/%s", target.OS, target.Arch))
+	args = append(args, "-platform", core.Sprintf("%s/%s", target.OS, target.Arch))
 
 	// Output (Wails v2 uses -o for the binary name, relative to build/bin usually, but we want to control it)
 	// Actually, Wails v2 is opinionated about output dir (build/bin).
 	// We might need to copy artifacts after build if we want them in cfg.OutputDir.
 	// For now, let's try to let Wails do its thing and find the artifact.
 
-	// Create the command
-	cmd := exec.CommandContext(ctx, "wails", args...)
-	cmd.Dir = cfg.ProjectDir
-
 	// Capture output for error messages
-	output, err := cmd.CombinedOutput()
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, nil, "wails", args...)
 	if err != nil {
-		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "wails build failed: "+string(output), err)
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "wails build failed: "+output, err)
 	}
 
 	// Wails v2 typically outputs to build/bin
 	// We need to move/copy it to our desired output dir
 
 	// Construct the source path where Wails v2 puts the binary
-	wailsOutputDir := filepath.Join(cfg.ProjectDir, "build", "bin")
+	wailsOutputDir := ax.Join(cfg.ProjectDir, "build", "bin")
 
 	// Find the artifact in Wails output dir
 	sourcePath, err := b.findArtifact(cfg.FS, wailsOutputDir, binaryName, target)
@@ -134,12 +133,12 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 
 	// Move/Copy to our output dir
 	// Create platform specific dir in our output
-	platformDir := filepath.Join(cfg.OutputDir, fmt.Sprintf("%s_%s", target.OS, target.Arch))
+	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 	if err := cfg.FS.EnsureDir(platformDir); err != nil {
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to create output dir", err)
 	}
 
-	destPath := filepath.Join(platformDir, filepath.Base(sourcePath))
+	destPath := ax.Join(platformDir, ax.Base(sourcePath))
 
 	// Simple copy using the medium
 	content, err := cfg.FS.Read(sourcePath)
@@ -165,21 +164,21 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 	case "windows":
 		// Look for NSIS installer first, then plain exe
 		candidates = []string{
-			filepath.Join(platformDir, binaryName+"-installer.exe"),
-			filepath.Join(platformDir, binaryName+".exe"),
-			filepath.Join(platformDir, binaryName+"-amd64-installer.exe"),
+			ax.Join(platformDir, binaryName+"-installer.exe"),
+			ax.Join(platformDir, binaryName+".exe"),
+			ax.Join(platformDir, binaryName+"-amd64-installer.exe"),
 		}
 	case "darwin":
 		// Look for .dmg, then .app bundle, then plain binary
 		candidates = []string{
-			filepath.Join(platformDir, binaryName+".dmg"),
-			filepath.Join(platformDir, binaryName+".app"),
-			filepath.Join(platformDir, binaryName),
+			ax.Join(platformDir, binaryName+".dmg"),
+			ax.Join(platformDir, binaryName+".app"),
+			ax.Join(platformDir, binaryName),
 		}
 	default:
 		// Linux and others: look for plain binary
 		candidates = []string{
-			filepath.Join(platformDir, binaryName),
+			ax.Join(platformDir, binaryName),
 		}
 	}
 
@@ -199,11 +198,11 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 	for _, entry := range entries {
 		name := entry.Name()
 		// Skip common non-artifact files
-		if strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".json") {
+		if core.HasSuffix(name, ".go") || core.HasSuffix(name, ".json") {
 			continue
 		}
 
-		path := filepath.Join(platformDir, name)
+		path := ax.Join(platformDir, name)
 		info, err := entry.Info()
 		if err != nil {
 			continue
@@ -211,7 +210,7 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 
 		// On Unix, check if it's executable; on Windows, check for .exe
 		if target.OS == "windows" {
-			if strings.HasSuffix(name, ".exe") {
+			if core.HasSuffix(name, ".exe") {
 				return path, nil
 			}
 		} else if info.Mode()&0111 != 0 || entry.IsDir() {
@@ -238,7 +237,7 @@ func detectPackageManager(fs io.Medium, dir string) string {
 	}
 
 	for _, lf := range lockFiles {
-		if fs.IsFile(filepath.Join(dir, lf.file)) {
+		if fs.IsFile(ax.Join(dir, lf.file)) {
 			return lf.manager
 		}
 	}

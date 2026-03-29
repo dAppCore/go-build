@@ -1,9 +1,9 @@
 package builders
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
@@ -11,17 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTaskfileBuilder_Name_Good(t *testing.T) {
+func TestTaskfile_TaskfileBuilderName_Good(t *testing.T) {
 	builder := NewTaskfileBuilder()
 	assert.Equal(t, "taskfile", builder.Name())
 }
 
-func TestTaskfileBuilder_Detect_Good(t *testing.T) {
+func TestTaskfile_TaskfileBuilderDetect_Good(t *testing.T) {
 	fs := io.Local
 
 	t.Run("detects Taskfile.yml", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "Taskfile.yml"), []byte("version: '3'\n"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "Taskfile.yml"), []byte("version: '3'\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewTaskfileBuilder()
@@ -32,7 +32,7 @@ func TestTaskfileBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("detects Taskfile.yaml", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "Taskfile.yaml"), []byte("version: '3'\n"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "Taskfile.yaml"), []byte("version: '3'\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewTaskfileBuilder()
@@ -43,7 +43,7 @@ func TestTaskfileBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("detects Taskfile (no extension)", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "Taskfile"), []byte("version: '3'\n"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "Taskfile"), []byte("version: '3'\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewTaskfileBuilder()
@@ -54,7 +54,7 @@ func TestTaskfileBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("detects lowercase taskfile.yml", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "taskfile.yml"), []byte("version: '3'\n"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "taskfile.yml"), []byte("version: '3'\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewTaskfileBuilder()
@@ -65,7 +65,7 @@ func TestTaskfileBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("detects lowercase taskfile.yaml", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "taskfile.yaml"), []byte("version: '3'\n"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "taskfile.yaml"), []byte("version: '3'\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewTaskfileBuilder()
@@ -85,7 +85,7 @@ func TestTaskfileBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("returns false for non-Taskfile project", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("all:\n\techo hello\n"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "Makefile"), []byte("all:\n\techo hello\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewTaskfileBuilder()
@@ -96,9 +96,9 @@ func TestTaskfileBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("does not match Taskfile in subdirectory", func(t *testing.T) {
 		dir := t.TempDir()
-		subDir := filepath.Join(dir, "subdir")
-		require.NoError(t, os.MkdirAll(subDir, 0755))
-		err := os.WriteFile(filepath.Join(subDir, "Taskfile.yml"), []byte("version: '3'\n"), 0644)
+		subDir := ax.Join(dir, "subdir")
+		require.NoError(t, ax.MkdirAll(subDir, 0755))
+		err := ax.WriteFile(ax.Join(subDir, "Taskfile.yml"), []byte("version: '3'\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewTaskfileBuilder()
@@ -108,14 +108,14 @@ func TestTaskfileBuilder_Detect_Good(t *testing.T) {
 	})
 }
 
-func TestTaskfileBuilder_FindArtifacts_Good(t *testing.T) {
+func TestTaskfile_TaskfileBuilderFindArtifacts_Good(t *testing.T) {
 	fs := io.Local
 	builder := NewTaskfileBuilder()
 
 	t.Run("finds files in output directory", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "myapp"), []byte("binary"), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "myapp.tar.gz"), []byte("archive"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "myapp"), []byte("binary"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "myapp.tar.gz"), []byte("archive"), 0644))
 
 		artifacts := builder.findArtifacts(fs, dir)
 		assert.Len(t, artifacts, 2)
@@ -123,8 +123,8 @@ func TestTaskfileBuilder_FindArtifacts_Good(t *testing.T) {
 
 	t.Run("skips hidden files", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "myapp"), []byte("binary"), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".hidden"), []byte("hidden"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "myapp"), []byte("binary"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".hidden"), []byte("hidden"), 0644))
 
 		artifacts := builder.findArtifacts(fs, dir)
 		assert.Len(t, artifacts, 1)
@@ -133,8 +133,8 @@ func TestTaskfileBuilder_FindArtifacts_Good(t *testing.T) {
 
 	t.Run("skips CHECKSUMS.txt", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "myapp"), []byte("binary"), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "CHECKSUMS.txt"), []byte("sha256"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "myapp"), []byte("binary"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "CHECKSUMS.txt"), []byte("sha256"), 0644))
 
 		artifacts := builder.findArtifacts(fs, dir)
 		assert.Len(t, artifacts, 1)
@@ -143,8 +143,8 @@ func TestTaskfileBuilder_FindArtifacts_Good(t *testing.T) {
 
 	t.Run("skips directories", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "myapp"), []byte("binary"), 0755))
-		require.NoError(t, os.MkdirAll(filepath.Join(dir, "subdir"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "myapp"), []byte("binary"), 0755))
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, "subdir"), 0755))
 
 		artifacts := builder.findArtifacts(fs, dir)
 		assert.Len(t, artifacts, 1)
@@ -163,15 +163,15 @@ func TestTaskfileBuilder_FindArtifacts_Good(t *testing.T) {
 	})
 }
 
-func TestTaskfileBuilder_FindArtifactsForTarget_Good(t *testing.T) {
+func TestTaskfile_TaskfileBuilderFindArtifactsForTarget_Good(t *testing.T) {
 	fs := io.Local
 	builder := NewTaskfileBuilder()
 
 	t.Run("finds artifacts in platform subdirectory", func(t *testing.T) {
 		dir := t.TempDir()
-		platformDir := filepath.Join(dir, "linux_amd64")
-		require.NoError(t, os.MkdirAll(platformDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(platformDir, "myapp"), []byte("binary"), 0755))
+		platformDir := ax.Join(dir, "linux_amd64")
+		require.NoError(t, ax.MkdirAll(platformDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(platformDir, "myapp"), []byte("binary"), 0755))
 
 		target := build.Target{OS: "linux", Arch: "amd64"}
 		artifacts := builder.findArtifactsForTarget(fs, dir, target)
@@ -182,7 +182,7 @@ func TestTaskfileBuilder_FindArtifactsForTarget_Good(t *testing.T) {
 
 	t.Run("finds artifacts by name pattern in root", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "myapp-linux-amd64"), []byte("binary"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "myapp-linux-amd64"), []byte("binary"), 0755))
 
 		target := build.Target{OS: "linux", Arch: "amd64"}
 		artifacts := builder.findArtifactsForTarget(fs, dir, target)
@@ -191,7 +191,7 @@ func TestTaskfileBuilder_FindArtifactsForTarget_Good(t *testing.T) {
 
 	t.Run("returns empty when no matching artifacts", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "myapp"), []byte("binary"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "myapp"), []byte("binary"), 0755))
 
 		target := build.Target{OS: "linux", Arch: "arm64"}
 		artifacts := builder.findArtifactsForTarget(fs, dir, target)
@@ -200,9 +200,9 @@ func TestTaskfileBuilder_FindArtifactsForTarget_Good(t *testing.T) {
 
 	t.Run("handles .app bundles on darwin", func(t *testing.T) {
 		dir := t.TempDir()
-		platformDir := filepath.Join(dir, "darwin_arm64")
-		appDir := filepath.Join(platformDir, "MyApp.app")
-		require.NoError(t, os.MkdirAll(appDir, 0755))
+		platformDir := ax.Join(dir, "darwin_arm64")
+		appDir := ax.Join(platformDir, "MyApp.app")
+		require.NoError(t, ax.MkdirAll(appDir, 0755))
 
 		target := build.Target{OS: "darwin", Arch: "arm64"}
 		artifacts := builder.findArtifactsForTarget(fs, dir, target)
@@ -211,7 +211,7 @@ func TestTaskfileBuilder_FindArtifactsForTarget_Good(t *testing.T) {
 	})
 }
 
-func TestTaskfileBuilder_MatchPattern_Good(t *testing.T) {
+func TestTaskfile_TaskfileBuilderMatchPattern_Good(t *testing.T) {
 	builder := NewTaskfileBuilder()
 
 	t.Run("matches simple glob", func(t *testing.T) {
@@ -227,7 +227,7 @@ func TestTaskfileBuilder_MatchPattern_Good(t *testing.T) {
 	})
 }
 
-func TestTaskfileBuilder_Interface_Good(t *testing.T) {
+func TestTaskfile_TaskfileBuilderInterface_Good(t *testing.T) {
 	// Verify TaskfileBuilder implements Builder interface
 	var _ build.Builder = (*TaskfileBuilder)(nil)
 	var _ build.Builder = NewTaskfileBuilder()

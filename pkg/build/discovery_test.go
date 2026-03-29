@@ -1,9 +1,9 @@
 package build
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
@@ -15,14 +15,14 @@ func setupTestDir(t *testing.T, markers ...string) string {
 	t.Helper()
 	dir := t.TempDir()
 	for _, m := range markers {
-		path := filepath.Join(dir, m)
-		err := os.WriteFile(path, []byte("{}"), 0644)
+		path := ax.Join(dir, m)
+		err := ax.WriteFile(path, []byte("{}"), 0644)
 		require.NoError(t, err)
 	}
 	return dir
 }
 
-func TestDiscover_Good(t *testing.T) {
+func TestDiscovery_Discover_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("detects Go project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
@@ -67,18 +67,18 @@ func TestDiscover_Good(t *testing.T) {
 	})
 }
 
-func TestDiscover_Bad(t *testing.T) {
+func TestDiscovery_Discover_Bad(t *testing.T) {
 	fs := io.Local
 	t.Run("non-existent directory returns empty slice", func(t *testing.T) {
 		types, err := Discover(fs, "/non/existent/path")
-		assert.NoError(t, err) // os.Stat fails silently in fileExists
+		assert.NoError(t, err) // ax.Stat fails silently in fileExists
 		assert.Empty(t, types)
 	})
 
 	t.Run("directory marker is ignored", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create go.mod as a directory instead of a file
-		err := os.Mkdir(filepath.Join(dir, "go.mod"), 0755)
+		err := ax.Mkdir(ax.Join(dir, "go.mod"), 0755)
 		require.NoError(t, err)
 
 		types, err := Discover(fs, dir)
@@ -87,7 +87,7 @@ func TestDiscover_Bad(t *testing.T) {
 	})
 }
 
-func TestPrimaryType_Good(t *testing.T) {
+func TestDiscovery_PrimaryType_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("returns wails for wails project", func(t *testing.T) {
 		dir := setupTestDir(t, "wails.json", "go.mod")
@@ -111,7 +111,7 @@ func TestPrimaryType_Good(t *testing.T) {
 	})
 }
 
-func TestIsGoProject_Good(t *testing.T) {
+func TestDiscovery_IsGoProject_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("true with go.mod", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
@@ -129,7 +129,7 @@ func TestIsGoProject_Good(t *testing.T) {
 	})
 }
 
-func TestIsWailsProject_Good(t *testing.T) {
+func TestDiscovery_IsWailsProject_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("true with wails.json", func(t *testing.T) {
 		dir := setupTestDir(t, "wails.json")
@@ -142,7 +142,7 @@ func TestIsWailsProject_Good(t *testing.T) {
 	})
 }
 
-func TestIsNodeProject_Good(t *testing.T) {
+func TestDiscovery_IsNodeProject_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("true with package.json", func(t *testing.T) {
 		dir := setupTestDir(t, "package.json")
@@ -155,7 +155,7 @@ func TestIsNodeProject_Good(t *testing.T) {
 	})
 }
 
-func TestIsPHPProject_Good(t *testing.T) {
+func TestDiscovery_IsPHPProject_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("true with composer.json", func(t *testing.T) {
 		dir := setupTestDir(t, "composer.json")
@@ -168,17 +168,17 @@ func TestIsPHPProject_Good(t *testing.T) {
 	})
 }
 
-func TestTarget_Good(t *testing.T) {
+func TestDiscovery_Target_Good(t *testing.T) {
 	target := Target{OS: "linux", Arch: "amd64"}
 	assert.Equal(t, "linux/amd64", target.String())
 }
 
-func TestFileExists_Good(t *testing.T) {
+func TestDiscovery_FileExists_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("returns true for existing file", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "test.txt")
-		err := os.WriteFile(path, []byte("content"), 0644)
+		path := ax.Join(dir, "test.txt")
+		err := ax.WriteFile(path, []byte("content"), 0644)
 		require.NoError(t, err)
 		assert.True(t, fileExists(fs, path))
 	})
@@ -195,9 +195,9 @@ func TestFileExists_Good(t *testing.T) {
 
 // TestDiscover_Testdata tests discovery using the testdata fixtures.
 // These serve as integration tests with realistic project structures.
-func TestDiscover_Testdata(t *testing.T) {
+func TestDiscovery_DiscoverTestdata_Good(t *testing.T) {
 	fs := io.Local
-	testdataDir, err := filepath.Abs("testdata")
+	testdataDir, err := ax.Abs("testdata")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -215,7 +215,7 @@ func TestDiscover_Testdata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := filepath.Join(testdataDir, tt.dir)
+			dir := ax.Join(testdataDir, tt.dir)
 			types, err := Discover(fs, dir)
 			assert.NoError(t, err)
 			if len(tt.expected) == 0 {

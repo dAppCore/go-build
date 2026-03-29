@@ -2,9 +2,9 @@ package sdk
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"dappco.re/go/core/build/pkg/sdk/generators"
 	"github.com/stretchr/testify/assert"
@@ -13,13 +13,13 @@ import (
 
 // --- SDK Generation Orchestration Tests ---
 
-func TestSDK_Generate_Good_AllLanguages(t *testing.T) {
+func TestGeneration_SDKGenerateAllLanguages_Good(t *testing.T) {
 	t.Run("Generate iterates all configured languages", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		// Create a minimal OpenAPI spec
-		specPath := filepath.Join(tmpDir, "openapi.yaml")
-		err := os.WriteFile(specPath, []byte(minimalSpec), 0644)
+		specPath := ax.Join(tmpDir, "openapi.yaml")
+		err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
 		require.NoError(t, err)
 
 		cfg := &Config{
@@ -41,12 +41,12 @@ func TestSDK_Generate_Good_AllLanguages(t *testing.T) {
 	})
 }
 
-func TestSDK_GenerateLanguage_Good_OutputDir(t *testing.T) {
+func TestGeneration_SDKGenerateLanguageOutputDir_Good(t *testing.T) {
 	t.Run("output directory uses language subdirectory", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		specPath := filepath.Join(tmpDir, "openapi.yaml")
-		err := os.WriteFile(specPath, []byte(minimalSpec), 0644)
+		specPath := ax.Join(tmpDir, "openapi.yaml")
+		err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
 		require.NoError(t, err)
 
 		cfg := &Config{
@@ -69,7 +69,7 @@ func TestSDK_GenerateLanguage_Good_OutputDir(t *testing.T) {
 	})
 }
 
-func TestSDK_GenerateLanguage_Bad_NoSpec(t *testing.T) {
+func TestGeneration_SDKGenerateLanguageNoSpec_Bad(t *testing.T) {
 	t.Run("fails when no OpenAPI spec exists", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
@@ -84,11 +84,11 @@ func TestSDK_GenerateLanguage_Bad_NoSpec(t *testing.T) {
 	})
 }
 
-func TestSDK_GenerateLanguage_Bad_UnknownLanguage(t *testing.T) {
+func TestGeneration_SDKGenerateLanguageUnknownLanguage_Bad(t *testing.T) {
 	t.Run("fails for unregistered language", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		specPath := filepath.Join(tmpDir, "openapi.yaml")
-		err := os.WriteFile(specPath, []byte(minimalSpec), 0644)
+		specPath := ax.Join(tmpDir, "openapi.yaml")
+		err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
 		require.NoError(t, err)
 
 		s := New(tmpDir, nil)
@@ -100,7 +100,7 @@ func TestSDK_GenerateLanguage_Bad_UnknownLanguage(t *testing.T) {
 
 // --- Generator Registry Tests ---
 
-func TestRegistry_Good_RegisterAndGet(t *testing.T) {
+func TestGeneration_RegistryRegisterAndGet_Good(t *testing.T) {
 	t.Run("register and retrieve all generators", func(t *testing.T) {
 		registry := generators.NewRegistry()
 		registry.Register(generators.NewTypeScriptGenerator())
@@ -132,7 +132,7 @@ func TestRegistry_Good_RegisterAndGet(t *testing.T) {
 	})
 }
 
-func TestRegistry_Good_OverwritesDuplicateLanguage(t *testing.T) {
+func TestGeneration_RegistryOverwritesDuplicateLanguage_Good(t *testing.T) {
 	registry := generators.NewRegistry()
 	registry.Register(generators.NewTypeScriptGenerator())
 	registry.Register(generators.NewTypeScriptGenerator()) // register again
@@ -149,7 +149,7 @@ func TestRegistry_Good_OverwritesDuplicateLanguage(t *testing.T) {
 
 // --- Generator Interface Compliance Tests ---
 
-func TestGenerators_Good_LanguageIdentifiers(t *testing.T) {
+func TestGeneration_GeneratorsLanguageIdentifiers_Good(t *testing.T) {
 	tests := []struct {
 		generator generators.Generator
 		expected  string
@@ -167,7 +167,7 @@ func TestGenerators_Good_LanguageIdentifiers(t *testing.T) {
 	}
 }
 
-func TestGenerators_Good_InstallInstructions(t *testing.T) {
+func TestGeneration_GeneratorsInstallInstructions_Good(t *testing.T) {
 	tests := []struct {
 		language string
 		gen      generators.Generator
@@ -188,7 +188,7 @@ func TestGenerators_Good_InstallInstructions(t *testing.T) {
 	}
 }
 
-func TestGenerators_Good_AvailableDoesNotPanic(t *testing.T) {
+func TestGeneration_GeneratorsAvailableDoesNotPanic_Good(t *testing.T) {
 	// Available() should never panic regardless of system state
 	gens := []generators.Generator{
 		generators.NewTypeScriptGenerator(),
@@ -207,7 +207,7 @@ func TestGenerators_Good_AvailableDoesNotPanic(t *testing.T) {
 
 // --- SDK Config Tests ---
 
-func TestSDKConfig_Good_DefaultConfig(t *testing.T) {
+func TestGeneration_SDKConfigDefaultConfig_Good(t *testing.T) {
 	t.Run("default config has all four languages", func(t *testing.T) {
 		cfg := DefaultConfig()
 		assert.Contains(t, cfg.Languages, "typescript")
@@ -229,7 +229,7 @@ func TestSDKConfig_Good_DefaultConfig(t *testing.T) {
 	})
 }
 
-func TestSDKConfig_Good_SetVersion(t *testing.T) {
+func TestGeneration_SDKConfigSetVersion_Good(t *testing.T) {
 	t.Run("SetVersion updates both fields", func(t *testing.T) {
 		s := New("/tmp", &Config{
 			Package: PackageConfig{
@@ -251,7 +251,7 @@ func TestSDKConfig_Good_SetVersion(t *testing.T) {
 	})
 }
 
-func TestSDKConfig_Good_NewWithNilConfig(t *testing.T) {
+func TestGeneration_SDKConfigNewWithNilConfig_Good(t *testing.T) {
 	s := New("/project", nil)
 	assert.NotNil(t, s.config)
 	assert.Equal(t, "sdk", s.config.Output)
@@ -260,18 +260,18 @@ func TestSDKConfig_Good_NewWithNilConfig(t *testing.T) {
 
 // --- Spec Detection Integration Tests ---
 
-func TestSpecDetection_Good_Priority(t *testing.T) {
+func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {
 	t.Run("configured spec takes priority over common paths", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		// Create both a common path spec and a configured spec
-		commonSpec := filepath.Join(tmpDir, "openapi.yaml")
-		err := os.WriteFile(commonSpec, []byte(minimalSpec), 0644)
+		commonSpec := ax.Join(tmpDir, "openapi.yaml")
+		err := ax.WriteFile(commonSpec, []byte(minimalSpec), 0644)
 		require.NoError(t, err)
 
-		configuredSpec := filepath.Join(tmpDir, "custom", "api.yaml")
-		require.NoError(t, os.MkdirAll(filepath.Dir(configuredSpec), 0755))
-		err = os.WriteFile(configuredSpec, []byte(minimalSpec), 0644)
+		configuredSpec := ax.Join(tmpDir, "custom", "api.yaml")
+		require.NoError(t, ax.MkdirAll(ax.Dir(configuredSpec), 0755))
+		err = ax.WriteFile(configuredSpec, []byte(minimalSpec), 0644)
 		require.NoError(t, err)
 
 		s := New(tmpDir, &Config{Spec: "custom/api.yaml"})
@@ -284,10 +284,10 @@ func TestSpecDetection_Good_Priority(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		// Create the second common path only (api/openapi.yaml is first)
-		apiDir := filepath.Join(tmpDir, "api")
-		require.NoError(t, os.MkdirAll(apiDir, 0755))
-		apiSpec := filepath.Join(apiDir, "openapi.json")
-		err := os.WriteFile(apiSpec, []byte(`{"openapi":"3.0.0"}`), 0644)
+		apiDir := ax.Join(tmpDir, "api")
+		require.NoError(t, ax.MkdirAll(apiDir, 0755))
+		apiSpec := ax.Join(apiDir, "openapi.json")
+		err := ax.WriteFile(apiSpec, []byte(`{"openapi":"3.0.0"}`), 0644)
 		require.NoError(t, err)
 
 		s := New(tmpDir, nil)
@@ -297,14 +297,14 @@ func TestSpecDetection_Good_Priority(t *testing.T) {
 	})
 }
 
-func TestSpecDetection_Good_AllCommonPaths(t *testing.T) {
+func TestGeneration_SpecDetectionAllCommonPaths_Good(t *testing.T) {
 	for _, commonPath := range commonSpecPaths {
 		t.Run(commonPath, func(t *testing.T) {
 			tmpDir := t.TempDir()
 
-			specPath := filepath.Join(tmpDir, commonPath)
-			require.NoError(t, os.MkdirAll(filepath.Dir(specPath), 0755))
-			err := os.WriteFile(specPath, []byte(minimalSpec), 0644)
+			specPath := ax.Join(tmpDir, commonPath)
+			require.NoError(t, ax.MkdirAll(ax.Dir(specPath), 0755))
+			err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
 			require.NoError(t, err)
 
 			s := New(tmpDir, nil)

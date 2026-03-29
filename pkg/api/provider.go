@@ -6,12 +6,12 @@
 package api
 
 import (
+	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/release"
@@ -24,6 +24,7 @@ import (
 // BuildProvider wraps go-build's build, release, and SDK operations as a
 // service provider. It implements Provider, Streamable, Describable, and
 // Renderable.
+// Usage example: declare a value of type api.BuildProvider in integrating code.
 type BuildProvider struct {
 	hub        *ws.Hub
 	projectDir string
@@ -41,6 +42,7 @@ var (
 // NewProvider creates a BuildProvider for the given project directory.
 // If projectDir is empty, the current working directory is used.
 // The WS hub is used to emit real-time build events; pass nil if not available.
+// Usage example: call api.NewProvider(...) from integrating code.
 func NewProvider(projectDir string, hub *ws.Hub) *BuildProvider {
 	if projectDir == "" {
 		projectDir = "."
@@ -53,12 +55,15 @@ func NewProvider(projectDir string, hub *ws.Hub) *BuildProvider {
 }
 
 // Name implements api.RouteGroup.
+// Usage example: call value.Name(...) from integrating code.
 func (p *BuildProvider) Name() string { return "build" }
 
 // BasePath implements api.RouteGroup.
+// Usage example: call value.BasePath(...) from integrating code.
 func (p *BuildProvider) BasePath() string { return "/api/v1/build" }
 
 // Element implements provider.Renderable.
+// Usage example: call value.Element(...) from integrating code.
 func (p *BuildProvider) Element() provider.ElementSpec {
 	return provider.ElementSpec{
 		Tag:    "core-build-panel",
@@ -67,6 +72,7 @@ func (p *BuildProvider) Element() provider.ElementSpec {
 }
 
 // Channels implements provider.Streamable.
+// Usage example: call value.Channels(...) from integrating code.
 func (p *BuildProvider) Channels() []string {
 	return []string{
 		"build.started",
@@ -79,6 +85,7 @@ func (p *BuildProvider) Channels() []string {
 }
 
 // RegisterRoutes implements api.RouteGroup.
+// Usage example: call value.RegisterRoutes(...) from integrating code.
 func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	// Build
 	rg.GET("/config", p.getConfig)
@@ -97,6 +104,7 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 // Describe implements api.DescribableGroup.
+// Usage example: call value.Describe(...) from integrating code.
 func (p *BuildProvider) Describe() []api.RouteDescription {
 	return []api.RouteDescription{
 		{
@@ -180,7 +188,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 
 // resolveDir returns the absolute project directory.
 func (p *BuildProvider) resolveDir() (string, error) {
-	return filepath.Abs(p.projectDir)
+	return ax.Abs(p.projectDir)
 }
 
 // -- Build Handlers -----------------------------------------------------------
@@ -278,10 +286,10 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		binaryName = cfg.Project.Name
 	}
 	if binaryName == "" {
-		binaryName = filepath.Base(dir)
+		binaryName = ax.Base(dir)
 	}
 
-	outputDir := filepath.Join(dir, "dist")
+	outputDir := ax.Join(dir, "dist")
 
 	buildConfig := &build.Config{
 		FS:         p.medium,
@@ -348,7 +356,7 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 		return
 	}
 
-	distDir := filepath.Join(dir, "dist")
+	distDir := ax.Join(dir, "dist")
 	if !p.medium.IsDir(distDir) {
 		c.JSON(http.StatusOK, api.OK(map[string]any{
 			"artifacts": []artifactInfo{},
@@ -374,7 +382,7 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 		}
 		artifacts = append(artifacts, artifactInfo{
 			Name: entry.Name(),
-			Path: filepath.Join(distDir, entry.Name()),
+			Path: ax.Join(distDir, entry.Name()),
 			Size: info.Size(),
 		})
 	}
@@ -566,7 +574,7 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 	case build.ProjectTypeGo:
 		return builders.NewGoBuilder(), nil
 	default:
-		return nil, os.ErrNotExist
+		return nil, fs.ErrNotExist
 	}
 }
 

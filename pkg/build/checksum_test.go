@@ -1,11 +1,10 @@
 package build
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,14 +15,14 @@ func setupChecksumTestFile(t *testing.T, content string) string {
 	t.Helper()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "testfile")
-	err := os.WriteFile(path, []byte(content), 0644)
+	path := ax.Join(dir, "testfile")
+	err := ax.WriteFile(path, []byte(content), 0644)
 	require.NoError(t, err)
 
 	return path
 }
 
-func TestChecksum_Good(t *testing.T) {
+func TestChecksum_Checksum_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("computes SHA256 checksum", func(t *testing.T) {
 		// Known SHA256 of "Hello, World!\n"
@@ -99,7 +98,7 @@ func TestChecksum_Good(t *testing.T) {
 	})
 }
 
-func TestChecksum_Bad(t *testing.T) {
+func TestChecksum_Checksum_Bad(t *testing.T) {
 	fs := io.Local
 	t.Run("returns error for empty path", func(t *testing.T) {
 		artifact := Artifact{
@@ -128,7 +127,7 @@ func TestChecksum_Bad(t *testing.T) {
 	})
 }
 
-func TestChecksumAll_Good(t *testing.T) {
+func TestChecksum_ChecksumAll_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("checksums multiple artifacts", func(t *testing.T) {
 		paths := []string{
@@ -168,7 +167,7 @@ func TestChecksumAll_Good(t *testing.T) {
 	})
 }
 
-func TestChecksumAll_Bad(t *testing.T) {
+func TestChecksum_ChecksumAll_Bad(t *testing.T) {
 	fs := io.Local
 	t.Run("returns partial results on error", func(t *testing.T) {
 		path := setupChecksumTestFile(t, "valid content")
@@ -186,11 +185,11 @@ func TestChecksumAll_Bad(t *testing.T) {
 	})
 }
 
-func TestWriteChecksumFile_Good(t *testing.T) {
+func TestChecksum_WriteChecksumFile_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("writes checksum file with correct format", func(t *testing.T) {
 		dir := t.TempDir()
-		checksumPath := filepath.Join(dir, "CHECKSUMS.txt")
+		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
 
 		artifacts := []Artifact{
 			{Path: "/output/app_linux_amd64.tar.gz", Checksum: "abc123def456", OS: "linux", Arch: "amd64"},
@@ -201,10 +200,10 @@ func TestWriteChecksumFile_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		// Read and verify content
-		content, err := os.ReadFile(checksumPath)
+		content, err := ax.ReadFile(checksumPath)
 		require.NoError(t, err)
 
-		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+		lines := core.Split(core.Trim(string(content)), "\n")
 		require.Len(t, lines, 2)
 
 		// Lines should be sorted alphabetically
@@ -214,7 +213,7 @@ func TestWriteChecksumFile_Good(t *testing.T) {
 
 	t.Run("creates parent directories", func(t *testing.T) {
 		dir := t.TempDir()
-		checksumPath := filepath.Join(dir, "nested", "deep", "CHECKSUMS.txt")
+		checksumPath := ax.Join(dir, "nested", "deep", "CHECKSUMS.txt")
 
 		artifacts := []Artifact{
 			{Path: "/output/app.tar.gz", Checksum: "abc123", OS: "linux", Arch: "amd64"},
@@ -227,19 +226,18 @@ func TestWriteChecksumFile_Good(t *testing.T) {
 
 	t.Run("does nothing for empty artifacts", func(t *testing.T) {
 		dir := t.TempDir()
-		checksumPath := filepath.Join(dir, "CHECKSUMS.txt")
+		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
 
 		err := WriteChecksumFile(fs, []Artifact{}, checksumPath)
 		require.NoError(t, err)
 
 		// File should not exist
-		_, err = os.Stat(checksumPath)
-		assert.True(t, os.IsNotExist(err))
+		assert.False(t, ax.Exists(checksumPath))
 	})
 
 	t.Run("does nothing for nil artifacts", func(t *testing.T) {
 		dir := t.TempDir()
-		checksumPath := filepath.Join(dir, "CHECKSUMS.txt")
+		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
 
 		err := WriteChecksumFile(fs, nil, checksumPath)
 		require.NoError(t, err)
@@ -247,7 +245,7 @@ func TestWriteChecksumFile_Good(t *testing.T) {
 
 	t.Run("uses only basename for filenames", func(t *testing.T) {
 		dir := t.TempDir()
-		checksumPath := filepath.Join(dir, "CHECKSUMS.txt")
+		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
 
 		artifacts := []Artifact{
 			{Path: "/some/deep/nested/path/myapp_linux_amd64.tar.gz", Checksum: "checksum123", OS: "linux", Arch: "amd64"},
@@ -256,7 +254,7 @@ func TestWriteChecksumFile_Good(t *testing.T) {
 		err := WriteChecksumFile(fs, artifacts, checksumPath)
 		require.NoError(t, err)
 
-		content, err := os.ReadFile(checksumPath)
+		content, err := ax.ReadFile(checksumPath)
 		require.NoError(t, err)
 
 		// Should only contain the basename
@@ -265,11 +263,11 @@ func TestWriteChecksumFile_Good(t *testing.T) {
 	})
 }
 
-func TestWriteChecksumFile_Bad(t *testing.T) {
+func TestChecksum_WriteChecksumFile_Bad(t *testing.T) {
 	fs := io.Local
 	t.Run("returns error for artifact without checksum", func(t *testing.T) {
 		dir := t.TempDir()
-		checksumPath := filepath.Join(dir, "CHECKSUMS.txt")
+		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
 
 		artifacts := []Artifact{
 			{Path: "/output/app.tar.gz", Checksum: "", OS: "linux", Arch: "amd64"}, // No checksum

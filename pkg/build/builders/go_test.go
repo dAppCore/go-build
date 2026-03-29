@@ -2,10 +2,10 @@ package builders
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"runtime"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
@@ -23,7 +23,7 @@ func setupGoTestProject(t *testing.T) string {
 
 go 1.21
 `
-	err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0644)
+	err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
 
 	// Create a minimal main.go
@@ -33,22 +33,22 @@ func main() {
 	println("hello")
 }
 `
-	err = os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0644)
+	err = ax.WriteFile(ax.Join(dir, "main.go"), []byte(mainGo), 0644)
 	require.NoError(t, err)
 
 	return dir
 }
 
-func TestGoBuilder_Name_Good(t *testing.T) {
+func TestGo_GoBuilderName_Good(t *testing.T) {
 	builder := NewGoBuilder()
 	assert.Equal(t, "go", builder.Name())
 }
 
-func TestGoBuilder_Detect_Good(t *testing.T) {
+func TestGo_GoBuilderDetect_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("detects Go project with go.mod", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644)
 		require.NoError(t, err)
 
 		builder := NewGoBuilder()
@@ -59,7 +59,7 @@ func TestGoBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("detects Wails project", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "wails.json"), []byte("{}"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0644)
 		require.NoError(t, err)
 
 		builder := NewGoBuilder()
@@ -71,7 +71,7 @@ func TestGoBuilder_Detect_Good(t *testing.T) {
 	t.Run("returns false for non-Go project", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create a Node.js project instead
-		err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0644)
 		require.NoError(t, err)
 
 		builder := NewGoBuilder()
@@ -90,7 +90,7 @@ func TestGoBuilder_Detect_Good(t *testing.T) {
 	})
 }
 
-func TestGoBuilder_Build_Good(t *testing.T) {
+func TestGo_GoBuilderBuild_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -178,7 +178,7 @@ func TestGoBuilder_Build_Good(t *testing.T) {
 		require.Len(t, artifacts, 1)
 
 		// Verify .exe extension
-		assert.True(t, filepath.Ext(artifacts[0].Path) == ".exe")
+		assert.True(t, ax.Ext(artifacts[0].Path) == ".exe")
 		assert.FileExists(t, artifacts[0].Path)
 	})
 
@@ -202,7 +202,7 @@ func TestGoBuilder_Build_Good(t *testing.T) {
 		require.Len(t, artifacts, 1)
 
 		// Binary should use the project directory base name
-		baseName := filepath.Base(projectDir)
+		baseName := ax.Base(projectDir)
 		if runtime.GOOS == "windows" {
 			baseName += ".exe"
 		}
@@ -233,7 +233,7 @@ func TestGoBuilder_Build_Good(t *testing.T) {
 
 	t.Run("creates output directory if missing", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
-		outputDir := filepath.Join(t.TempDir(), "nested", "output")
+		outputDir := ax.Join(t.TempDir(), "nested", "output")
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
@@ -254,7 +254,7 @@ func TestGoBuilder_Build_Good(t *testing.T) {
 	})
 }
 
-func TestGoBuilder_Build_Bad(t *testing.T) {
+func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 	t.Run("returns error for nil config", func(t *testing.T) {
 		builder := NewGoBuilder()
 
@@ -310,11 +310,11 @@ func TestGoBuilder_Build_Bad(t *testing.T) {
 		dir := t.TempDir()
 
 		// Create go.mod
-		err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n\ngo 1.21"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test\n\ngo 1.21"), 0644)
 		require.NoError(t, err)
 
 		// Create invalid Go code
-		err = os.WriteFile(filepath.Join(dir, "main.go"), []byte("this is not valid go code"), 0644)
+		err = ax.WriteFile(ax.Join(dir, "main.go"), []byte("this is not valid go code"), 0644)
 		require.NoError(t, err)
 
 		builder := NewGoBuilder()
@@ -391,7 +391,7 @@ func TestGoBuilder_Build_Bad(t *testing.T) {
 	})
 }
 
-func TestGoBuilder_Interface_Good(t *testing.T) {
+func TestGo_GoBuilderInterface_Good(t *testing.T) {
 	// Verify GoBuilder implements Builder interface
 	var _ build.Builder = (*GoBuilder)(nil)
 	var _ build.Builder = NewGoBuilder()

@@ -2,40 +2,44 @@ package generators
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // GoGenerator generates Go SDKs from OpenAPI specs.
+// Usage example: declare a value of type generators.GoGenerator in integrating code.
 type GoGenerator struct{}
 
 // NewGoGenerator creates a new Go generator.
+// Usage example: call generators.NewGoGenerator(...) from integrating code.
 func NewGoGenerator() *GoGenerator {
 	return &GoGenerator{}
 }
 
 // Language returns the generator's target language identifier.
+// Usage example: call value.Language(...) from integrating code.
 func (g *GoGenerator) Language() string {
 	return "go"
 }
 
 // Available checks if generator dependencies are installed.
+// Usage example: call value.Available(...) from integrating code.
 func (g *GoGenerator) Available() bool {
-	_, err := exec.LookPath("oapi-codegen")
+	_, err := ax.LookPath("oapi-codegen")
 	return err == nil
 }
 
 // Install returns instructions for installing the generator.
+// Usage example: call value.Install(...) from integrating code.
 func (g *GoGenerator) Install() string {
 	return "go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest"
 }
 
 // Generate creates SDK from OpenAPI spec.
+// Usage example: call value.Generate(...) from integrating code.
 func (g *GoGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
 		return coreerr.E("go.Generate", "failed to create output dir", err)
@@ -44,32 +48,31 @@ func (g *GoGenerator) Generate(ctx context.Context, opts Options) error {
 	if g.Available() {
 		return g.generateNative(ctx, opts)
 	}
+	if !dockerRuntimeAvailable() {
+		return coreerr.E("go.Generate", "Docker is required for fallback generation but not available", nil)
+	}
 	return g.generateDocker(ctx, opts)
 }
 
 func (g *GoGenerator) generateNative(ctx context.Context, opts Options) error {
-	outputFile := filepath.Join(opts.OutputDir, "client.go")
+	outputFile := ax.Join(opts.OutputDir, "client.go")
 
-	cmd := exec.CommandContext(ctx, "oapi-codegen",
+	if err := ax.Exec(ctx, "oapi-codegen",
 		"-package", opts.PackageName,
 		"-generate", "types,client",
 		"-o", outputFile,
 		opts.SpecPath,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	); err != nil {
 		return coreerr.E("go.generateNative", "oapi-codegen failed", err)
 	}
 
-	goMod := fmt.Sprintf("module %s\n\ngo 1.21\n", opts.PackageName)
-	return coreio.Local.Write(filepath.Join(opts.OutputDir, "go.mod"), goMod)
+	goMod := core.Sprintf("module %s\n\ngo 1.21\n", opts.PackageName)
+	return coreio.Local.Write(ax.Join(opts.OutputDir, "go.mod"), goMod)
 }
 
 func (g *GoGenerator) generateDocker(ctx context.Context, opts Options) error {
-	specDir := filepath.Dir(opts.SpecPath)
-	specName := filepath.Base(opts.SpecPath)
+	specDir := ax.Dir(opts.SpecPath)
+	specName := ax.Base(opts.SpecPath)
 
 	args := []string{"run", "--rm"}
 	args = append(args, dockerUserArgs()...)
@@ -83,8 +86,5 @@ func (g *GoGenerator) generateDocker(ctx context.Context, opts Options) error {
 		"--additional-properties=packageName="+opts.PackageName,
 	)
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return ax.Exec(ctx, "docker", args...)
 }

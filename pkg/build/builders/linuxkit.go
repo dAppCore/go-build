@@ -3,43 +3,44 @@ package builders
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // LinuxKitBuilder builds LinuxKit images.
+// Usage example: declare a value of type builders.LinuxKitBuilder in integrating code.
 type LinuxKitBuilder struct{}
 
 // NewLinuxKitBuilder creates a new LinuxKit builder.
+// Usage example: call builders.NewLinuxKitBuilder(...) from integrating code.
 func NewLinuxKitBuilder() *LinuxKitBuilder {
 	return &LinuxKitBuilder{}
 }
 
 // Name returns the builder's identifier.
+// Usage example: call value.Name(...) from integrating code.
 func (b *LinuxKitBuilder) Name() string {
 	return "linuxkit"
 }
 
 // Detect checks if a linuxkit.yml or .yml config exists in the directory.
+// Usage example: call value.Detect(...) from integrating code.
 func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	// Check for linuxkit.yml
-	if fs.IsFile(filepath.Join(dir, "linuxkit.yml")) {
+	if fs.IsFile(ax.Join(dir, "linuxkit.yml")) {
 		return true, nil
 	}
 	// Check for .core/linuxkit/
-	lkDir := filepath.Join(dir, ".core", "linuxkit")
+	lkDir := ax.Join(dir, ".core", "linuxkit")
 	if fs.IsDir(lkDir) {
 		entries, err := fs.List(lkDir)
 		if err == nil {
 			for _, entry := range entries {
-				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yml") {
+				if !entry.IsDir() && core.HasSuffix(entry.Name(), ".yml") {
 					return true, nil
 				}
 			}
@@ -49,6 +50,7 @@ func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 }
 
 // Build builds LinuxKit images for the specified targets.
+// Usage example: call value.Build(...) from integrating code.
 func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	// Validate linuxkit CLI is available
 	if err := b.validateLinuxKitCli(); err != nil {
@@ -59,17 +61,17 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	configPath := cfg.LinuxKitConfig
 	if configPath == "" {
 		// Auto-detect
-		if cfg.FS.IsFile(filepath.Join(cfg.ProjectDir, "linuxkit.yml")) {
-			configPath = filepath.Join(cfg.ProjectDir, "linuxkit.yml")
+		if cfg.FS.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yml")) {
+			configPath = ax.Join(cfg.ProjectDir, "linuxkit.yml")
 		} else {
 			// Look in .core/linuxkit/
-			lkDir := filepath.Join(cfg.ProjectDir, ".core", "linuxkit")
+			lkDir := ax.Join(cfg.ProjectDir, ".core", "linuxkit")
 			if cfg.FS.IsDir(lkDir) {
 				entries, err := cfg.FS.List(lkDir)
 				if err == nil {
 					for _, entry := range entries {
-						if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yml") {
-							configPath = filepath.Join(lkDir, entry.Name())
+						if !entry.IsDir() && core.HasSuffix(entry.Name(), ".yml") {
+							configPath = ax.Join(lkDir, entry.Name())
 							break
 						}
 					}
@@ -96,7 +98,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	// Create output directory
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
-		outputDir = filepath.Join(cfg.ProjectDir, "dist")
+		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
 	if err := cfg.FS.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("LinuxKitBuilder.Build", "failed to create output directory", err)
@@ -105,7 +107,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	// Determine base name from config file or project name
 	baseName := cfg.Name
 	if baseName == "" {
-		baseName = strings.TrimSuffix(filepath.Base(configPath), ".yml")
+		baseName = core.TrimSuffix(ax.Base(configPath), ".yml")
 	}
 
 	// If no targets, default to linux/amd64
@@ -119,23 +121,17 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	for _, target := range targets {
 		// LinuxKit only supports Linux
 		if target.OS != "linux" {
-			fmt.Printf("Skipping %s/%s (LinuxKit only supports Linux)\n", target.OS, target.Arch)
+			core.Print(nil, "Skipping %s/%s (LinuxKit only supports Linux)", target.OS, target.Arch)
 			continue
 		}
 
 		for _, format := range formats {
-			outputName := fmt.Sprintf("%s-%s", baseName, target.Arch)
+			outputName := core.Sprintf("%s-%s", baseName, target.Arch)
 
 			args := b.buildLinuxKitArgs(configPath, format, outputName, outputDir, target.Arch)
 
-			cmd := exec.CommandContext(ctx, "linuxkit", args...)
-			cmd.Dir = cfg.ProjectDir
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-
-			fmt.Printf("Building LinuxKit image: %s (%s, %s)\n", outputName, format, target.Arch)
-
-			if err := cmd.Run(); err != nil {
+			core.Print(nil, "Building LinuxKit image: %s (%s, %s)", outputName, format, target.Arch)
+			if err := ax.ExecDir(ctx, cfg.ProjectDir, "linuxkit", args...); err != nil {
 				return nil, coreerr.E("LinuxKitBuilder.Build", "build failed for "+target.Arch+"/"+format, err)
 			}
 
@@ -189,7 +185,7 @@ func (b *LinuxKitBuilder) buildLinuxKitArgs(configPath, format, outputName, outp
 // getArtifactPath returns the expected path of the built artifact.
 func (b *LinuxKitBuilder) getArtifactPath(outputDir, outputName, format string) string {
 	ext := b.getFormatExtension(format)
-	return filepath.Join(outputDir, outputName+ext)
+	return ax.Join(outputDir, outputName+ext)
 }
 
 // findArtifact searches for the built artifact with various naming conventions.
@@ -202,7 +198,7 @@ func (b *LinuxKitBuilder) findArtifact(fs io.Medium, outputDir, outputName, form
 	}
 
 	for _, ext := range extensions {
-		path := filepath.Join(outputDir, outputName+ext)
+		path := ax.Join(outputDir, outputName+ext)
 		if fs.Exists(path) {
 			return path
 		}
@@ -212,10 +208,10 @@ func (b *LinuxKitBuilder) findArtifact(fs io.Medium, outputDir, outputName, form
 	entries, err := fs.List(outputDir)
 	if err == nil {
 		for _, entry := range entries {
-			if strings.HasPrefix(entry.Name(), outputName) {
-				match := filepath.Join(outputDir, entry.Name())
+			if core.HasPrefix(entry.Name(), outputName) {
+				match := ax.Join(outputDir, entry.Name())
 				// Return first match that looks like an image
-				ext := filepath.Ext(match)
+				ext := ax.Ext(match)
 				if ext == ".iso" || ext == ".qcow2" || ext == ".raw" || ext == ".vmdk" || ext == ".vhd" {
 					return match
 				}
@@ -244,14 +240,14 @@ func (b *LinuxKitBuilder) getFormatExtension(format string) string {
 	case "aws":
 		return ".raw"
 	default:
-		return "." + strings.TrimSuffix(format, "-bios")
+		return "." + core.TrimSuffix(format, "-bios")
 	}
 }
 
 // validateLinuxKitCli checks if the linuxkit CLI is available.
 func (b *LinuxKitBuilder) validateLinuxKitCli() error {
 	// Check PATH first
-	if _, err := exec.LookPath("linuxkit"); err == nil {
+	if _, err := ax.LookPath("linuxkit"); err == nil {
 		return nil
 	}
 

@@ -8,22 +8,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGPGSigner_Good_Name(t *testing.T) {
+func TestGPG_GPGSignerName_Good(t *testing.T) {
 	s := NewGPGSigner("ABCD1234")
 	assert.Equal(t, "gpg", s.Name())
 }
 
-func TestGPGSigner_Good_Available(t *testing.T) {
+func TestGPG_GPGSignerAvailable_Good(t *testing.T) {
 	s := NewGPGSigner("ABCD1234")
 	_ = s.Available()
 }
 
-func TestGPGSigner_Bad_NoKey(t *testing.T) {
+func TestGPG_GPGSignerNoKey_Bad(t *testing.T) {
 	s := NewGPGSigner("")
 	assert.False(t, s.Available())
 }
 
-func TestGPGSigner_Sign_Bad(t *testing.T) {
+func TestGPG_GPGSignerSign_Bad(t *testing.T) {
 	fs := io.Local
 	t.Run("fails when no key", func(t *testing.T) {
 		s := NewGPGSigner("")

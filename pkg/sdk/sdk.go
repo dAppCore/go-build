@@ -3,14 +3,15 @@ package sdk
 
 import (
 	"context"
-	"fmt"
-	"path/filepath"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/sdk/generators"
 	coreerr "dappco.re/go/core/log"
 )
 
 // Config holds SDK generation configuration from .core/release.yaml.
+// Usage example: declare a value of type sdk.Config in integrating code.
 type Config struct {
 	// Spec is the path to the OpenAPI spec file (auto-detected if empty).
 	Spec string `yaml:"spec,omitempty"`
@@ -27,6 +28,7 @@ type Config struct {
 }
 
 // PackageConfig holds package naming configuration.
+// Usage example: declare a value of type sdk.PackageConfig in integrating code.
 type PackageConfig struct {
 	// Name is the base package name.
 	Name string `yaml:"name,omitempty"`
@@ -35,6 +37,7 @@ type PackageConfig struct {
 }
 
 // DiffConfig holds breaking change detection configuration.
+// Usage example: declare a value of type sdk.DiffConfig in integrating code.
 type DiffConfig struct {
 	// Enabled determines whether to run diff checks.
 	Enabled bool `yaml:"enabled,omitempty"`
@@ -43,6 +46,7 @@ type DiffConfig struct {
 }
 
 // PublishConfig holds monorepo publishing configuration.
+// Usage example: declare a value of type sdk.PublishConfig in integrating code.
 type PublishConfig struct {
 	// Repo is the SDK monorepo (e.g., "myorg/sdks").
 	Repo string `yaml:"repo,omitempty"`
@@ -51,6 +55,7 @@ type PublishConfig struct {
 }
 
 // SDK orchestrates OpenAPI SDK generation.
+// Usage example: declare a value of type sdk.SDK in integrating code.
 type SDK struct {
 	config     *Config
 	projectDir string
@@ -58,6 +63,7 @@ type SDK struct {
 }
 
 // New creates a new SDK instance.
+// Usage example: call sdk.New(...) from integrating code.
 func New(projectDir string, config *Config) *SDK {
 	if config == nil {
 		config = DefaultConfig()
@@ -70,6 +76,7 @@ func New(projectDir string, config *Config) *SDK {
 
 // SetVersion sets the SDK version for generation.
 // This updates both the internal version field and the config's Package.Version.
+// Usage example: call value.SetVersion(...) from integrating code.
 func (s *SDK) SetVersion(version string) {
 	s.version = version
 	if s.config != nil {
@@ -78,6 +85,7 @@ func (s *SDK) SetVersion(version string) {
 }
 
 // DefaultConfig returns sensible defaults for SDK configuration.
+// Usage example: call sdk.DefaultConfig(...) from integrating code.
 func DefaultConfig() *Config {
 	return &Config{
 		Languages: []string{"typescript", "python", "go", "php"},
@@ -90,6 +98,7 @@ func DefaultConfig() *Config {
 }
 
 // Generate generates SDKs for all configured languages.
+// Usage example: call value.Generate(...) from integrating code.
 func (s *SDK) Generate(ctx context.Context) error {
 	// Generate for each language
 	for _, lang := range s.config.Languages {
@@ -102,6 +111,7 @@ func (s *SDK) Generate(ctx context.Context) error {
 }
 
 // GenerateLanguage generates SDK for a specific language.
+// Usage example: call value.GenerateLanguage(...) from integrating code.
 func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 	specPath, err := s.DetectSpec()
 	if err != nil {
@@ -120,11 +130,11 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 	}
 
 	if !gen.Available() {
-		fmt.Printf("Warning: %s generator not available. Install with: %s\n", lang, gen.Install())
-		fmt.Printf("Falling back to Docker...\n")
+		core.Print(nil, "Warning: %s generator not available. Install with: %s", lang, gen.Install())
+		core.Print(nil, "Falling back to Docker...")
 	}
 
-	outputDir := filepath.Join(s.projectDir, s.config.Output, lang)
+	outputDir := ax.Join(s.projectDir, s.config.Output, lang)
 	opts := generators.Options{
 		SpecPath:    specPath,
 		OutputDir:   outputDir,
@@ -132,11 +142,11 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 		Version:     s.config.Package.Version,
 	}
 
-	fmt.Printf("Generating %s SDK...\n", lang)
+	core.Print(nil, "Generating %s SDK...", lang)
 	if err := gen.Generate(ctx, opts); err != nil {
 		return coreerr.E("sdk.GenerateLanguage", lang+" generation failed", err)
 	}
-	fmt.Printf("Generated %s SDK at %s\n", lang, outputDir)
+	core.Print(nil, "Generated %s SDK at %s", lang, outputDir)
 
 	return nil
 }

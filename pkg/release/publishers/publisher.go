@@ -9,6 +9,7 @@ import (
 )
 
 // Release represents a release to be published.
+// Usage example: declare a value of type publishers.Release in integrating code.
 type Release struct {
 	// Version is the semantic version string (e.g., "v1.2.3").
 	Version string
@@ -23,6 +24,7 @@ type Release struct {
 }
 
 // PublisherConfig holds configuration for a publisher.
+// Usage example: declare a value of type publishers.PublisherConfig in integrating code.
 type PublisherConfig struct {
 	// Type is the publisher type (e.g., "github", "linuxkit", "docker").
 	Type string
@@ -35,12 +37,14 @@ type PublisherConfig struct {
 }
 
 // ReleaseConfig holds release configuration needed by publishers.
+// Usage example: declare a value of type publishers.ReleaseConfig in integrating code.
 type ReleaseConfig interface {
 	GetRepository() string
 	GetProjectName() string
 }
 
 // Publisher defines the interface for release publishers.
+// Usage example: declare a value of type publishers.Publisher in integrating code.
 type Publisher interface {
 	// Name returns the publisher's identifier.
 	Name() string
@@ -51,6 +55,7 @@ type Publisher interface {
 
 // NewRelease creates a Release from the release package's Release type.
 // This is a helper to convert between packages.
+// Usage example: call publishers.NewRelease(...) from integrating code.
 func NewRelease(version string, artifacts []build.Artifact, changelog, projectDir string, fs io.Medium) *Release {
 	return &Release{
 		Version:    version,
@@ -62,6 +67,7 @@ func NewRelease(version string, artifacts []build.Artifact, changelog, projectDi
 }
 
 // NewPublisherConfig creates a PublisherConfig.
+// Usage example: call publishers.NewPublisherConfig(...) from integrating code.
 func NewPublisherConfig(pubType string, prerelease, draft bool, extended any) PublisherConfig {
 	return PublisherConfig{
 		Type:       pubType,

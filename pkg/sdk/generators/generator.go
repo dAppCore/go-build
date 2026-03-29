@@ -3,15 +3,16 @@ package generators
 
 import (
 	"context"
-	"fmt"
 	"iter"
-	"maps"
-	"os"
 	"runtime"
-	"slices"
+	"sort"
+
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 )
 
 // Options holds common generation options.
+// Usage example: declare a value of type generators.Options in integrating code.
 type Options struct {
 	// SpecPath is the path to the OpenAPI spec file.
 	SpecPath string
@@ -24,6 +25,7 @@ type Options struct {
 }
 
 // Generator defines the interface for SDK generators.
+// Usage example: declare a value of type generators.Generator in integrating code.
 type Generator interface {
 	// Language returns the generator's target language identifier.
 	Language() string
@@ -39,11 +41,13 @@ type Generator interface {
 }
 
 // Registry holds available generators.
+// Usage example: declare a value of type generators.Registry in integrating code.
 type Registry struct {
 	generators map[string]Generator
 }
 
 // NewRegistry creates a registry with all available generators.
+// Usage example: call generators.NewRegistry(...) from integrating code.
 func NewRegistry() *Registry {
 	r := &Registry{
 		generators: make(map[string]Generator),
@@ -53,26 +57,39 @@ func NewRegistry() *Registry {
 }
 
 // Get returns a generator by language.
+// Usage example: call value.Get(...) from integrating code.
 func (r *Registry) Get(lang string) (Generator, bool) {
 	g, ok := r.generators[lang]
 	return g, ok
 }
 
 // Register adds a generator to the registry.
+// Usage example: call value.Register(...) from integrating code.
 func (r *Registry) Register(g Generator) {
 	r.generators[g.Language()] = g
 }
 
 // Languages returns all registered language identifiers.
+// Usage example: call value.Languages(...) from integrating code.
 func (r *Registry) Languages() []string {
-	return slices.Collect(r.LanguagesIter())
+	var languages []string
+	for lang := range r.LanguagesIter() {
+		languages = append(languages, lang)
+	}
+	return languages
 }
 
 // LanguagesIter returns an iterator for all registered language identifiers.
+// Usage example: call value.LanguagesIter(...) from integrating code.
 func (r *Registry) LanguagesIter() iter.Seq[string] {
 	return func(yield func(string) bool) {
 		// Sort keys for deterministic iteration
-		for _, lang := range slices.Sorted(maps.Keys(r.generators)) {
+		keys := make([]string, 0, len(r.generators))
+		for lang := range r.generators {
+			keys = append(keys, lang)
+		}
+		sort.Strings(keys)
+		for _, lang := range keys {
 			if !yield(lang) {
 				return
 			}
@@ -86,5 +103,5 @@ func dockerUserArgs() []string {
 	if runtime.GOOS == "windows" {
 		return nil
 	}
-	return []string{"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())}
+	return []string{"--user", core.Sprintf("%d:%d", ax.Getuid(), ax.Getgid())}
 }
