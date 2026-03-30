@@ -40,6 +40,10 @@ func (g *GoGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 // Usage example: call value.Generate(...) from integrating code.
 func (g *GoGenerator) Generate(ctx context.Context, opts Options) error {
+	if err := ctx.Err(); err != nil {
+		return coreerr.E("go.Generate", "generation cancelled", err)
+	}
+
 	if err := ax.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return coreerr.E("go.Generate", "failed to create output dir", err)
 	}
@@ -47,7 +51,10 @@ func (g *GoGenerator) Generate(ctx context.Context, opts Options) error {
 	if command, err := g.resolveNativeCli(); err == nil {
 		return g.generateNative(ctx, opts, command)
 	}
-	if !dockerRuntimeAvailable() {
+	if !dockerRuntimeAvailableWithContext(ctx) {
+		if err := ctx.Err(); err != nil {
+			return coreerr.E("go.Generate", "generation cancelled", err)
+		}
 		return coreerr.E("go.Generate", "Docker is required for fallback generation but not available", nil)
 	}
 	return g.generateDocker(ctx, opts)

@@ -1,6 +1,7 @@
 package generators
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -10,7 +11,8 @@ import (
 )
 
 func resetDockerRuntimeState() {
-	dockerRuntimeOnce = sync.Once{}
+	dockerRuntimeMu = sync.Mutex{}
+	dockerRuntimeChecked = false
 	dockerRuntimeOK = false
 }
 
@@ -46,4 +48,20 @@ func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
 	assert.True(t, NewPythonGenerator().Available())
 	assert.True(t, NewTypeScriptGenerator().Available())
 	assert.True(t, NewPHPGenerator().Available())
+}
+
+func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T) {
+	resetDockerRuntimeState()
+	t.Cleanup(resetDockerRuntimeState)
+
+	dockerDir := t.TempDir()
+	dockerPath := ax.Join(dockerDir, "docker")
+	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", dockerDir)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.False(t, dockerRuntimeAvailableWithContext(ctx))
+	assert.True(t, dockerRuntimeAvailable())
 }

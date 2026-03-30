@@ -381,7 +381,7 @@ func TestGitHub_DetectRepository_Good(t *testing.T) {
 		runPublisherCommand(t, tmpDir, "git", "init")
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@github.com:test-owner/test-repo.git")
 
-		repo, err := detectRepository(tmpDir)
+		repo, err := detectRepository(context.Background(), tmpDir)
 		require.NoError(t, err)
 		assert.Equal(t, "test-owner/test-repo", repo)
 	})
@@ -391,7 +391,7 @@ func TestGitHub_DetectRepository_Good(t *testing.T) {
 		runPublisherCommand(t, tmpDir, "git", "init")
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "https://github.com/another-owner/another-repo.git")
 
-		repo, err := detectRepository(tmpDir)
+		repo, err := detectRepository(context.Background(), tmpDir)
 		require.NoError(t, err)
 		assert.Equal(t, "another-owner/another-repo", repo)
 	})
@@ -401,13 +401,13 @@ func TestGitHub_DetectRepository_Bad(t *testing.T) {
 	t.Run("fails when not a git repository", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		_, err := detectRepository(tmpDir)
+		_, err := detectRepository(context.Background(), tmpDir)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get git remote")
 	})
 
 	t.Run("fails when directory does not exist", func(t *testing.T) {
-		_, err := detectRepository("/nonexistent/directory/that/does/not/exist")
+		_, err := detectRepository(context.Background(), "/nonexistent/directory/that/does/not/exist")
 		assert.Error(t, err)
 	})
 
@@ -416,9 +416,23 @@ func TestGitHub_DetectRepository_Bad(t *testing.T) {
 		runPublisherCommand(t, tmpDir, "git", "init")
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@gitlab.com:owner/repo.git")
 
-		_, err := detectRepository(tmpDir)
+		_, err := detectRepository(context.Background(), tmpDir)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not a GitHub URL")
+	})
+
+	t.Run("respects cancelled context", func(t *testing.T) {
+		commandDir := t.TempDir()
+		commandPath := ax.Join(commandDir, "git")
+		require.NoError(t, ax.WriteFile(commandPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+		t.Setenv("PATH", commandDir)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := detectRepository(ctx, t.TempDir())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
 	})
 }
 
@@ -429,7 +443,7 @@ func TestGitHub_ValidateGhCli_Bad(t *testing.T) {
 	t.Run("returns error when gh not installed", func(t *testing.T) {
 		// We can't force gh to not be installed, but we can verify
 		// the function signature works correctly
-		err := validateGhCli()
+		err := validateGhCli(context.Background())
 		if err != nil {
 			// Either gh is not installed or not authenticated
 			assert.True(t,
@@ -438,6 +452,20 @@ func TestGitHub_ValidateGhCli_Bad(t *testing.T) {
 				"unexpected error: %s", err.Error())
 		}
 		// If err is nil, gh is installed and authenticated - that's OK too
+	})
+
+	t.Run("respects cancelled context during auth check", func(t *testing.T) {
+		commandDir := t.TempDir()
+		commandPath := ax.Join(commandDir, "gh")
+		require.NoError(t, ax.WriteFile(commandPath, []byte("#!/bin/sh\necho 'Logged in'\n"), 0o755))
+		t.Setenv("PATH", commandDir)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := validateGhCli(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
 	})
 }
 
@@ -461,7 +489,7 @@ func TestGitHub_ResolveGhCli_Bad(t *testing.T) {
 
 func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
 	// These tests run only when gh CLI is available and authenticated
-	if err := validateGhCli(); err != nil {
+	if err := validateGhCli(context.Background()); err != nil {
 		t.Skip("skipping test: gh CLI not available or not authenticated")
 	}
 
@@ -497,7 +525,7 @@ func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
 
 func TestGitHub_ReleaseExists_Good(t *testing.T) {
 	// These tests run only when gh CLI is available
-	if err := validateGhCli(); err != nil {
+	if err := validateGhCli(context.Background()); err != nil {
 		t.Skip("skipping test: gh CLI not available or not authenticated")
 	}
 

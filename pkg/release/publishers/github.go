@@ -36,7 +36,7 @@ func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 	}
 	if repo == "" {
 		// Try to detect from git remote
-		detectedRepo, err := detectRepository(release.ProjectDir)
+		detectedRepo, err := detectRepository(ctx, release.ProjectDir)
 		if err != nil {
 			return coreerr.E("github.Publish", "could not determine repository", err)
 		}
@@ -53,7 +53,7 @@ func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 	}
 
 	// Validate gh CLI is available and authenticated for actual publish
-	if err := validateGhAuth(ghCommand); err != nil {
+	if err := validateGhAuth(ctx, ghCommand); err != nil {
 		return err
 	}
 
@@ -161,17 +161,17 @@ func resolveGhCli(paths ...string) (string, error) {
 }
 
 // validateGhCli checks if the gh CLI is available and authenticated.
-func validateGhCli() error {
+func validateGhCli(ctx context.Context) error {
 	ghCommand, err := resolveGhCli()
 	if err != nil {
 		return err
 	}
 
-	return validateGhAuth(ghCommand)
+	return validateGhAuth(ctx, ghCommand)
 }
 
-func validateGhAuth(ghCommand string) error {
-	output, err := ax.CombinedOutput(context.Background(), "", nil, ghCommand, "auth", "status")
+func validateGhAuth(ctx context.Context, ghCommand string) error {
+	output, err := ax.CombinedOutput(ctx, "", nil, ghCommand, "auth", "status")
 	if err != nil {
 		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", err)
 	}
@@ -184,8 +184,8 @@ func validateGhAuth(ghCommand string) error {
 }
 
 // detectRepository detects the GitHub repository from git remote.
-func detectRepository(dir string) (string, error) {
-	output, err := ax.RunDir(context.Background(), dir, "git", "remote", "get-url", "origin")
+func detectRepository(ctx context.Context, dir string) (string, error) {
+	output, err := ax.RunDir(ctx, dir, "git", "remote", "get-url", "origin")
 	if err != nil {
 		return "", coreerr.E("github.detectRepository", "failed to get git remote", err)
 	}

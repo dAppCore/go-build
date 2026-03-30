@@ -9,19 +9,40 @@ import (
 )
 
 var (
-	dockerRuntimeOnce sync.Once
-	dockerRuntimeOK   bool
+	dockerRuntimeMu      sync.Mutex
+	dockerRuntimeChecked bool
+	dockerRuntimeOK      bool
 )
 
 func dockerRuntimeAvailable() bool {
+	return dockerRuntimeAvailableWithContext(context.Background())
+}
+
+func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 	dockerCommand, err := resolveDockerRuntimeCli()
 	if err != nil {
 		return false
 	}
 
-	dockerRuntimeOnce.Do(func() {
-		dockerRuntimeOK = ax.Exec(context.Background(), dockerCommand, "info") == nil
-	})
+	dockerRuntimeMu.Lock()
+	defer dockerRuntimeMu.Unlock()
+
+	if dockerRuntimeChecked {
+		return dockerRuntimeOK
+	}
+
+	if err := ctx.Err(); err != nil {
+		return false
+	}
+
+	err = ax.Exec(ctx, dockerCommand, "info")
+	if err != nil && ctx.Err() != nil {
+		return false
+	}
+
+	dockerRuntimeChecked = true
+	dockerRuntimeOK = err == nil
+
 	return dockerRuntimeOK
 }
 

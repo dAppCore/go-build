@@ -38,7 +38,14 @@ func (g *PHPGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 // Usage example: call value.Generate(...) from integrating code.
 func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
-	if !g.Available() {
+	if err := ctx.Err(); err != nil {
+		return coreerr.E("php.Generate", "generation cancelled", err)
+	}
+
+	if !dockerRuntimeAvailableWithContext(ctx) {
+		if err := ctx.Err(); err != nil {
+			return coreerr.E("php.Generate", "generation cancelled", err)
+		}
 		return coreerr.E("php.Generate", "Docker is required but not available", nil)
 	}
 

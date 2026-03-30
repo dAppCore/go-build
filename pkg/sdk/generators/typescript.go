@@ -38,6 +38,10 @@ func (g *TypeScriptGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 // Usage example: call value.Generate(...) from integrating code.
 func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) error {
+	if err := ctx.Err(); err != nil {
+		return coreerr.E("typescript.Generate", "generation cancelled", err)
+	}
+
 	if err := ax.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return coreerr.E("typescript.Generate", "failed to create output dir", err)
 	}
@@ -46,11 +50,17 @@ func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) error 
 		return g.generateNative(ctx, opts, command)
 	}
 	if command, err := g.resolveNpxCli(); err == nil {
-		if _, err := ax.Run(context.Background(), command, "--version"); err == nil {
+		if g.npxAvailableWithContext(ctx, command) {
 			return g.generateNpx(ctx, opts, command)
 		}
+		if err := ctx.Err(); err != nil {
+			return coreerr.E("typescript.Generate", "generation cancelled", err)
+		}
 	}
-	if !dockerRuntimeAvailable() {
+	if !dockerRuntimeAvailableWithContext(ctx) {
+		if err := ctx.Err(); err != nil {
+			return coreerr.E("typescript.Generate", "generation cancelled", err)
+		}
 		return coreerr.E("typescript.Generate", "Docker is required for fallback generation but not available", nil)
 	}
 	return g.generateDocker(ctx, opts)
@@ -66,7 +76,11 @@ func (g *TypeScriptGenerator) npxAvailable() bool {
 	if err != nil {
 		return false
 	}
-	_, err = ax.Run(context.Background(), command, "--version")
+	return g.npxAvailableWithContext(context.Background(), command)
+}
+
+func (g *TypeScriptGenerator) npxAvailableWithContext(ctx context.Context, command string) bool {
+	_, err := ax.Run(ctx, command, "--version")
 	return err == nil
 }
 

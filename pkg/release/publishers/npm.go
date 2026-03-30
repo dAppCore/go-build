@@ -59,7 +59,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 		repo = relCfg.GetRepository()
 	}
 	if repo == "" {
-		detectedRepo, err := detectRepository(release.ProjectDir)
+		detectedRepo, err := detectRepository(ctx, release.ProjectDir)
 		if err != nil {
 			return coreerr.E("npm.Publish", "could not determine repository", err)
 		}

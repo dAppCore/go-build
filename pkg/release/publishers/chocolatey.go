@@ -55,7 +55,7 @@ func (p *ChocolateyPublisher) Publish(ctx context.Context, release *Release, pub
 		repo = relCfg.GetRepository()
 	}
 	if repo == "" {
-		detectedRepo, err := detectRepository(release.ProjectDir)
+		detectedRepo, err := detectRepository(ctx, release.ProjectDir)
 		if err != nil {
 			return coreerr.E("chocolatey.Publish", "could not determine repository", err)
 		}
