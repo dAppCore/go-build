@@ -42,8 +42,8 @@ func (p *LinuxKitPublisher) Name() string {
 // Publish builds LinuxKit images and uploads them to the GitHub release.
 // Usage example: call value.Publish(...) from integrating code.
 func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	// Validate linuxkit CLI is available
-	if err := validateLinuxKitCli(); err != nil {
+	linuxkitCommand, err := resolveLinuxKitCli()
+	if err != nil {
 		return err
 	}
 
@@ -75,7 +75,7 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 		return p.dryRunPublish(release, lkCfg, repo)
 	}
 
-	return p.executePublish(ctx, release, lkCfg, repo)
+	return p.executePublish(ctx, release, lkCfg, repo, linuxkitCommand)
 }
 
 // parseConfig extracts LinuxKit-specific configuration.
@@ -172,7 +172,7 @@ func (p *LinuxKitPublisher) dryRunPublish(release *Release, cfg LinuxKitConfig, 
 }
 
 // executePublish builds LinuxKit images and uploads them.
-func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release, cfg LinuxKitConfig, repo string) error {
+func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release, cfg LinuxKitConfig, repo, linuxkitCommand string) error {
 	outputDir := ax.Join(release.ProjectDir, "dist", "linuxkit")
 
 	// Create output directory
@@ -197,7 +197,7 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 			// Build the image
 			args := p.buildLinuxKitArgs(cfg.Config, format, outputName, outputDir, arch)
 			publisherPrint("Building LinuxKit image: %s (%s)", outputName, format)
-			if err := publisherRun(ctx, release.ProjectDir, nil, "linuxkit", args...); err != nil {
+			if err := publisherRun(ctx, release.ProjectDir, nil, linuxkitCommand, args...); err != nil {
 				return coreerr.E("linuxkit.Publish", "build failed for "+platform+"/"+format, err)
 			}
 
@@ -292,9 +292,26 @@ func (p *LinuxKitPublisher) getFormatExtension(format string) string {
 	}
 }
 
+// resolveLinuxKitCli returns the executable path for the linuxkit CLI.
+func resolveLinuxKitCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/linuxkit",
+			"/opt/homebrew/bin/linuxkit",
+		}
+	}
+
+	command, err := ax.ResolveCommand("linuxkit", paths...)
+	if err != nil {
+		return "", coreerr.E("linuxkit.resolveLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", err)
+	}
+
+	return command, nil
+}
+
 // validateLinuxKitCli checks if the linuxkit CLI is available.
 func validateLinuxKitCli() error {
-	if _, err := ax.LookPath("linuxkit"); err != nil {
+	if _, err := resolveLinuxKitCli(); err != nil {
 		return coreerr.E("linuxkit.validateLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", err)
 	}
 	return nil

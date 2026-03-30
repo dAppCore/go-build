@@ -266,6 +266,22 @@ func TestLinuxKit_ValidateLinuxKitCli_Good(t *testing.T) {
 	})
 }
 
+func TestLinuxKit_ResolveLinuxKitCli_Good(t *testing.T) {
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "linuxkit")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+
+	command, err := resolveLinuxKitCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestLinuxKit_ResolveLinuxKitCli_Bad(t *testing.T) {
+	_, err := resolveLinuxKitCli(ax.Join(t.TempDir(), "missing-linuxkit"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "linuxkit CLI not found")
+}
+
 func TestLinuxKit_LinuxKitPublisherPublishWithCLI_Good(t *testing.T) {
 	// These tests run only when linuxkit CLI is available
 	if err := validateLinuxKitCli(); err != nil {

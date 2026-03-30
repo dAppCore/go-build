@@ -649,6 +649,22 @@ func TestDocker_ValidateDockerCli_Good(t *testing.T) {
 	})
 }
 
+func TestDocker_ResolveDockerCli_Good(t *testing.T) {
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "docker")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+
+	command, err := resolveDockerCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestDocker_ResolveDockerCli_Bad(t *testing.T) {
+	_, err := resolveDockerCli(ax.Join(t.TempDir(), "missing-docker"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "docker CLI not found")
+}
+
 func TestDocker_DockerPublisherPublishWithCLI_Good(t *testing.T) {
 	// These tests run only when docker CLI is available
 	if err := validateDockerCli(); err != nil {

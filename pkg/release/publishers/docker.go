@@ -54,7 +54,8 @@ func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 	}
 
 	// Validate docker CLI is available after local config checks.
-	if err := validateDockerCli(); err != nil {
+	dockerCommand, err := resolveDockerCli()
+	if err != nil {
 		return err
 	}
 
@@ -62,7 +63,7 @@ func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 		return p.dryRunPublish(release, dockerCfg)
 	}
 
-	return p.executePublish(ctx, release, dockerCfg)
+	return p.executePublish(ctx, release, dockerCfg, dockerCommand)
 }
 
 // parseConfig extracts Docker-specific configuration.
@@ -164,9 +165,9 @@ func (p *DockerPublisher) dryRunPublish(release *Release, cfg DockerConfig) erro
 }
 
 // executePublish builds and pushes Docker images.
-func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, cfg DockerConfig) error {
+func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, cfg DockerConfig, dockerCommand string) error {
 	// Ensure buildx is available and builder is set up
-	if err := p.ensureBuildx(ctx); err != nil {
+	if err := p.ensureBuildx(ctx, dockerCommand); err != nil {
 		return err
 	}
 
@@ -177,7 +178,7 @@ func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, 
 	args := p.buildBuildxArgs(cfg, tags, release.Version)
 
 	publisherPrint("Building and pushing Docker image: %s", cfg.Image)
-	if err := publisherRun(ctx, release.ProjectDir, nil, "docker", args...); err != nil {
+	if err := publisherRun(ctx, release.ProjectDir, nil, dockerCommand, args...); err != nil {
 		return coreerr.E("docker.Publish", "buildx build failed", err)
 	}
 
@@ -245,16 +246,16 @@ func (p *DockerPublisher) buildBuildxArgs(cfg DockerConfig, tags []string, versi
 }
 
 // ensureBuildx ensures docker buildx is available and has a builder.
-func (p *DockerPublisher) ensureBuildx(ctx context.Context) error {
+func (p *DockerPublisher) ensureBuildx(ctx context.Context, dockerCommand string) error {
 	// Check if buildx is available
-	if err := ax.Exec(ctx, "docker", "buildx", "version"); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, "buildx", "version"); err != nil {
 		return coreerr.E("docker.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", nil)
 	}
 
 	// Check if we have a builder, create one if not
-	if err := ax.Exec(ctx, "docker", "buildx", "inspect", "--bootstrap"); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, "buildx", "inspect", "--bootstrap"); err != nil {
 		// Try to create a builder
-		if err := publisherRun(ctx, "", nil, "docker", "buildx", "create", "--use", "--bootstrap"); err != nil {
+		if err := publisherRun(ctx, "", nil, dockerCommand, "buildx", "create", "--use", "--bootstrap"); err != nil {
 			return coreerr.E("docker.ensureBuildx", "failed to create buildx builder", err)
 		}
 	}
@@ -262,10 +263,28 @@ func (p *DockerPublisher) ensureBuildx(ctx context.Context) error {
 	return nil
 }
 
+// resolveDockerCli returns the executable path for the docker CLI.
+func resolveDockerCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/docker",
+			"/opt/homebrew/bin/docker",
+			"/Applications/Docker.app/Contents/Resources/bin/docker",
+		}
+	}
+
+	command, err := ax.ResolveCommand("docker", paths...)
+	if err != nil {
+		return "", coreerr.E("docker.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
+	}
+
+	return command, nil
+}
+
 // validateDockerCli checks if the docker CLI is available.
 func validateDockerCli() error {
-	if _, err := ax.LookPath("docker"); err != nil {
-		return coreerr.E("docker.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", nil)
+	if _, err := resolveDockerCli(); err != nil {
+		return coreerr.E("docker.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
 	}
 	return nil
 }

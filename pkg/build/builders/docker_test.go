@@ -81,3 +81,22 @@ func TestDocker_DockerBuilderInterface_Good(t *testing.T) {
 	var _ build.Builder = (*DockerBuilder)(nil)
 	var _ build.Builder = NewDockerBuilder()
 }
+
+func TestDocker_DockerBuilderResolveDockerCli_Good(t *testing.T) {
+	builder := NewDockerBuilder()
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "docker")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+
+	command, err := builder.resolveDockerCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestDocker_DockerBuilderResolveDockerCli_Bad(t *testing.T) {
+	builder := NewDockerBuilder()
+
+	_, err := builder.resolveDockerCli(ax.Join(t.TempDir(), "missing-docker"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "docker CLI not found")
+}

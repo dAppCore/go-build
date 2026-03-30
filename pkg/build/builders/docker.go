@@ -40,13 +40,13 @@ func (b *DockerBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 // Build builds Docker images for the specified targets.
 // Usage example: call value.Build(...) from integrating code.
 func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
-	// Validate docker CLI is available
-	if err := b.validateDockerCli(); err != nil {
+	dockerCommand, err := b.resolveDockerCli()
+	if err != nil {
 		return nil, err
 	}
 
 	// Ensure buildx is available
-	if err := b.ensureBuildx(ctx); err != nil {
+	if err := b.ensureBuildx(ctx, dockerCommand); err != nil {
 		return nil, err
 	}
 
@@ -162,7 +162,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	core.Print(nil, "  Platforms: %s", core.Join(", ", platforms...))
 	core.Print(nil, "  Tags: %s", core.Join(", ", imageRefs...))
 
-	if err := ax.ExecDir(ctx, cfg.ProjectDir, "docker", args...); err != nil {
+	if err := ax.ExecDir(ctx, cfg.ProjectDir, dockerCommand, args...); err != nil {
 		return nil, coreerr.E("DockerBuilder.Build", "buildx build failed", err)
 	}
 
@@ -179,25 +179,35 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	return artifacts, nil
 }
 
-// validateDockerCli checks if the docker CLI is available.
-func (b *DockerBuilder) validateDockerCli() error {
-	if _, err := ax.LookPath("docker"); err != nil {
-		return coreerr.E("DockerBuilder.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
+// resolveDockerCli returns the executable path for the docker CLI.
+func (b *DockerBuilder) resolveDockerCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/docker",
+			"/opt/homebrew/bin/docker",
+			"/Applications/Docker.app/Contents/Resources/bin/docker",
+		}
 	}
-	return nil
+
+	command, err := ax.ResolveCommand("docker", paths...)
+	if err != nil {
+		return "", coreerr.E("DockerBuilder.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
+	}
+
+	return command, nil
 }
 
 // ensureBuildx ensures docker buildx is available and has a builder.
-func (b *DockerBuilder) ensureBuildx(ctx context.Context) error {
+func (b *DockerBuilder) ensureBuildx(ctx context.Context, dockerCommand string) error {
 	// Check if buildx is available
-	if err := ax.Exec(ctx, "docker", "buildx", "version"); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, "buildx", "version"); err != nil {
 		return coreerr.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", err)
 	}
 
 	// Check if we have a builder, create one if not
-	if err := ax.Exec(ctx, "docker", "buildx", "inspect", "--bootstrap"); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, "buildx", "inspect", "--bootstrap"); err != nil {
 		// Try to create a builder
-		if err := ax.Exec(ctx, "docker", "buildx", "create", "--use", "--bootstrap"); err != nil {
+		if err := ax.Exec(ctx, dockerCommand, "buildx", "create", "--use", "--bootstrap"); err != nil {
 			return coreerr.E("DockerBuilder.ensureBuildx", "failed to create buildx builder", err)
 		}
 	}
