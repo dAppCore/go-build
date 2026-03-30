@@ -54,6 +54,19 @@ func TestTypeScript_TypeScriptGeneratorAvailable_Good(t *testing.T) {
 	}
 }
 
+func TestTypeScript_TypeScriptGeneratorNpxAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
+	setAvailabilityProbeTimeout(t, 20*time.Millisecond)
+
+	npxDir := t.TempDir()
+	npxPath := ax.Join(npxDir, "npx")
+	require.NoError(t, ax.WriteFile(npxPath, []byte("#!/bin/sh\nwhile :; do :; done\n"), 0o755))
+	t.Setenv("PATH", npxDir)
+
+	started := time.Now()
+	assert.False(t, NewTypeScriptGenerator().npxAvailable())
+	assert.Less(t, time.Since(started), 500*time.Millisecond)
+}
+
 func TestTypeScript_TypeScriptGeneratorGenerate_Good(t *testing.T) {
 	g := NewTypeScriptGenerator()
 	if !g.Available() && !dockerAvailable() {

@@ -76,7 +76,11 @@ func (g *TypeScriptGenerator) npxAvailable() bool {
 	if err != nil {
 		return false
 	}
-	return g.npxAvailableWithContext(context.Background(), command)
+
+	ctx, cancel := availabilityProbeContext()
+	defer cancel()
+
+	return g.npxAvailableWithContext(ctx, command)
 }
 
 func (g *TypeScriptGenerator) npxAvailableWithContext(ctx context.Context, command string) bool {

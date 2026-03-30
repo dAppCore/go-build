@@ -3,6 +3,7 @@ package generators
 import (
 	"context"
 	"sync"
+	"time"
 
 	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
@@ -14,8 +15,13 @@ var (
 	dockerRuntimeOK      bool
 )
 
+var availabilityProbeTimeout = 2 * time.Second
+
 func dockerRuntimeAvailable() bool {
-	return dockerRuntimeAvailableWithContext(context.Background())
+	ctx, cancel := availabilityProbeContext()
+	defer cancel()
+
+	return dockerRuntimeAvailableWithContext(ctx)
 }
 
 func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
@@ -61,4 +67,8 @@ func resolveDockerRuntimeCli(paths ...string) (string, error) {
 	}
 
 	return command, nil
+}
+
+func availabilityProbeContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), availabilityProbeTimeout)
 }
