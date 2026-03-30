@@ -5,7 +5,6 @@ import (
 	"iter"
 
 	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
 )
@@ -198,15 +197,15 @@ func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 func LoadConfig(dir string) (*Config, error) {
 	configPath := ax.Join(dir, ConfigDir, ConfigFileName)
 
-	// Convert to absolute path for io.Local
+	// Resolve path with AX-aware helpers.
 	absPath, err := ax.Abs(configPath)
 	if err != nil {
 		return nil, coreerr.E("release.LoadConfig", "failed to resolve path", err)
 	}
 
-	content, err := io.Local.Read(absPath)
+	content, err := ax.ReadFile(absPath)
 	if err != nil {
-		if !io.Local.IsFile(absPath) {
+		if !ax.IsFile(absPath) {
 			cfg := DefaultConfig()
 			cfg.projectDir = dir
 			return cfg, nil
@@ -305,7 +304,7 @@ func ConfigExists(dir string) bool {
 	if err != nil {
 		return false
 	}
-	return io.Local.IsFile(absPath)
+	return ax.IsFile(absPath)
 }
 
 // GetRepository returns the repository from the config.
@@ -325,7 +324,7 @@ func (c *Config) GetProjectName() string {
 func WriteConfig(cfg *Config, dir string) error {
 	configPath := ConfigPath(dir)
 
-	// Convert to absolute path for io.Local
+	// Resolve path with AX-aware helpers.
 	absPath, err := ax.Abs(configPath)
 	if err != nil {
 		return coreerr.E("release.WriteConfig", "failed to resolve path", err)
@@ -333,7 +332,7 @@ func WriteConfig(cfg *Config, dir string) error {
 
 	// Ensure directory exists
 	configDir := ax.Dir(absPath)
-	if err := io.Local.EnsureDir(configDir); err != nil {
+	if err := ax.MkdirAll(configDir, 0o755); err != nil {
 		return coreerr.E("release.WriteConfig", "failed to create directory", err)
 	}
 
@@ -342,7 +341,7 @@ func WriteConfig(cfg *Config, dir string) error {
 		return coreerr.E("release.WriteConfig", "failed to marshal config", err)
 	}
 
-	if err := io.Local.Write(absPath, string(data)); err != nil {
+	if err := ax.WriteString(absPath, string(data), 0o644); err != nil {
 		return coreerr.E("release.WriteConfig", "failed to write config file", err)
 	}
 

@@ -26,12 +26,7 @@ func (g *TypeScriptGenerator) Language() string {
 // Available checks if generator dependencies are installed.
 // Usage example: call value.Available(...) from integrating code.
 func (g *TypeScriptGenerator) Available() bool {
-	_, err := ax.LookPath("openapi-typescript-codegen")
-	if err == nil {
-		return true
-	}
-	_, err = ax.LookPath("npx")
-	return err == nil
+	return g.nativeAvailable() || g.npxAvailable()
 }
 
 // Install returns instructions for installing the generator.
@@ -65,7 +60,7 @@ func (g *TypeScriptGenerator) nativeAvailable() bool {
 }
 
 func (g *TypeScriptGenerator) npxAvailable() bool {
-	_, err := ax.LookPath("npx")
+	_, err := ax.Run(context.Background(), "npx", "--version")
 	return err == nil
 }
 
@@ -78,7 +73,7 @@ func (g *TypeScriptGenerator) generateNative(ctx context.Context, opts Options) 
 }
 
 func (g *TypeScriptGenerator) generateNpx(ctx context.Context, opts Options) error {
-	return ax.Exec(ctx, "npx", "openapi-typescript-codegen",
+	return ax.Exec(ctx, "npx", "--yes", "openapi-typescript-codegen",
 		"--input", opts.SpecPath,
 		"--output", opts.OutputDir,
 		"--name", opts.PackageName,

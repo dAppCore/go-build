@@ -621,9 +621,12 @@ func TestDocker_DockerPublisherPublishValidation_Bad(t *testing.T) {
 			t.Skip("skipping test: docker CLI is available")
 		}
 
+		tmpDir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644))
+
 		release := &Release{
 			Version:    "v1.0.0",
-			ProjectDir: "/tmp",
+			ProjectDir: tmpDir,
 			FS:         io.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}

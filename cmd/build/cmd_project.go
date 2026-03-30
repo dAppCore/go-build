@@ -229,13 +229,13 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	// Compute checksums if enabled
 	var checksummedArtifacts []build.Artifact
 	if doChecksum && len(archivedArtifacts) > 0 {
-		checksummedArtifacts, err = computeAndWriteChecksums(ctx, projectDir, outputDir, archivedArtifacts, signCfg, ciMode, verbose)
+		checksummedArtifacts, err = computeAndWriteChecksums(ctx, fs, projectDir, outputDir, archivedArtifacts, signCfg, ciMode, verbose)
 		if err != nil {
 			return err
 		}
 	} else if doChecksum && len(artifacts) > 0 && !doArchive {
 		// Checksum raw binaries if archiving is disabled
-		checksummedArtifacts, err = computeAndWriteChecksums(ctx, projectDir, outputDir, artifacts, signCfg, ciMode, verbose)
+		checksummedArtifacts, err = computeAndWriteChecksums(ctx, fs, projectDir, outputDir, artifacts, signCfg, ciMode, verbose)
 		if err != nil {
 			return err
 		}
@@ -272,8 +272,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 }
 
 // computeAndWriteChecksums computes checksums for artifacts and writes CHECKSUMS.txt.
-func computeAndWriteChecksums(ctx context.Context, projectDir, outputDir string, artifacts []build.Artifact, signCfg signing.SignConfig, ciMode bool, verbose bool) ([]build.Artifact, error) {
-	fs := io.Local
+func computeAndWriteChecksums(ctx context.Context, fs io.Medium, projectDir, outputDir string, artifacts []build.Artifact, signCfg signing.SignConfig, ciMode bool, verbose bool) ([]build.Artifact, error) {
 	if verbose && !ciMode {
 		cli.Blank()
 		cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.checksum")), i18n.T("cmd.build.computing_checksums"))

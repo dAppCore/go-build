@@ -62,7 +62,7 @@ func (s *SDK) detectScramble() (string, error) {
 	}
 
 	// Simple check for scramble package
-	if !containsScramble(data) {
+	if !containsScramble(string(data)) {
 		return "", coreerr.E("sdk.detectScramble", "scramble not found in composer.json", nil)
 	}
 

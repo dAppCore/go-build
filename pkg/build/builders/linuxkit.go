@@ -258,7 +258,7 @@ func (b *LinuxKitBuilder) validateLinuxKitCli() error {
 	}
 
 	for _, p := range paths {
-		if io.Local.IsFile(p) {
+		if ax.IsFile(p) {
 			return nil
 		}
 	}

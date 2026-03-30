@@ -45,17 +45,17 @@ func (p *DockerPublisher) Name() string {
 // Publish builds and pushes Docker images.
 // Usage example: call value.Publish(...) from integrating code.
 func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	// Validate docker CLI is available
-	if err := validateDockerCli(); err != nil {
-		return err
-	}
-
 	// Parse Docker-specific config from publisher config
 	dockerCfg := p.parseConfig(pubCfg, relCfg, release.ProjectDir)
 
 	// Validate Dockerfile exists
 	if !release.FS.Exists(dockerCfg.Dockerfile) {
 		return coreerr.E("docker.Publish", "Dockerfile not found: "+dockerCfg.Dockerfile, nil)
+	}
+
+	// Validate docker CLI is available after local config checks.
+	if err := validateDockerCli(); err != nil {
+		return err
 	}
 
 	if dryRun {
