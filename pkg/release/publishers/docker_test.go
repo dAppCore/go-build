@@ -653,6 +653,7 @@ func TestDocker_ResolveDockerCli_Good(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "docker")
 	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
 
 	command, err := resolveDockerCli(fallbackPath)
 	require.NoError(t, err)
@@ -660,6 +661,7 @@ func TestDocker_ResolveDockerCli_Good(t *testing.T) {
 }
 
 func TestDocker_ResolveDockerCli_Bad(t *testing.T) {
+	t.Setenv("PATH", "")
 	_, err := resolveDockerCli(ax.Join(t.TempDir(), "missing-docker"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "docker CLI not found")

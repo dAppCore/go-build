@@ -47,12 +47,17 @@ func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 		return p.dryRunPublish(release, pubCfg, repo)
 	}
 
-	// Validate gh CLI is available and authenticated for actual publish
-	if err := validateGhCli(); err != nil {
+	ghCommand, err := resolveGhCli()
+	if err != nil {
 		return err
 	}
 
-	return p.executePublish(ctx, release, pubCfg, repo)
+	// Validate gh CLI is available and authenticated for actual publish
+	if err := validateGhAuth(ghCommand); err != nil {
+		return err
+	}
+
+	return p.executePublish(ctx, release, pubCfg, repo, ghCommand)
 }
 
 // dryRunPublish shows what would be done without actually publishing.
@@ -90,7 +95,7 @@ func (p *GitHubPublisher) dryRunPublish(release *Release, pubCfg PublisherConfig
 }
 
 // executePublish actually creates the release and uploads artifacts.
-func (p *GitHubPublisher) executePublish(ctx context.Context, release *Release, pubCfg PublisherConfig, repo string) error {
+func (p *GitHubPublisher) executePublish(ctx context.Context, release *Release, pubCfg PublisherConfig, repo, ghCommand string) error {
 	// Build the release create command
 	args := p.buildCreateArgs(release, pubCfg, repo)
 
@@ -100,7 +105,7 @@ func (p *GitHubPublisher) executePublish(ctx context.Context, release *Release, 
 	}
 
 	// Execute gh release create
-	if err := publisherRun(ctx, release.ProjectDir, nil, "gh", args...); err != nil {
+	if err := publisherRun(ctx, release.ProjectDir, nil, ghCommand, args...); err != nil {
 		return coreerr.E("github.Publish", "gh release create failed", err)
 	}
 
@@ -139,13 +144,34 @@ func (p *GitHubPublisher) buildCreateArgs(release *Release, pubCfg PublisherConf
 	return args
 }
 
-// validateGhCli checks if the gh CLI is available and authenticated.
-func validateGhCli() error {
-	if _, err := ax.LookPath("gh"); err != nil {
-		return coreerr.E("github.validateGhCli", "gh CLI not found. Install it from https://cli.github.com", err)
+func resolveGhCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/gh",
+			"/opt/homebrew/bin/gh",
+		}
 	}
 
-	output, err := ax.CombinedOutput(context.Background(), "", nil, "gh", "auth", "status")
+	command, err := ax.ResolveCommand("gh", paths...)
+	if err != nil {
+		return "", coreerr.E("github.resolveGhCli", "gh CLI not found. Install it from https://cli.github.com", err)
+	}
+
+	return command, nil
+}
+
+// validateGhCli checks if the gh CLI is available and authenticated.
+func validateGhCli() error {
+	ghCommand, err := resolveGhCli()
+	if err != nil {
+		return err
+	}
+
+	return validateGhAuth(ghCommand)
+}
+
+func validateGhAuth(ghCommand string) error {
+	output, err := ax.CombinedOutput(context.Background(), "", nil, ghCommand, "auth", "status")
 	if err != nil {
 		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", err)
 	}
@@ -194,7 +220,12 @@ func parseGitHubRepo(url string) (string, error) {
 // This can be used to add artifacts to a release after creation.
 // Usage example: call publishers.UploadArtifact(...) from integrating code.
 func UploadArtifact(ctx context.Context, repo, version, artifactPath string) error {
-	if err := publisherRun(ctx, "", nil, "gh", "release", "upload", version, artifactPath, "--repo", repo); err != nil {
+	ghCommand, err := resolveGhCli()
+	if err != nil {
+		return err
+	}
+
+	if err := publisherRun(ctx, "", nil, ghCommand, "release", "upload", version, artifactPath, "--repo", repo); err != nil {
 		return coreerr.E("github.UploadArtifact", "failed to upload "+artifactPath, err)
 	}
 
@@ -204,7 +235,12 @@ func UploadArtifact(ctx context.Context, repo, version, artifactPath string) err
 // DeleteRelease deletes a release by tag name.
 // Usage example: call publishers.DeleteRelease(...) from integrating code.
 func DeleteRelease(ctx context.Context, repo, version string) error {
-	if err := publisherRun(ctx, "", nil, "gh", "release", "delete", version, "--repo", repo, "--yes"); err != nil {
+	ghCommand, err := resolveGhCli()
+	if err != nil {
+		return err
+	}
+
+	if err := publisherRun(ctx, "", nil, ghCommand, "release", "delete", version, "--repo", repo, "--yes"); err != nil {
 		return coreerr.E("github.DeleteRelease", "failed to delete "+version, err)
 	}
 
@@ -214,5 +250,10 @@ func DeleteRelease(ctx context.Context, repo, version string) error {
 // ReleaseExists checks if a release exists for the given version.
 // Usage example: call publishers.ReleaseExists(...) from integrating code.
 func ReleaseExists(ctx context.Context, repo, version string) bool {
-	return ax.Exec(ctx, "gh", "release", "view", version, "--repo", repo) == nil
+	ghCommand, err := resolveGhCli()
+	if err != nil {
+		return false
+	}
+
+	return ax.Exec(ctx, ghCommand, "release", "view", version, "--repo", repo) == nil
 }

@@ -42,6 +42,11 @@ func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
 		return coreerr.E("php.Generate", "Docker is required but not available", nil)
 	}
 
+	dockerCommand, err := resolveDockerRuntimeCli()
+	if err != nil {
+		return coreerr.E("php.Generate", "docker CLI not available", err)
+	}
+
 	if err := ax.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return coreerr.E("php.Generate", "failed to create output dir", err)
 	}
@@ -61,7 +66,7 @@ func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
 		"--additional-properties=invokerPackage="+opts.PackageName,
 	)
 
-	if err := ax.Exec(ctx, "docker", args...); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, args...); err != nil {
 		return coreerr.E("php.Generate", "docker run failed", err)
 	}
 	return nil

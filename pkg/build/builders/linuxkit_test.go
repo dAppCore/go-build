@@ -228,6 +228,7 @@ func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCli_Good(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "linuxkit")
 	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
 
 	command, err := builder.resolveLinuxKitCli(fallbackPath)
 	require.NoError(t, err)
@@ -236,6 +237,7 @@ func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCli_Good(t *testing.T) {
 
 func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCli_Bad(t *testing.T) {
 	builder := NewLinuxKitBuilder()
+	t.Setenv("PATH", "")
 
 	_, err := builder.resolveLinuxKitCli(ax.Join(t.TempDir(), "missing-linuxkit"))
 	require.Error(t, err)

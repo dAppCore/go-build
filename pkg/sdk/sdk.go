@@ -131,7 +131,6 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 
 	if !gen.Available() {
 		core.Print(nil, "Warning: %s generator not available. Install with: %s", lang, gen.Install())
-		core.Print(nil, "Falling back to Docker...")
 	}
 
 	outputDir := ax.Join(s.projectDir, s.config.Output, lang)

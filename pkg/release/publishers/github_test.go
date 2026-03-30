@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
@@ -440,6 +441,24 @@ func TestGitHub_ValidateGhCli_Bad(t *testing.T) {
 	})
 }
 
+func TestGitHub_ResolveGhCli_Good(t *testing.T) {
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "gh")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
+
+	command, err := resolveGhCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestGitHub_ResolveGhCli_Bad(t *testing.T) {
+	t.Setenv("PATH", "")
+	_, err := resolveGhCli(ax.Join(t.TempDir(), "missing-gh"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gh CLI not found")
+}
+
 func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
 	// These tests run only when gh CLI is available and authenticated
 	if err := validateGhCli(); err != nil {
@@ -468,7 +487,10 @@ func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
 
 		// This will fail because the artifact doesn't exist, but it proves
 		// the code path runs
-		err := p.executePublish(context.Background(), release, cfg, "test-owner/test-repo-nonexistent")
+		command, err := resolveGhCli()
+		require.NoError(t, err)
+
+		err = p.executePublish(context.Background(), release, cfg, "test-owner/test-repo-nonexistent", command)
 		assert.Error(t, err) // Expected to fail
 	})
 }

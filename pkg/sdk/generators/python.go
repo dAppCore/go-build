@@ -26,8 +26,8 @@ func (g *PythonGenerator) Language() string {
 // Available checks if generator dependencies are installed.
 // Usage example: call value.Available(...) from integrating code.
 func (g *PythonGenerator) Available() bool {
-	_, err := ax.LookPath("openapi-python-client")
-	return err == nil
+	_, err := g.resolveNativeCli()
+	return err == nil || dockerRuntimeAvailable()
 }
 
 // Install returns instructions for installing the generator.
@@ -43,8 +43,8 @@ func (g *PythonGenerator) Generate(ctx context.Context, opts Options) error {
 		return coreerr.E("python.Generate", "failed to create output dir", err)
 	}
 
-	if g.Available() {
-		return g.generateNative(ctx, opts)
+	if command, err := g.resolveNativeCli(); err == nil {
+		return g.generateNative(ctx, opts, command)
 	}
 	if !dockerRuntimeAvailable() {
 		return coreerr.E("python.Generate", "Docker is required for fallback generation but not available", nil)
@@ -52,16 +52,29 @@ func (g *PythonGenerator) Generate(ctx context.Context, opts Options) error {
 	return g.generateDocker(ctx, opts)
 }
 
-func (g *PythonGenerator) generateNative(ctx context.Context, opts Options) error {
+func (g *PythonGenerator) resolveNativeCli(paths ...string) (string, error) {
+	command, err := ax.ResolveCommand("openapi-python-client", paths...)
+	if err != nil {
+		return "", coreerr.E("python.resolveNativeCli", "openapi-python-client not found. Install it with: "+g.Install(), err)
+	}
+	return command, nil
+}
+
+func (g *PythonGenerator) generateNative(ctx context.Context, opts Options, command string) error {
 	parentDir := ax.Dir(opts.OutputDir)
 
-	return ax.ExecDir(ctx, parentDir, "openapi-python-client", "generate",
+	return ax.ExecDir(ctx, parentDir, command, "generate",
 		"--path", opts.SpecPath,
 		"--output-path", opts.OutputDir,
 	)
 }
 
 func (g *PythonGenerator) generateDocker(ctx context.Context, opts Options) error {
+	dockerCommand, err := resolveDockerRuntimeCli()
+	if err != nil {
+		return coreerr.E("python.generateDocker", "docker CLI not available", err)
+	}
+
 	specDir := ax.Dir(opts.SpecPath)
 	specName := ax.Base(opts.SpecPath)
 
@@ -77,5 +90,5 @@ func (g *PythonGenerator) generateDocker(ctx context.Context, opts Options) erro
 		"--additional-properties=packageName="+opts.PackageName,
 	)
 
-	return ax.Exec(ctx, "docker", args...)
+	return ax.Exec(ctx, dockerCommand, args...)
 }

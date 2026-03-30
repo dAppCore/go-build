@@ -238,6 +238,7 @@ func TestTaskfile_TaskfileBuilderResolveTaskCli_Good(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "task")
 	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
 
 	command, err := builder.resolveTaskCli(fallbackPath)
 	require.NoError(t, err)
@@ -246,6 +247,7 @@ func TestTaskfile_TaskfileBuilderResolveTaskCli_Good(t *testing.T) {
 
 func TestTaskfile_TaskfileBuilderResolveTaskCli_Bad(t *testing.T) {
 	builder := NewTaskfileBuilder()
+	t.Setenv("PATH", "")
 
 	_, err := builder.resolveTaskCli(ax.Join(t.TempDir(), "missing-task"))
 	require.Error(t, err)
