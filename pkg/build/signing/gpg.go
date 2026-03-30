@@ -35,7 +35,7 @@ func (s *GPGSigner) Available() bool {
 	if s.KeyID == "" {
 		return false
 	}
-	_, err := ax.LookPath("gpg")
+	_, err := resolveGpgCli()
 	return err == nil
 }
 
@@ -43,11 +43,16 @@ func (s *GPGSigner) Available() bool {
 // For file.txt, creates file.txt.asc
 // Usage example: call value.Sign(...) from integrating code.
 func (s *GPGSigner) Sign(ctx context.Context, fs io.Medium, file string) error {
-	if !s.Available() {
+	if s.KeyID == "" {
 		return coreerr.E("gpg.Sign", "gpg not available or key not configured", nil)
 	}
 
-	output, err := ax.CombinedOutput(ctx, "", nil, "gpg",
+	gpgCommand, err := resolveGpgCli()
+	if err != nil {
+		return coreerr.E("gpg.Sign", "gpg not available or key not configured", err)
+	}
+
+	output, err := ax.CombinedOutput(ctx, "", nil, gpgCommand,
 		"--detach-sign",
 		"--armor",
 		"--local-user", s.KeyID,
@@ -59,4 +64,21 @@ func (s *GPGSigner) Sign(ctx context.Context, fs io.Medium, file string) error {
 	}
 
 	return nil
+}
+
+func resolveGpgCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/gpg",
+			"/opt/homebrew/bin/gpg",
+			"/usr/local/MacGPG2/bin/gpg",
+		}
+	}
+
+	command, err := ax.ResolveCommand("gpg", paths...)
+	if err != nil {
+		return "", coreerr.E("gpg.resolveGpgCli", "gpg CLI not found. Install it from https://gnupg.org/download/", err)
+	}
+
+	return command, nil
 }

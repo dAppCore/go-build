@@ -132,7 +132,8 @@ func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	if _, err := ax.LookPath("wails"); err != nil {
+	builder := NewWailsBuilder()
+	if _, err := builder.resolveWailsCli(); err != nil {
 		t.Skip("wails not installed, skipping integration test")
 	}
 
@@ -141,7 +142,6 @@ func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 		projectDir := setupWailsV2TestProject(t)
 		outputDir := t.TempDir()
 
-		builder := NewWailsBuilder()
 		cfg := &build.Config{
 			FS:         fs,
 			ProjectDir: projectDir,
@@ -158,6 +158,27 @@ func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 		// For now, we just verify it attempts the build - error is expected
 		_, _ = builder.Build(context.Background(), cfg, targets)
 	})
+}
+
+func TestWails_WailsBuilderResolveWailsCli_Good(t *testing.T) {
+	builder := NewWailsBuilder()
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "wails")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
+
+	command, err := builder.resolveWailsCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestWails_WailsBuilderResolveWailsCli_Bad(t *testing.T) {
+	builder := NewWailsBuilder()
+	t.Setenv("PATH", "")
+
+	_, err := builder.resolveWailsCli(ax.Join(t.TempDir(), "missing-wails"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "wails CLI not found")
 }
 
 func TestWails_WailsBuilderDetect_Good(t *testing.T) {

@@ -127,7 +127,12 @@ func (b *CPPBuilder) buildCross(ctx context.Context, cfg *build.Config, target b
 
 // runMake executes a make target in the project directory.
 func (b *CPPBuilder) runMake(ctx context.Context, projectDir string, target string) error {
-	if err := ax.ExecDir(ctx, projectDir, "make", target); err != nil {
+	makeCommand, err := b.resolveMakeCli()
+	if err != nil {
+		return err
+	}
+
+	if err := ax.ExecDir(ctx, projectDir, makeCommand, target); err != nil {
 		return coreerr.E("CPPBuilder.runMake", "make "+target+" failed", err)
 	}
 	return nil
@@ -240,10 +245,28 @@ func (b *CPPBuilder) targetToProfile(target build.Target) string {
 
 // validateMake checks if make is available.
 func (b *CPPBuilder) validateMake() error {
-	if _, err := ax.LookPath("make"); err != nil {
-		return coreerr.E("CPPBuilder.validateMake", "make not found. Install build-essential (Linux) or Xcode Command Line Tools (macOS)", nil)
+	_, err := b.resolveMakeCli()
+	return err
+}
+
+// resolveMakeCli returns the executable path for make or gmake.
+func (b *CPPBuilder) resolveMakeCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/bin/make",
+			"/usr/local/bin/make",
+			"/opt/homebrew/bin/make",
+			"/usr/local/bin/gmake",
+			"/opt/homebrew/bin/gmake",
+		}
 	}
-	return nil
+
+	command, err := ax.ResolveCommand("make", paths...)
+	if err != nil {
+		return "", coreerr.E("CPPBuilder.resolveMakeCli", "make not found. Install build-essential (Linux) or Xcode Command Line Tools (macOS)", err)
+	}
+
+	return command, nil
 }
 
 // Ensure CPPBuilder implements the Builder interface.

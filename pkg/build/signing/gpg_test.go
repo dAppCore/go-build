@@ -4,8 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGPG_GPGSignerName_Good(t *testing.T) {
@@ -31,4 +33,23 @@ func TestGPG_GPGSignerSign_Bad(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not available or key not configured")
 	})
+}
+
+func TestGPG_ResolveGpgCli_Good(t *testing.T) {
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "gpg")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
+
+	command, err := resolveGpgCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestGPG_ResolveGpgCli_Bad(t *testing.T) {
+	t.Setenv("PATH", "")
+
+	_, err := resolveGpgCli(ax.Join(t.TempDir(), "missing-gpg"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gpg CLI not found")
 }

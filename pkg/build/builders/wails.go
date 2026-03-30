@@ -96,6 +96,11 @@ func (b *WailsBuilder) isWailsV3(fs io.Medium, dir string) bool {
 
 // buildV2Target compiles for a single target platform using wails (v2).
 func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, target build.Target) (build.Artifact, error) {
+	wailsCommand, err := b.resolveWailsCli()
+	if err != nil {
+		return build.Artifact{}, err
+	}
+
 	// Determine output binary name
 	binaryName := cfg.Name
 	if binaryName == "" {
@@ -114,7 +119,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// For now, let's try to let Wails do its thing and find the artifact.
 
 	// Capture output for error messages
-	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, nil, "wails", args...)
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, nil, wailsCommand, args...)
 	if err != nil {
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "wails build failed: "+output, err)
 	}
@@ -220,6 +225,27 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 	}
 
 	return "", coreerr.E("WailsBuilder.findArtifact", "no artifact found in "+platformDir, nil)
+}
+
+// resolveWailsCli returns the executable path for the wails CLI.
+func (b *WailsBuilder) resolveWailsCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/wails",
+			"/opt/homebrew/bin/wails",
+		}
+
+		if home := core.Env("HOME"); home != "" {
+			paths = append(paths, ax.Join(home, "go", "bin", "wails"))
+		}
+	}
+
+	command, err := ax.ResolveCommand("wails", paths...)
+	if err != nil {
+		return "", coreerr.E("WailsBuilder.resolveWailsCli", "wails CLI not found. Install it with: go install github.com/wailsapp/wails/v2/cmd/wails@latest", err)
+	}
+
+	return command, nil
 }
 
 // detectPackageManager detects the frontend package manager based on lock files.

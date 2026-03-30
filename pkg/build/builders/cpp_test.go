@@ -143,6 +143,27 @@ func TestCPP_CPPBuilderFindArtifacts_Good(t *testing.T) {
 	})
 }
 
+func TestCPP_CPPBuilderResolveMakeCli_Good(t *testing.T) {
+	builder := NewCPPBuilder()
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "make")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
+
+	command, err := builder.resolveMakeCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestCPP_CPPBuilderResolveMakeCli_Bad(t *testing.T) {
+	builder := NewCPPBuilder()
+	t.Setenv("PATH", "")
+
+	_, err := builder.resolveMakeCli(ax.Join(t.TempDir(), "missing-make"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "make not found")
+}
+
 func TestCPP_CPPBuilderInterface_Good(t *testing.T) {
 	var _ build.Builder = (*CPPBuilder)(nil)
 	var _ build.Builder = NewCPPBuilder()

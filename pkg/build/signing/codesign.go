@@ -39,7 +39,7 @@ func (s *MacOSSigner) Available() bool {
 	if s.config.Identity == "" {
 		return false
 	}
-	_, err := ax.LookPath("codesign")
+	_, err := resolveCodesignCli()
 	return err == nil
 }
 
@@ -56,7 +56,12 @@ func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) err
 		return coreerr.E("codesign.Sign", "codesign tool not found in PATH", nil)
 	}
 
-	output, err := ax.CombinedOutput(ctx, "", nil, "codesign",
+	codesignCommand, err := resolveCodesignCli()
+	if err != nil {
+		return coreerr.E("codesign.Sign", "codesign tool not found in PATH", err)
+	}
+
+	output, err := ax.CombinedOutput(ctx, "", nil, codesignCommand,
 		"--sign", s.config.Identity,
 		"--timestamp",
 		"--options", "runtime", // Hardened runtime for notarization
@@ -78,15 +83,25 @@ func (s *MacOSSigner) Notarize(ctx context.Context, fs io.Medium, binary string)
 		return coreerr.E("codesign.Notarize", "missing Apple credentials (apple_id, team_id, app_password)", nil)
 	}
 
+	zipCommand, err := resolveZipCli()
+	if err != nil {
+		return coreerr.E("codesign.Notarize", "zip tool not found in PATH", err)
+	}
+
+	xcrunCommand, err := resolveXcrunCli()
+	if err != nil {
+		return coreerr.E("codesign.Notarize", "xcrun tool not found in PATH", err)
+	}
+
 	// Create ZIP for submission
 	zipPath := binary + ".zip"
-	if output, err := ax.CombinedOutput(ctx, "", nil, "zip", "-j", zipPath, binary); err != nil {
+	if output, err := ax.CombinedOutput(ctx, "", nil, zipCommand, "-j", zipPath, binary); err != nil {
 		return coreerr.E("codesign.Notarize", "failed to create zip: "+output, err)
 	}
 	defer func() { _ = fs.Delete(zipPath) }()
 
 	// Submit to Apple and wait
-	if output, err := ax.CombinedOutput(ctx, "", nil, "xcrun", "notarytool", "submit",
+	if output, err := ax.CombinedOutput(ctx, "", nil, xcrunCommand, "notarytool", "submit",
 		zipPath,
 		"--apple-id", s.config.AppleID,
 		"--team-id", s.config.TeamID,
@@ -97,7 +112,7 @@ func (s *MacOSSigner) Notarize(ctx context.Context, fs io.Medium, binary string)
 	}
 
 	// Staple the ticket
-	if output, err := ax.CombinedOutput(ctx, "", nil, "xcrun", "stapler", "staple", binary); err != nil {
+	if output, err := ax.CombinedOutput(ctx, "", nil, xcrunCommand, "stapler", "staple", binary); err != nil {
 		return coreerr.E("codesign.Notarize", "failed to staple: "+output, err)
 	}
 
@@ -108,4 +123,55 @@ func (s *MacOSSigner) Notarize(ctx context.Context, fs io.Medium, binary string)
 // Usage example: call value.ShouldNotarize(...) from integrating code.
 func (s *MacOSSigner) ShouldNotarize() bool {
 	return s.config.Notarize
+}
+
+func resolveCodesignCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/bin/codesign",
+			"/usr/local/bin/codesign",
+			"/opt/homebrew/bin/codesign",
+		}
+	}
+
+	command, err := ax.ResolveCommand("codesign", paths...)
+	if err != nil {
+		return "", coreerr.E("codesign.resolveCodesignCli", "codesign tool not found. Install Xcode Command Line Tools on macOS.", err)
+	}
+
+	return command, nil
+}
+
+func resolveZipCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/bin/zip",
+			"/usr/local/bin/zip",
+			"/opt/homebrew/bin/zip",
+		}
+	}
+
+	command, err := ax.ResolveCommand("zip", paths...)
+	if err != nil {
+		return "", coreerr.E("codesign.resolveZipCli", "zip tool not found. Install the zip utility for notarisation packaging.", err)
+	}
+
+	return command, nil
+}
+
+func resolveXcrunCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/bin/xcrun",
+			"/usr/local/bin/xcrun",
+			"/opt/homebrew/bin/xcrun",
+		}
+	}
+
+	command, err := ax.ResolveCommand("xcrun", paths...)
+	if err != nil {
+		return "", coreerr.E("codesign.resolveXcrunCli", "xcrun tool not found. Install Xcode Command Line Tools on macOS.", err)
+	}
+
+	return command, nil
 }
