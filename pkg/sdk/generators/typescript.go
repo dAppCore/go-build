@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"dappco.re/go/core/build/internal/ax"
-	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -44,7 +43,7 @@ func (g *TypeScriptGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 // Usage example: call value.Generate(...) from integrating code.
 func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) error {
-	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
+	if err := ax.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return coreerr.E("typescript.Generate", "failed to create output dir", err)
 	}
 

@@ -10,7 +10,6 @@ import (
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
-	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -240,10 +239,10 @@ func (p *AURPublisher) pushToAUR(ctx context.Context, data aurTemplateData, pkgb
 	}
 
 	// Write files
-	if err := coreio.Local.Write(ax.Join(tmpDir, "PKGBUILD"), pkgbuild); err != nil {
+	if err := ax.WriteString(ax.Join(tmpDir, "PKGBUILD"), pkgbuild, 0o644); err != nil {
 		return coreerr.E("aur.pushToAUR", "failed to write PKGBUILD", err)
 	}
-	if err := coreio.Local.Write(ax.Join(tmpDir, ".SRCINFO"), srcinfo); err != nil {
+	if err := ax.WriteString(ax.Join(tmpDir, ".SRCINFO"), srcinfo, 0o644); err != nil {
 		return coreerr.E("aur.pushToAUR", "failed to write .SRCINFO", err)
 	}
 

@@ -5,7 +5,6 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
-	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -41,7 +40,7 @@ func (g *GoGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 // Usage example: call value.Generate(...) from integrating code.
 func (g *GoGenerator) Generate(ctx context.Context, opts Options) error {
-	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
+	if err := ax.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return coreerr.E("go.Generate", "failed to create output dir", err)
 	}
 
@@ -67,7 +66,7 @@ func (g *GoGenerator) generateNative(ctx context.Context, opts Options) error {
 	}
 
 	goMod := core.Sprintf("module %s\n\ngo 1.21\n", opts.PackageName)
-	return coreio.Local.Write(ax.Join(opts.OutputDir, "go.mod"), goMod)
+	return ax.WriteString(ax.Join(opts.OutputDir, "go.mod"), goMod, 0o644)
 }
 
 func (g *GoGenerator) generateDocker(ctx context.Context, opts Options) error {

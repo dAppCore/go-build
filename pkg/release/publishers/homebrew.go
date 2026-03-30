@@ -258,13 +258,13 @@ func (p *HomebrewPublisher) commitToTap(ctx context.Context, tap string, data ho
 
 	// Ensure Formula directory exists
 	formulaDir := ax.Join(tmpDir, "Formula")
-	if err := coreio.Local.EnsureDir(formulaDir); err != nil {
+	if err := ax.MkdirAll(formulaDir, 0o755); err != nil {
 		return coreerr.E("homebrew.commitToTap", "failed to create Formula directory", err)
 	}
 
 	// Write formula
 	formulaPath := ax.Join(formulaDir, core.Sprintf("%s.rb", core.Lower(data.FormulaClass)))
-	if err := coreio.Local.Write(formulaPath, formula); err != nil {
+	if err := ax.WriteString(formulaPath, formula, 0o644); err != nil {
 		return coreerr.E("homebrew.commitToTap", "failed to write formula", err)
 	}
 

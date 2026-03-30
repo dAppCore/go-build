@@ -3,7 +3,6 @@ package sdk
 import (
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
-	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -26,7 +25,7 @@ func (s *SDK) DetectSpec() (string, error) {
 	// 1. Check configured path
 	if s.config.Spec != "" {
 		specPath := ax.Join(s.projectDir, s.config.Spec)
-		if coreio.Local.IsFile(specPath) {
+		if ax.IsFile(specPath) {
 			return specPath, nil
 		}
 		return "", coreerr.E("sdk.DetectSpec", "configured spec not found: "+s.config.Spec, nil)
@@ -35,7 +34,7 @@ func (s *SDK) DetectSpec() (string, error) {
 	// 2. Check common paths
 	for _, p := range commonSpecPaths {
 		specPath := ax.Join(s.projectDir, p)
-		if coreio.Local.IsFile(specPath) {
+		if ax.IsFile(specPath) {
 			return specPath, nil
 		}
 	}
@@ -52,12 +51,12 @@ func (s *SDK) DetectSpec() (string, error) {
 // detectScramble checks for Laravel Scramble and exports the spec.
 func (s *SDK) detectScramble() (string, error) {
 	composerPath := ax.Join(s.projectDir, "composer.json")
-	if !coreio.Local.IsFile(composerPath) {
+	if !ax.IsFile(composerPath) {
 		return "", coreerr.E("sdk.detectScramble", "no composer.json", nil)
 	}
 
 	// Check for scramble in composer.json
-	data, err := coreio.Local.Read(composerPath)
+	data, err := ax.ReadFile(composerPath)
 	if err != nil {
 		return "", err
 	}

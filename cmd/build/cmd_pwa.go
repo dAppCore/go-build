@@ -15,7 +15,6 @@ import (
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/i18n"
-	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"github.com/leaanthony/debme"
 	"github.com/leaanthony/gosod"
@@ -65,7 +64,7 @@ func downloadPWA(baseURL, destDir string) error {
 	if err != nil {
 		// If no manifest, it's not a PWA, but we can still try to package it as a simple site.
 		core.Print(nil, "%s %s", i18n.T("common.label.warning"), i18n.T("cmd.build.pwa.no_manifest"))
-		if err := coreio.Local.Write(ax.Join(destDir, "index.html"), string(body)); err != nil {
+		if err := ax.WriteString(ax.Join(destDir, "index.html"), string(body), 0o644); err != nil {
 			return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
 		}
 		return nil
@@ -88,7 +87,7 @@ func downloadPWA(baseURL, destDir string) error {
 	}
 
 	// Also save the root index.html
-	if err := coreio.Local.Write(ax.Join(destDir, "index.html"), string(body)); err != nil {
+	if err := ax.WriteString(ax.Join(destDir, "index.html"), string(body), 0o644); err != nil {
 		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
 	}
 
@@ -207,7 +206,7 @@ func downloadAsset(assetURL, destDir string) error {
 
 	assetPath := core.TrimPrefix(ax.FromSlash(u.Path), ax.DS())
 	path := ax.Join(destDir, assetPath)
-	if err := coreio.Local.EnsureDir(ax.Dir(path)); err != nil {
+	if err := ax.MkdirAll(ax.Dir(path), 0o755); err != nil {
 		return err
 	}
 
@@ -225,7 +224,7 @@ func downloadAsset(assetURL, destDir string) error {
 func runBuild(fromPath string) error {
 	core.Print(nil, "%s %s", i18n.T("cmd.build.from_path.starting"), fromPath)
 
-	if !coreio.Local.IsDir(fromPath) {
+	if !ax.IsDir(fromPath) {
 		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.must_be_directory"), nil)
 	}
 
@@ -237,7 +236,7 @@ func runBuild(fromPath string) error {
 	}
 	outputExe := appName
 
-	if err := coreio.Local.DeleteAll(buildDir); err != nil {
+	if err := ax.RemoveAll(buildDir); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "clean build directory"}), err)
 	}
 
@@ -283,11 +282,11 @@ func runBuild(fromPath string) error {
 
 // copyDir recursively copies a directory from src to dst.
 func copyDir(src, dst string) error {
-	if err := coreio.Local.EnsureDir(dst); err != nil {
+	if err := ax.MkdirAll(dst, 0o755); err != nil {
 		return err
 	}
 
-	entries, err := coreio.Local.List(src)
+	entries, err := ax.ReadDir(src)
 	if err != nil {
 		return err
 	}

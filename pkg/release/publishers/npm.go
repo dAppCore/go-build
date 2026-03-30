@@ -9,7 +9,6 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
-	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -178,7 +177,7 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 
 	// Create bin directory
 	binDir := ax.Join(tmpDir, "bin")
-	if err := coreio.Local.EnsureDir(binDir); err != nil {
+	if err := ax.MkdirAll(binDir, 0o755); err != nil {
 		return coreerr.E("npm.Publish", "failed to create bin directory", err)
 	}
 
@@ -187,7 +186,7 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 	if err != nil {
 		return coreerr.E("npm.Publish", "failed to render package.json", err)
 	}
-	if err := coreio.Local.Write(ax.Join(tmpDir, "package.json"), pkgJSON); err != nil {
+	if err := ax.WriteString(ax.Join(tmpDir, "package.json"), pkgJSON, 0o644); err != nil {
 		return coreerr.E("npm.Publish", "failed to write package.json", err)
 	}
 
@@ -196,7 +195,7 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 	if err != nil {
 		return coreerr.E("npm.Publish", "failed to render install.js", err)
 	}
-	if err := coreio.Local.Write(ax.Join(tmpDir, "install.js"), installJS); err != nil {
+	if err := ax.WriteString(ax.Join(tmpDir, "install.js"), installJS, 0o644); err != nil {
 		return coreerr.E("npm.Publish", "failed to write install.js", err)
 	}
 
@@ -205,13 +204,13 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 	if err != nil {
 		return coreerr.E("npm.Publish", "failed to render run.js", err)
 	}
-	if err := coreio.Local.Write(ax.Join(binDir, "run.js"), runJS); err != nil {
+	if err := ax.WriteString(ax.Join(binDir, "run.js"), runJS, 0o644); err != nil {
 		return coreerr.E("npm.Publish", "failed to write run.js", err)
 	}
 
 	// Create .npmrc with token
 	npmrc := "//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n"
-	if err := coreio.Local.Write(ax.Join(tmpDir, ".npmrc"), npmrc); err != nil {
+	if err := ax.WriteString(ax.Join(tmpDir, ".npmrc"), npmrc, 0o644); err != nil {
 		return coreerr.E("npm.Publish", "failed to write .npmrc", err)
 	}
 

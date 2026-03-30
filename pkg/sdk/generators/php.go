@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"dappco.re/go/core/build/internal/ax"
-	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -43,7 +42,7 @@ func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
 		return coreerr.E("php.Generate", "Docker is required but not available", nil)
 	}
 
-	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
+	if err := ax.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return coreerr.E("php.Generate", "failed to create output dir", err)
 	}
 

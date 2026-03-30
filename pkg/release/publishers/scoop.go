@@ -209,12 +209,12 @@ func (p *ScoopPublisher) commitToBucket(ctx context.Context, bucket string, data
 
 	// Ensure bucket directory exists
 	bucketDir := ax.Join(tmpDir, "bucket")
-	if !coreio.Local.IsDir(bucketDir) {
+	if !ax.IsDir(bucketDir) {
 		bucketDir = tmpDir // Some repos put manifests in root
 	}
 
 	manifestPath := ax.Join(bucketDir, core.Sprintf("%s.json", data.PackageName))
-	if err := coreio.Local.Write(manifestPath, manifest); err != nil {
+	if err := ax.WriteString(manifestPath, manifest, 0o644); err != nil {
 		return coreerr.E("scoop.commitToBucket", "failed to write manifest", err)
 	}
 
