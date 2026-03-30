@@ -52,8 +52,8 @@ func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 // Build builds LinuxKit images for the specified targets.
 // Usage example: call value.Build(...) from integrating code.
 func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
-	// Validate linuxkit CLI is available
-	if err := b.validateLinuxKitCli(); err != nil {
+	linuxkitCommand, err := b.resolveLinuxKitCli()
+	if err != nil {
 		return nil, err
 	}
 
@@ -131,7 +131,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 			args := b.buildLinuxKitArgs(configPath, format, outputName, outputDir, target.Arch)
 
 			core.Print(nil, "Building LinuxKit image: %s (%s, %s)", outputName, format, target.Arch)
-			if err := ax.ExecDir(ctx, cfg.ProjectDir, "linuxkit", args...); err != nil {
+			if err := ax.ExecDir(ctx, cfg.ProjectDir, linuxkitCommand, args...); err != nil {
 				return nil, coreerr.E("LinuxKitBuilder.Build", "build failed for "+target.Arch+"/"+format, err)
 			}
 
@@ -244,24 +244,19 @@ func (b *LinuxKitBuilder) getFormatExtension(format string) string {
 	}
 }
 
-// validateLinuxKitCli checks if the linuxkit CLI is available.
-func (b *LinuxKitBuilder) validateLinuxKitCli() error {
-	// Check PATH first
-	if _, err := ax.LookPath("linuxkit"); err == nil {
-		return nil
-	}
-
-	// Check common locations
-	paths := []string{
-		"/usr/local/bin/linuxkit",
-		"/opt/homebrew/bin/linuxkit",
-	}
-
-	for _, p := range paths {
-		if ax.IsFile(p) {
-			return nil
+// resolveLinuxKitCli returns the executable path for the linuxkit CLI.
+func (b *LinuxKitBuilder) resolveLinuxKitCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/linuxkit",
+			"/opt/homebrew/bin/linuxkit",
 		}
 	}
 
-	return coreerr.E("LinuxKitBuilder.validateLinuxKitCli", "linuxkit CLI not found. Install with: brew install linuxkit (macOS) or see https://github.com/linuxkit/linuxkit", nil)
+	command, err := ax.ResolveCommand("linuxkit", paths...)
+	if err != nil {
+		return "", coreerr.E("LinuxKitBuilder.resolveLinuxKitCli", "linuxkit CLI not found. Install with: brew install linuxkit (macOS) or see https://github.com/linuxkit/linuxkit", err)
+	}
+
+	return command, nil
 }

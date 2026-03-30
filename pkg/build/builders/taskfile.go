@@ -52,8 +52,8 @@ func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 // Build runs the Taskfile build task for each target platform.
 // Usage example: call value.Build(...) from integrating code.
 func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
-	// Validate task CLI is available
-	if err := b.validateTaskCli(); err != nil {
+	taskCommand, err := b.resolveTaskCli()
+	if err != nil {
 		return nil, err
 	}
 
@@ -70,7 +70,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 
 	// If no targets specified, just run the build task once
 	if len(targets) == 0 {
-		if err := b.runTask(ctx, cfg, "", ""); err != nil {
+		if err := b.runTask(ctx, cfg, taskCommand, "", ""); err != nil {
 			return nil, err
 		}
 
@@ -80,7 +80,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	} else {
 		// Run build task for each target
 		for _, target := range targets {
-			if err := b.runTask(ctx, cfg, target.OS, target.Arch); err != nil {
+			if err := b.runTask(ctx, cfg, taskCommand, target.OS, target.Arch); err != nil {
 				return nil, err
 			}
 
@@ -94,7 +94,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 }
 
 // runTask executes the Taskfile build task.
-func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, goos, goarch string) error {
+func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand, goos, goarch string) error {
 	// Build task command
 	args := []string{"build"}
 	env := []string{}
@@ -132,7 +132,7 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, goos, 
 		core.Print(nil, "Running task build")
 	}
 
-	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, env, "task", args...); err != nil {
+	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, env, taskCommand, args...); err != nil {
 		return coreerr.E("TaskfileBuilder.runTask", "task build failed", err)
 	}
 
@@ -244,24 +244,19 @@ func (b *TaskfileBuilder) matchPattern(name, pattern string) bool {
 	return matched
 }
 
-// validateTaskCli checks if the task CLI is available.
-func (b *TaskfileBuilder) validateTaskCli() error {
-	// Check PATH first
-	if _, err := ax.LookPath("task"); err == nil {
-		return nil
-	}
-
-	// Check common locations
-	paths := []string{
-		"/usr/local/bin/task",
-		"/opt/homebrew/bin/task",
-	}
-
-	for _, p := range paths {
-		if ax.IsFile(p) {
-			return nil
+// resolveTaskCli returns the executable path for the task CLI.
+func (b *TaskfileBuilder) resolveTaskCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/task",
+			"/opt/homebrew/bin/task",
 		}
 	}
 
-	return coreerr.E("TaskfileBuilder.validateTaskCli", "task CLI not found. Install with: brew install go-task (macOS), go install github.com/go-task/task/v3/cmd/task@latest, or see https://taskfile.dev/installation/", nil)
+	command, err := ax.ResolveCommand("task", paths...)
+	if err != nil {
+		return "", coreerr.E("TaskfileBuilder.resolveTaskCli", "task CLI not found. Install with: brew install go-task (macOS), go install github.com/go-task/task/v3/cmd/task@latest, or see https://taskfile.dev/installation/", err)
+	}
+
+	return command, nil
 }

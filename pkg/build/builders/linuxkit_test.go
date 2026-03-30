@@ -222,3 +222,22 @@ func TestLinuxKit_LinuxKitBuilderInterface_Good(t *testing.T) {
 	var _ build.Builder = (*LinuxKitBuilder)(nil)
 	var _ build.Builder = NewLinuxKitBuilder()
 }
+
+func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCli_Good(t *testing.T) {
+	builder := NewLinuxKitBuilder()
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "linuxkit")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+
+	command, err := builder.resolveLinuxKitCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCli_Bad(t *testing.T) {
+	builder := NewLinuxKitBuilder()
+
+	_, err := builder.resolveLinuxKitCli(ax.Join(t.TempDir(), "missing-linuxkit"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "linuxkit CLI not found")
+}

@@ -232,3 +232,22 @@ func TestTaskfile_TaskfileBuilderInterface_Good(t *testing.T) {
 	var _ build.Builder = (*TaskfileBuilder)(nil)
 	var _ build.Builder = NewTaskfileBuilder()
 }
+
+func TestTaskfile_TaskfileBuilderResolveTaskCli_Good(t *testing.T) {
+	builder := NewTaskfileBuilder()
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "task")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+
+	command, err := builder.resolveTaskCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestTaskfile_TaskfileBuilderResolveTaskCli_Bad(t *testing.T) {
+	builder := NewTaskfileBuilder()
+
+	_, err := builder.resolveTaskCli(ax.Join(t.TempDir(), "missing-task"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "task CLI not found")
+}

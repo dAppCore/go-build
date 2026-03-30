@@ -347,6 +347,24 @@ func LookPath(name string) (string, error) {
 	return program.Path, nil
 }
 
+// ResolveCommand resolves a program from PATH or a list of fallback paths.
+//
+// Usage example: path, err := ax.ResolveCommand("task", "/opt/homebrew/bin/task")
+func ResolveCommand(name string, fallbackPaths ...string) (string, error) {
+	path, err := LookPath(name)
+	if err == nil {
+		return path, nil
+	}
+
+	for _, fallbackPath := range fallbackPaths {
+		if IsFile(fallbackPath) {
+			return fallbackPath, nil
+		}
+	}
+
+	return "", coreerr.E("ax.ResolveCommand", "failed to locate command "+name, err)
+}
+
 // Run executes a command and returns trimmed combined output.
 //
 // Usage example: output, err := ax.Run(ctx, "git", "status", "--short")
