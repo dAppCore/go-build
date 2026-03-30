@@ -153,22 +153,12 @@ func normalizeVersion(version string) string {
 	return version
 }
 
-// getTagOnHead returns the tag on HEAD, if any.
-func getTagOnHead(dir string) (string, error) {
-	return getTagOnHeadWithContext(context.Background(), dir)
-}
-
 func getTagOnHeadWithContext(ctx context.Context, dir string) (string, error) {
 	output, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--exact-match", "HEAD")
 	if err != nil {
 		return "", err
 	}
 	return core.Trim(output), nil
-}
-
-// getLatestTag returns the most recent tag in the repository.
-func getLatestTag(dir string) (string, error) {
-	return getLatestTagWithContext(context.Background(), dir)
 }
 
 func getLatestTagWithContext(ctx context.Context, dir string) (string, error) {

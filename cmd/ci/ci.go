@@ -231,10 +231,6 @@ func runCIReleaseVersion(ctx context.Context) error {
 	return nil
 }
 
-func latestTag(dir string) (string, error) {
-	return latestTagWithContext(context.Background(), dir)
-}
-
 func latestTagWithContext(ctx context.Context, dir string) (string, error) {
 	out, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0")
 	if err != nil {

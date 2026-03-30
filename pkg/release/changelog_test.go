@@ -457,7 +457,7 @@ func TestChangelog_GetCommits_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: second")
 		createChangelogCommit(t, dir, "feat: third")
 
-		commits, err := getCommits(dir, "", "HEAD")
+		commits, err := getCommitsWithContext(context.Background(), dir, "", "HEAD")
 		require.NoError(t, err)
 
 		assert.Len(t, commits, 3)
@@ -470,7 +470,7 @@ func TestChangelog_GetCommits_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: second")
 		createChangelogCommit(t, dir, "feat: third")
 
-		commits, err := getCommits(dir, "v1.0.0", "HEAD")
+		commits, err := getCommitsWithContext(context.Background(), dir, "v1.0.0", "HEAD")
 		require.NoError(t, err)
 
 		assert.Len(t, commits, 2)
@@ -482,7 +482,7 @@ func TestChangelog_GetCommits_Good(t *testing.T) {
 		// Merge commits are excluded by --no-merges flag
 		// We can verify by checking the count matches expected
 
-		commits, err := getCommits(dir, "", "HEAD")
+		commits, err := getCommitsWithContext(context.Background(), dir, "", "HEAD")
 		require.NoError(t, err)
 
 		assert.Len(t, commits, 1)
@@ -494,7 +494,7 @@ func TestChangelog_GetCommits_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: only commit")
 		createChangelogTag(t, dir, "v1.0.0")
 
-		commits, err := getCommits(dir, "v1.0.0", "HEAD")
+		commits, err := getCommitsWithContext(context.Background(), dir, "v1.0.0", "HEAD")
 		require.NoError(t, err)
 
 		assert.Empty(t, commits)
@@ -506,14 +506,14 @@ func TestChangelog_GetCommits_Bad(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: commit")
 
-		_, err := getCommits(dir, "nonexistent-tag", "HEAD")
+		_, err := getCommitsWithContext(context.Background(), dir, "nonexistent-tag", "HEAD")
 		assert.Error(t, err)
 	})
 
 	t.Run("returns error for non-git directory", func(t *testing.T) {
 		dir := t.TempDir()
 
-		_, err := getCommits(dir, "", "HEAD")
+		_, err := getCommitsWithContext(context.Background(), dir, "", "HEAD")
 		assert.Error(t, err)
 	})
 }
@@ -526,7 +526,7 @@ func TestChangelog_GetPreviousTag_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: second")
 		createChangelogTag(t, dir, "v1.1.0")
 
-		tag, err := getPreviousTag(dir, "v1.1.0")
+		tag, err := getPreviousTagWithContext(context.Background(), dir, "v1.1.0")
 		require.NoError(t, err)
 		assert.Equal(t, "v1.0.0", tag)
 	})
@@ -537,7 +537,7 @@ func TestChangelog_GetPreviousTag_Good(t *testing.T) {
 		createChangelogTag(t, dir, "v1.0.0")
 		createChangelogCommit(t, dir, "feat: second")
 
-		tag, err := getPreviousTag(dir, "HEAD")
+		tag, err := getPreviousTagWithContext(context.Background(), dir, "HEAD")
 		require.NoError(t, err)
 		assert.Equal(t, "v1.0.0", tag)
 	})
@@ -550,7 +550,7 @@ func TestChangelog_GetPreviousTag_Bad(t *testing.T) {
 		createChangelogTag(t, dir, "v1.0.0")
 
 		// v1.0.0^ has no tag before it
-		_, err := getPreviousTag(dir, "v1.0.0")
+		_, err := getPreviousTagWithContext(context.Background(), dir, "v1.0.0")
 		assert.Error(t, err)
 	})
 
@@ -558,7 +558,7 @@ func TestChangelog_GetPreviousTag_Bad(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: commit")
 
-		_, err := getPreviousTag(dir, "nonexistent")
+		_, err := getPreviousTagWithContext(context.Background(), dir, "nonexistent")
 		assert.Error(t, err)
 	})
 }

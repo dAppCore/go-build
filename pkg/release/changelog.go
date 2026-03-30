@@ -173,23 +173,12 @@ func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef stri
 	return formatChangelog(parsedCommits, toRef), nil
 }
 
-// getPreviousTag returns the tag before the given ref.
-func getPreviousTag(dir, ref string) (string, error) {
-	return getPreviousTagWithContext(context.Background(), dir, ref)
-}
-
 func getPreviousTagWithContext(ctx context.Context, dir, ref string) (string, error) {
 	output, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0", ref+"^")
 	if err != nil {
 		return "", err
 	}
 	return core.Trim(output), nil
-}
-
-// getCommits returns a slice of commit strings between two refs.
-// Format: "hash subject"
-func getCommits(dir, fromRef, toRef string) ([]string, error) {
-	return getCommitsWithContext(context.Background(), dir, fromRef, toRef)
 }
 
 func getCommitsWithContext(ctx context.Context, dir, fromRef, toRef string) ([]string, error) {

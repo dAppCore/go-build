@@ -131,7 +131,7 @@ func TestVersion_GetTagOnHead_Good(t *testing.T) {
 		createCommit(t, dir, "feat: initial commit")
 		createTag(t, dir, "v1.2.3")
 
-		tag, err := getTagOnHead(dir)
+		tag, err := getTagOnHeadWithContext(context.Background(), dir)
 		require.NoError(t, err)
 		assert.Equal(t, "v1.2.3", tag)
 	})
@@ -142,7 +142,7 @@ func TestVersion_GetTagOnHead_Good(t *testing.T) {
 		createTag(t, dir, "v1.0.0")
 		createTag(t, dir, "v1.0.0-beta")
 
-		tag, err := getTagOnHead(dir)
+		tag, err := getTagOnHeadWithContext(context.Background(), dir)
 		require.NoError(t, err)
 		// Git returns one of the tags
 		assert.Contains(t, []string{"v1.0.0", "v1.0.0-beta"}, tag)
@@ -154,7 +154,7 @@ func TestVersion_GetTagOnHead_Bad(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 
-		_, err := getTagOnHead(dir)
+		_, err := getTagOnHeadWithContext(context.Background(), dir)
 		assert.Error(t, err)
 	})
 
@@ -164,7 +164,7 @@ func TestVersion_GetTagOnHead_Bad(t *testing.T) {
 		createTag(t, dir, "v1.0.0")
 		createCommit(t, dir, "feat: new feature")
 
-		_, err := getTagOnHead(dir)
+		_, err := getTagOnHeadWithContext(context.Background(), dir)
 		assert.Error(t, err)
 	})
 }
@@ -175,7 +175,7 @@ func TestVersion_GetLatestTag_Good(t *testing.T) {
 		createCommit(t, dir, "feat: initial commit")
 		createTag(t, dir, "v1.0.0")
 
-		tag, err := getLatestTag(dir)
+		tag, err := getLatestTagWithContext(context.Background(), dir)
 		require.NoError(t, err)
 		assert.Equal(t, "v1.0.0", tag)
 	})
@@ -188,7 +188,7 @@ func TestVersion_GetLatestTag_Good(t *testing.T) {
 		createTag(t, dir, "v1.1.0")
 		createCommit(t, dir, "feat: third")
 
-		tag, err := getLatestTag(dir)
+		tag, err := getLatestTagWithContext(context.Background(), dir)
 		require.NoError(t, err)
 		assert.Equal(t, "v1.1.0", tag)
 	})
@@ -199,14 +199,14 @@ func TestVersion_GetLatestTag_Bad(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 
-		_, err := getLatestTag(dir)
+		_, err := getLatestTagWithContext(context.Background(), dir)
 		assert.Error(t, err)
 	})
 
 	t.Run("returns error for empty repo", func(t *testing.T) {
 		dir := setupGitRepo(t)
 
-		_, err := getLatestTag(dir)
+		_, err := getLatestTagWithContext(context.Background(), dir)
 		assert.Error(t, err)
 	})
 }
