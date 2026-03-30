@@ -28,7 +28,7 @@ var (
 )
 
 // runPwaBuild downloads a PWA from URL and builds it.
-func runPwaBuild(pwaURL string) error {
+func runPwaBuild(ctx context.Context, pwaURL string) error {
 	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.starting"), pwaURL)
 
 	tempDir, err := ax.TempDir("core-pwa-build-*")
@@ -38,17 +38,17 @@ func runPwaBuild(pwaURL string) error {
 	// defer os.RemoveAll(tempDir) // Keep temp dir for debugging
 	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.downloading_to"), tempDir)
 
-	if err := downloadPWA(pwaURL, tempDir); err != nil {
+	if err := downloadPWA(ctx, pwaURL, tempDir); err != nil {
 		return coreerr.E("pwa.runPwaBuild", i18n.T("common.error.failed", map[string]any{"Action": "download PWA"}), err)
 	}
 
-	return runBuild(tempDir)
+	return runBuild(ctx, tempDir)
 }
 
 // downloadPWA fetches a PWA from a URL and saves assets locally.
-func downloadPWA(baseURL, destDir string) error {
+func downloadPWA(ctx context.Context, baseURL, destDir string) error {
 	// Fetch the main HTML page
-	resp, err := http.Get(baseURL)
+	resp, err := getWithContext(ctx, baseURL)
 	if err != nil {
 		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch URL"})+" "+baseURL, err)
 	}
@@ -73,7 +73,7 @@ func downloadPWA(baseURL, destDir string) error {
 	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.found_manifest"), manifestURL)
 
 	// Fetch and parse the manifest
-	manifest, err := fetchManifest(manifestURL)
+	manifest, err := fetchManifest(ctx, manifestURL)
 	if err != nil {
 		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch or parse manifest"}), err)
 	}
@@ -81,7 +81,10 @@ func downloadPWA(baseURL, destDir string) error {
 	// Download all assets listed in the manifest
 	assets := collectAssets(manifest, manifestURL)
 	for _, assetURL := range assets {
-		if err := downloadAsset(assetURL, destDir); err != nil {
+		if err := downloadAsset(ctx, assetURL, destDir); err != nil {
+			if ctx.Err() != nil {
+				return coreerr.E("pwa.downloadPWA", "download cancelled", ctx.Err())
+			}
 			core.Print(nil, "%s %s %s: %v", i18n.T("common.label.warning"), i18n.T("common.error.failed", map[string]any{"Action": "download asset"}), assetURL, err)
 		}
 	}
@@ -144,8 +147,8 @@ func findManifestURL(htmlContent, baseURL string) (string, error) {
 }
 
 // fetchManifest downloads and parses a PWA manifest.
-func fetchManifest(manifestURL string) (map[string]any, error) {
-	resp, err := http.Get(manifestURL)
+func fetchManifest(ctx context.Context, manifestURL string) (map[string]any, error) {
+	resp, err := getWithContext(ctx, manifestURL)
 	if err != nil {
 		return nil, err
 	}
@@ -192,8 +195,8 @@ func collectAssets(manifest map[string]any, manifestURL string) []string {
 }
 
 // downloadAsset fetches a single asset and saves it locally.
-func downloadAsset(assetURL, destDir string) error {
-	resp, err := http.Get(assetURL)
+func downloadAsset(ctx context.Context, assetURL, destDir string) error {
+	resp, err := getWithContext(ctx, assetURL)
 	if err != nil {
 		return err
 	}
@@ -221,7 +224,7 @@ func downloadAsset(assetURL, destDir string) error {
 }
 
 // runBuild builds a desktop application from a local directory.
-func runBuild(fromPath string) error {
+func runBuild(ctx context.Context, fromPath string) error {
 	core.Print(nil, "%s %s", i18n.T("cmd.build.from_path.starting"), fromPath)
 
 	if !ax.IsDir(fromPath) {
@@ -266,18 +269,26 @@ func runBuild(fromPath string) error {
 	core.Println(i18n.T("cmd.build.from_path.compiling"))
 
 	// Run go mod tidy
-	if err := ax.ExecDir(context.Background(), buildDir, "go", "mod", "tidy"); err != nil {
+	if err := ax.ExecDir(ctx, buildDir, "go", "mod", "tidy"); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_mod_tidy"), err)
 	}
 
 	// Run go build
-	if err := ax.ExecDir(context.Background(), buildDir, "go", "build", "-o", outputExe); err != nil {
+	if err := ax.ExecDir(ctx, buildDir, "go", "build", "-o", outputExe); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_build"), err)
 	}
 
 	core.Println()
 	core.Print(nil, "%s %s/%s", i18n.T("cmd.build.from_path.success"), buildDir, outputExe)
 	return nil
+}
+
+func getWithContext(ctx context.Context, targetURL string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	return http.DefaultClient.Do(req)
 }
 
 // copyDir recursively copies a directory from src to dst.

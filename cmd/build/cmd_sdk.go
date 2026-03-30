@@ -17,9 +17,7 @@ import (
 )
 
 // runBuildSDK handles the `core build sdk` command.
-func runBuildSDK(specPath, lang, version string, dryRun bool) error {
-	ctx := context.Background()
-
+func runBuildSDK(ctx context.Context, specPath, lang, version string, dryRun bool) error {
 	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("build.SDK", "failed to get working directory", err)

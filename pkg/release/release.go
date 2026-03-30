@@ -55,7 +55,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	// Step 1: Determine version
 	version := cfg.version
 	if version == "" {
-		version, err = DetermineVersion(absProjectDir)
+		version, err = DetermineVersionWithContext(ctx, absProjectDir)
 		if err != nil {
 			return nil, coreerr.E("release.Publish", "failed to determine version", err)
 		}
@@ -73,8 +73,11 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Step 3: Generate changelog
-	changelog, err := Generate(absProjectDir, "", version)
+	changelog, err := GenerateWithContext(ctx, absProjectDir, "", version)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, coreerr.E("release.Publish", "changelog generation cancelled", ctx.Err())
+		}
 		// Non-fatal: continue with empty changelog
 		changelog = core.Sprintf("Release %s", version)
 	}
@@ -167,15 +170,18 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	// Step 1: Determine version
 	version := cfg.version
 	if version == "" {
-		version, err = DetermineVersion(absProjectDir)
+		version, err = DetermineVersionWithContext(ctx, absProjectDir)
 		if err != nil {
 			return nil, coreerr.E("release.Run", "failed to determine version", err)
 		}
 	}
 
 	// Step 2: Generate changelog
-	changelog, err := Generate(absProjectDir, "", version)
+	changelog, err := GenerateWithContext(ctx, absProjectDir, "", version)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, coreerr.E("release.Run", "changelog generation cancelled", ctx.Err())
+		}
 		// Non-fatal: continue with empty changelog
 		changelog = core.Sprintf("Release %s", version)
 	}

@@ -38,7 +38,7 @@ var ciCmd = &cli.Command{
 	Use: "ci",
 	RunE: func(cmd *cli.Command, args []string) error {
 		dryRun := !ciGoForLaunch
-		return runCIPublish(dryRun, ciVersion, ciDraft, ciPrerelease)
+		return runCIPublish(cmd.Context(), dryRun, ciVersion, ciDraft, ciPrerelease)
 	},
 }
 
@@ -52,14 +52,14 @@ var ciInitCmd = &cli.Command{
 var ciChangelogCmd = &cli.Command{
 	Use: "changelog",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runChangelog(changelogFromRef, changelogToRef)
+		return runChangelog(cmd.Context(), changelogFromRef, changelogToRef)
 	},
 }
 
 var ciVersionCmd = &cli.Command{
 	Use: "version",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runCIReleaseVersion()
+		return runCIReleaseVersion(cmd.Context())
 	},
 }
 
@@ -92,9 +92,7 @@ func initCIFlags() {
 }
 
 // runCIPublish publishes pre-built artifacts from dist/.
-func runCIPublish(dryRun bool, version string, draft, prerelease bool) error {
-	ctx := context.Background()
-
+func runCIPublish(ctx context.Context, dryRun bool, version string, draft, prerelease bool) error {
 	projectDir, err := ax.Getwd()
 	if err != nil {
 		return cli.WrapVerb(err, "get", "working directory")
@@ -182,14 +180,14 @@ func runCIReleaseInit() error {
 }
 
 // runChangelog generates a changelog between two git refs.
-func runChangelog(fromRef, toRef string) error {
+func runChangelog(ctx context.Context, fromRef, toRef string) error {
 	cwd, err := ax.Getwd()
 	if err != nil {
 		return cli.Err("%s: %w", i18n.T("i18n.fail.get", "working directory"), err)
 	}
 
 	if fromRef == "" || toRef == "" {
-		tag, err := latestTag(cwd)
+		tag, err := latestTagWithContext(ctx, cwd)
 		if err == nil {
 			if fromRef == "" {
 				fromRef = tag
@@ -198,6 +196,9 @@ func runChangelog(fromRef, toRef string) error {
 				toRef = "HEAD"
 			}
 		} else {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			cli.Text(i18n.T("cmd.ci.changelog.no_tags"))
 			return nil
 		}
@@ -205,7 +206,7 @@ func runChangelog(fromRef, toRef string) error {
 
 	cli.Print("%s %s..%s\n\n", dimStyle.Render(i18n.T("cmd.ci.changelog.generating")), fromRef, toRef)
 
-	changelog, err := release.Generate(cwd, fromRef, toRef)
+	changelog, err := release.GenerateWithContext(ctx, cwd, fromRef, toRef)
 	if err != nil {
 		return cli.Err("%s: %w", i18n.T("i18n.fail.generate", "changelog"), err)
 	}
@@ -215,13 +216,13 @@ func runChangelog(fromRef, toRef string) error {
 }
 
 // runCIReleaseVersion shows the determined version.
-func runCIReleaseVersion() error {
+func runCIReleaseVersion(ctx context.Context) error {
 	projectDir, err := ax.Getwd()
 	if err != nil {
 		return cli.WrapVerb(err, "get", "working directory")
 	}
 
-	version, err := release.DetermineVersion(projectDir)
+	version, err := release.DetermineVersionWithContext(ctx, projectDir)
 	if err != nil {
 		return cli.WrapVerb(err, "determine", "version")
 	}
@@ -231,7 +232,11 @@ func runCIReleaseVersion() error {
 }
 
 func latestTag(dir string) (string, error) {
-	out, err := ax.RunDir(context.Background(), dir, "git", "describe", "--tags", "--abbrev=0")
+	return latestTagWithContext(context.Background(), dir)
+}
+
+func latestTagWithContext(ctx context.Context, dir string) (string, error) {
+	out, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0")
 	if err != nil {
 		return "", err
 	}

@@ -22,14 +22,31 @@ var semverRegex = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.-]+)
 //
 // Usage example: call release.DetermineVersion(...) from integrating code.
 func DetermineVersion(dir string) (string, error) {
+	return DetermineVersionWithContext(context.Background(), dir)
+}
+
+// DetermineVersionWithContext determines the version while honouring caller cancellation.
+// It checks in order:
+//  1. Git tag on HEAD
+//  2. Most recent tag + increment patch
+//  3. Default to v0.0.1 if no tags exist
+//
+// Usage example: call release.DetermineVersionWithContext(...) from integrating code.
+func DetermineVersionWithContext(ctx context.Context, dir string) (string, error) {
 	// Check if HEAD has a tag
-	headTag, err := getTagOnHead(dir)
+	headTag, err := getTagOnHeadWithContext(ctx, dir)
 	if err == nil && headTag != "" {
 		return normalizeVersion(headTag), nil
 	}
+	if err != nil && ctx.Err() != nil {
+		return "", coreerr.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err())
+	}
 
 	// Get most recent tag
-	latestTag, err := getLatestTag(dir)
+	latestTag, err := getLatestTagWithContext(ctx, dir)
+	if err != nil && ctx.Err() != nil {
+		return "", coreerr.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err())
+	}
 	if err != nil || latestTag == "" {
 		// No tags exist, return default
 		return "v0.0.1", nil
@@ -138,7 +155,11 @@ func normalizeVersion(version string) string {
 
 // getTagOnHead returns the tag on HEAD, if any.
 func getTagOnHead(dir string) (string, error) {
-	output, err := ax.RunDir(context.Background(), dir, "git", "describe", "--tags", "--exact-match", "HEAD")
+	return getTagOnHeadWithContext(context.Background(), dir)
+}
+
+func getTagOnHeadWithContext(ctx context.Context, dir string) (string, error) {
+	output, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--exact-match", "HEAD")
 	if err != nil {
 		return "", err
 	}
@@ -147,7 +168,11 @@ func getTagOnHead(dir string) (string, error) {
 
 // getLatestTag returns the most recent tag in the repository.
 func getLatestTag(dir string) (string, error) {
-	output, err := ax.RunDir(context.Background(), dir, "git", "describe", "--tags", "--abbrev=0")
+	return getLatestTagWithContext(context.Background(), dir)
+}
+
+func getLatestTagWithContext(ctx context.Context, dir string) (string, error) {
+	output, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0")
 	if err != nil {
 		return "", err
 	}

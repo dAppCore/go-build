@@ -64,14 +64,25 @@ var conventionalCommitRegex = regexp.MustCompile(`^(\w+)(?:\(([^)]+)\))?(!)?:\s*
 // If toRef is empty, it uses HEAD.
 // Usage example: call release.Generate(...) from integrating code.
 func Generate(dir, fromRef, toRef string) (string, error) {
+	return GenerateWithContext(context.Background(), dir, fromRef, toRef)
+}
+
+// GenerateWithContext generates a markdown changelog while honouring caller cancellation.
+// If fromRef is empty, it uses the previous tag or initial commit.
+// If toRef is empty, it uses HEAD.
+// Usage example: call release.GenerateWithContext(...) from integrating code.
+func GenerateWithContext(ctx context.Context, dir, fromRef, toRef string) (string, error) {
 	if toRef == "" {
 		toRef = "HEAD"
 	}
 
 	// If fromRef is empty, try to find previous tag
 	if fromRef == "" {
-		prevTag, err := getPreviousTag(dir, toRef)
+		prevTag, err := getPreviousTagWithContext(ctx, dir, toRef)
 		if err != nil {
+			if ctx.Err() != nil {
+				return "", coreerr.E("changelog.Generate", "generation cancelled", ctx.Err())
+			}
 			// No previous tag, use initial commit
 			fromRef = ""
 		} else {
@@ -80,7 +91,7 @@ func Generate(dir, fromRef, toRef string) (string, error) {
 	}
 
 	// Get commits between refs
-	commits, err := getCommits(dir, fromRef, toRef)
+	commits, err := getCommitsWithContext(ctx, dir, fromRef, toRef)
 	if err != nil {
 		return "", coreerr.E("changelog.Generate", "failed to get commits", err)
 	}
@@ -101,14 +112,23 @@ func Generate(dir, fromRef, toRef string) (string, error) {
 // GenerateWithConfig generates a changelog with filtering based on config.
 // Usage example: call release.GenerateWithConfig(...) from integrating code.
 func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
+	return GenerateWithConfigWithContext(context.Background(), dir, fromRef, toRef, cfg)
+}
+
+// GenerateWithConfigWithContext generates a filtered changelog while honouring caller cancellation.
+// Usage example: call release.GenerateWithConfigWithContext(...) from integrating code.
+func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
 	if toRef == "" {
 		toRef = "HEAD"
 	}
 
 	// If fromRef is empty, try to find previous tag
 	if fromRef == "" {
-		prevTag, err := getPreviousTag(dir, toRef)
+		prevTag, err := getPreviousTagWithContext(ctx, dir, toRef)
 		if err != nil {
+			if ctx.Err() != nil {
+				return "", coreerr.E("changelog.GenerateWithConfig", "generation cancelled", ctx.Err())
+			}
 			fromRef = ""
 		} else {
 			fromRef = prevTag
@@ -116,7 +136,7 @@ func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (strin
 	}
 
 	// Get commits between refs
-	commits, err := getCommits(dir, fromRef, toRef)
+	commits, err := getCommitsWithContext(ctx, dir, fromRef, toRef)
 	if err != nil {
 		return "", coreerr.E("changelog.GenerateWithConfig", "failed to get commits", err)
 	}
@@ -155,7 +175,11 @@ func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (strin
 
 // getPreviousTag returns the tag before the given ref.
 func getPreviousTag(dir, ref string) (string, error) {
-	output, err := ax.RunDir(context.Background(), dir, "git", "describe", "--tags", "--abbrev=0", ref+"^")
+	return getPreviousTagWithContext(context.Background(), dir, ref)
+}
+
+func getPreviousTagWithContext(ctx context.Context, dir, ref string) (string, error) {
+	output, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0", ref+"^")
 	if err != nil {
 		return "", err
 	}
@@ -165,6 +189,10 @@ func getPreviousTag(dir, ref string) (string, error) {
 // getCommits returns a slice of commit strings between two refs.
 // Format: "hash subject"
 func getCommits(dir, fromRef, toRef string) ([]string, error) {
+	return getCommitsWithContext(context.Background(), dir, fromRef, toRef)
+}
+
+func getCommitsWithContext(ctx context.Context, dir, fromRef, toRef string) ([]string, error) {
 	var args []string
 	if fromRef == "" {
 		// All commits up to toRef
@@ -174,7 +202,7 @@ func getCommits(dir, fromRef, toRef string) ([]string, error) {
 		args = []string{"log", "--oneline", "--no-merges", fromRef + ".." + toRef}
 	}
 
-	output, err := ax.RunDir(context.Background(), dir, "git", args...)
+	output, err := ax.RunDir(ctx, dir, "git", args...)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package release
 
 import (
+	"context"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -377,6 +378,18 @@ func TestChangelog_Generate_Bad(t *testing.T) {
 
 		_, err := Generate(dir, "", "HEAD")
 		assert.Error(t, err)
+	})
+
+	t.Run("returns error when context is cancelled", func(t *testing.T) {
+		dir := setupChangelogGitRepo(t)
+		createChangelogCommit(t, dir, "feat: add new feature")
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := GenerateWithContext(ctx, dir, "", "HEAD")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
 	})
 }
 

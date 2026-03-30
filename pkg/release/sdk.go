@@ -40,7 +40,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	version := cfg.version
 	if version == "" {
 		var err error
-		version, err = DetermineVersion(projectDir)
+		version, err = DetermineVersionWithContext(ctx, projectDir)
 		if err != nil {
 			return nil, coreerr.E("release.RunSDK", "failed to determine version", err)
 		}
@@ -48,8 +48,11 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 
 	// Run diff check if enabled
 	if cfg.SDK.Diff.Enabled {
-		breaking, err := checkBreakingChanges(projectDir, cfg.SDK)
+		breaking, err := checkBreakingChanges(ctx, projectDir, cfg.SDK)
 		if err != nil {
+			if ctx.Err() != nil {
+				return nil, coreerr.E("release.RunSDK", "diff check cancelled", ctx.Err())
+			}
 			// Non-fatal: warn and continue
 			core.Print(nil, "Warning: diff check failed: %v", err)
 		} else if breaking {
@@ -89,9 +92,9 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 }
 
 // checkBreakingChanges runs oasdiff to detect breaking changes.
-func checkBreakingChanges(projectDir string, cfg *SDKConfig) (bool, error) {
+func checkBreakingChanges(ctx context.Context, projectDir string, cfg *SDKConfig) (bool, error) {
 	// Get previous tag for comparison (uses getPreviousTag from changelog.go)
-	prevTag, err := getPreviousTag(projectDir, "HEAD")
+	prevTag, err := getPreviousTagWithContext(ctx, projectDir, "HEAD")
 	if err != nil {
 		return false, coreerr.E("release.checkBreakingChanges", "no previous tag found", err)
 	}

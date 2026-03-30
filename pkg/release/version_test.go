@@ -1,6 +1,7 @@
 package release
 
 import (
+	"context"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -108,6 +109,19 @@ func TestVersion_DetermineVersion_Bad(t *testing.T) {
 		version, err := DetermineVersion(dir)
 		require.NoError(t, err)
 		assert.Equal(t, "v0.0.1", version)
+	})
+
+	t.Run("returns error when context is cancelled", func(t *testing.T) {
+		dir := setupGitRepo(t)
+		createCommit(t, dir, "feat: initial commit")
+		createTag(t, dir, "v1.0.0")
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := DetermineVersionWithContext(ctx, dir)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
 	})
 }
 

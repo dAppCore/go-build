@@ -71,7 +71,7 @@ var fromPathCmd = &cli.Command{
 		if fromPath == "" {
 			return errPathRequired
 		}
-		return runBuild(fromPath)
+		return runBuild(cmd.Context(), fromPath)
 	},
 }
 
@@ -81,14 +81,14 @@ var pwaCmd = &cli.Command{
 		if pwaURL == "" {
 			return errURLRequired
 		}
-		return runPwaBuild(pwaURL)
+		return runPwaBuild(cmd.Context(), pwaURL)
 	},
 }
 
 var sdkBuildCmd = &cli.Command{
 	Use: "sdk",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runBuildSDK(sdkSpec, sdkLang, sdkVersion, sdkDryRun)
+		return runBuildSDK(cmd.Context(), sdkSpec, sdkLang, sdkVersion, sdkDryRun)
 	},
 }
 

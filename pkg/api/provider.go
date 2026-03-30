@@ -275,7 +275,7 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	}
 
 	// Determine version
-	version, verr := release.DetermineVersion(dir)
+	version, verr := release.DetermineVersionWithContext(c.Request.Context(), dir)
 	if verr != nil {
 		version = "dev"
 	}
@@ -406,7 +406,7 @@ func (p *BuildProvider) getVersion(c *gin.Context) {
 		return
 	}
 
-	version, err := release.DetermineVersion(dir)
+	version, err := release.DetermineVersionWithContext(c.Request.Context(), dir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("version_failed", err.Error()))
 		return
@@ -428,7 +428,7 @@ func (p *BuildProvider) getChangelog(c *gin.Context) {
 	fromRef := c.Query("from")
 	toRef := c.Query("to")
 
-	changelog, err := release.Generate(dir, fromRef, toRef)
+	changelog, err := release.GenerateWithContext(c.Request.Context(), dir, fromRef, toRef)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("changelog_failed", err.Error()))
 		return
