@@ -2,6 +2,7 @@ package generators
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -37,6 +38,34 @@ paths:
 	return specPath
 }
 
+func writeFakeTypeScriptGenerator(t *testing.T, dir string) string {
+	t.Helper()
+
+	commandPath := ax.Join(dir, "openapi-typescript-codegen")
+	script := `#!/bin/sh
+set -eu
+output_dir=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output)
+      shift
+      output_dir="$1"
+      ;;
+    --output=*)
+      output_dir="${1#--output=}"
+      ;;
+  esac
+  shift
+done
+if [ -n "$output_dir" ]; then
+  mkdir -p "$output_dir"
+fi
+`
+
+	require.NoError(t, ax.WriteFile(commandPath, []byte(script), 0o755))
+	return commandPath
+}
+
 func TestTypeScript_TypeScriptGeneratorAvailable_Good(t *testing.T) {
 	g := NewTypeScriptGenerator()
 
@@ -68,10 +97,12 @@ func TestTypeScript_TypeScriptGeneratorNpxAvailabilityUsesProbeTimeout_Bad(t *te
 }
 
 func TestTypeScript_TypeScriptGeneratorGenerate_Good(t *testing.T) {
+	commandDir := t.TempDir()
+	writeFakeTypeScriptGenerator(t, commandDir)
+	t.Setenv("PATH", commandDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 	g := NewTypeScriptGenerator()
-	if !g.Available() && !dockerAvailable() {
-		t.Skip("no TypeScript generator available (neither native nor docker)")
-	}
+	require.True(t, g.Available())
 
 	// Create temp directories
 	tmpDir := t.TempDir()

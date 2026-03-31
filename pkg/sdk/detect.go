@@ -1,6 +1,8 @@
 package sdk
 
 import (
+	"context"
+
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
@@ -40,9 +42,20 @@ func (s *SDK) DetectSpec() (string, error) {
 	}
 
 	// 3. Try Laravel Scramble detection
-	specPath, err := s.detectScramble()
-	if err == nil {
-		return specPath, nil
+	composerPath := ax.Join(s.projectDir, "composer.json")
+	if ax.IsFile(composerPath) {
+		data, err := ax.ReadFile(composerPath)
+		if err != nil {
+			return "", err
+		}
+
+		if containsScramble(string(data)) {
+			specPath, err := s.detectScramble()
+			if err != nil {
+				return "", err
+			}
+			return specPath, nil
+		}
 	}
 
 	return "", coreerr.E("sdk.DetectSpec", "no OpenAPI spec found (checked config, common paths, Scramble)", nil)
@@ -66,12 +79,37 @@ func (s *SDK) detectScramble() (string, error) {
 		return "", coreerr.E("sdk.detectScramble", "scramble not found in composer.json", nil)
 	}
 
-	// TODO: Run php artisan scramble:export
-	return "", coreerr.E("sdk.detectScramble", "scramble export not implemented", nil)
+	scrambleSpecPath := ax.Join(s.projectDir, "api.json")
+	if ax.IsFile(scrambleSpecPath) {
+		return scrambleSpecPath, nil
+	}
+
+	phpCommand, err := resolvePHPCli()
+	if err != nil {
+		return "", coreerr.E("sdk.detectScramble", "php CLI not found", err)
+	}
+
+	if err := ax.ExecDir(context.Background(), s.projectDir, phpCommand, "artisan", "scramble:export", "--path=api.json"); err != nil {
+		return "", coreerr.E("sdk.detectScramble", "scramble export failed", err)
+	}
+
+	if !ax.IsFile(scrambleSpecPath) {
+		return "", coreerr.E("sdk.detectScramble", "scramble export did not create api.json", nil)
+	}
+
+	return scrambleSpecPath, nil
 }
 
 // containsScramble checks if composer.json includes scramble.
 func containsScramble(content string) bool {
 	return core.Contains(content, "dedoc/scramble") ||
 		core.Contains(content, "\"scramble\"")
+}
+
+func resolvePHPCli() (string, error) {
+	return ax.ResolveCommand("php",
+		"/usr/bin/php",
+		"/usr/local/bin/php",
+		"/opt/homebrew/bin/php",
+	)
 }

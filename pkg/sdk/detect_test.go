@@ -9,6 +9,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func writeFakePHP(t *testing.T, dir string) string {
+	t.Helper()
+
+	phpPath := ax.Join(dir, "php")
+	script := `#!/bin/sh
+set -eu
+if [ "$1" != "artisan" ] || [ "$2" != "scramble:export" ]; then
+  exit 64
+fi
+output_path="api.json"
+shift 2
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --path=*)
+      output_path="${1#--path=}"
+      ;;
+    --path)
+      shift
+      output_path="$1"
+      ;;
+  esac
+  shift
+done
+printf '{"openapi":"3.1.0"}\n' > "$output_path"
+`
+
+	require.NoError(t, ax.WriteFile(phpPath, []byte(script), 0o755))
+	return phpPath
+}
+
 func TestDetect_DetectSpecConfigPath_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := ax.Join(tmpDir, "api", "spec.yaml")
@@ -84,4 +114,23 @@ func TestDetect_DetectScramble_Bad(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "scramble not found")
 	})
+}
+
+func TestDetect_DetectSpecScramble_Good(t *testing.T) {
+	tmpDir := t.TempDir()
+	err := ax.WriteFile(ax.Join(tmpDir, "composer.json"), []byte(`{"require":{"dedoc/scramble":"^0.1"}}`), 0o644)
+	require.NoError(t, err)
+
+	phpDir := t.TempDir()
+	writeFakePHP(t, phpDir)
+	t.Setenv("PATH", phpDir)
+
+	sdk := New(tmpDir, nil)
+	got, err := sdk.DetectSpec()
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(tmpDir, "api.json"), got)
+
+	data, err := ax.ReadFile(got)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"openapi":"3.1.0"`)
 }
