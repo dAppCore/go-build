@@ -66,6 +66,10 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	}
 
 	// Wails v2 strategy: Use 'wails build'
+	if err := b.PreBuild(ctx, cfg); err != nil {
+		return nil, err
+	}
+
 	// Ensure output directory exists
 	if err := cfg.FS.EnsureDir(cfg.OutputDir); err != nil {
 		return nil, coreerr.E("WailsBuilder.Build", "failed to create output directory", err)
@@ -86,6 +90,30 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	return artifacts, nil
 }
 
+// PreBuild runs the frontend build step before Wails compiles the desktop app.
+//
+// err := b.PreBuild(ctx, cfg) // runs `deno task build` or `npm run build`
+func (b *WailsBuilder) PreBuild(ctx context.Context, cfg *build.Config) error {
+	if cfg == nil {
+		return coreerr.E("WailsBuilder.PreBuild", "config is nil", nil)
+	}
+
+	frontendDir, command, args, err := b.resolveFrontendBuild(cfg.FS, cfg.ProjectDir)
+	if err != nil {
+		return err
+	}
+	if command == "" {
+		return nil
+	}
+
+	output, err := ax.CombinedOutput(ctx, frontendDir, nil, command, args...)
+	if err != nil {
+		return coreerr.E("WailsBuilder.PreBuild", command+" build failed: "+output, err)
+	}
+
+	return nil
+}
+
 // isWailsV3 checks if the project uses Wails v3 by inspecting go.mod.
 func (b *WailsBuilder) isWailsV3(fs io.Medium, dir string) bool {
 	goModPath := ax.Join(dir, "go.mod")
@@ -94,6 +122,53 @@ func (b *WailsBuilder) isWailsV3(fs io.Medium, dir string) bool {
 		return false
 	}
 	return core.Contains(content, "github.com/wailsapp/wails/v3")
+}
+
+// resolveFrontendBuild selects the frontend directory and build command.
+//
+// dir, command, args, err := b.resolveFrontendBuild(io.Local, ".")
+func (b *WailsBuilder) resolveFrontendBuild(fs io.Medium, projectDir string) (string, string, []string, error) {
+	frontendDir := b.resolveFrontendDir(fs, projectDir)
+	if frontendDir == "" {
+		return "", "", nil, nil
+	}
+
+	if b.hasDenoConfig(fs, frontendDir) {
+		command, err := b.resolveDenoCli()
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, []string{"task", "build"}, nil
+	}
+
+	if fs.IsFile(ax.Join(frontendDir, "package.json")) {
+		command, err := b.resolveNpmCli()
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, []string{"run", "build"}, nil
+	}
+
+	return "", "", nil, nil
+}
+
+// resolveFrontendDir returns the directory that contains the frontend build manifest.
+func (b *WailsBuilder) resolveFrontendDir(fs io.Medium, projectDir string) string {
+	frontendDir := ax.Join(projectDir, "frontend")
+	if fs.IsDir(frontendDir) && (b.hasDenoConfig(fs, frontendDir) || fs.IsFile(ax.Join(frontendDir, "package.json"))) {
+		return frontendDir
+	}
+
+	if b.hasDenoConfig(fs, projectDir) || fs.IsFile(ax.Join(projectDir, "package.json")) {
+		return projectDir
+	}
+
+	return ""
+}
+
+// hasDenoConfig reports whether the frontend directory contains a Deno manifest.
+func (b *WailsBuilder) hasDenoConfig(fs io.Medium, dir string) bool {
+	return fs.IsFile(ax.Join(dir, "deno.json")) || fs.IsFile(ax.Join(dir, "deno.jsonc"))
 }
 
 // buildV2Target compiles for a single target platform using wails (v2).
@@ -253,6 +328,40 @@ func (b *WailsBuilder) resolveWailsCli(paths ...string) (string, error) {
 	command, err := ax.ResolveCommand("wails", paths...)
 	if err != nil {
 		return "", coreerr.E("WailsBuilder.resolveWailsCli", "wails CLI not found. Install it with: go install github.com/wailsapp/wails/v2/cmd/wails@latest", err)
+	}
+
+	return command, nil
+}
+
+// resolveDenoCli returns the executable path for the deno CLI.
+func (b *WailsBuilder) resolveDenoCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/deno",
+			"/opt/homebrew/bin/deno",
+		}
+	}
+
+	command, err := ax.ResolveCommand("deno", paths...)
+	if err != nil {
+		return "", coreerr.E("WailsBuilder.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", err)
+	}
+
+	return command, nil
+}
+
+// resolveNpmCli returns the executable path for the npm CLI.
+func (b *WailsBuilder) resolveNpmCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/npm",
+			"/opt/homebrew/bin/npm",
+		}
+	}
+
+	command, err := ax.ResolveCommand("npm", paths...)
+	if err != nil {
+		return "", coreerr.E("WailsBuilder.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", err)
 	}
 
 	return command, nil

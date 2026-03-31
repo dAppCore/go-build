@@ -92,6 +92,12 @@ if [ -n "$log_file" ]; then
 	printf '%s\n' "$@" > "$log_file"
 fi
 
+sequence_file="${BUILD_SEQUENCE_FILE:-}"
+if [ -n "$sequence_file" ]; then
+	printf '%s\n' "wails" >> "$sequence_file"
+	printf '%s\n' "$@" >> "$sequence_file"
+fi
+
 output_dir="build/bin"
 binary_name="testapp"
 mkdir -p "$output_dir"
@@ -101,6 +107,22 @@ chmod +x "$output_dir/$binary_name"
 
 	err := ax.WriteFile(ax.Join(binDir, "wails"), []byte(wailsScript), 0o755)
 	require.NoError(t, err)
+}
+
+func setupFakeFrontendCommand(t *testing.T, binDir, name string) {
+	t.Helper()
+
+	script := strings.ReplaceAll(`#!/bin/sh
+set -eu
+
+sequence_file="${BUILD_SEQUENCE_FILE:-}"
+if [ -n "$sequence_file" ]; then
+	printf '%s\n' "__NAME__" >> "$sequence_file"
+	printf '%s\n' "$@" >> "$sequence_file"
+fi
+`, "__NAME__", name)
+
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755))
 }
 
 func TestWails_WailsBuilderBuildTaskfile_Good(t *testing.T) {
@@ -225,6 +247,124 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 	assert.Contains(t, args, "-nsis")
 	assert.Contains(t, args, "-webview2")
 	assert.Contains(t, args, "embed")
+}
+
+func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	t.Run("uses deno when deno manifest exists", func(t *testing.T) {
+		binDir := t.TempDir()
+		setupFakeFrontendCommand(t, binDir, "deno")
+		setupFakeFrontendCommand(t, binDir, "npm")
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		projectDir := setupWailsTestProject(t)
+		frontendDir := ax.Join(projectDir, "frontend")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
+
+		logPath := ax.Join(t.TempDir(), "frontend.log")
+		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
+
+		builder := NewWailsBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+		}
+
+		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.Len(t, lines, 3)
+		assert.Equal(t, "deno", lines[0])
+		assert.Equal(t, "task", lines[1])
+		assert.Equal(t, "build", lines[2])
+	})
+
+	t.Run("falls back to npm when only package.json exists", func(t *testing.T) {
+		binDir := t.TempDir()
+		setupFakeFrontendCommand(t, binDir, "deno")
+		setupFakeFrontendCommand(t, binDir, "npm")
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		projectDir := setupWailsTestProject(t)
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+
+		logPath := ax.Join(t.TempDir(), "frontend.log")
+		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
+
+		builder := NewWailsBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+		}
+
+		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.Len(t, lines, 3)
+		assert.Equal(t, "npm", lines[0])
+		assert.Equal(t, "run", lines[1])
+		assert.Equal(t, "build", lines[2])
+	})
+}
+
+func TestWails_WailsBuilderBuildV2PreBuild_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeFrontendCommand(t, binDir, "deno")
+	setupFakeFrontendCommand(t, binDir, "npm")
+	setupFakeWailsToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := setupWailsV2TestProject(t)
+	frontendDir := ax.Join(projectDir, "frontend")
+	require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
+
+	outputDir := t.TempDir()
+	sequencePath := ax.Join(t.TempDir(), "build-sequence.log")
+	wailsLogPath := ax.Join(t.TempDir(), "wails.log")
+	t.Setenv("BUILD_SEQUENCE_FILE", sequencePath)
+	t.Setenv("WAILS_BUILD_LOG_FILE", wailsLogPath)
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Name:       "testapp",
+	}
+	targets := []build.Target{
+		{OS: runtime.GOOS, Arch: runtime.GOARCH},
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, targets)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	content, err := ax.ReadFile(sequencePath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.GreaterOrEqual(t, len(lines), 4)
+	assert.Equal(t, "deno", lines[0])
+	assert.Equal(t, "task", lines[1])
+	assert.Equal(t, "build", lines[2])
+	assert.Equal(t, "wails", lines[3])
 }
 
 func TestWails_WailsBuilderResolveWailsCli_Good(t *testing.T) {
