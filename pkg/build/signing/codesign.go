@@ -10,7 +10,8 @@ import (
 )
 
 // MacOSSigner signs binaries using macOS codesign.
-// Usage example: declare a value of type signing.MacOSSigner in integrating code.
+//
+// s := signing.NewMacOSSigner(cfg.MacOS)
 type MacOSSigner struct {
 	config MacOSConfig
 }
@@ -19,19 +20,22 @@ type MacOSSigner struct {
 var _ Signer = (*MacOSSigner)(nil)
 
 // NewMacOSSigner creates a new macOS signer.
-// Usage example: call signing.NewMacOSSigner(...) from integrating code.
+//
+// s := signing.NewMacOSSigner(cfg.MacOS)
 func NewMacOSSigner(cfg MacOSConfig) *MacOSSigner {
 	return &MacOSSigner{config: cfg}
 }
 
 // Name returns "codesign".
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := s.Name() // → "codesign"
 func (s *MacOSSigner) Name() string {
 	return "codesign"
 }
 
 // Available checks if running on macOS with codesign and identity configured.
-// Usage example: call value.Available(...) from integrating code.
+//
+// ok := s.Available() // → true if on macOS with identity set
 func (s *MacOSSigner) Available() bool {
 	if runtime.GOOS != "darwin" {
 		return false
@@ -44,7 +48,8 @@ func (s *MacOSSigner) Available() bool {
 }
 
 // Sign codesigns a binary with hardened runtime.
-// Usage example: call value.Sign(...) from integrating code.
+//
+// err := s.Sign(ctx, io.Local, "dist/myapp")
 func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) error {
 	if !s.Available() {
 		if runtime.GOOS != "darwin" {
@@ -77,7 +82,8 @@ func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) err
 
 // Notarize submits binary to Apple for notarization and staples the ticket.
 // This blocks until Apple responds (typically 1-5 minutes).
-// Usage example: call value.Notarize(...) from integrating code.
+//
+// err := s.Notarize(ctx, io.Local, "dist/myapp")
 func (s *MacOSSigner) Notarize(ctx context.Context, fs io.Medium, binary string) error {
 	if s.config.AppleID == "" || s.config.TeamID == "" || s.config.AppPassword == "" {
 		return coreerr.E("codesign.Notarize", "missing Apple credentials (apple_id, team_id, app_password)", nil)
@@ -120,7 +126,8 @@ func (s *MacOSSigner) Notarize(ctx context.Context, fs io.Medium, binary string)
 }
 
 // ShouldNotarize returns true if notarization is enabled.
-// Usage example: call value.ShouldNotarize(...) from integrating code.
+//
+// if s.ShouldNotarize() { ... }
 func (s *MacOSSigner) ShouldNotarize() bool {
 	return s.config.Notarize
 }

@@ -14,31 +14,35 @@ import (
 
 // CPPBuilder implements the Builder interface for C++ projects using CMake + Conan.
 // It wraps the Makefile-based build system from the .core/build submodule.
-// Usage example: declare a value of type builders.CPPBuilder in integrating code.
+//
+// b := builders.NewCPPBuilder()
 type CPPBuilder struct{}
 
 // NewCPPBuilder creates a new CPPBuilder instance.
-// Usage example: call builders.NewCPPBuilder(...) from integrating code.
+//
+// b := builders.NewCPPBuilder()
 func NewCPPBuilder() *CPPBuilder {
 	return &CPPBuilder{}
 }
 
 // Name returns the builder's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := b.Name() // → "cpp"
 func (b *CPPBuilder) Name() string {
 	return "cpp"
 }
 
-// Detect checks if this builder can handle the project in the given directory.
-// Usage example: call value.Detect(...) from integrating code.
+// Detect checks if this builder can handle the project (checks for CMakeLists.txt).
+//
+// ok, err := b.Detect(io.Local, ".")
 func (b *CPPBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	return build.IsCPPProject(fs, dir), nil
 }
 
 // Build compiles the C++ project using Make targets.
 // The build flow is: make configure → make build → make package.
-// Cross-compilation is handled via Conan profiles specified in .core/build.yaml.
-// Usage example: call value.Build(...) from integrating code.
+//
+// artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *CPPBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	if cfg == nil {
 		return nil, coreerr.E("CPPBuilder.Build", "config is nil", nil)

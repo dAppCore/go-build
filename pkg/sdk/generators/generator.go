@@ -12,7 +12,8 @@ import (
 )
 
 // Options holds common generation options.
-// Usage example: declare a value of type generators.Options in integrating code.
+//
+// opts := generators.Options{SpecPath: "docs/openapi.yaml", OutputDir: "sdk/typescript", PackageName: "@host-uk/api-client", Version: "1.0.0"}
 type Options struct {
 	// SpecPath is the path to the OpenAPI spec file.
 	SpecPath string
@@ -25,7 +26,9 @@ type Options struct {
 }
 
 // Generator defines the interface for SDK generators.
-// Usage example: declare a value of type generators.Generator in integrating code.
+//
+// gen := generators.NewTypeScriptGenerator()
+// err := gen.Generate(ctx, opts)
 type Generator interface {
 	// Language returns the generator's target language identifier.
 	Language() string
@@ -41,13 +44,15 @@ type Generator interface {
 }
 
 // Registry holds available generators.
-// Usage example: declare a value of type generators.Registry in integrating code.
+//
+// r := generators.NewRegistry()
 type Registry struct {
 	generators map[string]Generator
 }
 
 // NewRegistry creates a registry with all available generators.
-// Usage example: call generators.NewRegistry(...) from integrating code.
+//
+// r := generators.NewRegistry()
 func NewRegistry() *Registry {
 	r := &Registry{
 		generators: make(map[string]Generator),
@@ -57,20 +62,23 @@ func NewRegistry() *Registry {
 }
 
 // Get returns a generator by language.
-// Usage example: call value.Get(...) from integrating code.
+//
+// gen, ok := r.Get("typescript")
 func (r *Registry) Get(lang string) (Generator, bool) {
 	g, ok := r.generators[lang]
 	return g, ok
 }
 
 // Register adds a generator to the registry.
-// Usage example: call value.Register(...) from integrating code.
+//
+// r.Register(generators.NewTypeScriptGenerator())
 func (r *Registry) Register(g Generator) {
 	r.generators[g.Language()] = g
 }
 
 // Languages returns all registered language identifiers.
-// Usage example: call value.Languages(...) from integrating code.
+//
+// langs := r.Languages() // → ["go", "php", "python", "typescript"]
 func (r *Registry) Languages() []string {
 	var languages []string
 	for lang := range r.LanguagesIter() {
@@ -80,7 +88,8 @@ func (r *Registry) Languages() []string {
 }
 
 // LanguagesIter returns an iterator for all registered language identifiers.
-// Usage example: call value.LanguagesIter(...) from integrating code.
+//
+// for lang := range r.LanguagesIter() { fmt.Println(lang) }
 func (r *Registry) LanguagesIter() iter.Seq[string] {
 	return func(yield func(string) bool) {
 		// Sort keys for deterministic iteration

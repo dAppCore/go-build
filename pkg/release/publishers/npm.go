@@ -17,7 +17,8 @@ import (
 var npmTemplates embed.FS
 
 // NpmConfig holds npm-specific configuration.
-// Usage example: declare a value of type publishers.NpmConfig in integrating code.
+//
+// cfg := publishers.NpmConfig{Package: "@host-uk/core-build", Access: "public"}
 type NpmConfig struct {
 	// Package is the npm package name (e.g., "@host-uk/core").
 	Package string
@@ -26,24 +27,27 @@ type NpmConfig struct {
 }
 
 // NpmPublisher publishes releases to npm using the binary wrapper pattern.
-// Usage example: declare a value of type publishers.NpmPublisher in integrating code.
+//
+// pub := publishers.NewNpmPublisher()
 type NpmPublisher struct{}
 
 // NewNpmPublisher creates a new npm publisher.
-// Usage example: call publishers.NewNpmPublisher(...) from integrating code.
+//
+// pub := publishers.NewNpmPublisher()
 func NewNpmPublisher() *NpmPublisher {
 	return &NpmPublisher{}
 }
 
 // Name returns the publisher's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := pub.Name() // → "npm"
 func (p *NpmPublisher) Name() string {
 	return "npm"
 }
 
-// Publish publishes the release to npm.
-// It generates a binary wrapper package that downloads the correct platform binary on postinstall.
-// Usage example: call value.Publish(...) from integrating code.
+// Publish publishes the release to npm as a binary wrapper package.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	// Parse npm config
 	npmCfg := p.parseConfig(pubCfg, relCfg)

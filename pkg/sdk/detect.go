@@ -22,7 +22,8 @@ var commonSpecPaths = []string{
 
 // DetectSpec finds the OpenAPI spec file.
 // Priority: config path -> common paths -> Laravel Scramble.
-// Usage example: call value.DetectSpec(...) from integrating code.
+//
+// path, err := s.DetectSpec() // → "api/openapi.yaml", nil
 func (s *SDK) DetectSpec() (string, error) {
 	// 1. Check configured path
 	if s.config.Spec != "" {

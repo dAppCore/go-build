@@ -12,33 +12,35 @@ import (
 )
 
 // WailsBuilder implements the Builder interface for Wails v3 projects.
-// Usage example: declare a value of type builders.WailsBuilder in integrating code.
+//
+// b := builders.NewWailsBuilder()
 type WailsBuilder struct{}
 
 // NewWailsBuilder creates a new WailsBuilder instance.
-// Usage example: call builders.NewWailsBuilder(...) from integrating code.
+//
+// b := builders.NewWailsBuilder()
 func NewWailsBuilder() *WailsBuilder {
 	return &WailsBuilder{}
 }
 
 // Name returns the builder's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := b.Name() // → "wails"
 func (b *WailsBuilder) Name() string {
 	return "wails"
 }
 
-// Detect checks if this builder can handle the project in the given directory.
-// Uses IsWailsProject from the build package which checks for wails.json.
-// Usage example: call value.Detect(...) from integrating code.
+// Detect checks if this builder can handle the project (checks for wails.json).
+//
+// ok, err := b.Detect(io.Local, ".")
 func (b *WailsBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	return build.IsWailsProject(fs, dir), nil
 }
 
 // Build compiles the Wails project for the specified targets.
-// It detects the Wails version and chooses the appropriate build strategy:
-// - Wails v3: Delegates to Taskfile (error if missing)
-// - Wails v2: Uses 'wails build' command
-// Usage example: call value.Build(...) from integrating code.
+// Wails v3: delegates to Taskfile; Wails v2: uses 'wails build'.
+//
+// artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "darwin", Arch: "arm64"}})
 func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	if cfg == nil {
 		return nil, coreerr.E("WailsBuilder.Build", "config is nil", nil)

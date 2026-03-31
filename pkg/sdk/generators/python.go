@@ -8,36 +8,42 @@ import (
 )
 
 // PythonGenerator generates Python SDKs from OpenAPI specs.
-// Usage example: declare a value of type generators.PythonGenerator in integrating code.
+//
+// g := generators.NewPythonGenerator()
 type PythonGenerator struct{}
 
 // NewPythonGenerator creates a new Python generator.
-// Usage example: call generators.NewPythonGenerator(...) from integrating code.
+//
+// g := generators.NewPythonGenerator()
 func NewPythonGenerator() *PythonGenerator {
 	return &PythonGenerator{}
 }
 
 // Language returns the generator's target language identifier.
-// Usage example: call value.Language(...) from integrating code.
+//
+// lang := g.Language() // → "python"
 func (g *PythonGenerator) Language() string {
 	return "python"
 }
 
 // Available checks if generator dependencies are installed.
-// Usage example: call value.Available(...) from integrating code.
+//
+// if g.Available() { err = g.Generate(ctx, opts) }
 func (g *PythonGenerator) Available() bool {
 	_, err := g.resolveNativeCli()
 	return err == nil || dockerRuntimeAvailable()
 }
 
 // Install returns instructions for installing the generator.
-// Usage example: call value.Install(...) from integrating code.
+//
+// fmt.Println(g.Install()) // → "pip install openapi-python-client"
 func (g *PythonGenerator) Install() string {
 	return "pip install openapi-python-client"
 }
 
 // Generate creates SDK from OpenAPI spec.
-// Usage example: call value.Generate(...) from integrating code.
+//
+// err := g.Generate(ctx, generators.Options{SpecPath: "docs/openapi.yaml", OutputDir: "sdk/python"})
 func (g *PythonGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := ctx.Err(); err != nil {
 		return coreerr.E("python.Generate", "generation cancelled", err)

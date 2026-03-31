@@ -12,32 +12,36 @@ import (
 )
 
 // GoBuilder implements the Builder interface for Go projects.
-// Usage example: declare a value of type builders.GoBuilder in integrating code.
+//
+// b := builders.NewGoBuilder()
 type GoBuilder struct{}
 
 // NewGoBuilder creates a new GoBuilder instance.
-// Usage example: call builders.NewGoBuilder(...) from integrating code.
+//
+// b := builders.NewGoBuilder()
 func NewGoBuilder() *GoBuilder {
 	return &GoBuilder{}
 }
 
 // Name returns the builder's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := b.Name() // → "go"
 func (b *GoBuilder) Name() string {
 	return "go"
 }
 
 // Detect checks if this builder can handle the project in the given directory.
 // Uses IsGoProject from the build package which checks for go.mod or wails.json.
-// Usage example: call value.Detect(...) from integrating code.
+//
+// ok, err := b.Detect(io.Local, ".")
 func (b *GoBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	return build.IsGoProject(fs, dir), nil
 }
 
 // Build compiles the Go project for the specified targets.
-// It sets GOOS, GOARCH, and CGO_ENABLED environment variables,
-// applies ldflags and trimpath, and runs go build.
-// Usage example: call value.Build(...) from integrating code.
+// It sets GOOS, GOARCH, and CGO_ENABLED, applies ldflags and trimpath.
+//
+// artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	if cfg == nil {
 		return nil, coreerr.E("GoBuilder.Build", "config is nil", nil)

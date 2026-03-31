@@ -20,7 +20,7 @@ var semverRegex = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.-]+)
 //  2. Most recent tag + increment patch
 //  3. Default to v0.0.1 if no tags exist
 //
-// Usage example: call release.DetermineVersion(...) from integrating code.
+// version, err := release.DetermineVersion(".") // → "v1.2.4"
 func DetermineVersion(dir string) (string, error) {
 	return DetermineVersionWithContext(context.Background(), dir)
 }
@@ -31,7 +31,7 @@ func DetermineVersion(dir string) (string, error) {
 //  2. Most recent tag + increment patch
 //  3. Default to v0.0.1 if no tags exist
 //
-// Usage example: call release.DetermineVersionWithContext(...) from integrating code.
+// version, err := release.DetermineVersionWithContext(ctx, ".") // → "v1.2.4"
 func DetermineVersionWithContext(ctx context.Context, dir string) (string, error) {
 	// Check if HEAD has a tag
 	headTag, err := getTagOnHeadWithContext(ctx, dir)
@@ -57,12 +57,11 @@ func DetermineVersionWithContext(ctx context.Context, dir string) (string, error
 }
 
 // IncrementVersion increments the patch version of a semver string.
-// Examples:
-//   - "v1.2.3" -> "v1.2.4"
-//   - "1.2.3" -> "v1.2.4"
-//   - "v1.2.3-alpha" -> "v1.2.4" (strips prerelease)
+//   - "v1.2.3"       → "v1.2.4"
+//   - "1.2.3"        → "v1.2.4"
+//   - "v1.2.3-alpha" → "v1.2.4" (strips prerelease)
 //
-// Usage example: call release.IncrementVersion(...) from integrating code.
+// next := release.IncrementVersion("v1.2.3") // → "v1.2.4"
 func IncrementVersion(current string) string {
 	matches := semverRegex.FindStringSubmatch(current)
 	if matches == nil {
@@ -81,11 +80,10 @@ func IncrementVersion(current string) string {
 }
 
 // IncrementMinor increments the minor version of a semver string.
-// Examples:
-//   - "v1.2.3" -> "v1.3.0"
-//   - "1.2.3" -> "v1.3.0"
+//   - "v1.2.3" → "v1.3.0"
+//   - "1.2.3"  → "v1.3.0"
 //
-// Usage example: call release.IncrementMinor(...) from integrating code.
+// next := release.IncrementMinor("v1.2.3") // → "v1.3.0"
 func IncrementMinor(current string) string {
 	matches := semverRegex.FindStringSubmatch(current)
 	if matches == nil {
@@ -102,11 +100,10 @@ func IncrementMinor(current string) string {
 }
 
 // IncrementMajor increments the major version of a semver string.
-// Examples:
-//   - "v1.2.3" -> "v2.0.0"
-//   - "1.2.3" -> "v2.0.0"
+//   - "v1.2.3" → "v2.0.0"
+//   - "1.2.3"  → "v2.0.0"
 //
-// Usage example: call release.IncrementMajor(...) from integrating code.
+// next := release.IncrementMajor("v1.2.3") // → "v2.0.0"
 func IncrementMajor(current string) string {
 	matches := semverRegex.FindStringSubmatch(current)
 	if matches == nil {
@@ -123,7 +120,8 @@ func IncrementMajor(current string) string {
 
 // ParseVersion parses a semver string into its components.
 // Returns (major, minor, patch, prerelease, build, error).
-// Usage example: call release.ParseVersion(...) from integrating code.
+//
+// major, minor, patch, pre, build, err := release.ParseVersion("v1.2.3-alpha+001")
 func ParseVersion(version string) (int, int, int, string, string, error) {
 	matches := semverRegex.FindStringSubmatch(version)
 	if matches == nil {
@@ -140,7 +138,8 @@ func ParseVersion(version string) (int, int, int, string, string, error) {
 }
 
 // ValidateVersion checks if a string is a valid semver.
-// Usage example: call release.ValidateVersion(...) from integrating code.
+//
+// if release.ValidateVersion("v1.2.3") { ... }
 func ValidateVersion(version string) bool {
 	return semverRegex.MatchString(version)
 }
@@ -170,13 +169,9 @@ func getLatestTagWithContext(ctx context.Context, dir string) (string, error) {
 }
 
 // CompareVersions compares two semver strings.
-// Returns:
+// Returns -1 if a < b, 0 if a == b, 1 if a > b.
 //
-//	-1 if a < b
-//	 0 if a == b
-//	 1 if a > b
-//
-// Usage example: call release.CompareVersions(...) from integrating code.
+// result := release.CompareVersions("v1.2.3", "v1.2.4") // → -1
 func CompareVersions(a, b string) int {
 	aMajor, aMinor, aPatch, _, _, errA := ParseVersion(a)
 	bMajor, bMinor, bPatch, _, _, errB := ParseVersion(b)

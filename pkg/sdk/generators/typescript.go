@@ -8,35 +8,41 @@ import (
 )
 
 // TypeScriptGenerator generates TypeScript SDKs from OpenAPI specs.
-// Usage example: declare a value of type generators.TypeScriptGenerator in integrating code.
+//
+// g := generators.NewTypeScriptGenerator()
 type TypeScriptGenerator struct{}
 
 // NewTypeScriptGenerator creates a new TypeScript generator.
-// Usage example: call generators.NewTypeScriptGenerator(...) from integrating code.
+//
+// g := generators.NewTypeScriptGenerator()
 func NewTypeScriptGenerator() *TypeScriptGenerator {
 	return &TypeScriptGenerator{}
 }
 
 // Language returns the generator's target language identifier.
-// Usage example: call value.Language(...) from integrating code.
+//
+// lang := g.Language() // → "typescript"
 func (g *TypeScriptGenerator) Language() string {
 	return "typescript"
 }
 
 // Available checks if generator dependencies are installed.
-// Usage example: call value.Available(...) from integrating code.
+//
+// if g.Available() { err = g.Generate(ctx, opts) }
 func (g *TypeScriptGenerator) Available() bool {
 	return g.nativeAvailable() || g.npxAvailable() || dockerRuntimeAvailable()
 }
 
 // Install returns instructions for installing the generator.
-// Usage example: call value.Install(...) from integrating code.
+//
+// fmt.Println(g.Install()) // → "npm install -g openapi-typescript-codegen"
 func (g *TypeScriptGenerator) Install() string {
 	return "npm install -g openapi-typescript-codegen"
 }
 
 // Generate creates SDK from OpenAPI spec.
-// Usage example: call value.Generate(...) from integrating code.
+//
+// err := g.Generate(ctx, generators.Options{SpecPath: "docs/openapi.yaml", OutputDir: "sdk/typescript"})
 func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := ctx.Err(); err != nil {
 		return coreerr.E("typescript.Generate", "generation cancelled", err)

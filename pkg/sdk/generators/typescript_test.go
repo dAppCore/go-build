@@ -2,10 +2,10 @@ package generators
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -99,7 +99,7 @@ func TestTypeScript_TypeScriptGeneratorNpxAvailabilityUsesProbeTimeout_Bad(t *te
 func TestTypeScript_TypeScriptGeneratorGenerate_Good(t *testing.T) {
 	commandDir := t.TempDir()
 	writeFakeTypeScriptGenerator(t, commandDir)
-	t.Setenv("PATH", commandDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", commandDir+core.Env("PS")+core.Env("PATH"))
 
 	g := NewTypeScriptGenerator()
 	require.True(t, g.Available())

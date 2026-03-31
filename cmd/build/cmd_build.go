@@ -140,7 +140,8 @@ func initBuildFlags() {
 }
 
 // AddBuildCommands registers the 'build' command and all subcommands.
-// Usage example: call buildcmd.AddBuildCommands(...) from integrating code.
+//
+// buildcmd.AddBuildCommands(root)
 func AddBuildCommands(root *cli.Command) {
 	setBuildI18n()
 	initBuildFlags()

@@ -12,23 +12,27 @@ import (
 )
 
 // LinuxKitBuilder builds LinuxKit images.
-// Usage example: declare a value of type builders.LinuxKitBuilder in integrating code.
+//
+// b := builders.NewLinuxKitBuilder()
 type LinuxKitBuilder struct{}
 
 // NewLinuxKitBuilder creates a new LinuxKit builder.
-// Usage example: call builders.NewLinuxKitBuilder(...) from integrating code.
+//
+// b := builders.NewLinuxKitBuilder()
 func NewLinuxKitBuilder() *LinuxKitBuilder {
 	return &LinuxKitBuilder{}
 }
 
 // Name returns the builder's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := b.Name() // → "linuxkit"
 func (b *LinuxKitBuilder) Name() string {
 	return "linuxkit"
 }
 
 // Detect checks if a linuxkit.yml or .yml config exists in the directory.
-// Usage example: call value.Detect(...) from integrating code.
+//
+// ok, err := b.Detect(io.Local, ".")
 func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	// Check for linuxkit.yml
 	if fs.IsFile(ax.Join(dir, "linuxkit.yml")) {
@@ -50,7 +54,8 @@ func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 }
 
 // Build builds LinuxKit images for the specified targets.
-// Usage example: call value.Build(...) from integrating code.
+//
+// artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	linuxkitCommand, err := b.resolveLinuxKitCli()
 	if err != nil {

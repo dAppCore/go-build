@@ -13,7 +13,8 @@ import (
 )
 
 // Checksum computes SHA256 for an artifact and returns the artifact with the Checksum field filled.
-// Usage example: call build.Checksum(...) from integrating code.
+//
+// cs, err := build.Checksum(io.Local, artifact)
 func Checksum(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 	if artifact.Path == "" {
 		return Artifact{}, coreerr.E("build.Checksum", "artifact path is empty", nil)
@@ -44,7 +45,8 @@ func Checksum(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 
 // ChecksumAll computes checksums for all artifacts.
 // Returns a slice of artifacts with their Checksum fields filled.
-// Usage example: call build.ChecksumAll(...) from integrating code.
+//
+// checked, err := build.ChecksumAll(io.Local, artifacts)
 func ChecksumAll(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, error) {
 	if len(artifacts) == 0 {
 		return nil, nil
@@ -69,7 +71,8 @@ func ChecksumAll(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, erro
 //
 // The artifacts should have their Checksum fields filled (call ChecksumAll first).
 // Filenames are relative to the output directory (just the basename).
-// Usage example: call build.WriteChecksumFile(...) from integrating code.
+//
+// err := build.WriteChecksumFile(io.Local, artifacts, "dist/CHECKSUMS.txt")
 func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string) error {
 	if len(artifacts) == 0 {
 		return nil

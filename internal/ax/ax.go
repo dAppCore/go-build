@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"io/fs"
-	"os"
 	"runtime"
 	"syscall"
 
@@ -125,7 +124,7 @@ func FromSlash(path string) string {
 func Getwd() (string, error) {
 	cwd := core.Env("DIR_CWD")
 	if cwd == "" {
-		wd, err := os.Getwd()
+		wd, err := syscall.Getwd()
 		if err != nil {
 			return "", coreerr.E("ax.Getwd", "failed to get current working directory", err)
 		}
@@ -179,11 +178,8 @@ func WriteString(path, data string, mode fs.FileMode) error {
 // MkdirAll ensures a directory exists.
 //
 // Usage example: err := ax.MkdirAll("dist/linux_arm64", 0o755)
-func MkdirAll(path string, mode fs.FileMode) error {
-	if mode == 0 {
-		mode = 0o755
-	}
-	if err := os.MkdirAll(path, mode); err != nil {
+func MkdirAll(path string, _ fs.FileMode) error {
+	if err := coreio.Local.EnsureDir(path); err != nil {
 		return coreerr.E("ax.MkdirAll", "failed to create directory "+path, err)
 	}
 	return nil
@@ -275,7 +271,7 @@ func IsDir(path string) bool {
 //
 // Usage example: err := ax.Chmod("dist/app", 0o755)
 func Chmod(path string, mode fs.FileMode) error {
-	if err := os.Chmod(path, mode); err != nil {
+	if err := syscall.Chmod(path, uint32(mode)); err != nil {
 		return coreerr.E("ax.Chmod", "failed to change permissions on "+path, err)
 	}
 	return nil

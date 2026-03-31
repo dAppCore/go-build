@@ -32,7 +32,8 @@ var markers = []projectMarker{
 // Discover detects project types in the given directory by checking for marker files.
 // Returns a slice of detected project types, ordered by priority (most specific first).
 // For example, a Wails project returns [wails, go] since it has both wails.json and go.mod.
-// Usage example: call build.Discover(...) from integrating code.
+//
+// types, err := build.Discover(io.Local, "/home/user/my-project") // → [go]
 func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 	var detected []ProjectType
 
@@ -51,7 +52,8 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 
 // PrimaryType returns the most specific project type detected in the directory.
 // Returns empty string if no project type is detected.
-// Usage example: call build.PrimaryType(...) from integrating code.
+//
+// pt, err := build.PrimaryType(io.Local, ".") // → "go"
 func PrimaryType(fs io.Medium, dir string) (ProjectType, error) {
 	types, err := Discover(fs, dir)
 	if err != nil {
@@ -64,32 +66,37 @@ func PrimaryType(fs io.Medium, dir string) (ProjectType, error) {
 }
 
 // IsGoProject checks if the directory contains a Go project (go.mod or wails.json).
-// Usage example: call build.IsGoProject(...) from integrating code.
+//
+// if build.IsGoProject(io.Local, ".") { ... }
 func IsGoProject(fs io.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerGoMod)) ||
 		fileExists(fs, ax.Join(dir, markerWails))
 }
 
 // IsWailsProject checks if the directory contains a Wails project.
-// Usage example: call build.IsWailsProject(...) from integrating code.
+//
+// if build.IsWailsProject(io.Local, ".") { ... }
 func IsWailsProject(fs io.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerWails))
 }
 
 // IsNodeProject checks if the directory contains a Node.js project.
-// Usage example: call build.IsNodeProject(...) from integrating code.
+//
+// if build.IsNodeProject(io.Local, ".") { ... }
 func IsNodeProject(fs io.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerNodePackage))
 }
 
 // IsPHPProject checks if the directory contains a PHP project.
-// Usage example: call build.IsPHPProject(...) from integrating code.
+//
+// if build.IsPHPProject(io.Local, ".") { ... }
 func IsPHPProject(fs io.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerComposer))
 }
 
 // IsCPPProject checks if the directory contains a C++ project (CMakeLists.txt).
-// Usage example: call build.IsCPPProject(...) from integrating code.
+//
+// if build.IsCPPProject(io.Local, ".") { ... }
 func IsCPPProject(fs io.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, "CMakeLists.txt"))
 }

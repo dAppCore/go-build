@@ -12,23 +12,27 @@ import (
 )
 
 // DockerBuilder builds Docker images.
-// Usage example: declare a value of type builders.DockerBuilder in integrating code.
+//
+// b := builders.NewDockerBuilder()
 type DockerBuilder struct{}
 
 // NewDockerBuilder creates a new Docker builder.
-// Usage example: call builders.NewDockerBuilder(...) from integrating code.
+//
+// b := builders.NewDockerBuilder()
 func NewDockerBuilder() *DockerBuilder {
 	return &DockerBuilder{}
 }
 
 // Name returns the builder's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := b.Name() // → "docker"
 func (b *DockerBuilder) Name() string {
 	return "docker"
 }
 
 // Detect checks if a Dockerfile exists in the directory.
-// Usage example: call value.Detect(...) from integrating code.
+//
+// ok, err := b.Detect(io.Local, ".")
 func (b *DockerBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	dockerfilePath := ax.Join(dir, "Dockerfile")
 	if fs.IsFile(dockerfilePath) {
@@ -38,7 +42,8 @@ func (b *DockerBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 }
 
 // Build builds Docker images for the specified targets.
-// Usage example: call value.Build(...) from integrating code.
+//
+// artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	dockerCommand, err := b.resolveDockerCli()
 	if err != nil {

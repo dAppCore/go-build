@@ -19,7 +19,8 @@ import (
 var chocolateyTemplates embed.FS
 
 // ChocolateyConfig holds Chocolatey-specific configuration.
-// Usage example: declare a value of type publishers.ChocolateyConfig in integrating code.
+//
+// cfg := publishers.ChocolateyConfig{Package: "core-build", Push: true}
 type ChocolateyConfig struct {
 	// Package is the Chocolatey package name.
 	Package string
@@ -30,23 +31,27 @@ type ChocolateyConfig struct {
 }
 
 // ChocolateyPublisher publishes releases to Chocolatey.
-// Usage example: declare a value of type publishers.ChocolateyPublisher in integrating code.
+//
+// pub := publishers.NewChocolateyPublisher()
 type ChocolateyPublisher struct{}
 
 // NewChocolateyPublisher creates a new Chocolatey publisher.
-// Usage example: call publishers.NewChocolateyPublisher(...) from integrating code.
+//
+// pub := publishers.NewChocolateyPublisher()
 func NewChocolateyPublisher() *ChocolateyPublisher {
 	return &ChocolateyPublisher{}
 }
 
 // Name returns the publisher's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := pub.Name() // → "chocolatey"
 func (p *ChocolateyPublisher) Name() string {
 	return "chocolatey"
 }
 
 // Publish publishes the release to Chocolatey.
-// Usage example: call value.Publish(...) from integrating code.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *ChocolateyPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	cfg := p.parseConfig(pubCfg, relCfg)
 

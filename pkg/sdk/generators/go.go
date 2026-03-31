@@ -9,36 +9,42 @@ import (
 )
 
 // GoGenerator generates Go SDKs from OpenAPI specs.
-// Usage example: declare a value of type generators.GoGenerator in integrating code.
+//
+// g := generators.NewGoGenerator()
 type GoGenerator struct{}
 
 // NewGoGenerator creates a new Go generator.
-// Usage example: call generators.NewGoGenerator(...) from integrating code.
+//
+// g := generators.NewGoGenerator()
 func NewGoGenerator() *GoGenerator {
 	return &GoGenerator{}
 }
 
 // Language returns the generator's target language identifier.
-// Usage example: call value.Language(...) from integrating code.
+//
+// lang := g.Language() // → "go"
 func (g *GoGenerator) Language() string {
 	return "go"
 }
 
 // Available checks if generator dependencies are installed.
-// Usage example: call value.Available(...) from integrating code.
+//
+// if g.Available() { err = g.Generate(ctx, opts) }
 func (g *GoGenerator) Available() bool {
 	_, err := g.resolveNativeCli()
 	return err == nil || dockerRuntimeAvailable()
 }
 
 // Install returns instructions for installing the generator.
-// Usage example: call value.Install(...) from integrating code.
+//
+// fmt.Println(g.Install()) // → "go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest"
 func (g *GoGenerator) Install() string {
 	return "go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest"
 }
 
 // Generate creates SDK from OpenAPI spec.
-// Usage example: call value.Generate(...) from integrating code.
+//
+// err := g.Generate(ctx, generators.Options{SpecPath: "docs/openapi.yaml", OutputDir: "sdk/go"})
 func (g *GoGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := ctx.Err(); err != nil {
 		return coreerr.E("go.Generate", "generation cancelled", err)

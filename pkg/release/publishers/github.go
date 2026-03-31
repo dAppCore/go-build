@@ -10,24 +10,27 @@ import (
 )
 
 // GitHubPublisher publishes releases to GitHub using the gh CLI.
-// Usage example: declare a value of type publishers.GitHubPublisher in integrating code.
+//
+// pub := publishers.NewGitHubPublisher()
 type GitHubPublisher struct{}
 
 // NewGitHubPublisher creates a new GitHub publisher.
-// Usage example: call publishers.NewGitHubPublisher(...) from integrating code.
+//
+// pub := publishers.NewGitHubPublisher()
 func NewGitHubPublisher() *GitHubPublisher {
 	return &GitHubPublisher{}
 }
 
 // Name returns the publisher's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := pub.Name() // → "github"
 func (p *GitHubPublisher) Name() string {
 	return "github"
 }
 
-// Publish publishes the release to GitHub.
-// Uses the gh CLI for creating releases and uploading assets.
-// Usage example: call value.Publish(...) from integrating code.
+// Publish publishes the release to GitHub using the gh CLI.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false) // dryRun=true to preview
 func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	// Determine repository
 	repo := ""
@@ -218,7 +221,8 @@ func parseGitHubRepo(url string) (string, error) {
 
 // UploadArtifact uploads a single artifact to an existing release.
 // This can be used to add artifacts to a release after creation.
-// Usage example: call publishers.UploadArtifact(...) from integrating code.
+//
+// err := publishers.UploadArtifact(ctx, "host-uk/core-build", "v1.2.3", "dist/core-build_v1.2.3_linux_amd64.tar.gz")
 func UploadArtifact(ctx context.Context, repo, version, artifactPath string) error {
 	ghCommand, err := resolveGhCli()
 	if err != nil {
@@ -233,7 +237,8 @@ func UploadArtifact(ctx context.Context, repo, version, artifactPath string) err
 }
 
 // DeleteRelease deletes a release by tag name.
-// Usage example: call publishers.DeleteRelease(...) from integrating code.
+//
+// err := publishers.DeleteRelease(ctx, "host-uk/core-build", "v1.2.3")
 func DeleteRelease(ctx context.Context, repo, version string) error {
 	ghCommand, err := resolveGhCli()
 	if err != nil {
@@ -248,7 +253,8 @@ func DeleteRelease(ctx context.Context, repo, version string) error {
 }
 
 // ReleaseExists checks if a release exists for the given version.
-// Usage example: call publishers.ReleaseExists(...) from integrating code.
+//
+// exists := publishers.ReleaseExists(ctx, "host-uk/core-build", "v1.2.3")
 func ReleaseExists(ctx context.Context, repo, version string) bool {
 	ghCommand, err := resolveGhCli()
 	if err != nil {

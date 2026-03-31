@@ -14,23 +14,27 @@ import (
 
 // TaskfileBuilder builds projects using Taskfile (https://taskfile.dev/).
 // This is a generic builder that can handle any project type that has a Taskfile.
-// Usage example: declare a value of type builders.TaskfileBuilder in integrating code.
+//
+// b := builders.NewTaskfileBuilder()
 type TaskfileBuilder struct{}
 
 // NewTaskfileBuilder creates a new Taskfile builder.
-// Usage example: call builders.NewTaskfileBuilder(...) from integrating code.
+//
+// b := builders.NewTaskfileBuilder()
 func NewTaskfileBuilder() *TaskfileBuilder {
 	return &TaskfileBuilder{}
 }
 
 // Name returns the builder's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := b.Name() // → "taskfile"
 func (b *TaskfileBuilder) Name() string {
 	return "taskfile"
 }
 
 // Detect checks if a Taskfile exists in the directory.
-// Usage example: call value.Detect(...) from integrating code.
+//
+// ok, err := b.Detect(io.Local, ".")
 func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	// Check for Taskfile.yml, Taskfile.yaml, or Taskfile
 	taskfiles := []string{
@@ -50,7 +54,8 @@ func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 }
 
 // Build runs the Taskfile build task for each target platform.
-// Usage example: call value.Build(...) from integrating code.
+//
+// artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	taskCommand, err := b.resolveTaskCli()
 	if err != nil {

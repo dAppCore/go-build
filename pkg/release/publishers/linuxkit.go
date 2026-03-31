@@ -10,7 +10,8 @@ import (
 )
 
 // LinuxKitConfig holds configuration for the LinuxKit publisher.
-// Usage example: declare a value of type publishers.LinuxKitConfig in integrating code.
+//
+// cfg := publishers.LinuxKitConfig{Config: ".core/node.yaml", Formats: []string{"iso", "qcow2"}}
 type LinuxKitConfig struct {
 	// Config is the path to the LinuxKit YAML configuration file.
 	Config string `yaml:"config"`
@@ -24,23 +25,27 @@ type LinuxKitConfig struct {
 }
 
 // LinuxKitPublisher builds and publishes LinuxKit images.
-// Usage example: declare a value of type publishers.LinuxKitPublisher in integrating code.
+//
+// pub := publishers.NewLinuxKitPublisher()
 type LinuxKitPublisher struct{}
 
 // NewLinuxKitPublisher creates a new LinuxKit publisher.
-// Usage example: call publishers.NewLinuxKitPublisher(...) from integrating code.
+//
+// pub := publishers.NewLinuxKitPublisher()
 func NewLinuxKitPublisher() *LinuxKitPublisher {
 	return &LinuxKitPublisher{}
 }
 
 // Name returns the publisher's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := pub.Name() // → "linuxkit"
 func (p *LinuxKitPublisher) Name() string {
 	return "linuxkit"
 }
 
 // Publish builds LinuxKit images and uploads them to the GitHub release.
-// Usage example: call value.Publish(...) from integrating code.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	linuxkitCommand, err := resolveLinuxKitCli()
 	if err != nil {

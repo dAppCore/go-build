@@ -7,7 +7,8 @@ import (
 )
 
 // WindowsSigner signs binaries using Windows signtool (placeholder).
-// Usage example: declare a value of type signing.WindowsSigner in integrating code.
+//
+// s := signing.NewWindowsSigner(cfg.Windows)
 type WindowsSigner struct {
 	config WindowsConfig
 }
@@ -16,25 +17,29 @@ type WindowsSigner struct {
 var _ Signer = (*WindowsSigner)(nil)
 
 // NewWindowsSigner creates a new Windows signer.
-// Usage example: call signing.NewWindowsSigner(...) from integrating code.
+//
+// s := signing.NewWindowsSigner(cfg.Windows)
 func NewWindowsSigner(cfg WindowsConfig) *WindowsSigner {
 	return &WindowsSigner{config: cfg}
 }
 
 // Name returns "signtool".
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := s.Name() // → "signtool"
 func (s *WindowsSigner) Name() string {
 	return "signtool"
 }
 
 // Available returns false (not yet implemented).
-// Usage example: call value.Available(...) from integrating code.
+//
+// ok := s.Available() // → false (placeholder)
 func (s *WindowsSigner) Available() bool {
 	return false
 }
 
 // Sign is a placeholder that does nothing.
-// Usage example: call value.Sign(...) from integrating code.
+//
+// err := s.Sign(ctx, io.Local, "dist/myapp.exe") // no-op until implemented
 func (s *WindowsSigner) Sign(ctx context.Context, fs io.Medium, binary string) error {
 	// TODO: Implement Windows signing
 	return nil

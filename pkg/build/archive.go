@@ -16,7 +16,8 @@ import (
 )
 
 // ArchiveFormat specifies the compression format for archives.
-// Usage example: declare a value of type build.ArchiveFormat in integrating code.
+//
+// var fmt build.ArchiveFormat = build.ArchiveFormatGzip
 type ArchiveFormat string
 
 const (
@@ -32,7 +33,8 @@ const (
 // Uses tar.gz for linux/darwin and zip for windows.
 // The archive is created alongside the binary (e.g., dist/myapp_linux_amd64.tar.gz).
 // Returns a new Artifact with Path pointing to the archive.
-// Usage example: call build.Archive(...) from integrating code.
+//
+// archived, err := build.Archive(io.Local, artifact)
 func Archive(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 	return ArchiveWithFormat(fs, artifact, ArchiveFormatGzip)
 }
@@ -40,7 +42,8 @@ func Archive(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 // ArchiveXZ creates an archive for a single artifact using xz compression.
 // Uses tar.xz for linux/darwin and zip for windows.
 // Returns a new Artifact with Path pointing to the archive.
-// Usage example: call build.ArchiveXZ(...) from integrating code.
+//
+// archived, err := build.ArchiveXZ(io.Local, artifact)
 func ArchiveXZ(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 	return ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
 }
@@ -49,7 +52,8 @@ func ArchiveXZ(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 // Uses tar.gz or tar.xz for linux/darwin and zip for windows.
 // The archive is created alongside the binary (e.g., dist/myapp_linux_amd64.tar.xz).
 // Returns a new Artifact with Path pointing to the archive.
-// Usage example: call build.ArchiveWithFormat(...) from integrating code.
+//
+// archived, err := build.ArchiveWithFormat(io.Local, artifact, build.ArchiveFormatXZ)
 func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format ArchiveFormat) (Artifact, error) {
 	if artifact.Path == "" {
 		return Artifact{}, coreerr.E("build.Archive", "artifact path is empty", nil)
@@ -97,21 +101,24 @@ func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format Archive
 
 // ArchiveAll archives all artifacts using gzip compression.
 // Returns a slice of new artifacts pointing to the archives.
-// Usage example: call build.ArchiveAll(...) from integrating code.
+//
+// archived, err := build.ArchiveAll(io.Local, artifacts)
 func ArchiveAll(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, error) {
 	return ArchiveAllWithFormat(fs, artifacts, ArchiveFormatGzip)
 }
 
 // ArchiveAllXZ archives all artifacts using xz compression.
 // Returns a slice of new artifacts pointing to the archives.
-// Usage example: call build.ArchiveAllXZ(...) from integrating code.
+//
+// archived, err := build.ArchiveAllXZ(io.Local, artifacts)
 func ArchiveAllXZ(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, error) {
 	return ArchiveAllWithFormat(fs, artifacts, ArchiveFormatXZ)
 }
 
 // ArchiveAllWithFormat archives all artifacts with the specified format.
 // Returns a slice of new artifacts pointing to the archives.
-// Usage example: call build.ArchiveAllWithFormat(...) from integrating code.
+//
+// archived, err := build.ArchiveAllWithFormat(io.Local, artifacts, build.ArchiveFormatXZ)
 func ArchiveAllWithFormat(fs io_interface.Medium, artifacts []Artifact, format ArchiveFormat) ([]Artifact, error) {
 	if len(artifacts) == 0 {
 		return nil, nil

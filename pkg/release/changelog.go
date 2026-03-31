@@ -16,7 +16,8 @@ import (
 )
 
 // ConventionalCommit represents a parsed conventional commit.
-// Usage example: declare a value of type release.ConventionalCommit in integrating code.
+//
+// commit := release.ConventionalCommit{Type: "feat", Scope: "build", Description: "add linuxkit support"}
 type ConventionalCommit struct {
 	Type        string // feat, fix, etc.
 	Scope       string // optional scope in parentheses
@@ -62,7 +63,8 @@ var conventionalCommitRegex = regexp.MustCompile(`^(\w+)(?:\(([^)]+)\))?(!)?:\s*
 // Generate generates a markdown changelog from git commits between two refs.
 // If fromRef is empty, it uses the previous tag or initial commit.
 // If toRef is empty, it uses HEAD.
-// Usage example: call release.Generate(...) from integrating code.
+//
+// md, err := release.Generate(".", "v1.2.3", "HEAD")
 func Generate(dir, fromRef, toRef string) (string, error) {
 	return GenerateWithContext(context.Background(), dir, fromRef, toRef)
 }
@@ -70,7 +72,8 @@ func Generate(dir, fromRef, toRef string) (string, error) {
 // GenerateWithContext generates a markdown changelog while honouring caller cancellation.
 // If fromRef is empty, it uses the previous tag or initial commit.
 // If toRef is empty, it uses HEAD.
-// Usage example: call release.GenerateWithContext(...) from integrating code.
+//
+// md, err := release.GenerateWithContext(ctx, ".", "v1.2.3", "HEAD")
 func GenerateWithContext(ctx context.Context, dir, fromRef, toRef string) (string, error) {
 	if toRef == "" {
 		toRef = "HEAD"
@@ -110,13 +113,15 @@ func GenerateWithContext(ctx context.Context, dir, fromRef, toRef string) (strin
 }
 
 // GenerateWithConfig generates a changelog with filtering based on config.
-// Usage example: call release.GenerateWithConfig(...) from integrating code.
+//
+// md, err := release.GenerateWithConfig(".", "v1.2.3", "HEAD", &cfg.Changelog)
 func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
 	return GenerateWithConfigWithContext(context.Background(), dir, fromRef, toRef, cfg)
 }
 
 // GenerateWithConfigWithContext generates a filtered changelog while honouring caller cancellation.
-// Usage example: call release.GenerateWithConfigWithContext(...) from integrating code.
+//
+// md, err := release.GenerateWithConfigWithContext(ctx, ".", "v1.2.3", "HEAD", &cfg.Changelog)
 func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
 	if toRef == "" {
 		toRef = "HEAD"
@@ -322,7 +327,8 @@ func formatCommitLine(commit ConventionalCommit) string {
 
 // ParseCommitType extracts the type from a conventional commit subject.
 // Returns empty string if not a conventional commit.
-// Usage example: call release.ParseCommitType(...) from integrating code.
+//
+// t := release.ParseCommitType("feat(build): add linuxkit support") // → "feat"
 func ParseCommitType(subject string) string {
 	matches := conventionalCommitRegex.FindStringSubmatch(subject)
 	if matches == nil {

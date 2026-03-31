@@ -10,7 +10,8 @@ import (
 )
 
 // DockerConfig holds configuration for the Docker publisher.
-// Usage example: declare a value of type publishers.DockerConfig in integrating code.
+//
+// cfg := publishers.DockerConfig{Registry: "ghcr.io", Image: "host-uk/core-build", Platforms: []string{"linux/amd64", "linux/arm64"}}
 type DockerConfig struct {
 	// Registry is the container registry (default: ghcr.io).
 	Registry string `yaml:"registry"`
@@ -27,23 +28,27 @@ type DockerConfig struct {
 }
 
 // DockerPublisher builds and publishes Docker images.
-// Usage example: declare a value of type publishers.DockerPublisher in integrating code.
+//
+// pub := publishers.NewDockerPublisher()
 type DockerPublisher struct{}
 
 // NewDockerPublisher creates a new Docker publisher.
-// Usage example: call publishers.NewDockerPublisher(...) from integrating code.
+//
+// pub := publishers.NewDockerPublisher()
 func NewDockerPublisher() *DockerPublisher {
 	return &DockerPublisher{}
 }
 
 // Name returns the publisher's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := pub.Name() // → "docker"
 func (p *DockerPublisher) Name() string {
 	return "docker"
 }
 
 // Publish builds and pushes Docker images.
-// Usage example: call value.Publish(...) from integrating code.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	// Parse Docker-specific config from publisher config
 	dockerCfg := p.parseConfig(pubCfg, relCfg, release.ProjectDir)

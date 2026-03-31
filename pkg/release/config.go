@@ -10,15 +10,18 @@ import (
 )
 
 // ConfigFileName is the name of the release configuration file.
-// Usage example: reference release.ConfigFileName from package consumers.
+//
+// configPath := ax.Join(projectDir, release.ConfigDir, release.ConfigFileName)
 const ConfigFileName = "release.yaml"
 
 // ConfigDir is the directory where release configuration is stored.
-// Usage example: reference release.ConfigDir from package consumers.
+//
+// configPath := ax.Join(projectDir, release.ConfigDir, release.ConfigFileName)
 const ConfigDir = ".core"
 
 // Config holds the complete release configuration loaded from .core/release.yaml.
-// Usage example: declare a value of type release.Config in integrating code.
+//
+// cfg, err := release.LoadConfig(".")
 type Config struct {
 	// Version is the config file format version.
 	Version int `yaml:"version"`
@@ -39,7 +42,8 @@ type Config struct {
 }
 
 // ProjectConfig holds project metadata for releases.
-// Usage example: declare a value of type release.ProjectConfig in integrating code.
+//
+// cfg.Project = release.ProjectConfig{Name: "core-build", Repository: "host-uk/core-build"}
 type ProjectConfig struct {
 	// Name is the project name.
 	Name string `yaml:"name"`
@@ -48,14 +52,16 @@ type ProjectConfig struct {
 }
 
 // BuildConfig holds build settings for releases.
-// Usage example: declare a value of type release.BuildConfig in integrating code.
+//
+// cfg.Build.Targets = []release.TargetConfig{{OS: "linux", Arch: "amd64"}}
 type BuildConfig struct {
 	// Targets defines the build targets.
 	Targets []TargetConfig `yaml:"targets"`
 }
 
 // TargetConfig defines a build target.
-// Usage example: declare a value of type release.TargetConfig in integrating code.
+//
+// t := release.TargetConfig{OS: "linux", Arch: "arm64"}
 type TargetConfig struct {
 	// OS is the target operating system (e.g., "linux", "darwin", "windows").
 	OS string `yaml:"os"`
@@ -64,7 +70,8 @@ type TargetConfig struct {
 }
 
 // PublisherConfig holds configuration for a publisher.
-// Usage example: declare a value of type release.PublisherConfig in integrating code.
+//
+// cfg.Publishers = []release.PublisherConfig{{Type: "github", Draft: false}}
 type PublisherConfig struct {
 	// Type is the publisher type (e.g., "github", "linuxkit", "docker").
 	Type string `yaml:"type"`
@@ -123,7 +130,8 @@ type PublisherConfig struct {
 }
 
 // OfficialConfig holds configuration for generating files for official repo PRs.
-// Usage example: declare a value of type release.OfficialConfig in integrating code.
+//
+// pub.Official = &release.OfficialConfig{Enabled: true, Output: "dist/homebrew"}
 type OfficialConfig struct {
 	// Enabled determines whether to generate files for official repos.
 	Enabled bool `yaml:"enabled"`
@@ -132,7 +140,8 @@ type OfficialConfig struct {
 }
 
 // SDKConfig holds SDK generation configuration.
-// Usage example: declare a value of type release.SDKConfig in integrating code.
+//
+// cfg.SDK = &release.SDKConfig{Spec: "docs/openapi.yaml", Languages: []string{"typescript", "go"}}
 type SDKConfig struct {
 	// Spec is the path to the OpenAPI spec file.
 	Spec string `yaml:"spec,omitempty"`
@@ -149,28 +158,32 @@ type SDKConfig struct {
 }
 
 // SDKPackageConfig holds package naming configuration.
-// Usage example: declare a value of type release.SDKPackageConfig in integrating code.
+//
+// cfg.SDK.Package = release.SDKPackageConfig{Name: "@host-uk/api-client", Version: "1.0.0"}
 type SDKPackageConfig struct {
 	Name    string `yaml:"name,omitempty"`
 	Version string `yaml:"version,omitempty"`
 }
 
 // SDKDiffConfig holds diff configuration.
-// Usage example: declare a value of type release.SDKDiffConfig in integrating code.
+//
+// cfg.SDK.Diff = release.SDKDiffConfig{Enabled: true, FailOnBreaking: true}
 type SDKDiffConfig struct {
 	Enabled        bool `yaml:"enabled,omitempty"`
 	FailOnBreaking bool `yaml:"fail_on_breaking,omitempty"`
 }
 
 // SDKPublishConfig holds monorepo publish configuration.
-// Usage example: declare a value of type release.SDKPublishConfig in integrating code.
+//
+// cfg.SDK.Publish = release.SDKPublishConfig{Repo: "host-uk/ts", Path: "packages/api-client"}
 type SDKPublishConfig struct {
 	Repo string `yaml:"repo,omitempty"`
 	Path string `yaml:"path,omitempty"`
 }
 
 // ChangelogConfig holds changelog generation settings.
-// Usage example: declare a value of type release.ChangelogConfig in integrating code.
+//
+// cfg.Changelog = release.ChangelogConfig{Include: []string{"feat", "fix"}, Exclude: []string{"chore"}}
 type ChangelogConfig struct {
 	// Include specifies commit types to include in the changelog.
 	Include []string `yaml:"include"`
@@ -179,7 +192,8 @@ type ChangelogConfig struct {
 }
 
 // PublishersIter returns an iterator for the publishers.
-// Usage example: call value.PublishersIter(...) from integrating code.
+//
+// for p := range cfg.PublishersIter() { fmt.Println(p.Type) }
 func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 	return func(yield func(PublisherConfig) bool) {
 		for _, p := range c.Publishers {
@@ -193,7 +207,8 @@ func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 // LoadConfig loads release configuration from the .core/release.yaml file in the given directory.
 // If the config file does not exist, it returns DefaultConfig().
 // Returns an error if the file exists but cannot be parsed.
-// Usage example: call release.LoadConfig(...) from integrating code.
+//
+// cfg, err := release.LoadConfig(".")
 func LoadConfig(dir string) (*Config, error) {
 	configPath := ax.Join(dir, ConfigDir, ConfigFileName)
 
@@ -226,7 +241,8 @@ func LoadConfig(dir string) (*Config, error) {
 }
 
 // DefaultConfig returns sensible defaults for release configuration.
-// Usage example: call release.DefaultConfig(...) from integrating code.
+//
+// cfg := release.DefaultConfig()
 func DefaultConfig() *Config {
 	return &Config{
 		Version: 1,
@@ -279,25 +295,29 @@ func applyDefaults(cfg *Config) {
 }
 
 // SetProjectDir sets the project directory on the config.
-// Usage example: call value.SetProjectDir(...) from integrating code.
+//
+// cfg.SetProjectDir("/home/user/my-project")
 func (c *Config) SetProjectDir(dir string) {
 	c.projectDir = dir
 }
 
 // SetVersion sets the version override on the config.
-// Usage example: call value.SetVersion(...) from integrating code.
+//
+// cfg.SetVersion("v1.2.3")
 func (c *Config) SetVersion(version string) {
 	c.version = version
 }
 
 // ConfigPath returns the path to the release config file for a given directory.
-// Usage example: call release.ConfigPath(...) from integrating code.
+//
+// path := release.ConfigPath("/home/user/my-project") // → "/home/user/my-project/.core/release.yaml"
 func ConfigPath(dir string) string {
 	return ax.Join(dir, ConfigDir, ConfigFileName)
 }
 
 // ConfigExists checks if a release config file exists in the given directory.
-// Usage example: call release.ConfigExists(...) from integrating code.
+//
+// if release.ConfigExists(".") { ... }
 func ConfigExists(dir string) bool {
 	configPath := ConfigPath(dir)
 	absPath, err := ax.Abs(configPath)
@@ -308,19 +328,22 @@ func ConfigExists(dir string) bool {
 }
 
 // GetRepository returns the repository from the config.
-// Usage example: call value.GetRepository(...) from integrating code.
+//
+// repo := cfg.GetRepository() // → "host-uk/core-build"
 func (c *Config) GetRepository() string {
 	return c.Project.Repository
 }
 
 // GetProjectName returns the project name from the config.
-// Usage example: call value.GetProjectName(...) from integrating code.
+//
+// name := cfg.GetProjectName() // → "core-build"
 func (c *Config) GetProjectName() string {
 	return c.Project.Name
 }
 
 // WriteConfig writes the config to the .core/release.yaml file.
-// Usage example: call release.WriteConfig(...) from integrating code.
+//
+// err := release.WriteConfig(cfg, ".")
 func WriteConfig(cfg *Config, dir string) error {
 	configPath := ConfigPath(dir)
 

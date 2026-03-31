@@ -9,7 +9,8 @@ import (
 )
 
 // GPGSigner signs files using GPG.
-// Usage example: declare a value of type signing.GPGSigner in integrating code.
+//
+// s := signing.NewGPGSigner("ABCD1234")
 type GPGSigner struct {
 	KeyID string
 }
@@ -18,19 +19,22 @@ type GPGSigner struct {
 var _ Signer = (*GPGSigner)(nil)
 
 // NewGPGSigner creates a new GPG signer.
-// Usage example: call signing.NewGPGSigner(...) from integrating code.
+//
+// s := signing.NewGPGSigner("ABCD1234")
 func NewGPGSigner(keyID string) *GPGSigner {
 	return &GPGSigner{KeyID: keyID}
 }
 
 // Name returns "gpg".
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := s.Name() // → "gpg"
 func (s *GPGSigner) Name() string {
 	return "gpg"
 }
 
 // Available checks if gpg is installed and key is configured.
-// Usage example: call value.Available(...) from integrating code.
+//
+// ok := s.Available() // → true if gpg is in PATH and key is set
 func (s *GPGSigner) Available() bool {
 	if s.KeyID == "" {
 		return false
@@ -41,7 +45,8 @@ func (s *GPGSigner) Available() bool {
 
 // Sign creates a detached ASCII-armored signature.
 // For file.txt, creates file.txt.asc
-// Usage example: call value.Sign(...) from integrating code.
+//
+// err := s.Sign(ctx, io.Local, "dist/CHECKSUMS.txt") // creates CHECKSUMS.txt.asc
 func (s *GPGSigner) Sign(ctx context.Context, fs io.Medium, file string) error {
 	if s.KeyID == "" {
 		return coreerr.E("gpg.Sign", "gpg not available or key not configured", nil)

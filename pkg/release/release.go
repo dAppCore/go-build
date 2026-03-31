@@ -16,7 +16,8 @@ import (
 )
 
 // Release represents a release with its version, artifacts, and changelog.
-// Usage example: declare a value of type release.Release in integrating code.
+//
+// rel, err := release.Publish(ctx, cfg, false)
 type Release struct {
 	// Version is the semantic version string (e.g., "v1.2.3").
 	Version string
@@ -32,8 +33,8 @@ type Release struct {
 
 // Publish publishes pre-built artifacts from dist/ to configured targets.
 // Use this after `core build` to separate build and publish concerns.
-// If dryRun is true, it will show what would be done without actually publishing.
-// Usage example: call release.Publish(...) from integrating code.
+//
+// rel, err := release.Publish(ctx, cfg, false) // dryRun=true to preview
 func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	if cfg == nil {
 		return nil, coreerr.E("release.Publish", "config is nil", nil)
@@ -146,9 +147,9 @@ func findArtifacts(m io.Medium, distDir string) ([]build.Artifact, error) {
 
 // Run executes the full release process: determine version, build artifacts,
 // generate changelog, and publish to configured targets.
-// For separated concerns, prefer using `core build` then `core ci` (Publish).
-// If dryRun is true, it will show what would be done without actually publishing.
-// Usage example: call release.Run(...) from integrating code.
+// For separated concerns, prefer `core build` then `core ci` (Publish).
+//
+// rel, err := release.Run(ctx, cfg, false) // dryRun=true to preview
 func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	if cfg == nil {
 		return nil, coreerr.E("release.Run", "config is nil", nil)

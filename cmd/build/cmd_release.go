@@ -40,7 +40,8 @@ func initReleaseFlags() {
 }
 
 // AddReleaseCommand adds the release subcommand to the build command.
-// Usage example: call buildcmd.AddReleaseCommand(...) from integrating code.
+//
+// buildcmd.AddReleaseCommand(buildCmd)
 func AddReleaseCommand(buildCmd *cli.Command) {
 	setReleaseI18n()
 	initReleaseFlags()

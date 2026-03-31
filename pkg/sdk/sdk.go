@@ -11,7 +11,8 @@ import (
 )
 
 // Config holds SDK generation configuration from .core/release.yaml.
-// Usage example: declare a value of type sdk.Config in integrating code.
+//
+// cfg := &sdk.Config{Languages: []string{"typescript"}, Output: "sdk"}
 type Config struct {
 	// Spec is the path to the OpenAPI spec file (auto-detected if empty).
 	Spec string `yaml:"spec,omitempty"`
@@ -28,7 +29,8 @@ type Config struct {
 }
 
 // PackageConfig holds package naming configuration.
-// Usage example: declare a value of type sdk.PackageConfig in integrating code.
+//
+// cfg.Package = sdk.PackageConfig{Name: "@host-uk/api-client", Version: "1.0.0"}
 type PackageConfig struct {
 	// Name is the base package name.
 	Name string `yaml:"name,omitempty"`
@@ -37,7 +39,8 @@ type PackageConfig struct {
 }
 
 // DiffConfig holds breaking change detection configuration.
-// Usage example: declare a value of type sdk.DiffConfig in integrating code.
+//
+// cfg.Diff = sdk.DiffConfig{Enabled: true, FailOnBreaking: true}
 type DiffConfig struct {
 	// Enabled determines whether to run diff checks.
 	Enabled bool `yaml:"enabled,omitempty"`
@@ -46,7 +49,8 @@ type DiffConfig struct {
 }
 
 // PublishConfig holds monorepo publishing configuration.
-// Usage example: declare a value of type sdk.PublishConfig in integrating code.
+//
+// cfg.Publish = sdk.PublishConfig{Repo: "host-uk/ts", Path: "packages/api-client"}
 type PublishConfig struct {
 	// Repo is the SDK monorepo (e.g., "myorg/sdks").
 	Repo string `yaml:"repo,omitempty"`
@@ -55,7 +59,8 @@ type PublishConfig struct {
 }
 
 // SDK orchestrates OpenAPI SDK generation.
-// Usage example: declare a value of type sdk.SDK in integrating code.
+//
+// s := sdk.New(".", cfg)
 type SDK struct {
 	config     *Config
 	projectDir string
@@ -63,7 +68,8 @@ type SDK struct {
 }
 
 // New creates a new SDK instance.
-// Usage example: call sdk.New(...) from integrating code.
+//
+// s := sdk.New(".", &sdk.Config{Languages: []string{"typescript"}, Output: "sdk"})
 func New(projectDir string, config *Config) *SDK {
 	if config == nil {
 		config = DefaultConfig()
@@ -76,7 +82,8 @@ func New(projectDir string, config *Config) *SDK {
 
 // SetVersion sets the SDK version for generation.
 // This updates both the internal version field and the config's Package.Version.
-// Usage example: call value.SetVersion(...) from integrating code.
+//
+// s.SetVersion("v1.2.3")
 func (s *SDK) SetVersion(version string) {
 	s.version = version
 	if s.config != nil {
@@ -85,7 +92,8 @@ func (s *SDK) SetVersion(version string) {
 }
 
 // DefaultConfig returns sensible defaults for SDK configuration.
-// Usage example: call sdk.DefaultConfig(...) from integrating code.
+//
+// cfg := sdk.DefaultConfig() // languages: typescript, python, go, php
 func DefaultConfig() *Config {
 	return &Config{
 		Languages: []string{"typescript", "python", "go", "php"},
@@ -98,7 +106,8 @@ func DefaultConfig() *Config {
 }
 
 // Generate generates SDKs for all configured languages.
-// Usage example: call value.Generate(...) from integrating code.
+//
+// err := s.Generate(ctx) // generates sdk/typescript/, sdk/python/, etc.
 func (s *SDK) Generate(ctx context.Context) error {
 	// Generate for each language
 	for _, lang := range s.config.Languages {
@@ -111,7 +120,8 @@ func (s *SDK) Generate(ctx context.Context) error {
 }
 
 // GenerateLanguage generates SDK for a specific language.
-// Usage example: call value.GenerateLanguage(...) from integrating code.
+//
+// err := s.GenerateLanguage(ctx, "typescript") // generates sdk/typescript/
 func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 	specPath, err := s.DetectSpec()
 	if err != nil {

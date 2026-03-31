@@ -60,7 +60,8 @@ func setSDKI18n() {
 }
 
 // AddSDKCommands registers the 'sdk' command and all subcommands.
-// Usage example: call sdkcmd.AddSDKCommands(...) from integrating code.
+//
+// sdkcmd.AddSDKCommands(root)
 func AddSDKCommands(root *cli.Command) {
 	setSDKI18n()
 

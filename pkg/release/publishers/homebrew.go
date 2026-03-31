@@ -18,7 +18,8 @@ import (
 var homebrewTemplates embed.FS
 
 // HomebrewConfig holds Homebrew-specific configuration.
-// Usage example: declare a value of type publishers.HomebrewConfig in integrating code.
+//
+// cfg := publishers.HomebrewConfig{Tap: "host-uk/homebrew-tap", Formula: "core-build"}
 type HomebrewConfig struct {
 	// Tap is the Homebrew tap repository (e.g., "host-uk/homebrew-tap").
 	Tap string
@@ -29,7 +30,8 @@ type HomebrewConfig struct {
 }
 
 // OfficialConfig holds configuration for generating files for official repo PRs.
-// Usage example: declare a value of type publishers.OfficialConfig in integrating code.
+//
+// cfg.Official = &publishers.OfficialConfig{Enabled: true, Output: "dist/homebrew"}
 type OfficialConfig struct {
 	// Enabled determines whether to generate files for official repos.
 	Enabled bool
@@ -38,23 +40,27 @@ type OfficialConfig struct {
 }
 
 // HomebrewPublisher publishes releases to Homebrew.
-// Usage example: declare a value of type publishers.HomebrewPublisher in integrating code.
+//
+// pub := publishers.NewHomebrewPublisher()
 type HomebrewPublisher struct{}
 
 // NewHomebrewPublisher creates a new Homebrew publisher.
-// Usage example: call publishers.NewHomebrewPublisher(...) from integrating code.
+//
+// pub := publishers.NewHomebrewPublisher()
 func NewHomebrewPublisher() *HomebrewPublisher {
 	return &HomebrewPublisher{}
 }
 
 // Name returns the publisher's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := pub.Name() // → "homebrew"
 func (p *HomebrewPublisher) Name() string {
 	return "homebrew"
 }
 
 // Publish publishes the release to Homebrew.
-// Usage example: call value.Publish(...) from integrating code.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *HomebrewPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	// Parse config
 	cfg := p.parseConfig(pubCfg, relCfg)
@@ -127,7 +133,8 @@ type homebrewTemplateData struct {
 }
 
 // ChecksumMap holds checksums for different platform/arch combinations.
-// Usage example: declare a value of type publishers.ChecksumMap in integrating code.
+//
+// data.Checksums.LinuxAMD64 = "abc123..."
 type ChecksumMap struct {
 	DarwinAmd64  string
 	DarwinArm64  string

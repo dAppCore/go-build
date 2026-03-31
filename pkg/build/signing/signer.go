@@ -9,7 +9,9 @@ import (
 )
 
 // Signer defines the interface for code signing implementations.
-// Usage example: declare a value of type signing.Signer in integrating code.
+//
+// var s signing.Signer = signing.NewGPGSigner(keyID)
+// err := s.Sign(ctx, io.Local, "dist/myapp")
 type Signer interface {
 	// Name returns the signer's identifier.
 	Name() string
@@ -20,7 +22,8 @@ type Signer interface {
 }
 
 // SignConfig holds signing configuration from .core/build.yaml.
-// Usage example: declare a value of type signing.SignConfig in integrating code.
+//
+// cfg := signing.DefaultSignConfig()
 type SignConfig struct {
 	Enabled bool          `yaml:"enabled"`
 	GPG     GPGConfig     `yaml:"gpg,omitempty"`
@@ -29,13 +32,15 @@ type SignConfig struct {
 }
 
 // GPGConfig holds GPG signing configuration.
-// Usage example: declare a value of type signing.GPGConfig in integrating code.
+//
+// cfg := signing.GPGConfig{Key: "ABCD1234"}
 type GPGConfig struct {
 	Key string `yaml:"key"` // Key ID or fingerprint, supports $ENV
 }
 
 // MacOSConfig holds macOS codesign configuration.
-// Usage example: declare a value of type signing.MacOSConfig in integrating code.
+//
+// cfg := signing.MacOSConfig{Identity: "Developer ID Application: Acme Inc (TEAM123)"}
 type MacOSConfig struct {
 	Identity    string `yaml:"identity"`     // Developer ID Application: ...
 	Notarize    bool   `yaml:"notarize"`     // Submit to Apple for notarization
@@ -45,14 +50,16 @@ type MacOSConfig struct {
 }
 
 // WindowsConfig holds Windows signtool configuration (placeholder).
-// Usage example: declare a value of type signing.WindowsConfig in integrating code.
+//
+// cfg := signing.WindowsConfig{Certificate: "cert.pfx", Password: "secret"}
 type WindowsConfig struct {
 	Certificate string `yaml:"certificate"` // Path to .pfx
 	Password    string `yaml:"password"`    // Certificate password
 }
 
 // DefaultSignConfig returns sensible defaults.
-// Usage example: call signing.DefaultSignConfig(...) from integrating code.
+//
+// cfg := signing.DefaultSignConfig()
 func DefaultSignConfig() SignConfig {
 	return SignConfig{
 		Enabled: true,
@@ -69,7 +76,8 @@ func DefaultSignConfig() SignConfig {
 }
 
 // ExpandEnv expands environment variables in config values.
-// Usage example: call value.ExpandEnv(...) from integrating code.
+//
+// cfg.ExpandEnv() // expands $GPG_KEY_ID, $CODESIGN_IDENTITY etc.
 func (c *SignConfig) ExpandEnv() {
 	c.GPG.Key = expandEnv(c.GPG.Key)
 	c.MacOS.Identity = expandEnv(c.MacOS.Identity)

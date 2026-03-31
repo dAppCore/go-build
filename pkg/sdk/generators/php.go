@@ -8,35 +8,41 @@ import (
 )
 
 // PHPGenerator generates PHP SDKs from OpenAPI specs.
-// Usage example: declare a value of type generators.PHPGenerator in integrating code.
+//
+// g := generators.NewPHPGenerator()
 type PHPGenerator struct{}
 
 // NewPHPGenerator creates a new PHP generator.
-// Usage example: call generators.NewPHPGenerator(...) from integrating code.
+//
+// g := generators.NewPHPGenerator()
 func NewPHPGenerator() *PHPGenerator {
 	return &PHPGenerator{}
 }
 
 // Language returns the generator's target language identifier.
-// Usage example: call value.Language(...) from integrating code.
+//
+// lang := g.Language() // → "php"
 func (g *PHPGenerator) Language() string {
 	return "php"
 }
 
-// Available checks if generator dependencies are installed.
-// Usage example: call value.Available(...) from integrating code.
+// Available checks if generator dependencies are installed (requires Docker).
+//
+// if g.Available() { err = g.Generate(ctx, opts) }
 func (g *PHPGenerator) Available() bool {
 	return dockerRuntimeAvailable()
 }
 
 // Install returns instructions for installing the generator.
-// Usage example: call value.Install(...) from integrating code.
+//
+// fmt.Println(g.Install()) // → "Docker is required for PHP SDK generation"
 func (g *PHPGenerator) Install() string {
 	return "Docker is required for PHP SDK generation"
 }
 
-// Generate creates SDK from OpenAPI spec.
-// Usage example: call value.Generate(...) from integrating code.
+// Generate creates SDK from OpenAPI spec (requires Docker).
+//
+// err := g.Generate(ctx, generators.Options{SpecPath: "docs/openapi.yaml", OutputDir: "sdk/php"})
 func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
 	if err := ctx.Err(); err != nil {
 		return coreerr.E("php.Generate", "generation cancelled", err)

@@ -18,7 +18,8 @@ import (
 var scoopTemplates embed.FS
 
 // ScoopConfig holds Scoop-specific configuration.
-// Usage example: declare a value of type publishers.ScoopConfig in integrating code.
+//
+// cfg := publishers.ScoopConfig{Bucket: "host-uk/scoop-bucket"}
 type ScoopConfig struct {
 	// Bucket is the Scoop bucket repository (e.g., "host-uk/scoop-bucket").
 	Bucket string
@@ -27,23 +28,27 @@ type ScoopConfig struct {
 }
 
 // ScoopPublisher publishes releases to Scoop.
-// Usage example: declare a value of type publishers.ScoopPublisher in integrating code.
+//
+// pub := publishers.NewScoopPublisher()
 type ScoopPublisher struct{}
 
 // NewScoopPublisher creates a new Scoop publisher.
-// Usage example: call publishers.NewScoopPublisher(...) from integrating code.
+//
+// pub := publishers.NewScoopPublisher()
 func NewScoopPublisher() *ScoopPublisher {
 	return &ScoopPublisher{}
 }
 
 // Name returns the publisher's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := pub.Name() // → "scoop"
 func (p *ScoopPublisher) Name() string {
 	return "scoop"
 }
 
 // Publish publishes the release to Scoop.
-// Usage example: call value.Publish(...) from integrating code.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *ScoopPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	cfg := p.parseConfig(pubCfg, relCfg)
 

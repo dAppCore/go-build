@@ -18,7 +18,8 @@ import (
 var aurTemplates embed.FS
 
 // AURConfig holds AUR-specific configuration.
-// Usage example: declare a value of type publishers.AURConfig in integrating code.
+//
+// cfg := publishers.AURConfig{Package: "core-build", Maintainer: "Jane Doe <jane@example.com>"}
 type AURConfig struct {
 	// Package is the AUR package name.
 	Package string
@@ -29,23 +30,27 @@ type AURConfig struct {
 }
 
 // AURPublisher publishes releases to AUR.
-// Usage example: declare a value of type publishers.AURPublisher in integrating code.
+//
+// pub := publishers.NewAURPublisher()
 type AURPublisher struct{}
 
 // NewAURPublisher creates a new AUR publisher.
-// Usage example: call publishers.NewAURPublisher(...) from integrating code.
+//
+// pub := publishers.NewAURPublisher()
 func NewAURPublisher() *AURPublisher {
 	return &AURPublisher{}
 }
 
 // Name returns the publisher's identifier.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := pub.Name() // → "aur"
 func (p *AURPublisher) Name() string {
 	return "aur"
 }
 
 // Publish publishes the release to AUR.
-// Usage example: call value.Publish(...) from integrating code.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *AURPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	cfg := p.parseConfig(pubCfg, relCfg)
 

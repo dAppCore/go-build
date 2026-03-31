@@ -24,7 +24,8 @@ import (
 // BuildProvider wraps go-build's build, release, and SDK operations as a
 // service provider. It implements Provider, Streamable, Describable, and
 // Renderable.
-// Usage example: declare a value of type api.BuildProvider in integrating code.
+//
+// p := api.NewProvider(".", hub)
 type BuildProvider struct {
 	hub        *ws.Hub
 	projectDir string
@@ -42,7 +43,8 @@ var (
 // NewProvider creates a BuildProvider for the given project directory.
 // If projectDir is empty, the current working directory is used.
 // The WS hub is used to emit real-time build events; pass nil if not available.
-// Usage example: call api.NewProvider(...) from integrating code.
+//
+// p := api.NewProvider(".", hub)
 func NewProvider(projectDir string, hub *ws.Hub) *BuildProvider {
 	if projectDir == "" {
 		projectDir = "."
@@ -55,15 +57,18 @@ func NewProvider(projectDir string, hub *ws.Hub) *BuildProvider {
 }
 
 // Name implements api.RouteGroup.
-// Usage example: call value.Name(...) from integrating code.
+//
+// name := p.Name() // → "build"
 func (p *BuildProvider) Name() string { return "build" }
 
 // BasePath implements api.RouteGroup.
-// Usage example: call value.BasePath(...) from integrating code.
+//
+// path := p.BasePath() // → "/api/v1/build"
 func (p *BuildProvider) BasePath() string { return "/api/v1/build" }
 
 // Element implements provider.Renderable.
-// Usage example: call value.Element(...) from integrating code.
+//
+// spec := p.Element() // → {Tag: "core-build-panel", Source: "/assets/core-build.js"}
 func (p *BuildProvider) Element() provider.ElementSpec {
 	return provider.ElementSpec{
 		Tag:    "core-build-panel",
@@ -72,7 +77,8 @@ func (p *BuildProvider) Element() provider.ElementSpec {
 }
 
 // Channels implements provider.Streamable.
-// Usage example: call value.Channels(...) from integrating code.
+//
+// channels := p.Channels() // → ["build.started", "build.complete", ...]
 func (p *BuildProvider) Channels() []string {
 	return []string{
 		"build.started",
@@ -85,7 +91,8 @@ func (p *BuildProvider) Channels() []string {
 }
 
 // RegisterRoutes implements api.RouteGroup.
-// Usage example: call value.RegisterRoutes(...) from integrating code.
+//
+// p.RegisterRoutes(rg)
 func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	// Build
 	rg.GET("/config", p.getConfig)
@@ -104,7 +111,8 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 // Describe implements api.DescribableGroup.
-// Usage example: call value.Describe(...) from integrating code.
+//
+// routes := p.Describe() // → [{Method: "GET", Path: "/config", ...}, ...]
 func (p *BuildProvider) Describe() []api.RouteDescription {
 	return []api.RouteDescription{
 		{

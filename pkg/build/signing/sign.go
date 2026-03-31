@@ -11,7 +11,8 @@ import (
 
 // Artifact represents a build output that can be signed.
 // This mirrors build.Artifact to avoid import cycles.
-// Usage example: declare a value of type signing.Artifact in integrating code.
+//
+// a := signing.Artifact{Path: "dist/myapp", OS: "darwin", Arch: "arm64"}
 type Artifact struct {
 	Path string
 	OS   string
@@ -20,7 +21,8 @@ type Artifact struct {
 
 // SignBinaries signs macOS binaries in the artifacts list.
 // Only signs darwin binaries when running on macOS with a configured identity.
-// Usage example: call signing.SignBinaries(...) from integrating code.
+//
+// err := signing.SignBinaries(ctx, io.Local, cfg, artifacts)
 func SignBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts []Artifact) error {
 	if !cfg.Enabled {
 		return nil
@@ -51,7 +53,8 @@ func SignBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts [
 }
 
 // NotarizeBinaries notarizes macOS binaries if enabled.
-// Usage example: call signing.NotarizeBinaries(...) from integrating code.
+//
+// err := signing.NotarizeBinaries(ctx, io.Local, cfg, artifacts)
 func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts []Artifact) error {
 	if !cfg.Enabled || !cfg.MacOS.Notarize {
 		return nil
@@ -81,7 +84,8 @@ func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifac
 }
 
 // SignChecksums signs the checksums file with GPG.
-// Usage example: call signing.SignChecksums(...) from integrating code.
+//
+// err := signing.SignChecksums(ctx, io.Local, cfg, "dist/CHECKSUMS.txt")
 func SignChecksums(ctx context.Context, fs io.Medium, cfg SignConfig, checksumFile string) error {
 	if !cfg.Enabled {
 		return nil
