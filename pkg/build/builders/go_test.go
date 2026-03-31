@@ -2,7 +2,9 @@ package builders
 
 import (
 	"context"
+	"os"
 	"runtime"
+	"strings"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -37,6 +39,60 @@ func main() {
 	require.NoError(t, err)
 
 	return dir
+}
+
+func setupFakeBuildToolchain(t *testing.T, binDir string) {
+	t.Helper()
+
+	goScript := `#!/bin/sh
+set -eu
+
+log_file="${GO_BUILD_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+if [ "${GOARCH:-}" = "invalid_arch" ]; then
+	exit 1
+fi
+
+if [ -f main.go ] && grep -q "not valid go code" main.go; then
+	exit 1
+fi
+
+output=""
+previous=""
+for argument in "$@"; do
+	if [ "$previous" = "-o" ]; then
+		output="$argument"
+		break
+	fi
+	previous="$argument"
+done
+
+if [ -n "$output" ]; then
+	mkdir -p "$(dirname "$output")"
+	printf 'fake binary\n' > "$output"
+	chmod +x "$output"
+fi
+`
+
+	err := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755)
+	require.NoError(t, err)
+
+	garbleScript := `#!/bin/sh
+set -eu
+
+log_file="${GARBLE_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+exec go "$@"
+`
+
+	err = ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755)
+	require.NoError(t, err)
 }
 
 func TestGo_GoBuilderName_Good(t *testing.T) {
@@ -94,6 +150,10 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+
+	binDir := t.TempDir()
+	setupFakeBuildToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	t.Run("builds for current platform", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
@@ -231,6 +291,46 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.FileExists(t, artifacts[0].Path)
 	})
 
+	t.Run("uses garble when obfuscation is enabled", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("garble test helper uses a shell script")
+		}
+
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logDir := t.TempDir()
+		logPath := ax.Join(logDir, "garble.log")
+
+		t.Setenv("GARBLE_LOG_FILE", logPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "obfuscated",
+			Obfuscate:  true,
+		}
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-trimpath")
+		assert.Contains(t, args, "-o")
+		assert.Contains(t, args, ".")
+	})
+
 	t.Run("creates output directory if missing", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
 		outputDir := ax.Join(t.TempDir(), "nested", "output")
@@ -255,6 +355,10 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 }
 
 func TestGo_GoBuilderBuild_Bad(t *testing.T) {
+	binDir := t.TempDir()
+	setupFakeBuildToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 	t.Run("returns error for nil config", func(t *testing.T) {
 		builder := NewGoBuilder()
 
