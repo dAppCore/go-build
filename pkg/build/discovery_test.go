@@ -52,6 +52,41 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypePHP}, types)
 	})
 
+	t.Run("detects docs project", func(t *testing.T) {
+		dir := setupTestDir(t, "mkdocs.yml")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocs}, types)
+	})
+
+	t.Run("detects Python project with pyproject.toml", func(t *testing.T) {
+		dir := setupTestDir(t, "pyproject.toml")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypePython}, types)
+	})
+
+	t.Run("detects Python project with requirements.txt", func(t *testing.T) {
+		dir := setupTestDir(t, "requirements.txt")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypePython}, types)
+	})
+
+	t.Run("detects Python only once with both markers", func(t *testing.T) {
+		dir := setupTestDir(t, "pyproject.toml", "requirements.txt")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypePython}, types)
+	})
+
+	t.Run("detects Rust project", func(t *testing.T) {
+		dir := setupTestDir(t, "Cargo.toml")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeRust}, types)
+	})
+
 	t.Run("detects multiple project types", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod", "package.json")
 		types, err := Discover(fs, dir)
@@ -211,6 +246,9 @@ func TestDiscovery_DiscoverTestdata_Good(t *testing.T) {
 		{"php-project", "php-project", []ProjectType{ProjectTypePHP}},
 		{"multi-project", "multi-project", []ProjectType{ProjectTypeGo, ProjectTypeNode}},
 		{"empty-project", "empty-project", []ProjectType{}},
+		{"docs-project", "docs-project", []ProjectType{ProjectTypeDocs}},
+		{"python-project", "python-project", []ProjectType{ProjectTypePython}},
+		{"rust-project", "rust-project", []ProjectType{ProjectTypeRust}},
 	}
 
 	for _, tt := range tests {
@@ -225,4 +263,288 @@ func TestDiscovery_DiscoverTestdata_Good(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiscovery_IsMkDocsProject_Good(t *testing.T) {
+	fs := io.Local
+	t.Run("true with mkdocs.yml", func(t *testing.T) {
+		dir := setupTestDir(t, "mkdocs.yml")
+		assert.True(t, IsMkDocsProject(fs, dir))
+	})
+
+	t.Run("false without mkdocs.yml", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.False(t, IsMkDocsProject(fs, dir))
+	})
+}
+
+func TestDiscovery_IsMkDocsProject_Bad(t *testing.T) {
+	fs := io.Local
+	t.Run("false for non-existent directory", func(t *testing.T) {
+		assert.False(t, IsMkDocsProject(fs, "/non/existent/path"))
+	})
+}
+
+func TestDiscovery_IsMkDocsProject_Ugly(t *testing.T) {
+	fs := io.Local
+	t.Run("false when mkdocs.yml is a directory", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.Mkdir(ax.Join(dir, "mkdocs.yml"), 0755)
+		require.NoError(t, err)
+		assert.False(t, IsMkDocsProject(fs, dir))
+	})
+}
+
+func TestDiscovery_HasSubtreeNpm_Good(t *testing.T) {
+	fs := io.Local
+	t.Run("true with depth 1 nested package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		subdir := ax.Join(dir, "packages", "web")
+		err := ax.MkdirAll(subdir, 0755)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(dir, "packages", "package.json"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		assert.True(t, HasSubtreeNpm(fs, dir))
+	})
+
+	t.Run("true with depth 2 nested package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "apps", "web")
+		err := ax.MkdirAll(nested, 0755)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		assert.True(t, HasSubtreeNpm(fs, dir))
+	})
+
+	t.Run("false with only root package.json", func(t *testing.T) {
+		dir := setupTestDir(t, "package.json")
+		assert.False(t, HasSubtreeNpm(fs, dir))
+	})
+
+	t.Run("false with empty directory", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.False(t, HasSubtreeNpm(fs, dir))
+	})
+}
+
+func TestDiscovery_HasSubtreeNpm_Bad(t *testing.T) {
+	fs := io.Local
+	t.Run("false for non-existent directory", func(t *testing.T) {
+		assert.False(t, HasSubtreeNpm(fs, "/non/existent/path"))
+	})
+
+	t.Run("ignores node_modules at depth 1", func(t *testing.T) {
+		dir := t.TempDir()
+		nmDir := ax.Join(dir, "node_modules", "some-pkg")
+		err := ax.MkdirAll(nmDir, 0755)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(nmDir, "package.json"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		assert.False(t, HasSubtreeNpm(fs, dir))
+	})
+
+	t.Run("ignores node_modules at depth 2", func(t *testing.T) {
+		dir := t.TempDir()
+		nmDir := ax.Join(dir, "apps", "node_modules", "some-pkg")
+		err := ax.MkdirAll(nmDir, 0755)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(nmDir, "package.json"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		// Also need the apps dir to be listable — it is since we created nmDir inside it
+		assert.False(t, HasSubtreeNpm(fs, dir))
+	})
+}
+
+func TestDiscovery_HasSubtreeNpm_Ugly(t *testing.T) {
+	fs := io.Local
+	t.Run("false when nested package.json is beyond depth 2", func(t *testing.T) {
+		dir := t.TempDir()
+		deep := ax.Join(dir, "a", "b", "c")
+		err := ax.MkdirAll(deep, 0755)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(deep, "package.json"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		assert.False(t, HasSubtreeNpm(fs, dir))
+	})
+}
+
+func TestDiscovery_IsPythonProject_Good(t *testing.T) {
+	fs := io.Local
+	t.Run("true with pyproject.toml", func(t *testing.T) {
+		dir := setupTestDir(t, "pyproject.toml")
+		assert.True(t, IsPythonProject(fs, dir))
+	})
+
+	t.Run("true with requirements.txt", func(t *testing.T) {
+		dir := setupTestDir(t, "requirements.txt")
+		assert.True(t, IsPythonProject(fs, dir))
+	})
+
+	t.Run("true with both markers", func(t *testing.T) {
+		dir := setupTestDir(t, "pyproject.toml", "requirements.txt")
+		assert.True(t, IsPythonProject(fs, dir))
+	})
+
+	t.Run("false without markers", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.False(t, IsPythonProject(fs, dir))
+	})
+}
+
+func TestDiscovery_IsPythonProject_Bad(t *testing.T) {
+	fs := io.Local
+	t.Run("false for non-existent directory", func(t *testing.T) {
+		assert.False(t, IsPythonProject(fs, "/non/existent/path"))
+	})
+}
+
+func TestDiscovery_IsPythonProject_Ugly(t *testing.T) {
+	fs := io.Local
+	t.Run("false when pyproject.toml is a directory", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.Mkdir(ax.Join(dir, "pyproject.toml"), 0755)
+		require.NoError(t, err)
+		assert.False(t, IsPythonProject(fs, dir))
+	})
+}
+
+func TestDiscovery_IsRustProject_Good(t *testing.T) {
+	fs := io.Local
+	t.Run("true with Cargo.toml", func(t *testing.T) {
+		dir := setupTestDir(t, "Cargo.toml")
+		assert.True(t, IsRustProject(fs, dir))
+	})
+
+	t.Run("false without Cargo.toml", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.False(t, IsRustProject(fs, dir))
+	})
+}
+
+func TestDiscovery_IsRustProject_Bad(t *testing.T) {
+	fs := io.Local
+	t.Run("false for non-existent directory", func(t *testing.T) {
+		assert.False(t, IsRustProject(fs, "/non/existent/path"))
+	})
+}
+
+func TestDiscovery_IsRustProject_Ugly(t *testing.T) {
+	fs := io.Local
+	t.Run("false when Cargo.toml is a directory", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.Mkdir(ax.Join(dir, "Cargo.toml"), 0755)
+		require.NoError(t, err)
+		assert.False(t, IsRustProject(fs, dir))
+	})
+}
+
+func TestDiscovery_DiscoverFull_Good(t *testing.T) {
+	fs := io.Local
+	t.Run("returns complete result for Go project", func(t *testing.T) {
+		dir := setupTestDir(t, "go.mod")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
+		assert.Equal(t, "go", result.PrimaryStack)
+		assert.False(t, result.HasFrontend)
+		assert.False(t, result.HasSubtreeNpm)
+		assert.True(t, result.Markers["go.mod"])
+		assert.False(t, result.Markers["wails.json"])
+	})
+
+	t.Run("returns complete result for Wails project with frontend", func(t *testing.T) {
+		dir := t.TempDir()
+		// Create wails.json, go.mod, and frontend/package.json
+		err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		err = ax.MkdirAll(ax.Join(dir, "frontend"), 0755)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(dir, "frontend", "package.json"), []byte("{}"), 0644)
+		require.NoError(t, err)
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo}, result.Types)
+		assert.Equal(t, "wails", result.PrimaryStack)
+		assert.True(t, result.HasFrontend)
+		assert.True(t, result.Markers["wails.json"])
+		assert.True(t, result.Markers["go.mod"])
+	})
+
+	t.Run("detects subtree npm as frontend", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		nested := ax.Join(dir, "apps", "web")
+		err = ax.MkdirAll(nested, 0755)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644)
+		require.NoError(t, err)
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
+		assert.True(t, result.HasSubtreeNpm)
+		assert.True(t, result.HasFrontend)
+	})
+
+	t.Run("empty directory returns empty result", func(t *testing.T) {
+		dir := t.TempDir()
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Empty(t, result.Types)
+		assert.Empty(t, result.PrimaryStack)
+		assert.False(t, result.HasFrontend)
+		assert.False(t, result.HasSubtreeNpm)
+	})
+
+	t.Run("detects docs project markers", func(t *testing.T) {
+		dir := setupTestDir(t, "mkdocs.yml")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocs}, result.Types)
+		assert.Equal(t, "docs", result.PrimaryStack)
+		assert.True(t, result.Markers["mkdocs.yml"])
+	})
+
+	t.Run("detects Rust project markers", func(t *testing.T) {
+		dir := setupTestDir(t, "Cargo.toml")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeRust}, result.Types)
+		assert.Equal(t, "rust", result.PrimaryStack)
+		assert.True(t, result.Markers["Cargo.toml"])
+	})
+
+	t.Run("detects Python project markers", func(t *testing.T) {
+		dir := setupTestDir(t, "pyproject.toml")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypePython}, result.Types)
+		assert.Equal(t, "python", result.PrimaryStack)
+		assert.True(t, result.Markers["pyproject.toml"])
+	})
+}
+
+func TestDiscovery_DiscoverFull_Bad(t *testing.T) {
+	fs := io.Local
+	t.Run("non-existent directory returns empty result", func(t *testing.T) {
+		result, err := DiscoverFull(fs, "/non/existent/path")
+		require.NoError(t, err)
+		assert.Empty(t, result.Types)
+		assert.Empty(t, result.PrimaryStack)
+	})
+}
+
+func TestDiscovery_DiscoverFull_Ugly(t *testing.T) {
+	fs := io.Local
+	t.Run("markers map is never nil even for empty directory", func(t *testing.T) {
+		dir := t.TempDir()
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.NotNil(t, result.Markers)
+	})
 }

@@ -8,10 +8,14 @@ import (
 
 // Marker files for project type detection.
 const (
-	markerGoMod       = "go.mod"
-	markerWails       = "wails.json"
-	markerNodePackage = "package.json"
-	markerComposer    = "composer.json"
+	markerGoMod        = "go.mod"
+	markerWails        = "wails.json"
+	markerNodePackage  = "package.json"
+	markerComposer     = "composer.json"
+	markerMkDocs       = "mkdocs.yml"
+	markerPyProject    = "pyproject.toml"
+	markerRequirements = "requirements.txt"
+	markerCargo        = "Cargo.toml"
 )
 
 // projectMarker maps a marker file to its project type.
@@ -27,6 +31,10 @@ var markers = []projectMarker{
 	{markerGoMod, ProjectTypeGo},
 	{markerNodePackage, ProjectTypeNode},
 	{markerComposer, ProjectTypePHP},
+	{markerMkDocs, ProjectTypeDocs},
+	{markerPyProject, ProjectTypePython},
+	{markerRequirements, ProjectTypePython},
+	{markerCargo, ProjectTypeRust},
 }
 
 // Discover detects project types in the given directory by checking for marker files.
@@ -99,6 +107,137 @@ func IsPHPProject(fs io.Medium, dir string) bool {
 // if build.IsCPPProject(io.Local, ".") { ... }
 func IsCPPProject(fs io.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, "CMakeLists.txt"))
+}
+
+// IsMkDocsProject checks for mkdocs.yml at the project root.
+//
+//	ok := build.IsMkDocsProject(io.Local, ".")
+func IsMkDocsProject(fs io.Medium, dir string) bool {
+	return fileExists(fs, ax.Join(dir, markerMkDocs))
+}
+
+// HasSubtreeNpm checks for package.json within depth 2 subdirectories.
+// Ignores root package.json and node_modules directories.
+// Returns true when a monorepo-style nested package.json is found.
+//
+//	ok := build.HasSubtreeNpm(io.Local, ".") // true if apps/web/package.json exists
+func HasSubtreeNpm(fs io.Medium, dir string) bool {
+	// Depth 1: list immediate subdirectories
+	entries, err := fs.List(dir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if name == "node_modules" {
+			continue
+		}
+
+		subdir := ax.Join(dir, name)
+
+		// Depth 1: check subdir/package.json
+		if fileExists(fs, ax.Join(subdir, markerNodePackage)) {
+			return true
+		}
+
+		// Depth 2: list subdirectories of subdir
+		subEntries, err := fs.List(subdir)
+		if err != nil {
+			continue
+		}
+		for _, subEntry := range subEntries {
+			if !subEntry.IsDir() {
+				continue
+			}
+			if subEntry.Name() == "node_modules" {
+				continue
+			}
+			nested := ax.Join(subdir, subEntry.Name())
+			if fileExists(fs, ax.Join(nested, markerNodePackage)) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// IsPythonProject checks for pyproject.toml or requirements.txt at the project root.
+//
+//	ok := build.IsPythonProject(io.Local, ".")
+func IsPythonProject(fs io.Medium, dir string) bool {
+	return fileExists(fs, ax.Join(dir, markerPyProject)) ||
+		fileExists(fs, ax.Join(dir, markerRequirements))
+}
+
+// IsRustProject checks for Cargo.toml at the project root.
+//
+//	ok := build.IsRustProject(io.Local, ".")
+func IsRustProject(fs io.Medium, dir string) bool {
+	return fileExists(fs, ax.Join(dir, markerCargo))
+}
+
+// DiscoveryResult holds the full project analysis from DiscoverFull().
+//
+//	result, err := build.DiscoverFull(io.Local, ".")
+//	fmt.Println(result.PrimaryStack) // "wails"
+type DiscoveryResult struct {
+	// Types lists all detected project types in priority order.
+	Types []ProjectType
+	// PrimaryStack is the best stack suggestion based on detected types.
+	PrimaryStack string
+	// HasFrontend is true when frontend/package.json or subtree npm is found.
+	HasFrontend bool
+	// HasSubtreeNpm is true when a nested package.json exists within depth 2.
+	HasSubtreeNpm bool
+	// Markers records the presence of each raw marker file checked.
+	Markers map[string]bool
+	// Distro holds the detected Linux distribution version (e.g., "24.04").
+	// Used by ComputeOptions to inject webkit2_41 tag on Ubuntu 24.04+.
+	Distro string
+}
+
+// DiscoverFull returns a rich discovery result with all markers and metadata.
+//
+//	result, err := build.DiscoverFull(io.Local, ".")
+//	if result.HasFrontend { ... }
+func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
+	types, err := Discover(fs, dir)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &DiscoveryResult{
+		Types:   types,
+		Markers: make(map[string]bool),
+	}
+
+	// Record raw marker presence
+	allMarkers := []string{
+		markerGoMod, markerWails, markerNodePackage, markerComposer,
+		markerMkDocs, markerPyProject, markerRequirements, markerCargo,
+		"CMakeLists.txt", "Dockerfile", "linuxkit.yml", "Taskfile.yml",
+	}
+	for _, m := range allMarkers {
+		result.Markers[m] = fileExists(fs, ax.Join(dir, m))
+	}
+
+	// Subtree npm detection
+	result.HasSubtreeNpm = HasSubtreeNpm(fs, dir)
+
+	// Frontend detection: frontend/package.json or subtree npm
+	result.HasFrontend = fileExists(fs, ax.Join(dir, "frontend", markerNodePackage)) || result.HasSubtreeNpm
+
+	// Primary stack: first detected type as string, or empty
+	if len(types) > 0 {
+		result.PrimaryStack = string(types[0])
+	}
+
+	return result, nil
 }
 
 // fileExists checks if a file exists and is not a directory.

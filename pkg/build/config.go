@@ -61,6 +61,12 @@ type Build struct {
 	Type string `yaml:"type"`
 	// CGO enables CGO for the build.
 	CGO bool `yaml:"cgo"`
+	// Obfuscate uses garble instead of go build for binary obfuscation.
+	Obfuscate bool `yaml:"obfuscate"`
+	// NSIS enables Windows NSIS installer generation (Wails projects only).
+	NSIS bool `yaml:"nsis"`
+	// WebView2 sets the WebView2 delivery method: download|embed|browser|error.
+	WebView2 string `yaml:"webview2,omitempty"`
 	// Flags are additional build flags (e.g., ["-trimpath"]).
 	Flags []string `yaml:"flags"`
 	// LDFlags are linker flags (e.g., ["-s", "-w"]).

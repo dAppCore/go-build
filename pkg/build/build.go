@@ -32,6 +32,12 @@ const (
 	ProjectTypeLinuxKit ProjectType = "linuxkit"
 	// ProjectTypeTaskfile indicates a project using Taskfile automation.
 	ProjectTypeTaskfile ProjectType = "taskfile"
+	// ProjectTypeDocs indicates a documentation project with mkdocs.yml.
+	ProjectTypeDocs ProjectType = "docs"
+	// ProjectTypePython indicates a Python project with pyproject.toml or requirements.txt.
+	ProjectTypePython ProjectType = "python"
+	// ProjectTypeRust indicates a Rust project with Cargo.toml.
+	ProjectTypeRust ProjectType = "rust"
 )
 
 // Target represents a build target platform.
@@ -77,6 +83,12 @@ type Config struct {
 	LDFlags []string
 	// CGO enables CGO for the build (required for Wails, FrankenPHP, etc).
 	CGO bool
+	// Obfuscate uses garble instead of go build for binary obfuscation.
+	Obfuscate bool
+	// NSIS enables Windows NSIS installer generation (Wails projects only).
+	NSIS bool
+	// WebView2 sets the WebView2 delivery method: download|embed|browser|error.
+	WebView2 string
 
 	// Docker-specific config
 	Dockerfile string            // Path to Dockerfile (default: Dockerfile)
