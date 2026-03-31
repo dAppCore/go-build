@@ -112,6 +112,14 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Build the wails build arguments
 	args := []string{"build"}
 
+	if cfg.NSIS {
+		args = append(args, "-nsis")
+	}
+
+	if cfg.WebView2 != "" {
+		args = append(args, "-webview2", cfg.WebView2)
+	}
+
 	// Platform
 	args = append(args, "-platform", core.Sprintf("%s/%s", target.OS, target.Arch))
 

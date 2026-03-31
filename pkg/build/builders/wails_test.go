@@ -2,7 +2,9 @@ package builders
 
 import (
 	"context"
+	"os"
 	"runtime"
+	"strings"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -79,6 +81,28 @@ require github.com/wailsapp/wails/v2 v2.8.0
 	return dir
 }
 
+func setupFakeWailsToolchain(t *testing.T, binDir string) {
+	t.Helper()
+
+	wailsScript := `#!/bin/sh
+set -eu
+
+log_file="${WAILS_BUILD_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+output_dir="build/bin"
+binary_name="testapp"
+mkdir -p "$output_dir"
+printf 'fake wails binary\n' > "$output_dir/$binary_name"
+chmod +x "$output_dir/$binary_name"
+`
+
+	err := ax.WriteFile(ax.Join(binDir, "wails"), []byte(wailsScript), 0o755)
+	require.NoError(t, err)
+}
+
 func TestWails_WailsBuilderBuildTaskfile_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -132,10 +156,11 @@ func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
+	binDir := t.TempDir()
+	setupFakeWailsToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 	builder := NewWailsBuilder()
-	if _, err := builder.resolveWailsCli(); err != nil {
-		t.Skip("wails not installed, skipping integration test")
-	}
 
 	t.Run("builds v2 project", func(t *testing.T) {
 		fs := io.Local
@@ -152,12 +177,54 @@ func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		// This will likely fail in a real run because we can't easily mock the full wails v2 build process
-		// (which needs a valid project with main.go etc).
-		// But it validates we are trying to run the command.
-		// For now, we just verify it attempts the build - error is expected
-		_, _ = builder.Build(context.Background(), cfg, targets)
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
 	})
+}
+
+func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeWailsToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := setupWailsV2TestProject(t)
+	outputDir := t.TempDir()
+	logDir := t.TempDir()
+	logPath := ax.Join(logDir, "wails.log")
+	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Name:       "testapp",
+		NSIS:       true,
+		WebView2:   "embed",
+	}
+	targets := []build.Target{
+		{OS: runtime.GOOS, Arch: runtime.GOARCH},
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, targets)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+
+	args := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.NotEmpty(t, args)
+	assert.Equal(t, "build", args[0])
+	assert.Contains(t, args, "-nsis")
+	assert.Contains(t, args, "-webview2")
+	assert.Contains(t, args, "embed")
 }
 
 func TestWails_WailsBuilderResolveWailsCli_Good(t *testing.T) {
