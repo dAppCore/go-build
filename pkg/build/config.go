@@ -73,6 +73,8 @@ type Build struct {
 	LDFlags []string `yaml:"ldflags"`
 	// Env are additional environment variables.
 	Env []string `yaml:"env"`
+	// Cache controls build cache setup.
+	Cache CacheConfig `yaml:"cache,omitempty"`
 }
 
 // TargetConfig defines a build target in the config file.
