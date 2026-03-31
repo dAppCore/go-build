@@ -32,33 +32,24 @@ type BuildOptions struct {
 //	opts := build.ComputeOptions(cfg, result)
 //	if opts.Obfuscate { /* use garble */ }
 func ComputeOptions(cfg *BuildConfig, discovery *DiscoveryResult) *BuildOptions {
-	opts := &BuildOptions{}
+	options := &BuildOptions{}
 
 	if cfg != nil {
-		opts.Obfuscate = cfg.Build.Obfuscate
-		opts.NSIS = cfg.Build.NSIS
-		opts.WebView2 = cfg.Build.WebView2
-		opts.LDFlags = append(opts.LDFlags, cfg.Build.LDFlags...)
-	}
-
-	// Merge tags from config flags (any -tags flag value) into opts.Tags
-	if cfg != nil {
-		for _, flag := range cfg.Build.Flags {
-			// Tags from the Flags list are just build flags, not -tags values.
-			// The actual tags come from the Tags field if present.
-			_ = flag
-		}
+		options.Obfuscate = cfg.Build.Obfuscate
+		options.NSIS = cfg.Build.NSIS
+		options.WebView2 = cfg.Build.WebView2
+		options.LDFlags = append(options.LDFlags, cfg.Build.LDFlags...)
 	}
 
 	// Inject webkit2_41 tag for Ubuntu 24.04+ when discovery provides distro info
 	if discovery != nil && discovery.Distro != "" {
-		opts.Tags = InjectWebKitTag(opts.Tags, discovery.Distro)
+		options.Tags = InjectWebKitTag(options.Tags, discovery.Distro)
 	}
 
 	// De-duplicate tags
-	opts.Tags = deduplicateTags(opts.Tags)
+	options.Tags = deduplicateTags(options.Tags)
 
-	return opts
+	return options
 }
 
 // InjectWebKitTag adds webkit2_41 tag for Ubuntu 24.04+ if not already present.

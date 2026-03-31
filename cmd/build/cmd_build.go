@@ -1,4 +1,4 @@
-// Package buildcmd provides project build commands with auto-detection.
+// Package buildcmd registers auto-detected project build commands.
 package buildcmd
 
 import (
@@ -13,7 +13,7 @@ func init() {
 	cli.RegisterCommands(AddBuildCommands)
 }
 
-// Style aliases from shared package
+// Style aliases used by build command output.
 var (
 	buildHeaderStyle  = cli.TitleStyle
 	buildTargetStyle  = cli.ValueStyle
@@ -27,13 +27,13 @@ var guiTemplate embed.FS
 
 // Flags for the main build command
 var (
-	buildType  string
-	ciMode     bool
-	targets    string
-	outputDir  string
-	doArchive  bool
-	doChecksum bool
-	verbose    bool
+	buildType      string
+	ciMode         bool
+	targets        string
+	outputDir      string
+	archiveOutput  bool
+	checksumOutput bool
+	verbose        bool
 
 	// Docker/LinuxKit specific flags
 	configPath string
@@ -61,7 +61,7 @@ var (
 var buildCmd = &cli.Command{
 	Use: "build",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runProjectBuild(cmd.Context(), buildType, ciMode, targets, outputDir, doArchive, doChecksum, configPath, format, push, imageName, noSign, notarize, verbose)
+		return runProjectBuild(cmd.Context(), buildType, ciMode, targets, outputDir, archiveOutput, checksumOutput, configPath, format, push, imageName, noSign, notarize, verbose)
 	},
 }
 
@@ -108,8 +108,8 @@ func initBuildFlags() {
 	buildCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, i18n.T("common.flag.verbose"))
 	buildCmd.Flags().StringVar(&targets, "targets", "", i18n.T("cmd.build.flag.targets"))
 	buildCmd.Flags().StringVar(&outputDir, "output", "", i18n.T("cmd.build.flag.output"))
-	buildCmd.Flags().BoolVar(&doArchive, "archive", true, i18n.T("cmd.build.flag.archive"))
-	buildCmd.Flags().BoolVar(&doChecksum, "checksum", true, i18n.T("cmd.build.flag.checksum"))
+	buildCmd.Flags().BoolVar(&archiveOutput, "archive", true, i18n.T("cmd.build.flag.archive"))
+	buildCmd.Flags().BoolVar(&checksumOutput, "checksum", true, i18n.T("cmd.build.flag.checksum"))
 
 	// Docker/LinuxKit specific
 	buildCmd.Flags().StringVar(&configPath, "config", "", i18n.T("cmd.build.flag.config"))

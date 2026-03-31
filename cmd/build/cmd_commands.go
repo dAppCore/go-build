@@ -1,21 +1,5 @@
-// Package buildcmd provides project build commands with auto-detection.
+// Package buildcmd registers build-oriented Core commands.
 //
-// Supports building:
-//   - Go projects (standard and cross-compilation)
-//   - Wails desktop applications
-//   - Docker images
-//   - LinuxKit VM images
-//   - Taskfile-based projects
-//
-// Configuration via .core/build.yaml or command-line flags.
-//
-// Subcommands:
-//   - build: Auto-detect and build the current project
-//   - build from-path: Build from a local static web app directory
-//   - build pwa: Build from a live PWA URL
-//   - build sdk: Generate API SDKs from OpenAPI spec
+// buildcmd.AddBuildCommands(root)
+// buildcmd.AddReleaseCommand(buildCmd)
 package buildcmd
-
-// Note: The AddBuildCommands function is defined in cmd_build.go
-// This file exists for documentation purposes and maintains the original
-// package documentation from commands.go.

@@ -1,12 +1,6 @@
-// Package ci provides release lifecycle commands for CI/CD pipelines.
+// Package ci registers release lifecycle commands.
 //
-// Commands:
-//   - ci init: scaffold release config
-//   - ci changelog: generate changelog from git history
-//   - ci version: show determined version
-//   - ci publish: publish pre-built artifacts (dry-run by default)
-//
-// Configuration via .core/release.yaml.
+// ci.AddCICommands(root)
 package ci
 
 import (

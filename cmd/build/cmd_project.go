@@ -21,9 +21,9 @@ import (
 )
 
 // runProjectBuild handles the main `core build` command with auto-detection.
-func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targetsFlag string, outputDir string, doArchive bool, doChecksum bool, configPath string, format string, push bool, imageName string, noSign bool, notarize bool, verbose bool) error {
-	// Use local filesystem as the default medium
-	fs := io.Local
+func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targetsFlag string, outputDir string, archiveOutput bool, checksumOutput bool, configPath string, format string, push bool, imageName string, noSign bool, notarize bool, verbose bool) error {
+	// Use local filesystem as the default medium.
+	filesystem := io.Local
 
 	// Get current working directory as project root
 	projectDir, err := ax.Getwd()
@@ -32,7 +32,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	// Load configuration from .core/build.yaml (or defaults)
-	buildCfg, err := build.LoadConfig(fs, projectDir)
+	buildConfig, err := build.LoadConfig(filesystem, projectDir)
 	if err != nil {
 		return coreerr.E("build.Run", "failed to load config", err)
 	}
@@ -41,11 +41,11 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	var projectType build.ProjectType
 	if buildType != "" {
 		projectType = build.ProjectType(buildType)
-	} else if buildCfg.Build.Type != "" {
+	} else if buildConfig.Build.Type != "" {
 		// Use type from .core/build.yaml
-		projectType = build.ProjectType(buildCfg.Build.Type)
+		projectType = build.ProjectType(buildConfig.Build.Type)
 	} else {
-		projectType, err = build.PrimaryType(fs, projectDir)
+		projectType, err = build.PrimaryType(filesystem, projectDir)
 		if err != nil {
 			return coreerr.E("build.Run", "failed to detect project type", err)
 		}
@@ -62,9 +62,9 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		if err != nil {
 			return err
 		}
-	} else if len(buildCfg.Targets) > 0 {
+	} else if len(buildConfig.Targets) > 0 {
 		// Use config targets
-		buildTargets = buildCfg.ToTargets()
+		buildTargets = buildConfig.ToTargets()
 	} else {
 		// Fall back to current OS/arch
 		buildTargets = []build.Target{
@@ -87,9 +87,9 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	// Determine binary name
-	binaryName := buildCfg.Project.Binary
+	binaryName := buildConfig.Project.Binary
 	if binaryName == "" {
-		binaryName = buildCfg.Project.Name
+		binaryName = buildConfig.Project.Name
 	}
 	if binaryName == "" {
 		binaryName = ax.Base(projectDir)
@@ -113,13 +113,13 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Create build config for the builder
 	cfg := &build.Config{
-		FS:         fs,
+		FS:         filesystem,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       binaryName,
-		Version:    buildCfg.Project.Name, // Could be enhanced with git describe
-		LDFlags:    buildCfg.Build.LDFlags,
-		CGO:        buildCfg.Build.CGO,
+		Version:    buildConfig.Project.Name, // Could be enhanced with git describe
+		LDFlags:    buildConfig.Build.LDFlags,
+		CGO:        buildConfig.Build.CGO,
 		// Docker/LinuxKit specific
 		Dockerfile:     configPath, // Reuse for Dockerfile path
 		LinuxKitConfig: configPath,
@@ -158,7 +158,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	// Sign macOS binaries if enabled
-	signCfg := buildCfg.Sign
+	signCfg := buildConfig.Sign
 	if notarize {
 		signCfg.MacOS.Notarize = true
 	}
@@ -178,7 +178,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 			signingArtifacts[i] = signing.Artifact{Path: a.Path, OS: a.OS, Arch: a.Arch}
 		}
 
-		if err := signing.SignBinaries(ctx, fs, signCfg, signingArtifacts); err != nil {
+		if err := signing.SignBinaries(ctx, filesystem, signCfg, signingArtifacts); err != nil {
 			if !ciMode {
 				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.signing_failed"), err)
 			}
@@ -186,7 +186,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		}
 
 		if signCfg.MacOS.Notarize {
-			if err := signing.NotarizeBinaries(ctx, fs, signCfg, signingArtifacts); err != nil {
+			if err := signing.NotarizeBinaries(ctx, filesystem, signCfg, signingArtifacts); err != nil {
 				if !ciMode {
 					cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.notarization_failed"), err)
 				}
@@ -197,13 +197,13 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Archive artifacts if enabled
 	var archivedArtifacts []build.Artifact
-	if doArchive && len(artifacts) > 0 {
+	if archiveOutput && len(artifacts) > 0 {
 		if verbose && !ciMode {
 			cli.Blank()
 			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.archive")), i18n.T("cmd.build.creating_archives"))
 		}
 
-		archivedArtifacts, err = build.ArchiveAll(fs, artifacts)
+		archivedArtifacts, err = build.ArchiveAll(filesystem, artifacts)
 		if err != nil {
 			if !ciMode {
 				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.archive_failed"), err)
@@ -228,14 +228,14 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Compute checksums if enabled
 	var checksummedArtifacts []build.Artifact
-	if doChecksum && len(archivedArtifacts) > 0 {
-		checksummedArtifacts, err = computeAndWriteChecksums(ctx, fs, projectDir, outputDir, archivedArtifacts, signCfg, ciMode, verbose)
+	if checksumOutput && len(archivedArtifacts) > 0 {
+		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, outputDir, archivedArtifacts, signCfg, ciMode, verbose)
 		if err != nil {
 			return err
 		}
-	} else if doChecksum && len(artifacts) > 0 && !doArchive {
+	} else if checksumOutput && len(artifacts) > 0 && !archiveOutput {
 		// Checksum raw binaries if archiving is disabled
-		checksummedArtifacts, err = computeAndWriteChecksums(ctx, fs, projectDir, outputDir, artifacts, signCfg, ciMode, verbose)
+		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, outputDir, artifacts, signCfg, ciMode, verbose)
 		if err != nil {
 			return err
 		}
@@ -272,13 +272,13 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 }
 
 // computeAndWriteChecksums computes checksums for artifacts and writes CHECKSUMS.txt.
-func computeAndWriteChecksums(ctx context.Context, fs io.Medium, projectDir, outputDir string, artifacts []build.Artifact, signCfg signing.SignConfig, ciMode bool, verbose bool) ([]build.Artifact, error) {
+func computeAndWriteChecksums(ctx context.Context, filesystem io.Medium, projectDir, outputDir string, artifacts []build.Artifact, signCfg signing.SignConfig, ciMode bool, verbose bool) ([]build.Artifact, error) {
 	if verbose && !ciMode {
 		cli.Blank()
 		cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.checksum")), i18n.T("cmd.build.computing_checksums"))
 	}
 
-	checksummedArtifacts, err := build.ChecksumAll(fs, artifacts)
+	checksummedArtifacts, err := build.ChecksumAll(filesystem, artifacts)
 	if err != nil {
 		if !ciMode {
 			cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.checksum_failed"), err)
@@ -288,7 +288,7 @@ func computeAndWriteChecksums(ctx context.Context, fs io.Medium, projectDir, out
 
 	// Write CHECKSUMS.txt
 	checksumPath := ax.Join(outputDir, "CHECKSUMS.txt")
-	if err := build.WriteChecksumFile(fs, checksummedArtifacts, checksumPath); err != nil {
+	if err := build.WriteChecksumFile(filesystem, checksummedArtifacts, checksumPath); err != nil {
 		if !ciMode {
 			cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("common.error.failed", map[string]any{"Action": "write CHECKSUMS.txt"}), err)
 		}
@@ -297,7 +297,7 @@ func computeAndWriteChecksums(ctx context.Context, fs io.Medium, projectDir, out
 
 	// Sign checksums with GPG
 	if signCfg.Enabled {
-		if err := signing.SignChecksums(ctx, fs, signCfg, checksumPath); err != nil {
+		if err := signing.SignChecksums(ctx, filesystem, signCfg, checksumPath); err != nil {
 			if !ciMode {
 				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.gpg_signing_failed"), err)
 			}

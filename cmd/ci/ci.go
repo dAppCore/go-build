@@ -11,7 +11,7 @@ import (
 	"forge.lthn.ai/core/cli/pkg/cli"
 )
 
-// Style aliases from shared
+// Style aliases used by CI command output.
 var (
 	headerStyle  = cli.RepoStyle
 	successStyle = cli.SuccessStyle
@@ -20,15 +20,15 @@ var (
 	valueStyle   = cli.ValueStyle
 )
 
-// Flag variables for ci command
+// Flag variables for ci command.
 var (
-	ciGoForLaunch bool
-	ciVersion     string
-	ciDraft       bool
-	ciPrerelease  bool
+	ciLaunchMode bool
+	ciVersion    string
+	ciDraft      bool
+	ciPrerelease bool
 )
 
-// Flag variables for changelog subcommand
+// Flag variables for changelog subcommand.
 var (
 	changelogFromRef string
 	changelogToRef   string
@@ -37,7 +37,7 @@ var (
 var ciCmd = &cli.Command{
 	Use: "ci",
 	RunE: func(cmd *cli.Command, args []string) error {
-		dryRun := !ciGoForLaunch
+		dryRun := !ciLaunchMode
 		return runCIPublish(cmd.Context(), dryRun, ciVersion, ciDraft, ciPrerelease)
 	},
 }
@@ -76,7 +76,7 @@ func setCII18n() {
 
 func initCIFlags() {
 	// Main ci command flags
-	ciCmd.Flags().BoolVar(&ciGoForLaunch, "we-are-go-for-launch", false, i18n.T("cmd.ci.flag.go_for_launch"))
+	ciCmd.Flags().BoolVar(&ciLaunchMode, "we-are-go-for-launch", false, i18n.T("cmd.ci.flag.go_for_launch"))
 	ciCmd.Flags().StringVar(&ciVersion, "version", "", i18n.T("cmd.ci.flag.version"))
 	ciCmd.Flags().BoolVar(&ciDraft, "draft", false, i18n.T("cmd.ci.flag.draft"))
 	ciCmd.Flags().BoolVar(&ciPrerelease, "prerelease", false, i18n.T("cmd.ci.flag.prerelease"))

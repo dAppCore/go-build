@@ -39,7 +39,8 @@ func (b *GoBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 }
 
 // Build compiles the Go project for the specified targets.
-// It sets GOOS, GOARCH, and CGO_ENABLED, applies ldflags and trimpath.
+// It sets GOOS, GOARCH, and CGO_ENABLED, applies ldflags and trimpath, and
+// uses garble when obfuscation is enabled.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
@@ -90,7 +91,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 
 	outputPath := ax.Join(platformDir, binaryName)
 
-	// Build the go build arguments
+	// Build the go/garble arguments
 	args := []string{"build"}
 
 	// Add trimpath flag
@@ -119,10 +120,19 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 		env = append(env, "CGO_ENABLED=0")
 	}
 
+	command := "go"
+	var err error
+	if cfg.Obfuscate {
+		command, err = b.resolveGarbleCli()
+		if err != nil {
+			return build.Artifact{}, err
+		}
+	}
+
 	// Capture output for error messages
-	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, "go", args...)
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, command, args...)
 	if err != nil {
-		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "go build failed: "+output, err)
+		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", command+" build failed: "+output, err)
 	}
 
 	return build.Artifact{
@@ -130,6 +140,29 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 		OS:   target.OS,
 		Arch: target.Arch,
 	}, nil
+}
+
+// resolveGarbleCli returns the executable path for the garble CLI.
+//
+// command, err := b.resolveGarbleCli()
+func (b *GoBuilder) resolveGarbleCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/garble",
+			"/opt/homebrew/bin/garble",
+		}
+
+		if home := core.Env("HOME"); home != "" {
+			paths = append(paths, ax.Join(home, "go", "bin", "garble"))
+		}
+	}
+
+	command, err := ax.ResolveCommand("garble", paths...)
+	if err != nil {
+		return "", coreerr.E("GoBuilder.resolveGarbleCli", "garble CLI not found. Install it with: go install mvdan.cc/garble@latest", err)
+	}
+
+	return command, nil
 }
 
 // Ensure GoBuilder implements the Builder interface.
