@@ -49,7 +49,7 @@ type MacOSConfig struct {
 	AppPassword string `yaml:"app_password"` // App-specific password
 }
 
-// WindowsConfig holds Windows signtool configuration (placeholder).
+// WindowsConfig holds Windows signtool configuration.
 //
 // cfg := signing.WindowsConfig{Certificate: "cert.pfx", Password: "secret"}
 type WindowsConfig struct {
@@ -71,6 +71,10 @@ func DefaultSignConfig() SignConfig {
 			AppleID:     core.Env("APPLE_ID"),
 			TeamID:      core.Env("APPLE_TEAM_ID"),
 			AppPassword: core.Env("APPLE_APP_PASSWORD"),
+		},
+		Windows: WindowsConfig{
+			Certificate: core.Env("SIGNTOOL_CERTIFICATE"),
+			Password:    core.Env("SIGNTOOL_PASSWORD"),
 		},
 	}
 }

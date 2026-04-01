@@ -86,7 +86,7 @@ Three implementations:
 
 - **GPGSigner** -- `gpg --detach-sign --armor --local-user {key}`. Produces `.asc` files.
 - **MacOSSigner** -- `codesign --sign {identity} --timestamp --options runtime --force`. Notarisation via `xcrun notarytool submit --wait` then `xcrun stapler staple`.
-- **WindowsSigner** -- Placeholder (returns `Available() == false`).
+- **WindowsSigner** -- Uses `signtool` on Windows when a certificate is configured.
 
 Configuration supports `$ENV` expansion in all credential fields, so secrets can come from environment variables without being written to YAML.
 

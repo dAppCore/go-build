@@ -160,7 +160,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		}
 	}
 
-	// Sign macOS binaries if enabled
+	// Sign binaries if enabled.
 	signCfg := buildConfig.Sign
 	if notarize {
 		signCfg.MacOS.Notarize = true
@@ -169,7 +169,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		signCfg.Enabled = false
 	}
 
-	if signCfg.Enabled && runtime.GOOS == "darwin" {
+	if signCfg.Enabled && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
 		if verbose && !ciMode {
 			cli.Blank()
 			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.sign")), i18n.T("cmd.build.signing_binaries"))
@@ -188,7 +188,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 			return err
 		}
 
-		if signCfg.MacOS.Notarize {
+		if runtime.GOOS == "darwin" && signCfg.MacOS.Notarize {
 			if err := signing.NotarizeBinaries(ctx, filesystem, signCfg, signingArtifacts); err != nil {
 				if !ciMode {
 					cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.notarization_failed"), err)

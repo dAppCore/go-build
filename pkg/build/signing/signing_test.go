@@ -7,6 +7,7 @@ import (
 
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSigning_SignBinariesSkipsNonDarwin_Good(t *testing.T) {
@@ -155,10 +156,17 @@ func TestSigning_SignConfigExpandEnv_Good(t *testing.T) {
 
 func TestSigning_WindowsSigner_Good(t *testing.T) {
 	fs := io.Local
-	s := NewWindowsSigner(WindowsConfig{})
+	s := NewWindowsSigner(WindowsConfig{Certificate: "cert.pfx"})
 	assert.Equal(t, "signtool", s.Name())
-	assert.False(t, s.Available())
-	assert.NoError(t, s.Sign(context.Background(), fs, "test.exe"))
+
+	if runtime.GOOS != "windows" {
+		assert.False(t, s.Available())
+		assert.Error(t, s.Sign(context.Background(), fs, "test.exe"))
+		return
+	}
+
+	// On Windows, availability depends on the SDK toolchain being installed.
+	_ = s.Available()
 }
 
 // mockSigner is a test double that records calls to Sign.
@@ -228,6 +236,38 @@ func TestSigning_SignBinariesMockSigner_Good(t *testing.T) {
 		err := SignBinaries(context.Background(), io.Local, cfg, []Artifact{})
 		assert.NoError(t, err)
 	})
+}
+
+func TestSigning_signArtifactsWithSigner_Good(t *testing.T) {
+	signer := &mockSigner{name: "mock", available: true}
+	artifacts := []Artifact{
+		{Path: "/dist/linux_amd64/myapp", OS: "linux", Arch: "amd64"},
+		{Path: "/dist/windows_amd64/myapp.exe", OS: "windows", Arch: "amd64"},
+		{Path: "/dist/windows_arm64/myapp.exe", OS: "windows", Arch: "arm64"},
+	}
+
+	err := signArtifactsWithSigner(context.Background(), io.Local, signer, "windows", artifacts)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"/dist/windows_amd64/myapp.exe", "/dist/windows_arm64/myapp.exe"}, signer.signedPaths)
+}
+
+func TestSigning_ResolveSigntoolCli_Good(t *testing.T) {
+	fallbackDir := t.TempDir()
+	fallbackPath := fallbackDir + "/signtool.exe"
+	require.NoError(t, io.Local.Write(fallbackPath, "#!/bin/sh\nexit 0\n"))
+	t.Setenv("PATH", "")
+
+	command, err := resolveSigntoolCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestSigning_ResolveSigntoolCli_Bad(t *testing.T) {
+	t.Setenv("PATH", "")
+
+	_, err := resolveSigntoolCli(t.TempDir() + "/missing-signtool.exe")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "signtool tool not found")
 }
 
 func TestSigning_SignChecksumsMockSigner_Good(t *testing.T) {

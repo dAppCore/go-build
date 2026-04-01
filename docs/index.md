@@ -9,7 +9,7 @@ description: Build system, release pipeline, and SDK generation for the Core eco
 
 - **Auto-detecting builders** for Go, Wails, Node, PHP, Docker, LinuxKit, C++, and Taskfile projects
 - **Cross-compilation** with per-target archiving (tar.gz, tar.xz, zip) and SHA-256 checksums
-- **Code signing** -- macOS codesign with notarisation, GPG detached signatures, Windows signtool (placeholder)
+- **Code signing** -- macOS codesign with notarisation, GPG detached signatures, Windows signtool
 - **Release automation** -- semantic versioning from git tags, conventional-commit changelogs, multi-target publishing
 - **SDK generation** -- OpenAPI spec diffing for breaking-change detection, code generation for TypeScript, Python, Go, and PHP
 - **CLI integration** -- registers `core build`, `core ci`, and `core sdk` commands via the Core CLI framework
