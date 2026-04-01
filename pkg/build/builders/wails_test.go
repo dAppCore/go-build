@@ -759,6 +759,41 @@ func TestWails_DetectPackageManager_Good(t *testing.T) {
 	})
 }
 
+func TestWails_CopyBuildArtifact_Good(t *testing.T) {
+	fs := io.Local
+
+	t.Run("copies files", func(t *testing.T) {
+		dir := t.TempDir()
+		sourcePath := ax.Join(dir, "build", "bin", "testapp")
+		destPath := ax.Join(dir, "dist", "linux_amd64", "testapp")
+
+		require.NoError(t, ax.MkdirAll(ax.Dir(sourcePath), 0o755))
+		require.NoError(t, fs.Write(sourcePath, "binary-data"))
+
+		require.NoError(t, copyBuildArtifact(fs, sourcePath, destPath))
+
+		got, err := fs.Read(destPath)
+		require.NoError(t, err)
+		assert.Equal(t, "binary-data", got)
+	})
+
+	t.Run("copies app bundles recursively", func(t *testing.T) {
+		dir := t.TempDir()
+		sourcePath := ax.Join(dir, "build", "bin", "testapp.app")
+		binaryPath := ax.Join(sourcePath, "Contents", "MacOS", "testapp")
+		destPath := ax.Join(dir, "dist", "darwin_arm64", "testapp.app")
+
+		require.NoError(t, ax.MkdirAll(ax.Dir(binaryPath), 0o755))
+		require.NoError(t, fs.Write(binaryPath, "bundle-binary"))
+
+		require.NoError(t, copyBuildArtifact(fs, sourcePath, destPath))
+
+		got, err := fs.Read(ax.Join(destPath, "Contents", "MacOS", "testapp"))
+		require.NoError(t, err)
+		assert.Equal(t, "bundle-binary", got)
+	})
+}
+
 func TestWails_WailsBuilderBuild_Bad(t *testing.T) {
 	t.Run("returns error for nil config", func(t *testing.T) {
 		builder := NewWailsBuilder()

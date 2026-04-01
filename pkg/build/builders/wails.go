@@ -309,13 +309,9 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 
 	destPath := ax.Join(platformDir, ax.Base(sourcePath))
 
-	// Simple copy using the medium
-	content, err := cfg.FS.Read(sourcePath)
-	if err != nil {
-		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to read artifact "+sourcePath, err)
-	}
-	if err := cfg.FS.Write(destPath, content); err != nil {
-		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to write artifact "+destPath, err)
+	// Copy the selected artifact, preserving directory bundles such as .app packages.
+	if err := copyBuildArtifact(cfg.FS, sourcePath, destPath); err != nil {
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to copy artifact "+sourcePath, err)
 	}
 
 	return build.Artifact{
@@ -389,6 +385,43 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 	}
 
 	return "", coreerr.E("WailsBuilder.findArtifact", "no artifact found in "+platformDir, nil)
+}
+
+// copyBuildArtifact copies a file or directory artifact into the build output tree.
+//
+// err := copyBuildArtifact(io.Local, "/tmp/source.app", "/tmp/dist/source.app")
+func copyBuildArtifact(fs io.Medium, sourcePath, destPath string) error {
+	if fs.IsDir(sourcePath) {
+		if err := fs.EnsureDir(destPath); err != nil {
+			return err
+		}
+
+		entries, err := fs.List(sourcePath)
+		if err != nil {
+			return err
+		}
+
+		for _, entry := range entries {
+			childSource := ax.Join(sourcePath, entry.Name())
+			childDest := ax.Join(destPath, entry.Name())
+			if err := copyBuildArtifact(fs, childSource, childDest); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	content, err := fs.Read(sourcePath)
+	if err != nil {
+		return err
+	}
+
+	if err := fs.Write(destPath, content); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // resolveWailsCli returns the executable path for the wails CLI.
