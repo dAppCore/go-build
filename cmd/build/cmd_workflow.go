@@ -14,13 +14,13 @@ import (
 )
 
 var (
-	releaseWorkflowPathFlag string
+	releaseWorkflowOutputPath string
 )
 
 var releaseWorkflowCmd = &cli.Command{
 	Use: "workflow",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runReleaseWorkflow(cmd.Context(), releaseWorkflowPathFlag)
+		return runReleaseWorkflow(cmd.Context(), releaseWorkflowOutputPath)
 	},
 }
 
@@ -30,7 +30,8 @@ func setWorkflowI18n() {
 }
 
 func initWorkflowFlags() {
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathFlag, "path", "", i18n.T("cmd.build.workflow.flag.path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPath, "path", "", i18n.T("cmd.build.workflow.flag.path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPath, "output", "", i18n.T("cmd.build.workflow.flag.path"))
 }
 
 // AddWorkflowCommand registers the release workflow generation subcommand.

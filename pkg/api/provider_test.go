@@ -89,7 +89,12 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	pathSchema, ok := properties["path"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "string", pathSchema["type"])
-	assert.Equal(t, "Output path for the workflow file, relative to the project directory or absolute.", pathSchema["description"])
+	assert.Equal(t, "Preferred output path for the workflow file, relative to the project directory or absolute.", pathSchema["description"])
+
+	outputSchema, ok := properties["output"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "string", outputSchema["type"])
+	assert.Equal(t, "Alias for path.", outputSchema["description"])
 }
 
 func TestProvider_BuildProviderDefaultProjectDir_Good(t *testing.T) {
@@ -212,6 +217,30 @@ func TestProvider_GenerateReleaseWorkflow_CustomPath_Good(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":"ci/release.yml"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	path := ax.Join(projectDir, "ci", "release.yml")
+	content, err := io.Local.Read(path)
+	require.NoError(t, err)
+	assert.Contains(t, content, "workflow_call:")
+	assert.Contains(t, content, "workflow_dispatch:")
+}
+
+func TestProvider_GenerateReleaseWorkflow_OutputAlias_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"output":"ci/release.yml"}`))
 	request.Header.Set("Content-Type", "application/json")
 
 	ctx, _ := gin.CreateTestContext(recorder)

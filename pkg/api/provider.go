@@ -178,7 +178,11 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 				"properties": map[string]any{
 					"path": map[string]any{
 						"type":        "string",
-						"description": "Output path for the workflow file, relative to the project directory or absolute.",
+						"description": "Preferred output path for the workflow file, relative to the project directory or absolute.",
+					},
+					"output": map[string]any{
+						"type":        "string",
+						"description": "Alias for path.",
 					},
 				},
 			},
@@ -528,7 +532,8 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 }
 
 type releaseWorkflowRequest struct {
-	Path string `json:"path"`
+	Path   string `json:"path"`
+	Output string `json:"output"`
 }
 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
@@ -544,6 +549,9 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 	}
 
 	path := req.Path
+	if path == "" {
+		path = req.Output
+	}
 	path = build.ResolveReleaseWorkflowPath(dir, path)
 
 	if err := build.WriteReleaseWorkflow(p.medium, path); err != nil {
