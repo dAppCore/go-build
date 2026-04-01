@@ -18,6 +18,10 @@ var releaseWorkflowTemplate embed.FS
 // path := build.DefaultReleaseWorkflowPath // ".github/workflows/release.yml"
 const DefaultReleaseWorkflowPath = ".github/workflows/release.yml"
 
+// DefaultReleaseWorkflowFileName is the workflow filename used when a directory-style
+// output path is supplied.
+const DefaultReleaseWorkflowFileName = "release.yml"
+
 // WriteReleaseWorkflow writes the embedded release workflow template to path.
 //
 // build.WriteReleaseWorkflow(io.Local, "")                                   // writes .github/workflows/release.yml
@@ -60,6 +64,12 @@ func ResolveReleaseWorkflowPath(projectDir, path string) string {
 	if path == "" {
 		return ReleaseWorkflowPath(projectDir)
 	}
+	if isDirectoryLikePath(path) {
+		if ax.IsAbs(path) {
+			return ax.Join(path, DefaultReleaseWorkflowFileName)
+		}
+		return ax.Join(projectDir, path, DefaultReleaseWorkflowFileName)
+	}
 	if !ax.IsAbs(path) {
 		return ax.Join(projectDir, path)
 	}
@@ -92,4 +102,15 @@ func ResolveReleaseWorkflowInputPath(projectDir, path, output string) (string, e
 	}
 
 	return ReleaseWorkflowPath(projectDir), nil
+}
+
+// isDirectoryLikePath reports whether a path should be treated as a directory
+// rather than a file path.
+func isDirectoryLikePath(path string) bool {
+	if path == "" {
+		return false
+	}
+
+	last := path[len(path)-1]
+	return last == '/' || last == '\\'
 }

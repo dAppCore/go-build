@@ -73,8 +73,16 @@ func TestWorkflow_ResolveReleaseWorkflowPath_Good(t *testing.T) {
 		assert.Equal(t, "/tmp/project/ci/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "ci/release.yml"))
 	})
 
+	t.Run("treats trailing-slash relative paths as directories", func(t *testing.T) {
+		assert.Equal(t, "/tmp/project/ci/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "ci/"))
+	})
+
 	t.Run("keeps absolute paths unchanged", func(t *testing.T) {
 		assert.Equal(t, "/tmp/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "/tmp/release.yml"))
+	})
+
+	t.Run("treats trailing-slash absolute paths as directories", func(t *testing.T) {
+		assert.Equal(t, "/tmp/workflows/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "/tmp/workflows/"))
 	})
 }
 
@@ -99,6 +107,12 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 
 	t.Run("accepts matching path and output values", func(t *testing.T) {
 		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("accepts matching directory-style path and output values", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/", "ci/")
 		require.NoError(t, err)
 		assert.Equal(t, "/tmp/project/ci/release.yml", path)
 	})

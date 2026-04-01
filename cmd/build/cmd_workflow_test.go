@@ -57,6 +57,17 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "command: ci")
 	})
 
+	t.Run("writes release.yml inside a directory-style relative path", func(t *testing.T) {
+		customPath := "ci/"
+		err := runReleaseWorkflowInDir(projectDir, customPath, "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, "ci", "release.yml"))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
 	t.Run("writes to the output alias", func(t *testing.T) {
 		customPath := "ci/alias-release.yml"
 		err := runReleaseWorkflowInDir(projectDir, "", customPath)
