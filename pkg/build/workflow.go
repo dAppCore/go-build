@@ -223,7 +223,13 @@ func isWorkflowDirectoryInput(path string) bool {
 
 	if strings.HasPrefix(path, "./") || strings.HasPrefix(path, ".\\") {
 		trimmed := strings.TrimPrefix(strings.TrimPrefix(path, "./"), ".\\")
-		return trimmed != "" && !strings.ContainsAny(trimmed, "/\\")
+		if trimmed == "" {
+			return false
+		}
+		if ax.Base(trimmed) == "workflows" {
+			return true
+		}
+		return !strings.ContainsAny(trimmed, "/\\")
 	}
 
 	return false

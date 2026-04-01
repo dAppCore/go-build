@@ -114,6 +114,16 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "workflow_dispatch:")
 	})
 
+	t.Run("writes release.yml inside a current-directory-prefixed workflows directory", func(t *testing.T) {
+		err := runReleaseWorkflowInDir(projectDir, "./.github/workflows", "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, ".github", "workflows", "release.yml"))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
 	t.Run("writes to the output alias", func(t *testing.T) {
 		customPath := "ci/alias-release.yml"
 		err := runReleaseWorkflowInDir(projectDir, "", customPath)

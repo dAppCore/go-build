@@ -143,6 +143,10 @@ func TestWorkflow_ResolveReleaseWorkflowPath_Good(t *testing.T) {
 		assert.Equal(t, "/tmp/project/.github/workflows/release.yml", ResolveReleaseWorkflowPath("/tmp/project", ".github/workflows"))
 	})
 
+	t.Run("treats current-directory-prefixed workflows directories as directories", func(t *testing.T) {
+		assert.Equal(t, "/tmp/project/.github/workflows/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "./.github/workflows"))
+	})
+
 	t.Run("keeps nested extensionless paths as files", func(t *testing.T) {
 		assert.Equal(t, "/tmp/project/ci/release", ResolveReleaseWorkflowPath("/tmp/project", "ci/release"))
 	})
@@ -191,6 +195,12 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 
 	t.Run("accepts the conventional workflows directory as the primary input", func(t *testing.T) {
 		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", ".github/workflows", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/.github/workflows/release.yml", path)
+	})
+
+	t.Run("accepts current-directory-prefixed workflows directories as the primary input", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "./.github/workflows", "")
 		require.NoError(t, err)
 		assert.Equal(t, "/tmp/project/.github/workflows/release.yml", path)
 	})
@@ -271,6 +281,14 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 		fs := io.NewMockMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", ".github/workflows", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/.github/workflows/release.yml", path)
+	})
+
+	t.Run("treats current-directory-prefixed workflows directories as workflow directories", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "./.github/workflows", "")
 		require.NoError(t, err)
 		assert.Equal(t, "/tmp/project/.github/workflows/release.yml", path)
 	})
