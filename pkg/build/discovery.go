@@ -135,7 +135,7 @@ func IsCPPProject(fs io.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, "CMakeLists.txt"))
 }
 
-// IsMkDocsProject checks for mkdocs.yml at the project root.
+// IsMkDocsProject checks for MkDocs config at the project root.
 //
 //	ok := build.IsMkDocsProject(io.Local, ".")
 func IsMkDocsProject(fs io.Medium, dir string) bool {

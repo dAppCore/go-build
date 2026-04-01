@@ -318,6 +318,11 @@ func TestDiscovery_IsMkDocsProject_Good(t *testing.T) {
 		assert.True(t, IsMkDocsProject(fs, dir))
 	})
 
+	t.Run("true with mkdocs.yaml", func(t *testing.T) {
+		dir := setupTestDir(t, "mkdocs.yaml")
+		assert.True(t, IsMkDocsProject(fs, dir))
+	})
+
 	t.Run("false without mkdocs.yml", func(t *testing.T) {
 		dir := t.TempDir()
 		assert.False(t, IsMkDocsProject(fs, dir))
