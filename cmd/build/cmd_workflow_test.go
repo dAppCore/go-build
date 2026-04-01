@@ -12,6 +12,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBuildCmd_resolveReleaseWorkflowOutputPathInput_Good(t *testing.T) {
+	t.Run("accepts the preferred output path", func(t *testing.T) {
+		path, err := resolveReleaseWorkflowOutputPathInput("ci/release.yml", "", "")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("accepts the snake_case output path alias", func(t *testing.T) {
+		path, err := resolveReleaseWorkflowOutputPathInput("", "ci/release.yml", "")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("accepts the legacy output alias", func(t *testing.T) {
+		path, err := resolveReleaseWorkflowOutputPathInput("", "", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("accepts matching output aliases", func(t *testing.T) {
+		path, err := resolveReleaseWorkflowOutputPathInput("ci/release.yml", "ci/release.yml", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathInput_Bad(t *testing.T) {
+	_, err := resolveReleaseWorkflowOutputPathInput("ci/release.yml", "ops/release.yml", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "output aliases specify different locations")
+}
+
 func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
