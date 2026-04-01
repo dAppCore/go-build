@@ -127,16 +127,16 @@ func LoadConfigAtPath(fs io.Medium, configPath string) (*BuildConfig, error) {
 		return nil, coreerr.E("build.LoadConfig", "failed to read config file", err)
 	}
 
-	var cfg BuildConfig
+	cfg := DefaultConfig()
 	data := []byte(content)
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, coreerr.E("build.LoadConfig", "failed to parse config file", err)
 	}
 
 	// Apply defaults for any missing fields
-	applyDefaults(&cfg)
+	applyDefaults(cfg)
 
-	return &cfg, nil
+	return cfg, nil
 }
 
 // DefaultConfig returns sensible defaults for Go projects.
@@ -190,7 +190,7 @@ func applyDefaults(cfg *BuildConfig) {
 		cfg.Build.Env = defaults.Build.Env
 	}
 
-	if len(cfg.Targets) == 0 {
+	if cfg.Targets == nil {
 		cfg.Targets = defaults.Targets
 	}
 

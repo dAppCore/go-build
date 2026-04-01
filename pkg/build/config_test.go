@@ -114,6 +114,22 @@ project:
 		assert.Equal(t, defaults.Build.Flags, cfg.Build.Flags)
 		assert.Equal(t, defaults.Build.LDFlags, cfg.Build.LDFlags)
 		assert.Equal(t, defaults.Targets, cfg.Targets)
+		assert.True(t, cfg.Sign.Enabled)
+	})
+
+	t.Run("preserves explicit signing disablement", func(t *testing.T) {
+		content := `
+version: 1
+sign:
+  enabled: false
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.Sign.Enabled)
 	})
 
 	t.Run("preserves empty arrays when explicitly set", func(t *testing.T) {
