@@ -15,6 +15,7 @@ func TestOptions_ComputeOptions_Good(t *testing.T) {
 				Obfuscate: true,
 				NSIS:      true,
 				WebView2:  "embed",
+				BuildTags: []string{"integration"},
 				LDFlags:   []string{"-s", "-w"},
 			},
 		}
@@ -31,6 +32,7 @@ func TestOptions_ComputeOptions_Good(t *testing.T) {
 		assert.True(t, opts.NSIS)
 		assert.Equal(t, "embed", opts.WebView2)
 		assert.Equal(t, []string{"-s", "-w"}, opts.LDFlags)
+		assert.Equal(t, []string{"webkit2_41", "integration"}, opts.Tags)
 		// webkit2_41 injected for 24.04
 		assert.Contains(t, opts.Tags, "webkit2_41")
 	})
@@ -74,14 +76,17 @@ func TestOptions_ComputeOptions_Bad(t *testing.T) {
 
 	t.Run("nil discovery skips webkit injection", func(t *testing.T) {
 		cfg := &BuildConfig{
-			Build: Build{Obfuscate: true},
+			Build: Build{
+				Obfuscate: true,
+				BuildTags: []string{"existing"},
+			},
 		}
 
 		opts := ComputeOptions(cfg, nil)
 
 		assert.NotNil(t, opts)
 		assert.True(t, opts.Obfuscate)
-		assert.Empty(t, opts.Tags)
+		assert.Equal(t, []string{"existing"}, opts.Tags)
 	})
 
 	t.Run("both nil returns empty options", func(t *testing.T) {
@@ -98,7 +103,11 @@ func TestOptions_ComputeOptions_Bad(t *testing.T) {
 func TestOptions_ComputeOptions_Ugly(t *testing.T) {
 	t.Run("duplicate tags from deduplication", func(t *testing.T) {
 		// Seed webkit2_41 before discovery also injects it
-		cfg := &BuildConfig{}
+		cfg := &BuildConfig{
+			Build: Build{
+				BuildTags: []string{"integration", "integration", "ui"},
+			},
+		}
 		discovery := &DiscoveryResult{Distro: "24.04"}
 
 		opts := ComputeOptions(cfg, discovery)
@@ -111,6 +120,7 @@ func TestOptions_ComputeOptions_Ugly(t *testing.T) {
 			}
 		}
 		assert.Equal(t, 1, count, "webkit2_41 must appear exactly once")
+		assert.Equal(t, []string{"webkit2_41", "integration", "ui"}, opts.Tags)
 	})
 
 	t.Run("empty distro in discovery produces no webkit tag", func(t *testing.T) {

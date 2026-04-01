@@ -39,6 +39,7 @@ func ComputeOptions(cfg *BuildConfig, discovery *DiscoveryResult) *BuildOptions 
 		options.NSIS = cfg.Build.NSIS
 		options.WebView2 = cfg.Build.WebView2
 		options.LDFlags = append(options.LDFlags, cfg.Build.LDFlags...)
+		options.Tags = append(options.Tags, cfg.Build.BuildTags...)
 	}
 
 	// Inject webkit2_41 tag for Ubuntu 24.04+ when discovery provides distro info

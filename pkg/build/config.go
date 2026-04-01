@@ -71,6 +71,8 @@ type Build struct {
 	Flags []string `yaml:"flags"`
 	// LDFlags are linker flags (e.g., ["-s", "-w"]).
 	LDFlags []string `yaml:"ldflags"`
+	// BuildTags are Go build tags passed through to `go build`.
+	BuildTags []string `yaml:"build_tags,omitempty"`
 	// ArchiveFormat selects the archive compression format for build outputs.
 	// Supported values are "gz" and "xz"; empty uses gzip.
 	ArchiveFormat string `yaml:"archive_format,omitempty"`

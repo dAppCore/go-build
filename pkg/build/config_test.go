@@ -46,6 +46,9 @@ build:
   ldflags:
     - -s
     - -w
+  build_tags:
+    - integration
+    - webkit2_41
   archive_format: xz
   env:
     - FOO=bar
@@ -69,6 +72,7 @@ targets:
 		assert.True(t, cfg.Build.CGO)
 		assert.Equal(t, []string{"-trimpath", "-race"}, cfg.Build.Flags)
 		assert.Equal(t, []string{"-s", "-w"}, cfg.Build.LDFlags)
+		assert.Equal(t, []string{"integration", "webkit2_41"}, cfg.Build.BuildTags)
 		assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
 		assert.Equal(t, []string{"FOO=bar"}, cfg.Build.Env)
 		assert.Len(t, cfg.Targets, 2)
@@ -91,6 +95,7 @@ targets:
 		assert.Equal(t, defaults.Build.CGO, cfg.Build.CGO)
 		assert.Equal(t, defaults.Build.Flags, cfg.Build.Flags)
 		assert.Equal(t, defaults.Build.LDFlags, cfg.Build.LDFlags)
+		assert.Empty(t, cfg.Build.BuildTags)
 		assert.Equal(t, defaults.Targets, cfg.Targets)
 	})
 
@@ -142,6 +147,7 @@ project:
 build:
   flags: []
   ldflags: []
+  build_tags: []
 targets:
   - os: linux
     arch: amd64
@@ -155,6 +161,7 @@ targets:
 		// Empty arrays are preserved (not replaced with defaults)
 		assert.Empty(t, cfg.Build.Flags)
 		assert.Empty(t, cfg.Build.LDFlags)
+		assert.Empty(t, cfg.Build.BuildTags)
 		// Targets explicitly set
 		assert.Len(t, cfg.Targets, 1)
 	})
@@ -188,6 +195,7 @@ targets:
 		assert.Equal(t, "custom-app", cfg.Project.Name)
 		assert.Equal(t, "custom-app", cfg.Project.Binary)
 		assert.True(t, cfg.Build.CGO)
+		assert.Empty(t, cfg.Build.BuildTags)
 		assert.Len(t, cfg.Targets, 1)
 		assert.Equal(t, "linux", cfg.Targets[0].OS)
 		assert.Equal(t, "amd64", cfg.Targets[0].Arch)
