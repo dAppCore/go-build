@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -115,6 +116,10 @@ func TestSDK_ToSDKConfig_Good(t *testing.T) {
 			Enabled:        true,
 			FailOnBreaking: true,
 		},
+		Publish: SDKPublishConfig{
+			Repo: "owner/sdk-monorepo",
+			Path: "packages/api-client",
+		},
 	}
 
 	result := toSDKConfig(sdkCfg)
@@ -126,6 +131,8 @@ func TestSDK_ToSDKConfig_Good(t *testing.T) {
 	assert.Equal(t, "v1.0.0", result.Package.Version)
 	assert.True(t, result.Diff.Enabled)
 	assert.True(t, result.Diff.FailOnBreaking)
+	assert.Equal(t, "owner/sdk-monorepo", result.Publish.Repo)
+	assert.Equal(t, "packages/api-client", result.Publish.Path)
 }
 
 func TestSDK_ToSDKConfigNilInput_Good(t *testing.T) {
@@ -226,4 +233,21 @@ func TestSDK_ToSDKConfigDiffDisabled_Good(t *testing.T) {
 
 	assert.False(t, result.Diff.Enabled)
 	assert.False(t, result.Diff.FailOnBreaking)
+}
+
+func TestSDK_ResolveSDKOutputRoot_Good(t *testing.T) {
+	t.Run("uses the default sdk root when no publish path is configured", func(t *testing.T) {
+		assert.Equal(t, "sdk", resolveSDKOutputRoot(&SDKConfig{}))
+	})
+
+	t.Run("prefixes the configured publish path", func(t *testing.T) {
+		cfg := &SDKConfig{
+			Output: "generated",
+			Publish: SDKPublishConfig{
+				Path: "packages/api-client",
+			},
+		}
+
+		assert.Equal(t, ax.Join("packages/api-client", "generated"), resolveSDKOutputRoot(cfg))
+	})
 }

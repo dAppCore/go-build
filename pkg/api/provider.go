@@ -605,6 +605,10 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 				Enabled:        relCfg.SDK.Diff.Enabled,
 				FailOnBreaking: relCfg.SDK.Diff.FailOnBreaking,
 			},
+			Publish: sdk.PublishConfig{
+				Repo: relCfg.SDK.Publish.Repo,
+				Path: relCfg.SDK.Publish.Path,
+			},
 		}
 	}
 

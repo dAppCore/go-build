@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/sdk"
 	coreerr "dappco.re/go/core/log"
 )
@@ -65,10 +66,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	}
 
 	// Prepare result
-	output := cfg.SDK.Output
-	if output == "" {
-		output = "sdk"
-	}
+	output := resolveSDKOutputRoot(cfg.SDK)
 
 	result := &SDKRelease{
 		Version:   version,
@@ -90,6 +88,27 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	}
 
 	return result, nil
+}
+
+// resolveSDKOutputRoot returns the configured SDK output directory, including
+// any monorepo publish path prefix.
+//
+// output := resolveSDKOutputRoot(cfg.SDK) // "sdk" or "packages/api-client/sdk"
+func resolveSDKOutputRoot(cfg *SDKConfig) string {
+	if cfg == nil {
+		return "sdk"
+	}
+
+	output := cfg.Output
+	if output == "" {
+		output = "sdk"
+	}
+
+	if cfg.Publish.Path != "" {
+		output = ax.Join(cfg.Publish.Path, output)
+	}
+
+	return output
 }
 
 // checkBreakingChanges runs oasdiff to detect breaking changes.
@@ -135,6 +154,10 @@ func toSDKConfig(cfg *SDKConfig) *sdk.Config {
 		Diff: sdk.DiffConfig{
 			Enabled:        cfg.Diff.Enabled,
 			FailOnBreaking: cfg.Diff.FailOnBreaking,
+		},
+		Publish: sdk.PublishConfig{
+			Repo: cfg.Publish.Repo,
+			Path: cfg.Publish.Path,
 		},
 	}
 }

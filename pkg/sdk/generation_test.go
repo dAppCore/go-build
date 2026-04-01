@@ -258,6 +258,17 @@ func TestGeneration_SDKConfigNewWithNilConfig_Good(t *testing.T) {
 	assert.True(t, s.config.Diff.Enabled)
 }
 
+func TestGeneration_SDKOutputDirWithPublishPath_Good(t *testing.T) {
+	s := New("/project", &Config{
+		Output: "generated",
+		Publish: PublishConfig{
+			Path: "packages/api-client",
+		},
+	})
+
+	assert.Equal(t, ax.Join("/project", "packages/api-client", "generated", "typescript"), s.outputDir("typescript"))
+}
+
 // --- Spec Detection Integration Tests ---
 
 func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {

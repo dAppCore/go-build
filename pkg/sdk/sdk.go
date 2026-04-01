@@ -119,6 +119,33 @@ func (s *SDK) Generate(ctx context.Context) error {
 	return nil
 }
 
+// outputRoot returns the directory that should contain generated SDKs.
+//
+// root := s.outputRoot() // "sdk" or "packages/myapi/sdk"
+func (s *SDK) outputRoot() string {
+	if s == nil || s.config == nil {
+		return "sdk"
+	}
+
+	output := s.config.Output
+	if output == "" {
+		output = "sdk"
+	}
+
+	if s.config.Publish.Path != "" {
+		output = ax.Join(s.config.Publish.Path, output)
+	}
+
+	return output
+}
+
+// outputDir returns the language-specific SDK directory.
+//
+// dir := s.outputDir("typescript") // "sdk/typescript" or "packages/myapi/sdk/typescript"
+func (s *SDK) outputDir(lang string) string {
+	return ax.Join(s.projectDir, s.outputRoot(), lang)
+}
+
 // GenerateLanguage generates SDK for a specific language.
 //
 // err := s.GenerateLanguage(ctx, "typescript") // generates sdk/typescript/
@@ -143,7 +170,7 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 		core.Print(nil, "Warning: %s generator not available. Install with: %s", lang, gen.Install())
 	}
 
-	outputDir := ax.Join(s.projectDir, s.config.Output, lang)
+	outputDir := s.outputDir(lang)
 	opts := generators.Options{
 		SpecPath:    specPath,
 		OutputDir:   outputDir,
