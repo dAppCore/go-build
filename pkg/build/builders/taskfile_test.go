@@ -281,7 +281,7 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 		Env:        []string{"FOO=bar"},
 	}
 
-	require.NoError(t, builder.runTask(context.Background(), cfg, taskPath, build.Target{OS: "linux", Arch: "amd64"}))
+	require.NoError(t, builder.runTask(context.Background(), cfg, taskPath, cfg.OutputDir, build.Target{OS: "linux", Arch: "amd64"}))
 
 	content, err := ax.ReadFile(logPath)
 	require.NoError(t, err)
@@ -295,6 +295,36 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	assert.Contains(t, string(content), "TARGET_DIR=/tmp/out/linux_amd64")
 	assert.Contains(t, string(content), "NAME=sample")
 	assert.Contains(t, string(content), "VERSION=v1.2.3")
+}
+
+func TestTaskfile_TaskfileBuilderBuild_DoesNotMutateOutputDir_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Taskfile.yml"), []byte("version: '3'\n"), 0o644))
+
+	binDir := t.TempDir()
+	taskPath := ax.Join(binDir, "task")
+	script := `#!/bin/sh
+set -eu
+
+mkdir -p "${OUTPUT_DIR}/${GOOS}_${GOARCH}"
+printf '%s\n' "${NAME:-taskfile}" > "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${NAME:-taskfile}"
+`
+	require.NoError(t, ax.WriteFile(taskPath, []byte(script), 0o755))
+
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	builder := NewTaskfileBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		Name:       "sample",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.Empty(t, cfg.OutputDir)
+	assert.Equal(t, ax.Join(projectDir, "dist"), ax.Dir(ax.Dir(artifacts[0].Path)))
 }
 
 func TestTaskfile_TaskfileBuilderBuild_Good(t *testing.T) {

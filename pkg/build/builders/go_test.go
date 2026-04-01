@@ -278,6 +278,23 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.FileExists(t, artifacts[0].Path)
 	})
 
+	t.Run("does not mutate the caller output directory when using defaults", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			Name:       "mutability",
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.Empty(t, cfg.OutputDir)
+		assert.Equal(t, ax.Join(projectDir, "dist"), ax.Dir(ax.Dir(artifacts[0].Path)))
+	})
+
 	t.Run("builds multiple targets", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
 		outputDir := t.TempDir()

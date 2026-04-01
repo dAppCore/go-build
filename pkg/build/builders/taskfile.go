@@ -68,7 +68,6 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	cfg.OutputDir = outputDir
 	if err := cfg.FS.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("TaskfileBuilder.Build", "failed to create output directory", err)
 	}
@@ -83,7 +82,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 
 	// Run build task for each target
 	for _, target := range targets {
-		if err := b.runTask(ctx, cfg, taskCommand, target); err != nil {
+		if err := b.runTask(ctx, cfg, taskCommand, outputDir, target); err != nil {
 			return nil, err
 		}
 
@@ -96,11 +95,11 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 }
 
 // runTask executes the Taskfile build task.
-func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand string, target build.Target) error {
+func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand string, outputDir string, target build.Target) error {
 	// Build task command
 	args := []string{"build"}
 	env := append([]string{}, cfg.Env...)
-	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
+	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 
 	// Pass variables if targets are specified
 	if target.OS != "" {
@@ -123,11 +122,9 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 		args = append(args, value)
 		env = append(env, value)
 	}
-	if cfg.OutputDir != "" {
-		value := core.Sprintf("OUTPUT_DIR=%s", cfg.OutputDir)
-		args = append(args, value)
-		env = append(env, value)
-	}
+	value := core.Sprintf("OUTPUT_DIR=%s", outputDir)
+	args = append(args, value)
+	env = append(env, value)
 	if platformDir != "" {
 		value := core.Sprintf("TARGET_DIR=%s", platformDir)
 		args = append(args, value)

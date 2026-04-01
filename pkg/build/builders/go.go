@@ -60,7 +60,6 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	cfg.OutputDir = outputDir
 
 	// Ensure output directory exists
 	if err := cfg.FS.EnsureDir(outputDir); err != nil {
@@ -70,7 +69,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	var artifacts []build.Artifact
 
 	for _, target := range targets {
-		artifact, err := b.buildTarget(ctx, cfg, target)
+		artifact, err := b.buildTarget(ctx, cfg, outputDir, target)
 		if err != nil {
 			return artifacts, coreerr.E("GoBuilder.Build", "failed to build "+target.String(), err)
 		}
@@ -81,7 +80,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 }
 
 // buildTarget compiles for a single target platform.
-func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target build.Target) (build.Artifact, error) {
+func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, outputDir string, target build.Target) (build.Artifact, error) {
 	// Determine output binary name
 	binaryName := cfg.Name
 	if binaryName == "" {
@@ -100,7 +99,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	}
 
 	// Create platform-specific output path: output/os_arch/binary
-	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
+	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 	if err := cfg.FS.EnsureDir(platformDir); err != nil {
 		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create platform directory", err)
 	}
@@ -145,7 +144,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	env = append(env,
 		core.Sprintf("TARGET_OS=%s", target.OS),
 		core.Sprintf("TARGET_ARCH=%s", target.Arch),
-		core.Sprintf("OUTPUT_DIR=%s", cfg.OutputDir),
+		core.Sprintf("OUTPUT_DIR=%s", outputDir),
 		core.Sprintf("TARGET_DIR=%s", platformDir),
 		core.Sprintf("GOOS=%s", target.OS),
 		core.Sprintf("GOARCH=%s", target.Arch),
