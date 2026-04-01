@@ -572,6 +572,29 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.FileExists(t, artifacts[0].Path)
 		assert.DirExists(t, outputDir)
 	})
+
+	t.Run("defaults output directory to project dist when not specified", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			Name:       "defaultoutput",
+		}
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+
+		expectedDir := ax.Join(projectDir, "dist")
+		assert.DirExists(t, expectedDir)
+		assert.Contains(t, artifacts[0].Path, expectedDir)
+		assert.FileExists(t, artifacts[0].Path)
+	})
 }
 
 func TestGo_GoBuilderBuild_Bad(t *testing.T) {

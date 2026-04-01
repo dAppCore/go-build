@@ -53,8 +53,14 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 		return nil, coreerr.E("GoBuilder.Build", "no targets specified", nil)
 	}
 
+	outputDir := cfg.OutputDir
+	if outputDir == "" {
+		outputDir = ax.Join(cfg.ProjectDir, "dist")
+	}
+	cfg.OutputDir = outputDir
+
 	// Ensure output directory exists
-	if err := cfg.FS.EnsureDir(cfg.OutputDir); err != nil {
+	if err := cfg.FS.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("GoBuilder.Build", "failed to create output directory", err)
 	}
 
