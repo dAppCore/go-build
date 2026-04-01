@@ -252,6 +252,15 @@ func TestLinuxKit_LinuxKitBuilderFindArtifact_Good(t *testing.T) {
 		found := builder.findArtifact(fs, dir, "server-amd64", "qcow2")
 		assert.Equal(t, artifactPath, found)
 	})
+
+	t.Run("finds cloud image artifacts", func(t *testing.T) {
+		dir := t.TempDir()
+		artifactPath := ax.Join(dir, "server-amd64-gcp.img.tar.gz")
+		require.NoError(t, ax.WriteFile(artifactPath, []byte("fake gcp image"), 0644))
+
+		found := builder.findArtifact(fs, dir, "server-amd64", "gcp")
+		assert.Equal(t, artifactPath, found)
+	})
 }
 
 func TestLinuxKit_LinuxKitBuilderInterface_Good(t *testing.T) {

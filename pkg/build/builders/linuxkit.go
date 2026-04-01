@@ -227,8 +227,7 @@ func (b *LinuxKitBuilder) findArtifact(fs io.Medium, outputDir, outputName, form
 			if core.HasPrefix(entry.Name(), outputName) {
 				match := ax.Join(outputDir, entry.Name())
 				// Return first match that looks like an image
-				ext := ax.Ext(match)
-				if ext == ".iso" || ext == ".qcow2" || ext == ".raw" || ext == ".vmdk" || ext == ".vhd" {
+				if isLinuxKitArtifact(match) {
 					return match
 				}
 			}
@@ -257,6 +256,26 @@ func (b *LinuxKitBuilder) getFormatExtension(format string) string {
 		return ".raw"
 	default:
 		return "." + core.TrimSuffix(format, "-bios")
+	}
+}
+
+// isLinuxKitArtifact reports whether a file path looks like a LinuxKit build output.
+func isLinuxKitArtifact(path string) bool {
+	switch {
+	case core.HasSuffix(path, ".img.tar.gz"):
+		return true
+	case core.HasSuffix(path, ".iso"):
+		return true
+	case core.HasSuffix(path, ".qcow2"):
+		return true
+	case core.HasSuffix(path, ".raw"):
+		return true
+	case core.HasSuffix(path, ".vmdk"):
+		return true
+	case core.HasSuffix(path, ".vhd"):
+		return true
+	default:
+		return false
 	}
 }
 
