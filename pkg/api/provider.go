@@ -10,7 +10,6 @@ import (
 	stdio "io"
 	"io/fs"
 	"net/http"
-	"strings"
 
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
@@ -21,7 +20,6 @@ import (
 	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
 	"dappco.re/go/core/ws"
 	"github.com/gin-gonic/gin"
 )
@@ -556,33 +554,7 @@ type ReleaseWorkflowRequest struct {
 // resolvedOutputPath resolves the workflow output aliases with the same
 // conflict rules as the CLI.
 func (r ReleaseWorkflowRequest) resolvedOutputPath() (string, error) {
-	return resolveOutputPathInput(r.OutputPath, r.OutputPathSnake, r.LegacyOutputPath)
-}
-
-// resolveOutputPathInput chooses the workflow output path alias with
-// deterministic precedence.
-func resolveOutputPathInput(outputPathInput, outputPathSnakeInput, outputLegacyInput string) (string, error) {
-	values := []string{
-		strings.TrimSpace(outputPathInput),
-		strings.TrimSpace(outputPathSnakeInput),
-		strings.TrimSpace(outputLegacyInput),
-	}
-
-	var resolved string
-	for _, value := range values {
-		if value == "" {
-			continue
-		}
-		if resolved == "" {
-			resolved = value
-			continue
-		}
-		if resolved != value {
-			return "", coreerr.E("api.resolveOutputPathInput", "output aliases specify different locations", nil)
-		}
-	}
-
-	return resolved, nil
+	return build.ResolveReleaseWorkflowOutputPath(r.OutputPath, r.OutputPathSnake, r.LegacyOutputPath)
 }
 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {

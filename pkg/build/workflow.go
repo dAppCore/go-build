@@ -130,6 +130,22 @@ func ResolveReleaseWorkflowInputPathWithMedium(filesystem io_interface.Medium, p
 	)
 }
 
+// ResolveReleaseWorkflowOutputPath resolves the workflow output aliases used by
+// the CLI, API, and UI layers.
+//
+// build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")        // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")        // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")        // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops.yml", "") // error
+func ResolveReleaseWorkflowOutputPath(outputPathInput, outputPathSnakeInput, outputLegacyInput string) (string, error) {
+	return resolveReleaseWorkflowPathPair(
+		outputPathInput,
+		outputPathSnakeInput,
+		outputLegacyInput,
+		"build.ResolveReleaseWorkflowOutputPath",
+	)
+}
+
 // resolveReleaseWorkflowInputPathPair resolves the workflow path from the path
 // and output aliases, rejecting conflicting values and preferring explicit
 // inputs over the default.
@@ -155,6 +171,33 @@ func resolveReleaseWorkflowInputPathPair(pathInput, outputPathInput string, reso
 	}
 
 	return resolve(""), nil
+}
+
+// resolveReleaseWorkflowPathPair resolves any trio of workflow path aliases by
+// trimming whitespace, rejecting conflicts, and returning the first non-empty
+// value when aliases agree.
+func resolveReleaseWorkflowPathPair(primaryInput, secondaryInput, tertiaryInput, errorName string) (string, error) {
+	values := []string{
+		cleanWorkflowInput(primaryInput),
+		cleanWorkflowInput(secondaryInput),
+		cleanWorkflowInput(tertiaryInput),
+	}
+
+	var resolved string
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if resolved == "" {
+			resolved = value
+			continue
+		}
+		if resolved != value {
+			return "", coreerr.E(errorName, "output aliases specify different locations", nil)
+		}
+	}
+
+	return resolved, nil
 }
 
 // resolveReleaseWorkflowInputPath resolves one workflow input into a file path.

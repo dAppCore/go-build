@@ -319,3 +319,42 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 		assert.Equal(t, "/tmp/project/ci/release.yml", path)
 	})
 }
+
+func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
+	t.Run("accepts the preferred output path", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("accepts the snake_case output path alias", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("accepts the legacy output alias", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("trims surrounding whitespace from aliases", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowOutputPath("  ci/release.yml  ", "  ", "  ")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("accepts matching aliases", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowOutputPath("ci/release.yml", "ci/release.yml", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+}
+
+func TestWorkflow_ResolveReleaseWorkflowOutputPath_Bad(t *testing.T) {
+	path, err := ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops/release.yml", "")
+	assert.Error(t, err)
+	assert.Empty(t, path)
+	assert.Contains(t, err.Error(), "output aliases specify different locations")
+}

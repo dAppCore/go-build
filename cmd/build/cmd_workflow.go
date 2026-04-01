@@ -4,7 +4,6 @@ package buildcmd
 
 import (
 	"context"
-	"strings"
 
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
@@ -63,7 +62,7 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // runReleaseWorkflow(ctx, "", "", "ci/release.yml", "") // uses the snake_case alias
 // runReleaseWorkflow(ctx, "", "", "", "ci/release.yml") // uses the legacy output alias
 func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputLegacyInput string) error {
-	resolvedOutputPathInput, err := resolveReleaseWorkflowOutputPathInput(
+	resolvedOutputPathInput, err := build.ResolveReleaseWorkflowOutputPath(
 		workflowOutputPathInput,
 		workflowOutputPathSnakeInput,
 		workflowOutputLegacyInput,
@@ -78,37 +77,6 @@ func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPath
 	}
 
 	return runReleaseWorkflowInDir(projectDir, workflowPathInput, resolvedOutputPathInput)
-}
-
-// resolveReleaseWorkflowOutputPathInput chooses the workflow output path alias
-// with deterministic precedence.
-//
-// resolveReleaseWorkflowOutputPathInput("ci/release.yml", "", "")        // "ci/release.yml"
-// resolveReleaseWorkflowOutputPathInput("", "ci/release.yml", "")        // "ci/release.yml"
-// resolveReleaseWorkflowOutputPathInput("", "", "ci/release.yml")        // "ci/release.yml"
-// resolveReleaseWorkflowOutputPathInput("ci/release.yml", "ops/release.yml", "") // error
-func resolveReleaseWorkflowOutputPathInput(outputPathInput, outputPathSnakeInput, outputLegacyInput string) (string, error) {
-	values := []string{
-		strings.TrimSpace(outputPathInput),
-		strings.TrimSpace(outputPathSnakeInput),
-		strings.TrimSpace(outputLegacyInput),
-	}
-
-	var resolved string
-	for _, value := range values {
-		if value == "" {
-			continue
-		}
-		if resolved == "" {
-			resolved = value
-			continue
-		}
-		if resolved != value {
-			return "", coreerr.E("build.resolveReleaseWorkflowOutputPathInput", "output aliases specify different locations", nil)
-		}
-	}
-
-	return resolved, nil
 }
 
 // runReleaseWorkflowInDir writes the embedded release workflow into projectDir.
