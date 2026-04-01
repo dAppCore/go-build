@@ -187,6 +187,23 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		assert.Equal(t, "amd64", artifacts[1].Arch)
 	})
 
+	t.Run("includes macOS app bundles from platform directories", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		platformDir := ax.Join(distDir, "darwin_arm64")
+		require.NoError(t, ax.MkdirAll(ax.Join(platformDir, "TestApp.app"), 0755))
+		require.NoError(t, ax.MkdirAll(ax.Join(platformDir, "TestApp.app", "Contents"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(platformDir, "TestApp.app", "Contents", "Info.plist"), []byte("<plist/>"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, ax.Join(platformDir, "TestApp.app"), artifacts[0].Path)
+		assert.Equal(t, "darwin", artifacts[0].OS)
+		assert.Equal(t, "arm64", artifacts[0].Arch)
+	})
+
 	t.Run("returns empty slice for empty dist directory", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")

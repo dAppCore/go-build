@@ -183,6 +183,13 @@ func findPlatformArtifacts(filesystem io.Medium, distDir string) ([]build.Artifa
 
 		for _, file := range files {
 			if file.IsDir() {
+				if shouldPublishAppBundle(file.Name()) {
+					artifacts = append(artifacts, build.Artifact{
+						Path: ax.Join(platformDir, file.Name()),
+						OS:   osValue,
+						Arch: archValue,
+					})
+				}
 				continue
 			}
 
@@ -236,6 +243,10 @@ func shouldPublishRawArtifact(name string) bool {
 		return false
 	}
 	return true
+}
+
+func shouldPublishAppBundle(name string) bool {
+	return strings.HasSuffix(name, ".app")
 }
 
 func parsePlatformDir(name string) (string, string, bool) {
