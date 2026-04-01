@@ -205,7 +205,7 @@ func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
 	})
 
 	t.Run("accepts xz aliases", func(t *testing.T) {
-		for _, input := range []string{"xz", "tar.xz"} {
+		for _, input := range []string{"xz", "txz", "tar.xz", "tar-xz"} {
 			format, err := ParseArchiveFormat(input)
 			require.NoError(t, err)
 			assert.Equal(t, ArchiveFormatXZ, format)
@@ -216,6 +216,14 @@ func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
 		format, err := ParseArchiveFormat("zip")
 		require.NoError(t, err)
 		assert.Equal(t, ArchiveFormatZip, format)
+	})
+
+	t.Run("accepts gzip aliases", func(t *testing.T) {
+		for _, input := range []string{"gz", "gzip", "tgz", "tar.gz", "tar-gz"} {
+			format, err := ParseArchiveFormat(input)
+			require.NoError(t, err)
+			assert.Equal(t, ArchiveFormatGzip, format)
+		}
 	})
 
 	t.Run("rejects unsupported formats", func(t *testing.T) {

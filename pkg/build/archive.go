@@ -36,9 +36,9 @@ const (
 //	format, err := build.ParseArchiveFormat("zip") // → build.ArchiveFormatZip
 func ParseArchiveFormat(value string) (ArchiveFormat, error) {
 	switch core.Trim(strings.ToLower(value)) {
-	case "", "gz", "gzip", "tar.gz":
+	case "", "gz", "gzip", "tgz", "tar.gz", "tar-gz":
 		return ArchiveFormatGzip, nil
-	case "xz", "tar.xz":
+	case "xz", "txz", "tar.xz", "tar-xz":
 		return ArchiveFormatXZ, nil
 	case "zip":
 		return ArchiveFormatZip, nil
