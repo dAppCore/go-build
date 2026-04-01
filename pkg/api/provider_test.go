@@ -3,8 +3,13 @@
 package api
 
 import (
+	"bytes"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
@@ -45,8 +50,8 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	routes := p.Describe()
 
-	// Should have 9 endpoint descriptions
-	assert.Len(t, routes, 9)
+	// Should have 10 endpoint descriptions
+	assert.Len(t, routes, 10)
 
 	// Verify key routes exist
 	paths := make(map[string]string)
@@ -61,6 +66,7 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	assert.Equal(t, "GET", paths["/release/version"])
 	assert.Equal(t, "GET", paths["/release/changelog"])
 	assert.Equal(t, "POST", paths["/release"])
+	assert.Equal(t, "POST", paths["/release/workflow"])
 	assert.Equal(t, "GET", paths["/sdk/diff"])
 	assert.Equal(t, "POST", paths["/sdk/generate"])
 }
@@ -151,4 +157,28 @@ func TestProvider_ResolveProjectType_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, build.ProjectTypeGo, projectType)
 	})
+}
+
+func TestProvider_GenerateReleaseWorkflow_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	path := build.ReleaseWorkflowPath(projectDir)
+	content, err := io.Local.Read(path)
+	require.NoError(t, err)
+	assert.Contains(t, content, "workflow_call:")
+	assert.Contains(t, content, "workflow_dispatch:")
 }

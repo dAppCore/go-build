@@ -33,6 +33,10 @@ func WriteReleaseWorkflow(fs io_interface.Medium, path string) error {
 		return coreerr.E("build.WriteReleaseWorkflow", "failed to read embedded workflow template", err)
 	}
 
+	if err := fs.EnsureDir(ax.Dir(path)); err != nil {
+		return coreerr.E("build.WriteReleaseWorkflow", "failed to create release workflow directory", err)
+	}
+
 	if err := fs.Write(path, string(content)); err != nil {
 		return coreerr.E("build.WriteReleaseWorkflow", "failed to write release workflow", err)
 	}

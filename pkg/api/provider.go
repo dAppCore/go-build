@@ -105,6 +105,7 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/release/version", p.getVersion)
 	rg.GET("/release/changelog", p.getChangelog)
 	rg.POST("/release", p.triggerRelease)
+	rg.POST("/release/workflow", p.generateReleaseWorkflow)
 
 	// SDK
 	rg.GET("/sdk/diff", p.getSdkDiff)
@@ -164,6 +165,13 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Summary:     "Trigger release pipeline",
 			Description: "Publishes pre-built artifacts from dist/ to configured targets.",
 			Tags:        []string{"release"},
+		},
+		{
+			Method:      "POST",
+			Path:        "/release/workflow",
+			Summary:     "Generate release workflow",
+			Description: "Writes the embedded GitHub Actions release workflow into .github/workflows/release.yml or a custom path.",
+			Tags:        []string{"release", "workflow"},
 		},
 		{
 			Method:      "GET",
@@ -501,6 +509,38 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 		"artifacts": rel.Artifacts,
 		"changelog": rel.Changelog,
 		"dry_run":   dryRun,
+	}))
+}
+
+type releaseWorkflowRequest struct {
+	Path string `json:"path"`
+}
+
+func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	var req releaseWorkflowRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req.Path = ""
+	}
+
+	path := req.Path
+	if path == "" {
+		path = build.ReleaseWorkflowPath(dir)
+	}
+
+	if err := build.WriteReleaseWorkflow(p.medium, path); err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"generated": true,
+		"path":      path,
 	}))
 }
 
