@@ -117,7 +117,7 @@ func (b *WailsBuilder) PreBuild(ctx context.Context, cfg *build.Config) error {
 		return nil
 	}
 
-	output, err := ax.CombinedOutput(ctx, frontendDir, nil, command, args...)
+	output, err := ax.CombinedOutput(ctx, frontendDir, cfg.Env, command, args...)
 	if err != nil {
 		return coreerr.E("WailsBuilder.PreBuild", command+" build failed: "+output, err)
 	}
@@ -242,7 +242,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// For now, let's try to let Wails do its thing and find the artifact.
 
 	// Capture output for error messages
-	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, nil, wailsCommand, args...)
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, cfg.Env, wailsCommand, args...)
 	if err != nil {
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "wails build failed: "+output, err)
 	}

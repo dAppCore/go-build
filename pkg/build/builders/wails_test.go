@@ -96,6 +96,9 @@ sequence_file="${BUILD_SEQUENCE_FILE:-}"
 if [ -n "$sequence_file" ]; then
 	printf '%s\n' "wails" >> "$sequence_file"
 	printf '%s\n' "$@" >> "$sequence_file"
+	if [ -n "${CUSTOM_ENV:-}" ]; then
+		printf '%s\n' "CUSTOM_ENV=${CUSTOM_ENV}" >> "$sequence_file"
+	fi
 fi
 
 output_dir="build/bin"
@@ -119,6 +122,9 @@ sequence_file="${BUILD_SEQUENCE_FILE:-}"
 if [ -n "$sequence_file" ]; then
 	printf '%s\n' "__NAME__" >> "$sequence_file"
 	printf '%s\n' "$@" >> "$sequence_file"
+	if [ -n "${CUSTOM_ENV:-}" ]; then
+		printf '%s\n' "CUSTOM_ENV=${CUSTOM_ENV}" >> "$sequence_file"
+	fi
 fi
 `, "__NAME__", name)
 
@@ -482,6 +488,49 @@ func TestWails_WailsBuilderBuildV2PreBuild_Good(t *testing.T) {
 	assert.Equal(t, "task", lines[1])
 	assert.Equal(t, "build", lines[2])
 	assert.Equal(t, "wails", lines[3])
+}
+
+func TestWails_WailsBuilderPropagatesEnvToExternalCommands_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeFrontendCommand(t, binDir, "deno")
+	setupFakeWailsToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := setupWailsV2TestProject(t)
+	frontendDir := ax.Join(projectDir, "frontend")
+	require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
+
+	sequencePath := ax.Join(t.TempDir(), "build-sequence.log")
+	t.Setenv("BUILD_SEQUENCE_FILE", sequencePath)
+	t.Setenv("CUSTOM_ENV", "expected-value")
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  t.TempDir(),
+		Name:       "testapp",
+		Env:        []string{"CUSTOM_ENV=expected-value"},
+	}
+	targets := []build.Target{
+		{OS: runtime.GOOS, Arch: runtime.GOARCH},
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, targets)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	content, err := ax.ReadFile(sequencePath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.Contains(t, lines, "CUSTOM_ENV=expected-value")
 }
 
 func TestWails_WailsBuilderResolveWailsCli_Good(t *testing.T) {
