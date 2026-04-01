@@ -157,6 +157,10 @@ func runCIReleaseInit() error {
 		return cli.Err("%s: %w", i18n.T("i18n.fail.get", "working directory"), err)
 	}
 
+	return runCIReleaseInitInDir(cwd)
+}
+
+func runCIReleaseInitInDir(cwd string) error {
 	cli.Print("%s %s\n\n", dimStyle.Render(i18n.Label("init")), i18n.T("cmd.ci.init.initializing"))
 
 	if release.ConfigExists(cwd) {
@@ -164,7 +168,7 @@ func runCIReleaseInit() error {
 		return nil
 	}
 
-	cfg := release.DefaultConfig()
+	cfg := release.ScaffoldConfig()
 	if err := release.WriteConfig(cfg, cwd); err != nil {
 		return cli.Err("%s: %w", i18n.T("i18n.fail.create", "config"), err)
 	}

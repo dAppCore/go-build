@@ -232,6 +232,19 @@ func TestConfig_DefaultConfig_Good(t *testing.T) {
 	})
 }
 
+func TestConfig_ScaffoldConfig_Good(t *testing.T) {
+	t.Run("returns documented init scaffold", func(t *testing.T) {
+		cfg := ScaffoldConfig()
+
+		require.NotNil(t, cfg.SDK)
+		assert.Equal(t, "api/openapi.yaml", cfg.SDK.Spec)
+		assert.Equal(t, []string{"typescript", "python", "go", "php"}, cfg.SDK.Languages)
+		assert.Equal(t, "sdk", cfg.SDK.Output)
+		assert.True(t, cfg.SDK.Diff.Enabled)
+		assert.False(t, cfg.SDK.Diff.FailOnBreaking)
+	})
+}
+
 func TestConfig_ConfigPath_Good(t *testing.T) {
 	t.Run("returns correct path", func(t *testing.T) {
 		path := ConfigPath("/project/root")

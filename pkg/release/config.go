@@ -277,6 +277,23 @@ func DefaultConfig() *Config {
 	}
 }
 
+// ScaffoldConfig returns the config shape written by `core ci init`.
+//
+// cfg := release.ScaffoldConfig()
+func ScaffoldConfig() *Config {
+	cfg := DefaultConfig()
+	cfg.SDK = &SDKConfig{
+		Spec:      "api/openapi.yaml",
+		Languages: []string{"typescript", "python", "go", "php"},
+		Output:    "sdk",
+		Diff: SDKDiffConfig{
+			Enabled:        true,
+			FailOnBreaking: false,
+		},
+	}
+	return cfg
+}
+
 // applyDefaults fills in default values for any empty fields in the config.
 func applyDefaults(cfg *Config) {
 	defaults := DefaultConfig()
