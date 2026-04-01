@@ -146,6 +146,22 @@ func TestCi_DetectCI_Bad(t *testing.T) {
 	})
 }
 
+func TestCi_DetectGitHubMetadata_Good(t *testing.T) {
+	t.Run("detects GitHub metadata without GITHUB_ACTIONS", func(t *testing.T) {
+		t.Setenv("GITHUB_ACTIONS", "")
+		t.Setenv("GITHUB_SHA", "abc1234def5678901234567890123456789012345")
+		t.Setenv("GITHUB_REF", "refs/heads/main")
+		t.Setenv("GITHUB_REPOSITORY", "org/repo")
+
+		ci := DetectGitHubMetadata()
+		require.NotNil(t, ci)
+		assert.Equal(t, "abc1234", ci.ShortSHA)
+		assert.Equal(t, "main", ci.Branch)
+		assert.Equal(t, "org/repo", ci.Repo)
+		assert.Equal(t, "org", ci.Owner)
+	})
+}
+
 func TestCi_DetectCI_Ugly(t *testing.T) {
 	t.Run("SHA shorter than 7 chars still works", func(t *testing.T) {
 		setenvCI(t, "abc", "refs/heads/main", "org/repo")

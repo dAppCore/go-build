@@ -313,6 +313,9 @@ func selectOutputArtifacts(rawArtifacts, archivedArtifacts, checksummedArtifacts
 func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []build.Artifact) error {
 	ci := build.DetectCI()
 	if ci == nil {
+		ci = build.DetectGitHubMetadata()
+	}
+	if ci == nil {
 		return nil
 	}
 

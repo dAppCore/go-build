@@ -79,7 +79,20 @@ func FormatGitHubAnnotation(level, file string, line int, message string) string
 //	    // upload release assets
 //	}
 func DetectCI() *CIContext {
-	if core.Env("GITHUB_ACTIONS") == "" {
+	return detectGitHubContext(true)
+}
+
+// DetectGitHubMetadata returns GitHub CI metadata when the standard environment
+// variables are present, even if GITHUB_ACTIONS is unset.
+//
+// This is useful for metadata emission paths that only need the GitHub ref/SHA
+// shape and should not be coupled to a specific runner environment.
+func DetectGitHubMetadata() *CIContext {
+	return detectGitHubContext(false)
+}
+
+func detectGitHubContext(requireActions bool) *CIContext {
+	if requireActions && core.Env("GITHUB_ACTIONS") == "" {
 		return nil
 	}
 
@@ -97,17 +110,26 @@ func DetectCI() *CIContext {
 		Repo: repo,
 	}
 
+	populateGitHubContext(ctx)
+	return ctx
+}
+
+func populateGitHubContext(ctx *CIContext) {
+	if ctx == nil {
+		return
+	}
+
 	// ShortSHA is first 7 chars of SHA.
-	runes := []rune(sha)
+	runes := []rune(ctx.SHA)
 	if len(runes) >= 7 {
 		ctx.ShortSHA = string(runes[:7])
 	} else {
-		ctx.ShortSHA = sha
+		ctx.ShortSHA = ctx.SHA
 	}
 
 	// Derive owner from "owner/repo" format.
-	if repo != "" {
-		parts := core.SplitN(repo, "/", 2)
+	if ctx.Repo != "" {
+		parts := core.SplitN(ctx.Repo, "/", 2)
 		if len(parts) == 2 {
 			ctx.Owner = parts[0]
 		}
@@ -117,14 +139,12 @@ func DetectCI() *CIContext {
 	const tagPrefix = "refs/tags/"
 	const branchPrefix = "refs/heads/"
 
-	if core.HasPrefix(ref, tagPrefix) {
+	if core.HasPrefix(ctx.Ref, tagPrefix) {
 		ctx.IsTag = true
-		ctx.Tag = core.TrimPrefix(ref, tagPrefix)
-	} else if core.HasPrefix(ref, branchPrefix) {
-		ctx.Branch = core.TrimPrefix(ref, branchPrefix)
+		ctx.Tag = core.TrimPrefix(ctx.Ref, tagPrefix)
+	} else if core.HasPrefix(ctx.Ref, branchPrefix) {
+		ctx.Branch = core.TrimPrefix(ctx.Ref, branchPrefix)
 	}
-
-	return ctx
 }
 
 // ArtifactName generates a canonical artifact filename from the build name, CI context, and target.
