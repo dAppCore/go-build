@@ -156,10 +156,6 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 	}
 
 	registry := generators.NewRegistry()
-	registry.Register(generators.NewTypeScriptGenerator())
-	registry.Register(generators.NewPythonGenerator())
-	registry.Register(generators.NewGoGenerator())
-	registry.Register(generators.NewPHPGenerator())
 
 	gen, ok := registry.Get(lang)
 	if !ok {

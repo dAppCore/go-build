@@ -57,7 +57,13 @@ func NewRegistry() *Registry {
 	r := &Registry{
 		generators: make(map[string]Generator),
 	}
-	// Generators will be registered in subsequent tasks
+
+	// Register the built-in generators so callers get a ready-to-use registry.
+	r.Register(NewTypeScriptGenerator())
+	r.Register(NewPythonGenerator())
+	r.Register(NewGoGenerator())
+	r.Register(NewPHPGenerator())
+
 	return r
 }
 

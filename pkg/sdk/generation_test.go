@@ -103,10 +103,6 @@ func TestGeneration_SDKGenerateLanguageUnknownLanguage_Bad(t *testing.T) {
 func TestGeneration_RegistryRegisterAndGet_Good(t *testing.T) {
 	t.Run("register and retrieve all generators", func(t *testing.T) {
 		registry := generators.NewRegistry()
-		registry.Register(generators.NewTypeScriptGenerator())
-		registry.Register(generators.NewPythonGenerator())
-		registry.Register(generators.NewGoGenerator())
-		registry.Register(generators.NewPHPGenerator())
 
 		// Verify all languages are registered
 		languages := registry.Languages()
@@ -130,6 +126,17 @@ func TestGeneration_RegistryRegisterAndGet_Good(t *testing.T) {
 		assert.False(t, ok)
 		assert.Nil(t, gen)
 	})
+}
+
+func TestGeneration_RegistryDefaults_Good(t *testing.T) {
+	registry := generators.NewRegistry()
+
+	languages := registry.Languages()
+	assert.Len(t, languages, 4)
+	assert.Contains(t, languages, "typescript")
+	assert.Contains(t, languages, "python")
+	assert.Contains(t, languages, "go")
+	assert.Contains(t, languages, "php")
 }
 
 func TestGeneration_RegistryOverwritesDuplicateLanguage_Good(t *testing.T) {
