@@ -402,8 +402,8 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		args := strings.Split(strings.TrimSpace(string(argsContent)), "\n")
 		require.NotEmpty(t, args)
 		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-trimpath")
 		assert.Contains(t, args, "-race")
-		assert.NotContains(t, args, "-trimpath")
 
 		envContent, err := ax.ReadFile(envLogPath)
 		require.NoError(t, err)

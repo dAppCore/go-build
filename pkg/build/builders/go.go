@@ -108,9 +108,10 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 
 	// Build the go/garble arguments.
 	args := []string{"build"}
-	if cfg.Flags == nil {
+	if !containsString(cfg.Flags, "-trimpath") {
 		args = append(args, "-trimpath")
-	} else if len(cfg.Flags) > 0 {
+	}
+	if len(cfg.Flags) > 0 {
 		args = append(args, cfg.Flags...)
 	}
 
@@ -209,6 +210,16 @@ func (b *GoBuilder) resolveGarbleCli(paths ...string) (string, error) {
 func hasVersionLDFlag(ldflags []string) bool {
 	for _, flag := range ldflags {
 		if strings.Contains(flag, "main.version=") || strings.Contains(flag, "main.Version=") {
+			return true
+		}
+	}
+	return false
+}
+
+// containsString reports whether a slice contains the given string.
+func containsString(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
 			return true
 		}
 	}
