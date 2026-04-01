@@ -212,7 +212,7 @@ func shouldPublishArchive(name string) bool {
 }
 
 func shouldPublishChecksum(name string) bool {
-	return core.HasSuffix(name, ".txt")
+	return name == "CHECKSUMS.txt"
 }
 
 func shouldPublishSignature(name string) bool {

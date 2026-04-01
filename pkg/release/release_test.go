@@ -71,6 +71,19 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		assert.Contains(t, artifacts[0].Path, "CHECKSUMS.txt")
 	})
 
+	t.Run("ignores unrelated text files", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "release-notes.txt"), []byte("notes"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		assert.Empty(t, artifacts)
+	})
+
 	t.Run("finds signature files", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
