@@ -220,6 +220,27 @@ func TestRelease_GetBuilder_Good(t *testing.T) {
 		assert.NotNil(t, builder)
 		assert.Equal(t, "cpp", builder.Name())
 	})
+
+	t.Run("returns Docker builder for docker project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeDocker)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "docker", builder.Name())
+	})
+
+	t.Run("returns LinuxKit builder for linuxkit project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeLinuxKit)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "linuxkit", builder.Name())
+	})
+
+	t.Run("returns Taskfile builder for taskfile project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeTaskfile)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "taskfile", builder.Name())
+	})
 }
 
 func TestRelease_GetBuilder_Bad(t *testing.T) {
@@ -266,6 +287,25 @@ func TestRelease_GetPublisher_Bad(t *testing.T) {
 		_, err := getPublisher("")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported publisher type")
+	})
+}
+
+func TestRelease_ResolveProjectType_Good(t *testing.T) {
+	t.Run("honours explicit build type override", func(t *testing.T) {
+		dir := t.TempDir()
+
+		projectType, err := resolveProjectType(io.Local, dir, "docker")
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeDocker, projectType)
+	})
+
+	t.Run("falls back to marker detection when build type is empty", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/test"), 0644))
+
+		projectType, err := resolveProjectType(io.Local, dir, "")
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeGo, projectType)
 	})
 }
 

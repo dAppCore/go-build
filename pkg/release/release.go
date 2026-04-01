@@ -272,8 +272,8 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	// Determine output directory
 	outputDir := ax.Join(projectDir, "dist")
 
-	// Get builder (detect project type)
-	projectType, err := projectdetect.DetectProjectType(filesystem, projectDir)
+	// Get builder, respecting an explicit build type override when configured.
+	projectType, err := resolveProjectType(filesystem, projectDir, buildConfig.Build.Type)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to detect project type", err)
 	}
@@ -346,9 +346,25 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 		return builders.NewDocsBuilder(), nil
 	case build.ProjectTypeCPP:
 		return builders.NewCPPBuilder(), nil
+	case build.ProjectTypeDocker:
+		return builders.NewDockerBuilder(), nil
+	case build.ProjectTypeLinuxKit:
+		return builders.NewLinuxKitBuilder(), nil
+	case build.ProjectTypeTaskfile:
+		return builders.NewTaskfileBuilder(), nil
 	default:
 		return nil, coreerr.E("release.getBuilder", "unsupported project type: "+string(projectType), nil)
 	}
+}
+
+// resolveProjectType determines which builder type to use for release builds.
+// An explicit build type in .core/build.yaml takes precedence over marker-based detection.
+func resolveProjectType(filesystem io.Medium, projectDir, buildType string) (build.ProjectType, error) {
+	if buildType != "" {
+		return build.ProjectType(buildType), nil
+	}
+
+	return projectdetect.DetectProjectType(filesystem, projectDir)
 }
 
 // getPublisher returns the publisher for the given type.
