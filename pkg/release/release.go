@@ -136,6 +136,7 @@ func findArtifacts(filesystem io.Medium, distDir string) ([]build.Artifact, erro
 
 		// Include archives and checksums
 		if core.HasSuffix(name, ".tar.gz") ||
+			core.HasSuffix(name, ".tar.xz") ||
 			core.HasSuffix(name, ".zip") ||
 			core.HasSuffix(name, ".txt") ||
 			core.HasSuffix(name, ".asc") ||

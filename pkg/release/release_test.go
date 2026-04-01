@@ -27,6 +27,20 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		assert.Len(t, artifacts, 2)
 	})
 
+	t.Run("finds tar.xz artifacts", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.xz"), []byte("test"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		assert.Len(t, artifacts, 1)
+		assert.Contains(t, artifacts[0].Path, "app-linux-amd64.tar.xz")
+	})
+
 	t.Run("finds zip artifacts", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
@@ -88,6 +102,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux-arm64.tar.xz"), []byte("test"), 0644))
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-windows.zip"), []byte("test"), 0644))
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644))
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.sig"), []byte("sig"), 0644))
@@ -95,7 +110,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
 
-		assert.Len(t, artifacts, 4)
+		assert.Len(t, artifacts, 5)
 	})
 
 	t.Run("ignores non-artifact files", func(t *testing.T) {
@@ -106,12 +121,16 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "README.md"), []byte("readme"), 0644))
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.exe"), []byte("binary"), 0644))
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.xz"), []byte("artifact"), 0644))
 
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
 
-		assert.Len(t, artifacts, 1)
-		assert.Contains(t, artifacts[0].Path, "app.tar.gz")
+		assert.Len(t, artifacts, 2)
+		assert.ElementsMatch(t, []string{
+			ax.Join(distDir, "app.tar.gz"),
+			ax.Join(distDir, "app.tar.xz"),
+		}, []string{artifacts[0].Path, artifacts[1].Path})
 	})
 
 	t.Run("ignores subdirectories", func(t *testing.T) {
@@ -482,6 +501,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 		distDir := ax.Join(dir, "dist")
 		require.NoError(t, ax.MkdirAll(distDir, 0755))
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.xz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -492,7 +512,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "v1.0.0", release.Version)
-		assert.Len(t, release.Artifacts, 1)
+		assert.Len(t, release.Artifacts, 2)
 	})
 
 	t.Run("finds artifacts in dist directory", func(t *testing.T) {
@@ -500,6 +520,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 		distDir := ax.Join(dir, "dist")
 		require.NoError(t, ax.MkdirAll(distDir, 0755))
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux.tar.xz"), []byte("test"), 0644))
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-darwin.tar.gz"), []byte("test"), 0644))
 		require.NoError(t, ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644))
 
@@ -511,7 +532,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 		release, err := Publish(context.Background(), cfg, true)
 		require.NoError(t, err)
 
-		assert.Len(t, release.Artifacts, 3)
+		assert.Len(t, release.Artifacts, 4)
 	})
 }
 
