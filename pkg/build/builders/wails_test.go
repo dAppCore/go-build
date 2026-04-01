@@ -666,6 +666,15 @@ func TestWails_DetectPackageManager_Good(t *testing.T) {
 		assert.Equal(t, "bun", result)
 	})
 
+	t.Run("detects bun from bun.lock", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.WriteFile(ax.Join(dir, "bun.lock"), []byte(""), 0o644)
+		require.NoError(t, err)
+
+		result := detectPackageManager(fs, dir)
+		assert.Equal(t, "bun", result)
+	})
+
 	t.Run("detects pnpm from pnpm-lock.yaml", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "pnpm-lock.yaml"), []byte(""), 0o644)
