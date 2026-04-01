@@ -141,3 +141,24 @@ func TestBuildCmd_writeArtifactMetadata_Good(t *testing.T) {
 	verifyArtifactMeta(ax.Join(linuxDir, "artifact_meta.json"), "linux", "amd64")
 	verifyArtifactMeta(ax.Join(windowsDir, "artifact_meta.json"), "windows", "amd64")
 }
+
+func TestBuildCmd_selectOutputArtifacts_Good(t *testing.T) {
+	rawArtifacts := []build.Artifact{{Path: "dist/raw"}}
+	archivedArtifacts := []build.Artifact{{Path: "dist/raw.tar.gz"}}
+	checksummedArtifacts := []build.Artifact{{Path: "dist/raw.tar.gz", Checksum: "abc123"}}
+
+	t.Run("prefers checksummed artifacts", func(t *testing.T) {
+		selected := selectOutputArtifacts(rawArtifacts, archivedArtifacts, checksummedArtifacts)
+		assert.Equal(t, checksummedArtifacts, selected)
+	})
+
+	t.Run("falls back to archived artifacts", func(t *testing.T) {
+		selected := selectOutputArtifacts(rawArtifacts, archivedArtifacts, nil)
+		assert.Equal(t, archivedArtifacts, selected)
+	})
+
+	t.Run("falls back to raw artifacts", func(t *testing.T) {
+		selected := selectOutputArtifacts(rawArtifacts, nil, nil)
+		assert.Equal(t, rawArtifacts, selected)
+	})
+}

@@ -155,12 +155,6 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		return err
 	}
 
-	if ciMode {
-		if err := writeArtifactMetadata(filesystem, binaryName, artifacts); err != nil {
-			return err
-		}
-	}
-
 	if verbose && !ciMode {
 		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}))
 		cli.Blank()
@@ -268,14 +262,10 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Output results
 	if ciMode {
-		// Determine which artifacts to output (prefer checksummed > archived > raw)
-		var outputArtifacts []build.Artifact
-		if len(checksummedArtifacts) > 0 {
-			outputArtifacts = checksummedArtifacts
-		} else if len(archivedArtifacts) > 0 {
-			outputArtifacts = archivedArtifacts
-		} else {
-			outputArtifacts = artifacts
+		// Determine which artifacts to output (prefer checksummed > archived > raw).
+		outputArtifacts := selectOutputArtifacts(artifacts, archivedArtifacts, checksummedArtifacts)
+		if err := writeArtifactMetadata(filesystem, binaryName, outputArtifacts); err != nil {
+			return err
 		}
 
 		// JSON output for CI
@@ -294,6 +284,19 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	return nil
+}
+
+// selectOutputArtifacts chooses the final artifact list for CI output.
+//
+// output := selectOutputArtifacts(rawArtifacts, archivedArtifacts, checksummedArtifacts)
+func selectOutputArtifacts(rawArtifacts, archivedArtifacts, checksummedArtifacts []build.Artifact) []build.Artifact {
+	if len(checksummedArtifacts) > 0 {
+		return checksummedArtifacts
+	}
+	if len(archivedArtifacts) > 0 {
+		return archivedArtifacts
+	}
+	return rawArtifacts
 }
 
 // writeArtifactMetadata writes artifact_meta.json files next to built artifacts when CI metadata is available.
