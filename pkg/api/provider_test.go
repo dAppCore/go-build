@@ -6,7 +6,9 @@ import (
 	"io/fs"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,4 +131,24 @@ func TestProvider_BuildProviderResolveDirRelative_Good(t *testing.T) {
 func TestProvider_BuildProviderMediumSet_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	assert.NotNil(t, p.medium, "medium should be set to io.Local")
+}
+
+func TestProvider_ResolveProjectType_Good(t *testing.T) {
+	t.Run("honours explicit build type override", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
+
+		projectType, err := resolveProjectType(io.Local, dir, "docker")
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeDocker, projectType)
+	})
+
+	t.Run("falls back to detection when build type is empty", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
+
+		projectType, err := resolveProjectType(io.Local, dir, "")
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeGo, projectType)
+	})
 }

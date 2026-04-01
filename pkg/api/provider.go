@@ -12,6 +12,7 @@ import (
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/projectdetect"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/release"
@@ -274,8 +275,8 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		return
 	}
 
-	// Detect project type
-	projectType, err := build.PrimaryType(p.medium, dir)
+	// Detect project type, honouring an explicit build.type override.
+	projectType, err := resolveProjectType(p.medium, dir, cfg.Build.Type)
 	if err != nil || projectType == "" {
 		c.JSON(http.StatusBadRequest, api.Fail("no_project", "no buildable project detected"))
 		return
@@ -355,6 +356,15 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		"artifacts": checksummed,
 		"version":   version,
 	}))
+}
+
+// resolveProjectType returns the configured build type when present, otherwise it falls back to detection.
+func resolveProjectType(filesystem io.Medium, projectDir, buildType string) (build.ProjectType, error) {
+	if buildType != "" {
+		return build.ProjectType(buildType), nil
+	}
+
+	return projectdetect.DetectProjectType(filesystem, projectDir)
 }
 
 // artifactInfo holds JSON-friendly metadata about a dist/ file.
