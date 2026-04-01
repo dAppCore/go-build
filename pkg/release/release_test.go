@@ -185,6 +185,13 @@ func TestRelease_GetBuilder_Good(t *testing.T) {
 		assert.NotNil(t, builder)
 		assert.Equal(t, "php", builder.Name())
 	})
+
+	t.Run("returns Rust builder for rust project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeRust)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "rust", builder.Name())
+	})
 }
 
 func TestRelease_GetBuilder_Bad(t *testing.T) {

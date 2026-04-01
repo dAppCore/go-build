@@ -331,6 +331,8 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 		return builders.NewNodeBuilder(), nil
 	case build.ProjectTypePHP:
 		return builders.NewPHPBuilder(), nil
+	case build.ProjectTypeRust:
+		return builders.NewRustBuilder(), nil
 	case build.ProjectTypeDocs:
 		return builders.NewDocsBuilder(), nil
 	default:
