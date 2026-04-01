@@ -173,6 +173,15 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Summary:     "Generate release workflow",
 			Description: "Writes the embedded GitHub Actions release workflow into .github/workflows/release.yml or a custom path.",
 			Tags:        []string{"release", "workflow"},
+			RequestBody: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{
+						"type":        "string",
+						"description": "Output path for the workflow file, relative to the project directory or absolute.",
+					},
+				},
+			},
 		},
 		{
 			Method:      "GET",

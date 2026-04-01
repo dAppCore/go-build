@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	coreapi "dappco.re/go/core/api"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
@@ -69,6 +70,25 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	assert.Equal(t, "POST", paths["/release/workflow"])
 	assert.Equal(t, "GET", paths["/sdk/diff"])
 	assert.Equal(t, "POST", paths["/sdk/generate"])
+
+	var workflowRoute *coreapi.RouteDescription
+	for i := range routes {
+		if routes[i].Path == "/release/workflow" {
+			workflowRoute = &routes[i]
+			break
+		}
+	}
+
+	require.NotNil(t, workflowRoute)
+	require.NotNil(t, workflowRoute.RequestBody)
+
+	properties, ok := workflowRoute.RequestBody["properties"].(map[string]any)
+	require.True(t, ok)
+
+	pathSchema, ok := properties["path"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "string", pathSchema["type"])
+	assert.Equal(t, "Output path for the workflow file, relative to the project directory or absolute.", pathSchema["description"])
 }
 
 func TestProvider_BuildProviderDefaultProjectDir_Good(t *testing.T) {
