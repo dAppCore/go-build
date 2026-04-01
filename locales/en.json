@@ -115,7 +115,8 @@
         "short": "Generate the release workflow",
         "long": "Write the embedded GitHub Actions release workflow into .github/workflows/release.yml or a custom path.",
         "flag": {
-          "path": "Output path for the workflow file"
+          "path": "Output path for the workflow file",
+          "output": "Alias for --path."
         }
       },
       "sdk": {

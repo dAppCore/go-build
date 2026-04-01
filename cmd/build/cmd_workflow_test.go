@@ -33,8 +33,14 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		buildCmd := &cli.Command{Use: "build"}
 		AddWorkflowCommand(buildCmd)
 
-		assert.NotNil(t, releaseWorkflowCmd.Flags().Lookup("path"))
-		assert.NotNil(t, releaseWorkflowCmd.Flags().Lookup("output"))
+		pathFlag := releaseWorkflowCmd.Flags().Lookup("path")
+		outputFlag := releaseWorkflowCmd.Flags().Lookup("output")
+
+		assert.NotNil(t, pathFlag)
+		assert.NotNil(t, outputFlag)
+		assert.NotEmpty(t, pathFlag.Usage)
+		assert.NotEmpty(t, outputFlag.Usage)
+		assert.NotEqual(t, pathFlag.Usage, outputFlag.Usage)
 	})
 
 	t.Run("writes to a custom relative path", func(t *testing.T) {

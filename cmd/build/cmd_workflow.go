@@ -32,7 +32,7 @@ func setWorkflowI18n() {
 
 func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPath, "path", "", i18n.T("cmd.build.workflow.flag.path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPath, "output", "", i18n.T("cmd.build.workflow.flag.path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPath, "output", "", i18n.T("cmd.build.workflow.flag.output"))
 }
 
 // AddWorkflowCommand registers the release workflow generation subcommand.
