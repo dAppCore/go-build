@@ -1,6 +1,6 @@
 // cmd_project.go implements the main project build logic.
 //
-// This handles auto-detection of project types (Go, Wails, Docker, LinuxKit, Taskfile)
+// This handles auto-detection of project types (Go, Wails, Node, PHP, Docker, LinuxKit, Taskfile)
 // and orchestrates the build process including signing, archiving, and checksums.
 
 package buildcmd
@@ -388,7 +388,7 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 	case build.ProjectTypeNode:
 		return builders.NewNodeBuilder(), nil
 	case build.ProjectTypePHP:
-		return nil, coreerr.E("build.getBuilder", "PHP builder not yet implemented", nil)
+		return builders.NewPHPBuilder(), nil
 	default:
 		return nil, coreerr.E("build.getBuilder", "unsupported project type: "+string(projectType), nil)
 	}

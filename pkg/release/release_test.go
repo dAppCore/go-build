@@ -171,21 +171,23 @@ func TestRelease_GetBuilder_Good(t *testing.T) {
 		assert.NotNil(t, builder)
 		assert.Equal(t, "wails", builder.Name())
 	})
+
+	t.Run("returns Node builder for node project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeNode)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "node", builder.Name())
+	})
+
+	t.Run("returns PHP builder for php project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypePHP)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "php", builder.Name())
+	})
 }
 
 func TestRelease_GetBuilder_Bad(t *testing.T) {
-	t.Run("returns error for Node project type", func(t *testing.T) {
-		_, err := getBuilder(build.ProjectTypeNode)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "node.js builder not yet implemented")
-	})
-
-	t.Run("returns error for PHP project type", func(t *testing.T) {
-		_, err := getBuilder(build.ProjectTypePHP)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "PHP builder not yet implemented")
-	})
-
 	t.Run("returns error for unsupported project type", func(t *testing.T) {
 		_, err := getBuilder(build.ProjectType("unknown"))
 		assert.Error(t, err)

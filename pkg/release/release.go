@@ -328,9 +328,9 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 	case build.ProjectTypeGo:
 		return builders.NewGoBuilder(), nil
 	case build.ProjectTypeNode:
-		return nil, coreerr.E("release.getBuilder", "node.js builder not yet implemented", nil)
+		return builders.NewNodeBuilder(), nil
 	case build.ProjectTypePHP:
-		return nil, coreerr.E("release.getBuilder", "PHP builder not yet implemented", nil)
+		return builders.NewPHPBuilder(), nil
 	default:
 		return nil, coreerr.E("release.getBuilder", "unsupported project type: "+string(projectType), nil)
 	}
