@@ -199,6 +199,13 @@ func TestRelease_GetBuilder_Good(t *testing.T) {
 		assert.NotNil(t, builder)
 		assert.Equal(t, "rust", builder.Name())
 	})
+
+	t.Run("returns C++ builder for cpp project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeCPP)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "cpp", builder.Name())
+	})
 }
 
 func TestRelease_GetBuilder_Bad(t *testing.T) {

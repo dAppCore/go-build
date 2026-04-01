@@ -343,6 +343,8 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 		return builders.NewRustBuilder(), nil
 	case build.ProjectTypeDocs:
 		return builders.NewDocsBuilder(), nil
+	case build.ProjectTypeCPP:
+		return builders.NewCPPBuilder(), nil
 	default:
 		return nil, coreerr.E("release.getBuilder", "unsupported project type: "+string(projectType), nil)
 	}
