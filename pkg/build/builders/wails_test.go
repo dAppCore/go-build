@@ -173,6 +173,28 @@ func TestWails_WailsBuilderName_Good(t *testing.T) {
 	assert.Equal(t, "wails", builder.Name())
 }
 
+func TestWails_WailsBuilderBuildV3Config_Good(t *testing.T) {
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		CGO:   false,
+		Name:  "testapp",
+		Flags: []string{"-trimpath"},
+		LDFlags: []string{
+			"-s",
+			"-w",
+		},
+	}
+
+	v3Config := builder.buildV3Config(cfg)
+
+	require.NotNil(t, v3Config)
+	assert.False(t, cfg.CGO)
+	assert.True(t, v3Config.CGO)
+	assert.Equal(t, cfg.Name, v3Config.Name)
+	assert.Equal(t, cfg.Flags, v3Config.Flags)
+	assert.Equal(t, cfg.LDFlags, v3Config.LDFlags)
+}
+
 func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

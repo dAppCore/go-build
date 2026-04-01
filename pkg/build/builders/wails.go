@@ -60,9 +60,9 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 			return taskBuilder.Build(ctx, cfg, targets)
 		}
 		// Fall back to Go builder — Wails v3 is just a Go project that needs CGO
-		cfg.CGO = true
+		v3Config := b.buildV3Config(cfg)
 		goBuilder := NewGoBuilder()
-		return goBuilder.Build(ctx, cfg, targets)
+		return goBuilder.Build(ctx, v3Config, targets)
 	}
 
 	// Wails v2 strategy: Use 'wails build'
@@ -88,6 +88,17 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	}
 
 	return artifacts, nil
+}
+
+// buildV3Config returns a copy of the build config with Wails v3 requirements applied.
+func (b *WailsBuilder) buildV3Config(cfg *build.Config) *build.Config {
+	if cfg == nil {
+		return nil
+	}
+
+	v3Config := *cfg
+	v3Config.CGO = true
+	return &v3Config
 }
 
 // PreBuild runs the frontend build step before Wails compiles the desktop app.
