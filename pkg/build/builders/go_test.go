@@ -338,6 +338,7 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "envflags",
+			Version:    "v1.2.3",
 			Flags:      []string{"-race"},
 			Env:        []string{"FOO=bar", "BAR=baz"},
 		}
@@ -363,8 +364,14 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
 		assert.Contains(t, envLines, "BAR=baz")
 		assert.Contains(t, envLines, "FOO=bar")
+		assert.Contains(t, envLines, "TARGET_OS="+runtime.GOOS)
+		assert.Contains(t, envLines, "TARGET_ARCH="+runtime.GOARCH)
+		assert.Contains(t, envLines, "OUTPUT_DIR="+outputDir)
+		assert.Contains(t, envLines, "TARGET_DIR="+ax.Join(outputDir, runtime.GOOS+"_"+runtime.GOARCH))
 		assert.Contains(t, envLines, "GOOS="+runtime.GOOS)
 		assert.Contains(t, envLines, "GOARCH="+runtime.GOARCH)
+		assert.Contains(t, envLines, "NAME=envflags")
+		assert.Contains(t, envLines, "VERSION=v1.2.3")
 		assert.Contains(t, envLines, "CGO_ENABLED=0")
 	})
 

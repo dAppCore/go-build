@@ -136,9 +136,16 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	env := append([]string{}, cfg.Env...)
 	env = append(env, build.CacheEnvironment(&cfg.Cache)...)
 	env = append(env,
+		core.Sprintf("TARGET_OS=%s", target.OS),
+		core.Sprintf("TARGET_ARCH=%s", target.Arch),
+		core.Sprintf("OUTPUT_DIR=%s", cfg.OutputDir),
+		core.Sprintf("TARGET_DIR=%s", platformDir),
 		core.Sprintf("GOOS=%s", target.OS),
 		core.Sprintf("GOARCH=%s", target.Arch),
 	)
+	if binaryName != "" {
+		env = append(env, core.Sprintf("NAME=%s", binaryName))
+	}
 	if cfg.Version != "" {
 		env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
 	}
