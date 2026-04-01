@@ -106,6 +106,41 @@ func TestDocs_DocsBuilderBuild_Good(t *testing.T) {
 	assert.Contains(t, string(content), "FOO=bar")
 }
 
+func TestDocs_DocsBuilderBuild_Good_NestedConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("mkdocs test fixture uses a shell script")
+	}
+
+	dir := t.TempDir()
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, "docs"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "docs", "mkdocs.yaml"), []byte("site_name: Demo\n"), 0o644))
+
+	binDir := t.TempDir()
+	mkdocsPath := ax.Join(binDir, "mkdocs")
+	script := "#!/bin/sh\nset -eu\nif [ -n \"${DOCS_BUILD_LOG_FILE:-}\" ]; then\n  printf '%s\\n' \"$@\" >> \"${DOCS_BUILD_LOG_FILE}\"\nfi\nsite_dir=\"\"\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = \"--site-dir\" ]; then\n    shift\n    site_dir=\"$1\"\n  fi\n  shift\ndone\nmkdir -p \"$site_dir\"\nprintf '%s' 'demo docs' > \"$site_dir/index.html\"\n"
+	require.NoError(t, ax.WriteFile(mkdocsPath, []byte(script), 0o755))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	logPath := ax.Join(t.TempDir(), "docs.args")
+
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: dir,
+		OutputDir:  ax.Join(dir, "dist"),
+		Name:       "demo-site",
+		Env:        []string{"DOCS_BUILD_LOG_FILE=" + logPath},
+	}
+
+	builder := NewDocsBuilder()
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "--config-file")
+	assert.Contains(t, string(content), "docs/mkdocs.yaml")
+}
+
 func TestDocs_DocsBuilderBuild_Bad(t *testing.T) {
 	builder := NewDocsBuilder()
 

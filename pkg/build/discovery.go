@@ -15,6 +15,8 @@ const (
 	markerComposer           = "composer.json"
 	markerMkDocs             = "mkdocs.yml"
 	markerMkDocsYAML         = "mkdocs.yaml"
+	markerDocsMkDocs         = "docs/mkdocs.yml"
+	markerDocsMkDocsYAML     = "docs/mkdocs.yaml"
 	markerPyProject          = "pyproject.toml"
 	markerRequirements       = "requirements.txt"
 	markerCargo              = "Cargo.toml"
@@ -72,6 +74,7 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		projectType ProjectType
 		detected    bool
 	}{
+		{ProjectTypeDocs, IsMkDocsProject(fs, dir)},
 		{ProjectTypeDocker, IsDockerProject(fs, dir)},
 		{ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir)},
 		{ProjectTypeCPP, IsCPPProject(fs, dir)},
@@ -137,12 +140,28 @@ func IsCPPProject(fs io.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, "CMakeLists.txt"))
 }
 
-// IsMkDocsProject checks for MkDocs config at the project root.
+// IsMkDocsProject checks for MkDocs config at the project root or in docs/.
 //
 //	ok := build.IsMkDocsProject(io.Local, ".")
 func IsMkDocsProject(fs io.Medium, dir string) bool {
-	return fileExists(fs, ax.Join(dir, markerMkDocs)) ||
-		fileExists(fs, ax.Join(dir, markerMkDocsYAML))
+	return ResolveMkDocsConfigPath(fs, dir) != ""
+}
+
+// ResolveMkDocsConfigPath returns the first MkDocs config path that exists.
+//
+//	configPath := build.ResolveMkDocsConfigPath(io.Local, ".")
+func ResolveMkDocsConfigPath(fs io.Medium, dir string) string {
+	for _, path := range []string{
+		ax.Join(dir, markerMkDocs),
+		ax.Join(dir, markerMkDocsYAML),
+		ax.Join(dir, "docs", "mkdocs.yml"),
+		ax.Join(dir, "docs", "mkdocs.yaml"),
+	} {
+		if fileExists(fs, path) {
+			return path
+		}
+	}
+	return ""
 }
 
 // HasSubtreeNpm checks for package.json within depth 2 subdirectories.
@@ -248,7 +267,8 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	// Record raw marker presence
 	allMarkers := []string{
 		markerGoMod, markerWails, markerNodePackage, markerComposer,
-		markerMkDocs, markerMkDocsYAML, markerPyProject, markerRequirements, markerCargo,
+		markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
+		markerPyProject, markerRequirements, markerCargo,
 		"CMakeLists.txt", markerDockerfile, markerLinuxKitYAML, markerLinuxKitYAMLAlt,
 		markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,
 		markerTaskfileLowerYML, markerTaskfileLowerYAML,

@@ -62,7 +62,8 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		return nil, coreerr.E("DocsBuilder.Build", "failed to create output directory", err)
 	}
 
-	if !b.hasMkDocsConfig(cfg.FS, cfg.ProjectDir) {
+	configPath := b.resolveMkDocsConfigPath(cfg.FS, cfg.ProjectDir)
+	if configPath == "" {
 		return nil, coreerr.E("DocsBuilder.Build", "mkdocs.yml or mkdocs.yaml not found", nil)
 	}
 
@@ -83,7 +84,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 			return artifacts, coreerr.E("DocsBuilder.Build", "failed to create site directory", err)
 		}
 
-		args := []string{"build", "--clean", "--site-dir", siteDir}
+		args := []string{"build", "--clean", "--site-dir", siteDir, "--config-file", configPath}
 		output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, cfg.Env, mkdocsCommand, args...)
 		if err != nil {
 			return artifacts, coreerr.E("DocsBuilder.Build", "mkdocs build failed: "+output, err)
@@ -104,9 +105,9 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	return artifacts, nil
 }
 
-// hasMkDocsConfig reports whether the project contains a MkDocs config file.
-func (b *DocsBuilder) hasMkDocsConfig(fs io.Medium, projectDir string) bool {
-	return fs.IsFile(ax.Join(projectDir, "mkdocs.yml")) || fs.IsFile(ax.Join(projectDir, "mkdocs.yaml"))
+// resolveMkDocsConfigPath returns the MkDocs config file path if present.
+func (b *DocsBuilder) resolveMkDocsConfigPath(fs io.Medium, projectDir string) string {
+	return build.ResolveMkDocsConfigPath(fs, projectDir)
 }
 
 // resolveMkDocsCli returns the executable path for the mkdocs CLI.
