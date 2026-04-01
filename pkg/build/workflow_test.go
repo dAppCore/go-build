@@ -43,6 +43,17 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		assert.NotEmpty(t, content)
 	})
 
+	t.Run("trims surrounding whitespace from the output path", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		err := WriteReleaseWorkflow(fs, "  ci  ")
+		require.NoError(t, err)
+
+		content, err := fs.Read("ci/release.yml")
+		require.NoError(t, err)
+		assert.NotEmpty(t, content)
+	})
+
 	t.Run("writes release.yml for a bare directory-style path", func(t *testing.T) {
 		fs := io.NewMockMedium()
 
@@ -202,6 +213,12 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 		assert.Equal(t, "/tmp/project/ci/release.yml", path)
 	})
 
+	t.Run("trims surrounding whitespace from inputs", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "  ci  ", "  ")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
 	t.Run("accepts matching path and output values", func(t *testing.T) {
 		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci/release.yml")
 		require.NoError(t, err)
@@ -271,6 +288,15 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 		fs.Dirs["/tmp/project/ci"] = true
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "ci/")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("trims surrounding whitespace before resolving", func(t *testing.T) {
+		fs := io.NewMockMedium()
+		fs.Dirs["/tmp/project/ci"] = true
+
+		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "  ci  ", "  ")
 		require.NoError(t, err)
 		assert.Equal(t, "/tmp/project/ci/release.yml", path)
 	})

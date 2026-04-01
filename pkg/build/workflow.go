@@ -36,6 +36,7 @@ func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
 		return coreerr.E("build.WriteReleaseWorkflow", "filesystem medium is required", nil)
 	}
 
+	outputPath = cleanWorkflowInput(outputPath)
 	if outputPath == "" {
 		outputPath = DefaultReleaseWorkflowPath
 	}
@@ -77,6 +78,7 @@ func ReleaseWorkflowPath(projectDir string) string {
 // build.ResolveReleaseWorkflowPath("/tmp/project", "ci")               // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "/tmp/release.yml") // /tmp/release.yml
 func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
+	outputPath = cleanWorkflowInput(outputPath)
 	if outputPath == "" {
 		return ReleaseWorkflowPath(projectDir)
 	}
@@ -105,6 +107,8 @@ func ResolveReleaseWorkflowInputPath(projectDir, path, outputPath string) (strin
 		return resolveReleaseWorkflowInputPath(projectDir, input, nil)
 	}
 
+	path = cleanWorkflowInput(path)
+	outputPath = cleanWorkflowInput(outputPath)
 	if path != "" && outputPath != "" {
 		resolvedPath := resolve(path)
 		resolvedOutput := resolve(outputPath)
@@ -136,6 +140,8 @@ func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, proje
 		return resolveReleaseWorkflowInputPath(projectDir, input, medium)
 	}
 
+	path = cleanWorkflowInput(path)
+	outputPath = cleanWorkflowInput(outputPath)
 	if path != "" && outputPath != "" {
 		resolvedPath := resolve(path)
 		resolvedOutput := resolve(outputPath)
@@ -160,6 +166,7 @@ func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, proje
 //
 // resolveReleaseWorkflowInputPath("/tmp/project", "ci", io.Local) // /tmp/project/ci/release.yml
 func resolveReleaseWorkflowInputPath(projectDir, input string, medium io_interface.Medium) string {
+	input = cleanWorkflowInput(input)
 	if input == "" {
 		return ReleaseWorkflowPath(projectDir)
 	}
@@ -181,6 +188,7 @@ func resolveReleaseWorkflowInputPath(projectDir, input string, medium io_interfa
 // isWorkflowDirectoryPath reports whether a workflow path is explicitly marked
 // as a directory with a trailing separator.
 func isWorkflowDirectoryPath(path string) bool {
+	path = cleanWorkflowInput(path)
 	if path == "" {
 		return false
 	}
@@ -198,6 +206,7 @@ func isWorkflowDirectoryPath(path string) bool {
 // without path separators or a file extension, plus current-directory-prefixed
 // directory targets like "./ci" and the conventional ".github/workflows" path.
 func isWorkflowDirectoryInput(path string) bool {
+	path = cleanWorkflowInput(path)
 	if isWorkflowDirectoryPath(path) {
 		return true
 	}
@@ -218,4 +227,9 @@ func isWorkflowDirectoryInput(path string) bool {
 	}
 
 	return false
+}
+
+// cleanWorkflowInput trims surrounding whitespace from a workflow path input.
+func cleanWorkflowInput(path string) string {
+	return strings.TrimSpace(path)
 }
