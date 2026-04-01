@@ -209,7 +209,10 @@ func TestBuildCmd_runProjectBuild_PwaOverride_Good(t *testing.T) {
 		return nil
 	}
 
-	err = runProjectBuild(context.Background(), "pwa", false, "", "", false, false, "", "", "", false, "", false, false, false)
+	err = runProjectBuild(ProjectBuildRequest{
+		Context:   context.Background(),
+		BuildType: "pwa",
+	})
 	require.NoError(t, err)
 	assert.True(t, called)
 }

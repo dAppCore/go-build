@@ -62,7 +62,23 @@ var (
 var buildCmd = &cli.Command{
 	Use: "build",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runProjectBuild(cmd.Context(), buildType, ciMode, targets, outputDir, archiveOutput, checksumOutput, archiveFormat, configPath, format, push, imageName, noSign, notarize, verbose)
+		return runProjectBuild(ProjectBuildRequest{
+			Context:        cmd.Context(),
+			BuildType:      buildType,
+			CIMode:         ciMode,
+			TargetsFlag:    targets,
+			OutputDir:      outputDir,
+			ArchiveOutput:  archiveOutput,
+			ChecksumOutput: checksumOutput,
+			ArchiveFormat:  archiveFormat,
+			ConfigPath:     configPath,
+			Format:         format,
+			Push:           push,
+			ImageName:      imageName,
+			NoSign:         noSign,
+			Notarize:       notarize,
+			Verbose:        verbose,
+		})
 	},
 }
 

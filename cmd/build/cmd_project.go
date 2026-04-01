@@ -22,8 +22,37 @@ import (
 	"forge.lthn.ai/core/cli/pkg/cli"
 )
 
+// ProjectBuildRequest groups the inputs for the main `core build` command.
+//
+//	req := ProjectBuildRequest{
+//		Context:     cmd.Context(),
+//		BuildType:   "go",
+//		TargetsFlag: "linux/amd64,linux/arm64",
+//	}
+type ProjectBuildRequest struct {
+	Context        context.Context
+	BuildType      string
+	CIMode         bool
+	TargetsFlag    string
+	OutputDir      string
+	ArchiveOutput  bool
+	ChecksumOutput bool
+	ArchiveFormat  string
+	ConfigPath     string
+	Format         string
+	Push           bool
+	ImageName      string
+	NoSign         bool
+	Notarize       bool
+	Verbose        bool
+}
+
 // runProjectBuild handles the main `core build` command with auto-detection.
-func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targetsFlag string, outputDir string, archiveOutput bool, checksumOutput bool, archiveFormat string, configPath string, format string, push bool, imageName string, noSign bool, notarize bool, verbose bool) error {
+func runProjectBuild(req ProjectBuildRequest) error {
+	ctx := req.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	// Use local filesystem as the default medium.
 	filesystem := io.Local
 
@@ -35,12 +64,13 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// PWA builds use the dedicated local web-app pipeline rather than the
 	// project-type builder registry.
-	if buildType == "pwa" {
+	if req.BuildType == "pwa" {
 		return runLocalPwaBuild(ctx, projectDir)
 	}
 
 	// Load configuration from .core/build.yaml (or defaults)
 	var buildConfig *build.BuildConfig
+	configPath := req.ConfigPath
 	if configPath != "" {
 		if !ax.IsAbs(configPath) {
 			configPath = ax.Join(projectDir, configPath)
@@ -66,8 +96,8 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Detect project type if not specified
 	var projectType build.ProjectType
-	if buildType != "" {
-		projectType = build.ProjectType(buildType)
+	if req.BuildType != "" {
+		projectType = build.ProjectType(req.BuildType)
 	} else if buildConfig.Build.Type != "" {
 		// Use type from .core/build.yaml
 		projectType = build.ProjectType(buildConfig.Build.Type)
@@ -83,9 +113,9 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Determine targets
 	var buildTargets []build.Target
-	if targetsFlag != "" {
+	if req.TargetsFlag != "" {
 		// Parse from command line
-		buildTargets, err = parseTargets(targetsFlag)
+		buildTargets, err = parseTargets(req.TargetsFlag)
 		if err != nil {
 			return err
 		}
@@ -100,6 +130,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	// Determine output directory
+	outputDir := req.OutputDir
 	if outputDir == "" {
 		outputDir = "dist"
 	}
@@ -107,11 +138,6 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		outputDir = ax.Join(projectDir, outputDir)
 	}
 	outputDir = ax.Clean(outputDir)
-
-	// Ensure config path is absolute if provided
-	if configPath != "" && !ax.IsAbs(configPath) {
-		configPath = ax.Join(projectDir, configPath)
-	}
 
 	// Determine binary name
 	binaryName := buildConfig.Project.Binary
@@ -123,7 +149,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	// Print build info (verbose mode only)
-	if verbose && !ciMode {
+	if req.Verbose && !req.CIMode {
 		cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.build")), i18n.T("cmd.build.building_project"))
 		cli.Print("  %s %s\n", i18n.T("cmd.build.label.type"), buildTargetStyle.Render(string(projectType)))
 		cli.Print("  %s %s\n", i18n.T("cmd.build.label.output"), buildTargetStyle.Render(outputDir))
@@ -144,7 +170,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		return coreerr.E("build.Run", "failed to determine build version", err)
 	}
 
-	cfg := buildRuntimeConfig(filesystem, projectDir, outputDir, binaryName, buildConfig, push, imageName, version)
+	cfg := buildRuntimeConfig(filesystem, projectDir, outputDir, binaryName, buildConfig, req.Push, req.ImageName, version)
 	discovery, err := build.DiscoverFull(filesystem, projectDir)
 	if err != nil {
 		return coreerr.E("build.Run", "failed to inspect project for build options", err)
@@ -152,20 +178,20 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	build.ApplyOptions(cfg, build.ComputeOptions(buildConfig, discovery))
 
 	// Parse formats for LinuxKit
-	if format != "" {
-		cfg.Formats = core.Split(format, ",")
+	if req.Format != "" {
+		cfg.Formats = core.Split(req.Format, ",")
 	}
 
 	// Execute build
 	artifacts, err := builder.Build(ctx, cfg, buildTargets)
 	if err != nil {
-		if !ciMode {
+		if !req.CIMode {
 			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
 		}
 		return err
 	}
 
-	if verbose && !ciMode {
+	if req.Verbose && !req.CIMode {
 		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}))
 		cli.Blank()
 		for _, artifact := range artifacts {
@@ -183,15 +209,15 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Sign binaries if enabled.
 	signCfg := buildConfig.Sign
-	if notarize {
+	if req.Notarize {
 		signCfg.MacOS.Notarize = true
 	}
-	if noSign {
+	if req.NoSign {
 		signCfg.Enabled = false
 	}
 
 	if signCfg.Enabled && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
-		if verbose && !ciMode {
+		if req.Verbose && !req.CIMode {
 			cli.Blank()
 			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.sign")), i18n.T("cmd.build.signing_binaries"))
 		}
@@ -203,7 +229,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		}
 
 		if err := signing.SignBinaries(ctx, filesystem, signCfg, signingArtifacts); err != nil {
-			if !ciMode {
+			if !req.CIMode {
 				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.signing_failed"), err)
 			}
 			return err
@@ -211,7 +237,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 		if runtime.GOOS == "darwin" && signCfg.MacOS.Notarize {
 			if err := signing.NotarizeBinaries(ctx, filesystem, signCfg, signingArtifacts); err != nil {
-				if !ciMode {
+				if !req.CIMode {
 					cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.notarization_failed"), err)
 				}
 				return err
@@ -221,26 +247,26 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Archive artifacts if enabled
 	var archivedArtifacts []build.Artifact
-	if archiveOutput && len(artifacts) > 0 {
-		if verbose && !ciMode {
+	if req.ArchiveOutput && len(artifacts) > 0 {
+		if req.Verbose && !req.CIMode {
 			cli.Blank()
 			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.archive")), i18n.T("cmd.build.creating_archives"))
 		}
 
-		archiveFormatValue, err := resolveArchiveFormat(buildConfig.Build.ArchiveFormat, archiveFormat)
+		archiveFormatValue, err := resolveArchiveFormat(buildConfig.Build.ArchiveFormat, req.ArchiveFormat)
 		if err != nil {
 			return err
 		}
 
 		archivedArtifacts, err = build.ArchiveAllWithFormat(filesystem, artifacts, archiveFormatValue)
 		if err != nil {
-			if !ciMode {
+			if !req.CIMode {
 				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.archive_failed"), err)
 			}
 			return err
 		}
 
-		if verbose && !ciMode {
+		if req.Verbose && !req.CIMode {
 			for _, artifact := range archivedArtifacts {
 				relPath, err := ax.Rel(projectDir, artifact.Path)
 				if err != nil {
@@ -257,21 +283,21 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 
 	// Compute checksums if enabled
 	var checksummedArtifacts []build.Artifact
-	if checksumOutput && len(archivedArtifacts) > 0 {
-		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, outputDir, archivedArtifacts, signCfg, ciMode, verbose)
+	if req.ChecksumOutput && len(archivedArtifacts) > 0 {
+		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, outputDir, archivedArtifacts, signCfg, req.CIMode, req.Verbose)
 		if err != nil {
 			return err
 		}
-	} else if checksumOutput && len(artifacts) > 0 && !archiveOutput {
+	} else if req.ChecksumOutput && len(artifacts) > 0 && !req.ArchiveOutput {
 		// Checksum raw binaries if archiving is disabled
-		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, outputDir, artifacts, signCfg, ciMode, verbose)
+		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, outputDir, artifacts, signCfg, req.CIMode, req.Verbose)
 		if err != nil {
 			return err
 		}
 	}
 
 	// Output results
-	if ciMode {
+	if req.CIMode {
 		// Determine which artifacts to output (prefer checksummed > archived > raw).
 		outputArtifacts := selectOutputArtifacts(artifacts, archivedArtifacts, checksummedArtifacts)
 		if err := writeArtifactMetadata(filesystem, binaryName, outputArtifacts); err != nil {
@@ -284,7 +310,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 			return coreerr.E("build.Run", "failed to marshal artifacts", err)
 		}
 		cli.Print("%s\n", output)
-	} else if !verbose {
+	} else if !req.Verbose {
 		// Minimal output: just success with artifact count
 		cli.Print("%s %s %s\n",
 			buildSuccessStyle.Render(i18n.T("common.label.success")),
