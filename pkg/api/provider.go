@@ -6,6 +6,8 @@
 package api
 
 import (
+	"errors"
+	stdio "io"
 	"io/fs"
 	"net/http"
 
@@ -545,7 +547,11 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 
 	var req releaseWorkflowRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		req.Path = ""
+		// Empty bodies are valid; malformed JSON is not.
+		if !errors.Is(err, stdio.EOF) {
+			c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+			return
+		}
 	}
 
 	path := req.Path
