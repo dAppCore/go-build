@@ -3,6 +3,7 @@ package builders
 import (
 	"context"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -189,6 +190,6 @@ func TestDocker_DockerBuilderBuild_Good(t *testing.T) {
 	artifacts, err = builder.Build(context.Background(), cfg, nil)
 	require.NoError(t, err)
 	require.Len(t, artifacts, 1)
-	assert.Equal(t, "linux", artifacts[0].OS)
-	assert.Equal(t, "amd64", artifacts[0].Arch)
+	assert.Equal(t, runtime.GOOS, artifacts[0].OS)
+	assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
 }

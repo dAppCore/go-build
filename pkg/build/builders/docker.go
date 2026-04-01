@@ -3,6 +3,7 @@ package builders
 
 import (
 	"context"
+	"runtime"
 	"strings"
 
 	"dappco.re/go/core"
@@ -77,18 +78,14 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	}
 
 	// Build platform string from targets
-	var platforms []string
-	for _, t := range targets {
-		platforms = append(platforms, core.Sprintf("%s/%s", t.OS, t.Arch))
-	}
-
-	// If no targets specified, use current platform
 	buildTargets := targets
 	if len(buildTargets) == 0 {
-		buildTargets = []build.Target{{OS: "linux", Arch: "amd64"}}
+		buildTargets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	}
-	if len(platforms) == 0 {
-		platforms = []string{"linux/amd64"}
+
+	var platforms []string
+	for _, t := range buildTargets {
+		platforms = append(platforms, core.Sprintf("%s/%s", t.OS, t.Arch))
 	}
 
 	// Determine registry
