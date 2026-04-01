@@ -23,6 +23,10 @@ func runBuildSDK(ctx context.Context, specPath, lang, version string, dryRun boo
 		return coreerr.E("build.SDK", "failed to get working directory", err)
 	}
 
+	return runBuildSDKInDir(ctx, projectDir, specPath, lang, version, dryRun)
+}
+
+func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool) error {
 	// Load config
 	config := sdk.DefaultConfig()
 	if specPath != "" {
@@ -40,8 +44,8 @@ func runBuildSDK(ctx context.Context, specPath, lang, version string, dryRun boo
 	}
 	cli.Blank()
 
-	// Detect spec
-	detectedSpec, err := s.DetectSpec()
+	// Validate the spec before generating anything.
+	detectedSpec, err := s.ValidateSpec(ctx)
 	if err != nil {
 		cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
 		return err
