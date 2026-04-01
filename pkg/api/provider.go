@@ -533,9 +533,12 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 	}))
 }
 
-type releaseWorkflowRequest struct {
-	Path   string `json:"path"`
-	Output string `json:"output"`
+// ReleaseWorkflowRequest captures the workflow-generation inputs exposed by the API.
+//
+// req := ReleaseWorkflowRequest{Path: "ci/release.yml"}
+type ReleaseWorkflowRequest struct {
+	Path       string `json:"path"`
+	OutputPath string `json:"output"`
 }
 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
@@ -545,7 +548,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		return
 	}
 
-	var req releaseWorkflowRequest
+	var req ReleaseWorkflowRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		// Empty bodies are valid; malformed JSON is not.
 		if !errors.Is(err, stdio.EOF) {
@@ -554,25 +557,25 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		}
 	}
 
-	path, err := build.ResolveReleaseWorkflowInputPathWithMedium(p.medium, dir, req.Path, req.Output)
+	workflowPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(p.medium, dir, req.Path, req.OutputPath)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 		return
 	}
 
-	if err := build.WriteReleaseWorkflow(p.medium, path); err != nil {
+	if err := build.WriteReleaseWorkflow(p.medium, workflowPath); err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
 		return
 	}
 
 	p.emitEvent("workflow.generated", map[string]any{
-		"path":      path,
+		"path":      workflowPath,
 		"generated": true,
 	})
 
 	c.JSON(http.StatusOK, api.OK(map[string]any{
 		"generated": true,
-		"path":      path,
+		"path":      workflowPath,
 	}))
 }
 
