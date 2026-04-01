@@ -21,6 +21,9 @@ const (
 	markerRequirements       = "requirements.txt"
 	markerCargo              = "Cargo.toml"
 	markerDockerfile         = "Dockerfile"
+	markerFrontendPackage    = "frontend/package.json"
+	markerFrontendDenoJSON   = "frontend/deno.json"
+	markerFrontendDenoJSONC  = "frontend/deno.jsonc"
 	markerLinuxKitYAML       = "linuxkit.yml"
 	markerLinuxKitYAMLAlt    = "linuxkit.yaml"
 	markerTaskfileYML        = "Taskfile.yml"
@@ -271,7 +274,9 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 		markerGoMod, markerWails, markerNodePackage, markerComposer,
 		markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
 		markerPyProject, markerRequirements, markerCargo,
-		"CMakeLists.txt", markerDockerfile, markerLinuxKitYAML, markerLinuxKitYAMLAlt,
+		"CMakeLists.txt", markerDockerfile,
+		markerFrontendPackage, markerFrontendDenoJSON, markerFrontendDenoJSONC,
+		markerLinuxKitYAML, markerLinuxKitYAMLAlt,
 		markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,
 		markerTaskfileLowerYML, markerTaskfileLowerYAML,
 	}
