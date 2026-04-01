@@ -120,6 +120,42 @@ project:
 	})
 }
 
+func TestConfig_LoadConfig_ExpandEnv_Good(t *testing.T) {
+	t.Setenv("RELEASE_REPO", "owner/release-app")
+	t.Setenv("RELEASE_ARCHIVE", "xz")
+	t.Setenv("HOMEBREW_TAP", "owner/homebrew-tap")
+	t.Setenv("SDK_SPEC", "docs/openapi.yaml")
+	t.Setenv("SDK_OUTPUT", "generated/sdk")
+
+	content := `
+version: 1
+project:
+  name: release-app
+  repository: $RELEASE_REPO
+build:
+  archive_format: $RELEASE_ARCHIVE
+publishers:
+  - type: homebrew
+    tap: $HOMEBREW_TAP
+sdk:
+  spec: $SDK_SPEC
+  output: $SDK_OUTPUT
+`
+	dir := setupConfigTestDir(t, content)
+
+	cfg, err := LoadConfig(dir)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, "owner/release-app", cfg.Project.Repository)
+	assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
+	require.Len(t, cfg.Publishers, 1)
+	assert.Equal(t, "owner/homebrew-tap", cfg.Publishers[0].Tap)
+	require.NotNil(t, cfg.SDK)
+	assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
+	assert.Equal(t, "generated/sdk", cfg.SDK.Output)
+}
+
 func TestConfig_LoadConfig_Bad(t *testing.T) {
 	t.Run("returns error for invalid YAML", func(t *testing.T) {
 		content := `

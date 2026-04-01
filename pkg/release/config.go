@@ -4,6 +4,7 @@ package release
 import (
 	"iter"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
@@ -238,6 +239,7 @@ func LoadConfig(dir string) (*Config, error) {
 
 	// Apply defaults for any missing fields
 	applyDefaults(&cfg)
+	cfg.ExpandEnv()
 	cfg.projectDir = dir
 
 	return &cfg, nil
@@ -297,6 +299,34 @@ func applyDefaults(cfg *Config) {
 	}
 }
 
+// ExpandEnv expands environment variables across the release config.
+//
+//	cfg.ExpandEnv() // expands $REPO, $PACKAGE_NAME, $SDK_SPEC, etc.
+func (c *Config) ExpandEnv() {
+	if c == nil {
+		return
+	}
+
+	c.Project.Name = expandEnv(c.Project.Name)
+	c.Project.Repository = expandEnv(c.Project.Repository)
+
+	c.Build.ArchiveFormat = expandEnv(c.Build.ArchiveFormat)
+
+	c.Publishers = expandPublisherConfigs(c.Publishers)
+
+	c.Changelog.Include = expandEnvSlice(c.Changelog.Include)
+	c.Changelog.Exclude = expandEnvSlice(c.Changelog.Exclude)
+
+	if c.SDK != nil {
+		c.SDK.Spec = expandEnv(c.SDK.Spec)
+		c.SDK.Output = expandEnv(c.SDK.Output)
+		c.SDK.Package.Name = expandEnv(c.SDK.Package.Name)
+		c.SDK.Package.Version = expandEnv(c.SDK.Package.Version)
+		c.SDK.Publish.Repo = expandEnv(c.SDK.Publish.Repo)
+		c.SDK.Publish.Path = expandEnv(c.SDK.Publish.Path)
+	}
+}
+
 // SetProjectDir sets the project directory on the config.
 //
 // cfg.SetProjectDir("/home/user/my-project")
@@ -309,6 +339,38 @@ func (c *Config) SetProjectDir(dir string) {
 // cfg.SetVersion("v1.2.3")
 func (c *Config) SetVersion(version string) {
 	c.version = version
+}
+
+func expandPublisherConfigs(publishers []PublisherConfig) []PublisherConfig {
+	if len(publishers) == 0 {
+		return publishers
+	}
+
+	result := make([]PublisherConfig, len(publishers))
+	copy(result, publishers)
+
+	for i := range result {
+		result[i].Type = expandEnv(result[i].Type)
+		result[i].Config = expandEnv(result[i].Config)
+		result[i].Formats = expandEnvSlice(result[i].Formats)
+		result[i].Platforms = expandEnvSlice(result[i].Platforms)
+		result[i].Registry = expandEnv(result[i].Registry)
+		result[i].Image = expandEnv(result[i].Image)
+		result[i].Dockerfile = expandEnv(result[i].Dockerfile)
+		result[i].Tags = expandEnvSlice(result[i].Tags)
+		result[i].BuildArgs = expandEnvMap(result[i].BuildArgs)
+		result[i].Package = expandEnv(result[i].Package)
+		result[i].Access = expandEnv(result[i].Access)
+		result[i].Tap = expandEnv(result[i].Tap)
+		result[i].Formula = expandEnv(result[i].Formula)
+		result[i].Bucket = expandEnv(result[i].Bucket)
+		result[i].Maintainer = expandEnv(result[i].Maintainer)
+		if result[i].Official != nil {
+			result[i].Official.Output = expandEnv(result[i].Official.Output)
+		}
+	}
+
+	return result
 }
 
 // ConfigPath returns the path to the release config file for a given directory.
@@ -372,4 +434,75 @@ func WriteConfig(cfg *Config, dir string) error {
 	}
 
 	return nil
+}
+
+func expandEnvSlice(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make([]string, len(values))
+	for i, value := range values {
+		result[i] = expandEnv(value)
+	}
+	return result
+}
+
+func expandEnvMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make(map[string]string, len(values))
+	for key, value := range values {
+		result[key] = expandEnv(value)
+	}
+	return result
+}
+
+// expandEnv expands $VAR or ${VAR} using the current process environment.
+func expandEnv(s string) string {
+	if !core.Contains(s, "$") {
+		return s
+	}
+
+	buf := core.NewBuilder()
+	for i := 0; i < len(s); {
+		if s[i] != '$' {
+			buf.WriteByte(s[i])
+			i++
+			continue
+		}
+
+		if i+1 < len(s) && s[i+1] == '{' {
+			j := i + 2
+			for j < len(s) && s[j] != '}' {
+				j++
+			}
+			if j < len(s) {
+				buf.WriteString(core.Env(s[i+2 : j]))
+				i = j + 1
+				continue
+			}
+		}
+
+		j := i + 1
+		for j < len(s) {
+			c := s[j]
+			if c != '_' && (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
+				break
+			}
+			j++
+		}
+		if j > i+1 {
+			buf.WriteString(core.Env(s[i+1 : j]))
+			i = j
+			continue
+		}
+
+		buf.WriteByte(s[i])
+		i++
+	}
+
+	return buf.String()
 }
