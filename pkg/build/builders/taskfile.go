@@ -83,7 +83,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 
 	// Run build task for each target
 	for _, target := range targets {
-		if err := b.runTask(ctx, cfg, taskCommand, target.OS, target.Arch); err != nil {
+		if err := b.runTask(ctx, cfg, taskCommand, target); err != nil {
 			return nil, err
 		}
 
@@ -96,24 +96,40 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 }
 
 // runTask executes the Taskfile build task.
-func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand, goos, goarch string) error {
+func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand string, target build.Target) error {
 	// Build task command
 	args := []string{"build"}
 	env := append([]string{}, cfg.Env...)
+	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 
 	// Pass variables if targets are specified
-	if goos != "" {
-		value := core.Sprintf("GOOS=%s", goos)
+	if target.OS != "" {
+		value := core.Sprintf("GOOS=%s", target.OS)
 		args = append(args, value)
 		env = append(env, value)
 	}
-	if goarch != "" {
-		value := core.Sprintf("GOARCH=%s", goarch)
+	if target.Arch != "" {
+		value := core.Sprintf("GOARCH=%s", target.Arch)
+		args = append(args, value)
+		env = append(env, value)
+	}
+	if target.OS != "" {
+		value := core.Sprintf("TARGET_OS=%s", target.OS)
+		args = append(args, value)
+		env = append(env, value)
+	}
+	if target.Arch != "" {
+		value := core.Sprintf("TARGET_ARCH=%s", target.Arch)
 		args = append(args, value)
 		env = append(env, value)
 	}
 	if cfg.OutputDir != "" {
 		value := core.Sprintf("OUTPUT_DIR=%s", cfg.OutputDir)
+		args = append(args, value)
+		env = append(env, value)
+	}
+	if platformDir != "" {
+		value := core.Sprintf("TARGET_DIR=%s", platformDir)
 		args = append(args, value)
 		env = append(env, value)
 	}
@@ -128,8 +144,8 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 		env = append(env, value)
 	}
 
-	if goos != "" && goarch != "" {
-		core.Print(nil, "Running task build for %s/%s", goos, goarch)
+	if target.OS != "" && target.Arch != "" {
+		core.Print(nil, "Running task build for %s/%s", target.OS, target.Arch)
 	} else {
 		core.Print(nil, "Running task build")
 	}

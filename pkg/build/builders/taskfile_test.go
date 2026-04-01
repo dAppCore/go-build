@@ -281,7 +281,7 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 		Env:        []string{"FOO=bar"},
 	}
 
-	require.NoError(t, builder.runTask(context.Background(), cfg, taskPath, "linux", "amd64"))
+	require.NoError(t, builder.runTask(context.Background(), cfg, taskPath, build.Target{OS: "linux", Arch: "amd64"}))
 
 	content, err := ax.ReadFile(logPath)
 	require.NoError(t, err)
@@ -289,7 +289,10 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	assert.Contains(t, string(content), "FOO=bar")
 	assert.Contains(t, string(content), "GOOS=linux")
 	assert.Contains(t, string(content), "GOARCH=amd64")
+	assert.Contains(t, string(content), "TARGET_OS=linux")
+	assert.Contains(t, string(content), "TARGET_ARCH=amd64")
 	assert.Contains(t, string(content), "OUTPUT_DIR=/tmp/out")
+	assert.Contains(t, string(content), "TARGET_DIR=/tmp/out/linux_amd64")
 	assert.Contains(t, string(content), "NAME=sample")
 	assert.Contains(t, string(content), "VERSION=v1.2.3")
 }
@@ -334,6 +337,9 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	assert.Contains(t, string(content), "OUTPUT_DIR="+ax.Join(projectDir, "dist"))
 	assert.Contains(t, string(content), "GOOS=linux")
 	assert.Contains(t, string(content), "GOARCH=amd64")
+	assert.Contains(t, string(content), "TARGET_OS=linux")
+	assert.Contains(t, string(content), "TARGET_ARCH=amd64")
+	assert.Contains(t, string(content), "TARGET_DIR="+ax.Join(projectDir, "dist", "linux_amd64"))
 }
 
 func TestTaskfile_TaskfileBuilderBuild_DefaultTarget_Good(t *testing.T) {
@@ -378,4 +384,7 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	assert.Contains(t, string(content), "OUTPUT_DIR="+ax.Join(projectDir, "dist"))
 	assert.Contains(t, string(content), "GOOS="+runtime.GOOS)
 	assert.Contains(t, string(content), "GOARCH="+runtime.GOARCH)
+	assert.Contains(t, string(content), "TARGET_OS="+runtime.GOOS)
+	assert.Contains(t, string(content), "TARGET_ARCH="+runtime.GOARCH)
+	assert.Contains(t, string(content), "TARGET_DIR="+ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH))
 }
