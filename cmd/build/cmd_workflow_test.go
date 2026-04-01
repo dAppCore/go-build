@@ -16,7 +16,7 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
 	t.Run("writes to the conventional workflow path by default", func(t *testing.T) {
-		err := runReleaseWorkflowInDir(projectDir, "")
+		err := runReleaseWorkflowInDir(projectDir, "", "")
 		require.NoError(t, err)
 
 		path := build.ReleaseWorkflowPath(projectDir)
@@ -39,7 +39,7 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 
 	t.Run("writes to a custom relative path", func(t *testing.T) {
 		customPath := "ci/release.yml"
-		err := runReleaseWorkflowInDir(projectDir, customPath)
+		err := runReleaseWorkflowInDir(projectDir, customPath, "")
 		require.NoError(t, err)
 
 		content, err := io.Local.Read(ax.Join(projectDir, customPath))
@@ -49,5 +49,16 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "--archive-format")
 		assert.Contains(t, content, "actions/download-artifact@v4")
 		assert.Contains(t, content, "command: ci")
+	})
+
+	t.Run("writes to the output alias", func(t *testing.T) {
+		customPath := "ci/alias-release.yml"
+		err := runReleaseWorkflowInDir(projectDir, "", customPath)
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, customPath))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
 	})
 }

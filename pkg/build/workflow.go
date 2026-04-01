@@ -65,3 +65,31 @@ func ResolveReleaseWorkflowPath(projectDir, path string) string {
 	}
 	return path
 }
+
+// ResolveReleaseWorkflowInputPath resolves the workflow path from the CLI/API
+// `path` field and its `output` alias.
+//
+// build.ResolveReleaseWorkflowInputPath("/tmp/project", "", "")                      // /tmp/project/.github/workflows/release.yml
+// build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "")        // /tmp/project/ci/release.yml
+// build.ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml")        // /tmp/project/ci/release.yml
+// build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci.yml")  // error
+func ResolveReleaseWorkflowInputPath(projectDir, path, output string) (string, error) {
+	if path != "" && output != "" {
+		resolvedPath := ResolveReleaseWorkflowPath(projectDir, path)
+		resolvedOutput := ResolveReleaseWorkflowPath(projectDir, output)
+		if resolvedPath != resolvedOutput {
+			return "", coreerr.E("build.ResolveReleaseWorkflowInputPath", "path and output specify different locations", nil)
+		}
+		return resolvedPath, nil
+	}
+
+	if path != "" {
+		return ResolveReleaseWorkflowPath(projectDir, path), nil
+	}
+
+	if output != "" {
+		return ResolveReleaseWorkflowPath(projectDir, output), nil
+	}
+
+	return ReleaseWorkflowPath(projectDir), nil
+}

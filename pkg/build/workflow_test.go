@@ -77,3 +77,38 @@ func TestWorkflow_ResolveReleaseWorkflowPath_Good(t *testing.T) {
 		assert.Equal(t, "/tmp/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "/tmp/release.yml"))
 	})
 }
+
+func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
+	t.Run("uses the conventional path when both inputs are empty", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/.github/workflows/release.yml", path)
+	})
+
+	t.Run("accepts path as the primary input", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("accepts output as an alias for path", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("accepts matching path and output values", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+}
+
+func TestWorkflow_ResolveReleaseWorkflowInputPath_Bad(t *testing.T) {
+	t.Run("rejects conflicting path and output values", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ops/release.yml")
+		assert.Error(t, err)
+		assert.Empty(t, path)
+		assert.Contains(t, err.Error(), "path and output specify different locations")
+	})
+}
