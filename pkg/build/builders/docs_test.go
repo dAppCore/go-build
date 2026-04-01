@@ -34,6 +34,17 @@ func TestDocs_DocsBuilderDetect_Good(t *testing.T) {
 		assert.True(t, detected)
 	})
 
+	t.Run("detects mkdocs.yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.WriteFile(ax.Join(dir, "mkdocs.yaml"), []byte("site_name: Demo\n"), 0o644)
+		require.NoError(t, err)
+
+		builder := NewDocsBuilder()
+		detected, err := builder.Detect(fs, dir)
+		require.NoError(t, err)
+		assert.True(t, detected)
+	})
+
 	t.Run("returns false without mkdocs.yml", func(t *testing.T) {
 		builder := NewDocsBuilder()
 		detected, err := builder.Detect(fs, t.TempDir())
@@ -48,7 +59,7 @@ func TestDocs_DocsBuilderBuild_Good(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	require.NoError(t, ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "mkdocs.yaml"), []byte("site_name: Demo\n"), 0o644))
 
 	binDir := t.TempDir()
 	mkdocsPath := ax.Join(binDir, "mkdocs")

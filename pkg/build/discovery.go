@@ -14,6 +14,7 @@ const (
 	markerNodePackage       = "package.json"
 	markerComposer          = "composer.json"
 	markerMkDocs            = "mkdocs.yml"
+	markerMkDocsYAML        = "mkdocs.yaml"
 	markerPyProject         = "pyproject.toml"
 	markerRequirements      = "requirements.txt"
 	markerCargo             = "Cargo.toml"
@@ -41,6 +42,7 @@ var markers = []projectMarker{
 	{markerNodePackage, ProjectTypeNode},
 	{markerComposer, ProjectTypePHP},
 	{markerMkDocs, ProjectTypeDocs},
+	{markerMkDocsYAML, ProjectTypeDocs},
 	{markerPyProject, ProjectTypePython},
 	{markerRequirements, ProjectTypePython},
 	{markerCargo, ProjectTypeRust},
@@ -137,7 +139,8 @@ func IsCPPProject(fs io.Medium, dir string) bool {
 //
 //	ok := build.IsMkDocsProject(io.Local, ".")
 func IsMkDocsProject(fs io.Medium, dir string) bool {
-	return fileExists(fs, ax.Join(dir, markerMkDocs))
+	return fileExists(fs, ax.Join(dir, markerMkDocs)) ||
+		fileExists(fs, ax.Join(dir, markerMkDocsYAML))
 }
 
 // HasSubtreeNpm checks for package.json within depth 2 subdirectories.
@@ -243,7 +246,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	// Record raw marker presence
 	allMarkers := []string{
 		markerGoMod, markerWails, markerNodePackage, markerComposer,
-		markerMkDocs, markerPyProject, markerRequirements, markerCargo,
+		markerMkDocs, markerMkDocsYAML, markerPyProject, markerRequirements, markerCargo,
 		"CMakeLists.txt", markerDockerfile, markerLinuxKitYAML,
 		markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,
 		markerTaskfileLowerYML, markerTaskfileLowerYAML,

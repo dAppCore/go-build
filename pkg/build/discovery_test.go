@@ -59,6 +59,13 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeDocs}, types)
 	})
 
+	t.Run("detects docs project with mkdocs.yaml", func(t *testing.T) {
+		dir := setupTestDir(t, "mkdocs.yaml")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocs}, types)
+	})
+
 	t.Run("detects Python project with pyproject.toml", func(t *testing.T) {
 		dir := setupTestDir(t, "pyproject.toml")
 		types, err := Discover(fs, dir)
@@ -547,6 +554,15 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeDocs}, result.Types)
 		assert.Equal(t, "docs", result.PrimaryStack)
 		assert.True(t, result.Markers["mkdocs.yml"])
+	})
+
+	t.Run("detects docs project markers with mkdocs.yaml", func(t *testing.T) {
+		dir := setupTestDir(t, "mkdocs.yaml")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocs}, result.Types)
+		assert.Equal(t, "docs", result.PrimaryStack)
+		assert.True(t, result.Markers["mkdocs.yaml"])
 	})
 
 	t.Run("detects Rust project markers", func(t *testing.T) {
