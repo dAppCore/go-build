@@ -182,9 +182,13 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 						"type":        "string",
 						"description": "Preferred output path for the workflow file, relative to the project directory or absolute.",
 					},
+					"outputPath": map[string]any{
+						"type":        "string",
+						"description": "Preferred explicit workflow output path, relative to the project directory or absolute.",
+					},
 					"output": map[string]any{
 						"type":        "string",
-						"description": "Alias for path.",
+						"description": "Legacy alias for outputPath.",
 					},
 				},
 			},
@@ -537,8 +541,19 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 //
 // req := ReleaseWorkflowRequest{Path: "ci/release.yml"}
 type ReleaseWorkflowRequest struct {
-	Path       string `json:"path"`
-	OutputPath string `json:"output"`
+	Path             string `json:"path"`
+	OutputPath       string `json:"outputPath"`
+	LegacyOutputPath string `json:"output"`
+}
+
+// resolvedOutputPath returns the preferred workflow output path, falling back to
+// the legacy short alias when needed.
+func (r ReleaseWorkflowRequest) resolvedOutputPath() string {
+	if r.OutputPath != "" {
+		return r.OutputPath
+	}
+
+	return r.LegacyOutputPath
 }
 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
@@ -557,7 +572,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		}
 	}
 
-	workflowPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(p.medium, dir, req.Path, req.OutputPath)
+	workflowPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(p.medium, dir, req.Path, req.resolvedOutputPath())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 		return
