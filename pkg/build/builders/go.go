@@ -3,6 +3,7 @@ package builders
 
 import (
 	"context"
+	"os"
 	"runtime"
 	"strings"
 
@@ -193,6 +194,8 @@ func (b *GoBuilder) resolveGarbleCli(paths ...string) (string, error) {
 			"/opt/homebrew/bin/garble",
 		}
 
+		paths = append(paths, garbleInstallPaths()...)
+
 		if home := core.Env("HOME"); home != "" {
 			paths = append(paths, ax.Join(home, "go", "bin", "garble"))
 		}
@@ -204,6 +207,27 @@ func (b *GoBuilder) resolveGarbleCli(paths ...string) (string, error) {
 	}
 
 	return command, nil
+}
+
+// garbleInstallPaths returns the standard Go install locations for garble.
+func garbleInstallPaths() []string {
+	var paths []string
+
+	if gobin := core.Env("GOBIN"); gobin != "" {
+		paths = append(paths, ax.Join(gobin, "garble"))
+	}
+
+	if gopath := core.Env("GOPATH"); gopath != "" {
+		for _, root := range strings.Split(gopath, string(os.PathListSeparator)) {
+			root = strings.TrimSpace(root)
+			if root == "" {
+				continue
+			}
+			paths = append(paths, ax.Join(root, "bin", "garble"))
+		}
+	}
+
+	return paths
 }
 
 // hasVersionLDFlag reports whether a version linker flag is already present.

@@ -100,6 +100,69 @@ exec go "$@"
 	require.NoError(t, err)
 }
 
+func setupFakeGoBinary(t *testing.T, binDir string) {
+	t.Helper()
+
+	goScript := `#!/bin/sh
+set -eu
+
+log_file="${GO_BUILD_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+env_log_file="${GO_BUILD_ENV_LOG_FILE:-}"
+if [ -n "$env_log_file" ]; then
+	env | sort > "$env_log_file"
+fi
+
+if [ "${GOARCH:-}" = "invalid_arch" ]; then
+	exit 1
+fi
+
+if [ -f main.go ] && grep -q "not valid go code" main.go; then
+	exit 1
+fi
+
+output=""
+previous=""
+for argument in "$@"; do
+	if [ "$previous" = "-o" ]; then
+		output="$argument"
+		break
+	fi
+	previous="$argument"
+done
+
+if [ -n "$output" ]; then
+	mkdir -p "$(dirname "$output")"
+	printf 'fake binary\n' > "$output"
+	chmod +x "$output"
+fi
+`
+
+	err := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755)
+	require.NoError(t, err)
+}
+
+func setupFakeGarbleBinary(t *testing.T, binDir string) {
+	t.Helper()
+
+	garbleScript := `#!/bin/sh
+set -eu
+
+log_file="${GARBLE_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+exec go "$@"
+`
+
+	err := ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755)
+	require.NoError(t, err)
+}
+
 func TestGo_GoBuilderName_Good(t *testing.T) {
 	builder := NewGoBuilder()
 	assert.Equal(t, "go", builder.Name())
@@ -566,6 +629,50 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.Contains(t, args, "-trimpath")
 		assert.Contains(t, args, "-o")
 		assert.Contains(t, args, ".")
+	})
+
+	t.Run("finds garble in GOBIN when it is not on PATH", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("garble test helper uses a shell script")
+		}
+
+		goDir := t.TempDir()
+		setupFakeGoBinary(t, goDir)
+		t.Setenv("PATH", goDir+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
+
+		garbleDir := t.TempDir()
+		setupFakeGarbleBinary(t, garbleDir)
+		t.Setenv("GOBIN", garbleDir)
+
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logDir := t.TempDir()
+		logPath := ax.Join(logDir, "garble-gobin.log")
+
+		t.Setenv("GARBLE_LOG_FILE", logPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "obfuscated-gobin",
+			Obfuscate:  true,
+		}
+		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-trimpath")
 	})
 
 	t.Run("builds the configured main package path", func(t *testing.T) {
