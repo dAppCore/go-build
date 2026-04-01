@@ -88,6 +88,14 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	})
 }
 
+func TestWorkflow_WriteReleaseWorkflow_Bad(t *testing.T) {
+	t.Run("rejects a nil filesystem medium", func(t *testing.T) {
+		err := WriteReleaseWorkflow(nil, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "filesystem medium is required")
+	})
+}
+
 func TestWorkflow_ReleaseWorkflowPath_Good(t *testing.T) {
 	assert.Equal(t, "/tmp/project/.github/workflows/release.yml", ReleaseWorkflowPath("/tmp/project"))
 }

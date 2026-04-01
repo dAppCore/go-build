@@ -28,11 +28,15 @@ const DefaultReleaseWorkflowFileName = "release.yml"
 // build.WriteReleaseWorkflow(io.Local, "ci/release.yml")                          // writes ./ci/release.yml under the project root
 // build.WriteReleaseWorkflow(io.Local, "/tmp/repo/.github/workflows/release.yml") // writes the absolute path unchanged
 func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
+	if medium == nil {
+		return coreerr.E("build.WriteReleaseWorkflow", "filesystem medium is required", nil)
+	}
+
 	if outputPath == "" {
 		outputPath = DefaultReleaseWorkflowPath
 	}
 
-	if medium != nil && (isDirectoryLikePath(outputPath) || medium.IsDir(outputPath)) {
+	if isDirectoryLikePath(outputPath) || medium.IsDir(outputPath) {
 		outputPath = ax.Join(outputPath, DefaultReleaseWorkflowFileName)
 	}
 
