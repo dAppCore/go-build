@@ -27,6 +27,7 @@ const DefaultReleaseWorkflowFileName = "release.yml"
 //
 // build.WriteReleaseWorkflow(io.Local, "")                                        // writes .github/workflows/release.yml
 // build.WriteReleaseWorkflow(io.Local, "ci")                                       // writes ./ci/release.yml under the project root
+// build.WriteReleaseWorkflow(io.Local, "./ci")                                     // writes ./ci/release.yml under the project root
 // build.WriteReleaseWorkflow(io.Local, "ci/release.yml")                          // writes ./ci/release.yml under the project root
 // build.WriteReleaseWorkflow(io.Local, "/tmp/repo/.github/workflows/release.yml") // writes the absolute path unchanged
 func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
@@ -69,6 +70,7 @@ func ReleaseWorkflowPath(projectDir string) string {
 // project directory when the caller supplies a relative path.
 //
 // build.ResolveReleaseWorkflowPath("/tmp/project", "")                // /tmp/project/.github/workflows/release.yml
+// build.ResolveReleaseWorkflowPath("/tmp/project", "./ci")            // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "ci/release.yml")   // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "ci")               // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "/tmp/release.yml") // /tmp/release.yml
@@ -92,6 +94,7 @@ func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
 // `path` field and its `output` alias.
 //
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "", "")                      // /tmp/project/.github/workflows/release.yml
+// build.ResolveReleaseWorkflowInputPath("/tmp/project", "./ci", "")                  // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "")        // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml")        // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci.yml")  // error
@@ -125,6 +128,7 @@ func ResolveReleaseWorkflowInputPath(projectDir, path, outputPath string) (strin
 // trailing slash.
 //
 // build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "ci", "") // /tmp/project/ci/release.yml when /tmp/project/ci exists
+// build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "./ci", "") // /tmp/project/ci/release.yml
 func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, projectDir, path, outputPath string) (string, error) {
 	resolve := func(input string) string {
 		return resolveReleaseWorkflowInputPath(projectDir, input, medium)
@@ -189,7 +193,8 @@ func isWorkflowDirectoryPath(path string) bool {
 
 // isWorkflowDirectoryInput reports whether a workflow input should be treated
 // as a directory target. This includes explicit directory paths and bare names
-// without path separators or a file extension.
+// without path separators or a file extension, plus current-directory-prefixed
+// directory targets like "./ci".
 func isWorkflowDirectoryInput(path string) bool {
 	if isWorkflowDirectoryPath(path) {
 		return true
@@ -197,5 +202,14 @@ func isWorkflowDirectoryInput(path string) bool {
 	if path == "" || ax.Ext(path) != "" {
 		return false
 	}
-	return !strings.ContainsAny(path, "/\\")
+	if !strings.ContainsAny(path, "/\\") {
+		return true
+	}
+
+	if strings.HasPrefix(path, "./") || strings.HasPrefix(path, ".\\") {
+		trimmed := strings.TrimPrefix(strings.TrimPrefix(path, "./"), ".\\")
+		return trimmed != "" && !strings.ContainsAny(trimmed, "/\\")
+	}
+
+	return false
 }
