@@ -19,6 +19,14 @@ import (
 	coreerr "dappco.re/go/core/log"
 )
 
+// release signing hooks allow tests to observe the release pipeline without
+// shelling out to platform-specific signing tools.
+var (
+	signReleaseBinaries     = signing.SignBinaries
+	notarizeReleaseBinaries = signing.NotarizeBinaries
+	signReleaseChecksums    = signing.SignChecksums
+)
+
 // Release represents a release with its version, artifacts, and changelog.
 //
 // rel, err := release.Publish(ctx, cfg, false)
@@ -414,6 +422,25 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		return nil, coreerr.E("release.buildArtifacts", "build failed", err)
 	}
 
+	signingArtifacts := make([]signing.Artifact, len(artifacts))
+	for i, artifact := range artifacts {
+		signingArtifacts[i] = signing.Artifact{
+			Path: artifact.Path,
+			OS:   artifact.OS,
+			Arch: artifact.Arch,
+		}
+	}
+
+	if buildConfig.Sign.Enabled {
+		if err := signReleaseBinaries(ctx, filesystem, buildConfig.Sign, signingArtifacts); err != nil {
+			return nil, coreerr.E("release.buildArtifacts", "failed to sign binaries", err)
+		}
+
+		if err := notarizeReleaseBinaries(ctx, filesystem, buildConfig.Sign, signingArtifacts); err != nil {
+			return nil, coreerr.E("release.buildArtifacts", "failed to notarise binaries", err)
+		}
+	}
+
 	// Archive artifacts
 	archiveFormatValue := cfg.Build.ArchiveFormat
 	if archiveFormatValue == "" {
@@ -443,7 +470,7 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	}
 
 	// Sign CHECKSUMS.txt when signing is configured.
-	if err := signing.SignChecksums(ctx, filesystem, buildConfig.Sign, checksumPath); err != nil {
+	if err := signReleaseChecksums(ctx, filesystem, buildConfig.Sign, checksumPath); err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to sign checksums file", err)
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -854,6 +855,90 @@ fi
 	assert.True(t, sawChecksumSignature)
 	assert.True(t, sawXzArchive)
 	assert.FileExists(t, ax.Join(dir, "dist", "CHECKSUMS.txt.asc"))
+}
+
+func TestRelease_BuildArtifacts_SignsBinariesBeforeArchiving_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(`
+version: 1
+project:
+  name: signedapp
+  binary: signedapp
+  main: .
+build:
+  archive_format: gz
+  build_tags:
+    - integration
+  env:
+    - FOO=bar
+  cgo: false
+  flags:
+    - -trimpath
+sign:
+  enabled: true
+targets:
+  - os: `+runtime.GOOS+`
+    arch: `+runtime.GOARCH+`
+`), 0o644))
+
+	oldSignBinaries := signReleaseBinaries
+	oldNotarizeBinaries := notarizeReleaseBinaries
+	oldSignChecksums := signReleaseChecksums
+	defer func() {
+		signReleaseBinaries = oldSignBinaries
+		notarizeReleaseBinaries = oldNotarizeBinaries
+		signReleaseChecksums = oldSignChecksums
+	}()
+
+	var signedPaths []string
+	var notarizedPaths []string
+	var checksumPaths []string
+
+	signReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) error {
+		require.True(t, cfg.Enabled)
+		require.Len(t, artifacts, 1)
+		signedPaths = append(signedPaths, artifacts[0].Path)
+		return nil
+	}
+	notarizeReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) error {
+		require.True(t, cfg.Enabled)
+		require.Len(t, artifacts, 1)
+		notarizedPaths = append(notarizedPaths, artifacts[0].Path)
+		return nil
+	}
+	signReleaseChecksums = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, checksumFile string) error {
+		require.True(t, cfg.Enabled)
+		checksumPaths = append(checksumPaths, checksumFile)
+		return nil
+	}
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.Project.Name = "signedapp"
+	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+	cfg.Publishers = nil
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "signedapp")}, signedPaths)
+	assert.Equal(t, signedPaths, notarizedPaths)
+	assert.Equal(t, []string{ax.Join(dir, "dist", "CHECKSUMS.txt")}, checksumPaths)
+
+	var sawArchive bool
+	for _, artifact := range artifacts {
+		if artifact.Path == ax.Join(dir, "dist", "signedapp_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz") {
+			sawArchive = true
+			break
+		}
+	}
+
+	assert.True(t, sawArchive)
 }
 
 func TestRelease_BuildArtifacts_HonoursBuildProjectMain_Good(t *testing.T) {
