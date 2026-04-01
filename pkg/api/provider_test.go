@@ -249,6 +249,7 @@ func TestProvider_DiscoverProject_Good(t *testing.T) {
 	body := recorder.Body.String()
 	assert.Contains(t, body, `"types":["go","node"]`)
 	assert.Contains(t, body, `"primary":"go"`)
+	assert.Contains(t, body, `"primary_stack":"go"`)
 	assert.Contains(t, body, `"has_frontend":true`)
 	assert.Contains(t, body, `"has_subtree_npm":true`)
 	assert.Contains(t, body, `"go.mod":true`)

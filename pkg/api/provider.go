@@ -268,6 +268,7 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 	c.JSON(http.StatusOK, api.OK(map[string]any{
 		"types":           typeStrings,
 		"primary":         primary,
+		"primary_stack":   discovery.PrimaryStack,
 		"dir":             dir,
 		"has_frontend":    discovery.HasFrontend,
 		"has_subtree_npm": discovery.HasSubtreeNpm,
