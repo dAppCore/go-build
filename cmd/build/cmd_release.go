@@ -14,16 +14,17 @@ import (
 
 // Flag variables for release command.
 var (
-	releaseVersion    string
-	releaseDraft      bool
-	releasePrerelease bool
-	releaseLaunchMode bool
+	releaseVersion       string
+	releaseDraft         bool
+	releasePrerelease    bool
+	releaseLaunchMode    bool
+	releaseArchiveFormat string
 )
 
 var releaseCmd = &cli.Command{
 	Use: "release",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runRelease(cmd.Context(), !releaseLaunchMode, releaseVersion, releaseDraft, releasePrerelease)
+		return runRelease(cmd.Context(), !releaseLaunchMode, releaseVersion, releaseDraft, releasePrerelease, releaseArchiveFormat)
 	},
 }
 
@@ -37,6 +38,7 @@ func initReleaseFlags() {
 	releaseCmd.Flags().StringVar(&releaseVersion, "version", "", i18n.T("cmd.build.release.flag.version"))
 	releaseCmd.Flags().BoolVar(&releaseDraft, "draft", false, i18n.T("cmd.build.release.flag.draft"))
 	releaseCmd.Flags().BoolVar(&releasePrerelease, "prerelease", false, i18n.T("cmd.build.release.flag.prerelease"))
+	releaseCmd.Flags().StringVar(&releaseArchiveFormat, "archive-format", "", i18n.T("cmd.build.flag.archive_format"))
 }
 
 // AddReleaseCommand adds the release subcommand to the build command.
@@ -49,7 +51,7 @@ func AddReleaseCommand(buildCmd *cli.Command) {
 }
 
 // runRelease executes the full release workflow: build + archive + checksum + publish.
-func runRelease(ctx context.Context, dryRun bool, version string, draft, prerelease bool) error {
+func runRelease(ctx context.Context, dryRun bool, version string, draft, prerelease bool, archiveFormat string) error {
 	// Get current directory
 	projectDir, err := ax.Getwd()
 	if err != nil {
@@ -75,6 +77,9 @@ func runRelease(ctx context.Context, dryRun bool, version string, draft, prerele
 	// Apply CLI overrides
 	if version != "" {
 		cfg.SetVersion(version)
+	}
+	if err := applyReleaseArchiveFormatOverride(cfg, archiveFormat); err != nil {
+		return err
 	}
 
 	// Apply draft/prerelease overrides to all publishers
@@ -114,5 +119,22 @@ func runRelease(ctx context.Context, dryRun bool, version string, draft, prerele
 		}
 	}
 
+	return nil
+}
+
+// applyReleaseArchiveFormatOverride applies the archive-format CLI override to the release config.
+//
+// applyReleaseArchiveFormatOverride(cfg, "xz") // cfg.Build.ArchiveFormat = "xz"
+func applyReleaseArchiveFormatOverride(cfg *release.Config, archiveFormat string) error {
+	if cfg == nil || archiveFormat == "" {
+		return nil
+	}
+
+	formatValue, err := resolveArchiveFormat("", archiveFormat)
+	if err != nil {
+		return err
+	}
+
+	cfg.Build.ArchiveFormat = string(formatValue)
 	return nil
 }
