@@ -958,6 +958,56 @@ targets:
 	assert.True(t, sawArchive)
 }
 
+func TestRelease_BuildArtifacts_WritesArtifactMetadata_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(`
+version: 1
+project:
+  name: signedapp
+  binary: signedapp
+  main: .
+build:
+  archive_format: gz
+  cgo: false
+  flags:
+    - -trimpath
+targets:
+  - os: `+runtime.GOOS+`
+    arch: `+runtime.GOARCH+`
+`), 0o644))
+
+	t.Setenv("GITHUB_SHA", "abc1234def5678901234567890123456789012345")
+	t.Setenv("GITHUB_REF", "refs/tags/v1.0.0")
+	t.Setenv("GITHUB_REPOSITORY", "owner/repo")
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.Project.Name = "signedapp"
+	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+	cfg.Publishers = nil
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	require.NoError(t, err)
+	require.NotEmpty(t, artifacts)
+
+	metaPath := ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "artifact_meta.json")
+	content, err := ax.ReadFile(metaPath)
+	require.NoError(t, err)
+
+	var meta map[string]any
+	require.NoError(t, ax.JSONUnmarshal([]byte(content), &meta))
+	assert.Equal(t, "signedapp", meta["name"])
+	assert.Equal(t, runtime.GOOS, meta["os"])
+	assert.Equal(t, runtime.GOARCH, meta["arch"])
+	assert.Equal(t, "refs/tags/v1.0.0", meta["ref"])
+	assert.Equal(t, "v1.0.0", meta["tag"])
+	assert.Equal(t, "owner/repo", meta["repo"])
+}
+
 func TestRelease_BuildArtifacts_HonoursBuildProjectMain_Good(t *testing.T) {
 	dir := t.TempDir()
 

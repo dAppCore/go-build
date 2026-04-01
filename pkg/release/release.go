@@ -433,6 +433,10 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		return nil, coreerr.E("release.buildArtifacts", "build failed", err)
 	}
 
+	if err := writeArtifactMetadata(filesystem, binaryName, artifacts); err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "failed to write artifact metadata", err)
+	}
+
 	signingArtifacts := make([]signing.Artifact, len(artifacts))
 	for i, artifact := range artifacts {
 		signingArtifacts[i] = signing.Artifact{
@@ -500,6 +504,27 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	}
 
 	return checksummedArtifacts, nil
+}
+
+// writeArtifactMetadata writes artifact_meta.json files next to built artifacts
+// when GitHub metadata is available.
+func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []build.Artifact) error {
+	ci := build.DetectCI()
+	if ci == nil {
+		ci = build.DetectGitHubMetadata()
+	}
+	if ci == nil {
+		return nil
+	}
+
+	for _, artifact := range artifacts {
+		metaPath := ax.Join(ax.Dir(artifact.Path), "artifact_meta.json")
+		if err := build.WriteArtifactMeta(filesystem, metaPath, buildName, build.Target{OS: artifact.OS, Arch: artifact.Arch}, ci); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // getBuilder returns the appropriate builder for the project type.
