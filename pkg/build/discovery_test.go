@@ -31,6 +31,13 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeGo}, types)
 	})
 
+	t.Run("detects Go workspace project", func(t *testing.T) {
+		dir := setupTestDir(t, "go.work")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeGo}, types)
+	})
+
 	t.Run("detects Wails project with priority over Go", func(t *testing.T) {
 		dir := setupTestDir(t, "wails.json", "go.mod")
 		types, err := Discover(fs, dir)
@@ -237,6 +244,11 @@ func TestDiscovery_IsGoProject_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("true with go.mod", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
+		assert.True(t, IsGoProject(fs, dir))
+	})
+
+	t.Run("true with go.work", func(t *testing.T) {
+		dir := setupTestDir(t, "go.work")
 		assert.True(t, IsGoProject(fs, dir))
 	})
 
@@ -543,6 +555,15 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.False(t, result.HasSubtreeNpm)
 		assert.True(t, result.Markers["go.mod"])
 		assert.False(t, result.Markers["wails.json"])
+	})
+
+	t.Run("returns complete result for Go workspace project", func(t *testing.T) {
+		dir := setupTestDir(t, "go.work")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
+		assert.Equal(t, "go", result.PrimaryStack)
+		assert.True(t, result.Markers["go.work"])
 	})
 
 	t.Run("returns complete result for Wails project with frontend", func(t *testing.T) {

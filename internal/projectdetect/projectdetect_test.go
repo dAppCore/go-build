@@ -23,6 +23,15 @@ func TestDetectProjectType_Good(t *testing.T) {
 		assert.Equal(t, build.ProjectTypeGo, projectType)
 	})
 
+	t.Run("detects Go workspaces", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.22\nuse ./app"), 0o644))
+
+		projectType, err := DetectProjectType(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeGo, projectType)
+	})
+
 	t.Run("detects Docker projects", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, ax.WriteFile(ax.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644))

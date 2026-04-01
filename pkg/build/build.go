@@ -16,7 +16,7 @@ type ProjectType string
 
 // Project type constants for build detection.
 const (
-	// ProjectTypeGo indicates a standard Go project with go.mod.
+	// ProjectTypeGo indicates a standard Go project with go.mod or go.work.
 	ProjectTypeGo ProjectType = "go"
 	// ProjectTypeWails indicates a Wails desktop application.
 	ProjectTypeWails ProjectType = "wails"

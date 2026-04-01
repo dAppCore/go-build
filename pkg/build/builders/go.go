@@ -34,7 +34,7 @@ func (b *GoBuilder) Name() string {
 }
 
 // Detect checks if this builder can handle the project in the given directory.
-// Uses IsGoProject from the build package which checks for go.mod or wails.json.
+// Uses IsGoProject from the build package which checks for go.mod, go.work, or wails.json.
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *GoBuilder) Detect(fs io.Medium, dir string) (bool, error) {

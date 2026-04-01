@@ -10,6 +10,7 @@ import (
 // Marker files for project type detection.
 const (
 	markerGoMod              = "go.mod"
+	markerGoWork             = "go.work"
 	markerWails              = "wails.json"
 	markerNodePackage        = "package.json"
 	markerComposer           = "composer.json"
@@ -46,6 +47,7 @@ type projectMarker struct {
 var markers = []projectMarker{
 	{markerWails, ProjectTypeWails},
 	{markerGoMod, ProjectTypeGo},
+	{markerGoWork, ProjectTypeGo},
 	{markerNodePackage, ProjectTypeNode},
 	{markerComposer, ProjectTypePHP},
 	{markerMkDocs, ProjectTypeDocs},
@@ -108,11 +110,12 @@ func PrimaryType(fs io.Medium, dir string) (ProjectType, error) {
 	return types[0], nil
 }
 
-// IsGoProject checks if the directory contains a Go project (go.mod or wails.json).
+// IsGoProject checks if the directory contains a Go project (go.mod, go.work, or wails.json).
 //
 // if build.IsGoProject(io.Local, ".") { ... }
 func IsGoProject(fs io.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerGoMod)) ||
+		fileExists(fs, ax.Join(dir, markerGoWork)) ||
 		fileExists(fs, ax.Join(dir, markerWails))
 }
 
@@ -271,7 +274,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	// Record raw marker presence
 	allMarkers := []string{
-		markerGoMod, markerWails, markerNodePackage, markerComposer,
+		markerGoMod, markerGoWork, markerWails, markerNodePackage, markerComposer,
 		markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
 		markerPyProject, markerRequirements, markerCargo,
 		"CMakeLists.txt", markerDockerfile,
