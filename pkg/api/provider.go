@@ -186,6 +186,10 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 						"type":        "string",
 						"description": "Preferred explicit workflow output path, relative to the project directory or absolute.",
 					},
+					"output_path": map[string]any{
+						"type":        "string",
+						"description": "Snake_case alias for outputPath.",
+					},
 					"output": map[string]any{
 						"type":        "string",
 						"description": "Legacy alias for outputPath.",
@@ -543,6 +547,7 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 type ReleaseWorkflowRequest struct {
 	Path             string `json:"path"`
 	OutputPath       string `json:"outputPath"`
+	OutputPathSnake  string `json:"output_path"`
 	LegacyOutputPath string `json:"output"`
 }
 
@@ -551,6 +556,10 @@ type ReleaseWorkflowRequest struct {
 func (r ReleaseWorkflowRequest) resolvedOutputPath() string {
 	if r.OutputPath != "" {
 		return r.OutputPath
+	}
+
+	if r.OutputPathSnake != "" {
+		return r.OutputPathSnake
 	}
 
 	return r.LegacyOutputPath
