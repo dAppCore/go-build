@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -118,7 +119,7 @@ func findManifestURL(htmlContent, baseURL string) (string, error) {
 					href = a.Val
 				}
 			}
-			if rel == "manifest" && href != "" {
+			if relIncludesManifest(rel) && href != "" {
 				manifestPath = href
 				return
 			}
@@ -144,6 +145,17 @@ func findManifestURL(htmlContent, baseURL string) (string, error) {
 	}
 
 	return manifestURL.String(), nil
+}
+
+// relIncludesManifest reports whether a rel attribute declares a manifest link.
+// HTML allows multiple space-separated tokens and case-insensitive values.
+func relIncludesManifest(rel string) bool {
+	for _, token := range strings.Fields(rel) {
+		if strings.EqualFold(token, "manifest") {
+			return true
+		}
+	}
+	return false
 }
 
 // fetchManifest downloads and parses a PWA manifest.
