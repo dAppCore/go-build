@@ -123,6 +123,8 @@ project:
 func TestConfig_LoadConfig_ExpandEnv_Good(t *testing.T) {
 	t.Setenv("RELEASE_REPO", "owner/release-app")
 	t.Setenv("RELEASE_ARCHIVE", "xz")
+	t.Setenv("RELEASE_TARGET_OS", "darwin")
+	t.Setenv("RELEASE_TARGET_ARCH", "arm64")
 	t.Setenv("HOMEBREW_TAP", "owner/homebrew-tap")
 	t.Setenv("SDK_SPEC", "docs/openapi.yaml")
 	t.Setenv("SDK_OUTPUT", "generated/sdk")
@@ -134,6 +136,9 @@ project:
   repository: $RELEASE_REPO
 build:
   archive_format: $RELEASE_ARCHIVE
+  targets:
+    - os: $RELEASE_TARGET_OS
+      arch: $RELEASE_TARGET_ARCH
 publishers:
   - type: homebrew
     tap: $HOMEBREW_TAP
@@ -149,6 +154,9 @@ sdk:
 
 	assert.Equal(t, "owner/release-app", cfg.Project.Repository)
 	assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
+	require.Len(t, cfg.Build.Targets, 1)
+	assert.Equal(t, "darwin", cfg.Build.Targets[0].OS)
+	assert.Equal(t, "arm64", cfg.Build.Targets[0].Arch)
 	require.Len(t, cfg.Publishers, 1)
 	assert.Equal(t, "owner/homebrew-tap", cfg.Publishers[0].Tap)
 	require.NotNil(t, cfg.SDK)

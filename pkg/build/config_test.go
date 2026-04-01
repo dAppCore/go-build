@@ -84,6 +84,27 @@ targets:
 		assert.Equal(t, "arm64", cfg.Targets[1].Arch)
 	})
 
+	t.Run("expands environment variables in target config", func(t *testing.T) {
+		t.Setenv("TARGET_OS", "linux")
+		t.Setenv("TARGET_ARCH", "arm64")
+
+		content := `
+version: 1
+targets:
+  - os: ${TARGET_OS}
+    arch: ${TARGET_ARCH}
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		require.Len(t, cfg.Targets, 1)
+		assert.Equal(t, "linux", cfg.Targets[0].OS)
+		assert.Equal(t, "arm64", cfg.Targets[0].Arch)
+	})
+
 	t.Run("expands environment variables in build and signing config", func(t *testing.T) {
 		t.Setenv("APP_NAME", "demo-app")
 		t.Setenv("APP_ROOT", "./cmd/demo")

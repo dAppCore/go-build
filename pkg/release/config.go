@@ -328,6 +328,7 @@ func (c *Config) ExpandEnv() {
 	c.Project.Repository = expandEnv(c.Project.Repository)
 
 	c.Build.ArchiveFormat = expandEnv(c.Build.ArchiveFormat)
+	c.Build.Targets = expandTargetConfigs(c.Build.Targets)
 
 	c.Publishers = expandPublisherConfigs(c.Publishers)
 
@@ -473,6 +474,21 @@ func expandEnvMap(values map[string]string) map[string]string {
 	result := make(map[string]string, len(values))
 	for key, value := range values {
 		result[key] = expandEnv(value)
+	}
+	return result
+}
+
+func expandTargetConfigs(values []TargetConfig) []TargetConfig {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make([]TargetConfig, len(values))
+	for i, value := range values {
+		result[i] = TargetConfig{
+			OS:   expandEnv(value.OS),
+			Arch: expandEnv(value.Arch),
+		}
 	}
 	return result
 }

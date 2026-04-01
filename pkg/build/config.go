@@ -243,6 +243,7 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.Build.Cache.RestoreKeys = expandEnvSlice(cfg.Build.Cache.RestoreKeys)
 
 	cfg.Build.BuildArgs = expandEnvMap(cfg.Build.BuildArgs)
+	cfg.Targets = expandTargetConfigs(cfg.Targets)
 
 	cfg.Sign.ExpandEnv()
 }
@@ -267,6 +268,21 @@ func expandEnvMap(values map[string]string) map[string]string {
 	result := make(map[string]string, len(values))
 	for key, value := range values {
 		result[key] = expandEnv(value)
+	}
+	return result
+}
+
+func expandTargetConfigs(values []TargetConfig) []TargetConfig {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make([]TargetConfig, len(values))
+	for i, value := range values {
+		result[i] = TargetConfig{
+			OS:   expandEnv(value.OS),
+			Arch: expandEnv(value.Arch),
+		}
 	}
 	return result
 }
