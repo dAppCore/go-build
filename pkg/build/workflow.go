@@ -28,6 +28,7 @@ const DefaultReleaseWorkflowFileName = "release.yml"
 // build.WriteReleaseWorkflow(io.Local, "")                                        // writes .github/workflows/release.yml
 // build.WriteReleaseWorkflow(io.Local, "ci")                                       // writes ./ci/release.yml under the project root
 // build.WriteReleaseWorkflow(io.Local, "./ci")                                     // writes ./ci/release.yml under the project root
+// build.WriteReleaseWorkflow(io.Local, ".github/workflows")                       // writes .github/workflows/release.yml
 // build.WriteReleaseWorkflow(io.Local, "ci/release.yml")                          // writes ./ci/release.yml under the project root
 // build.WriteReleaseWorkflow(io.Local, "/tmp/repo/.github/workflows/release.yml") // writes the absolute path unchanged
 func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
@@ -71,6 +72,7 @@ func ReleaseWorkflowPath(projectDir string) string {
 //
 // build.ResolveReleaseWorkflowPath("/tmp/project", "")                // /tmp/project/.github/workflows/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "./ci")            // /tmp/project/ci/release.yml
+// build.ResolveReleaseWorkflowPath("/tmp/project", ".github/workflows") // /tmp/project/.github/workflows/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "ci/release.yml")   // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "ci")               // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "/tmp/release.yml") // /tmp/release.yml
@@ -194,7 +196,7 @@ func isWorkflowDirectoryPath(path string) bool {
 // isWorkflowDirectoryInput reports whether a workflow input should be treated
 // as a directory target. This includes explicit directory paths and bare names
 // without path separators or a file extension, plus current-directory-prefixed
-// directory targets like "./ci".
+// directory targets like "./ci" and the conventional ".github/workflows" path.
 func isWorkflowDirectoryInput(path string) bool {
 	if isWorkflowDirectoryPath(path) {
 		return true
@@ -203,6 +205,10 @@ func isWorkflowDirectoryInput(path string) bool {
 		return false
 	}
 	if !strings.ContainsAny(path, "/\\") {
+		return true
+	}
+
+	if ax.Base(path) == "workflows" {
 		return true
 	}
 
