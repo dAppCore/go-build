@@ -195,6 +195,26 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.Contains(t, artifact.Path, expectedName)
 	})
 
+	t.Run("defaults to current platform when targets are empty", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "fallback",
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, nil)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, runtime.GOOS, artifacts[0].OS)
+		assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
+		assert.FileExists(t, artifacts[0].Path)
+	})
+
 	t.Run("builds multiple targets", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
 		outputDir := t.TempDir()
@@ -618,7 +638,7 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		assert.Contains(t, err.Error(), "config is nil")
 	})
 
-	t.Run("returns error for empty targets", func(t *testing.T) {
+	t.Run("defaults to current platform when targets are empty", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
 
 		builder := NewGoBuilder()
@@ -630,9 +650,11 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{})
-		assert.Error(t, err)
-		assert.Nil(t, artifacts)
-		assert.Contains(t, err.Error(), "no targets specified")
+		assert.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, runtime.GOOS, artifacts[0].OS)
+		assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
+		assert.FileExists(t, artifacts[0].Path)
 	})
 
 	t.Run("returns error for invalid project directory", func(t *testing.T) {

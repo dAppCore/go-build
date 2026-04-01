@@ -3,6 +3,7 @@ package builders
 
 import (
 	"context"
+	"runtime"
 	"strings"
 
 	"dappco.re/go/core"
@@ -40,6 +41,7 @@ func (b *GoBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 }
 
 // Build compiles the Go project for the specified targets.
+// If targets is empty, it falls back to the current host platform.
 // It sets GOOS, GOARCH, and CGO_ENABLED, applies config-defined build flags
 // and ldflags, and uses garble when obfuscation is enabled.
 //
@@ -50,7 +52,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	}
 
 	if len(targets) == 0 {
-		return nil, coreerr.E("GoBuilder.Build", "no targets specified", nil)
+		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	}
 
 	outputDir := cfg.OutputDir
