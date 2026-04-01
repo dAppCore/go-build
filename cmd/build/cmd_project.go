@@ -11,6 +11,7 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/projectdetect"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/build/signing"
@@ -45,7 +46,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		// Use type from .core/build.yaml
 		projectType = build.ProjectType(buildConfig.Build.Type)
 	} else {
-		projectType, err = build.PrimaryType(filesystem, projectDir)
+		projectType, err = projectdetect.DetectProjectType(filesystem, projectDir)
 		if err != nil {
 			return coreerr.E("build.Run", "failed to detect project type", err)
 		}

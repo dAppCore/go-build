@@ -8,6 +8,7 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/projectdetect"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/release/publishers"
@@ -266,7 +267,7 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	outputDir := ax.Join(projectDir, "dist")
 
 	// Get builder (detect project type)
-	projectType, err := build.PrimaryType(filesystem, projectDir)
+	projectType, err := projectdetect.DetectProjectType(filesystem, projectDir)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to detect project type", err)
 	}
