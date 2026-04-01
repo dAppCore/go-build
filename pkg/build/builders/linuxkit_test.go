@@ -175,6 +175,9 @@ func TestLinuxKit_LinuxKitBuilderGetFormatExtension_Good(t *testing.T) {
 		{"vhd", ".vhd"},
 		{"gcp", ".img.tar.gz"},
 		{"aws", ".raw"},
+		{"docker", ".docker.tar"},
+		{"tar", ".tar"},
+		{"kernel+initrd", "-initrd.img"},
 		{"custom", ".custom"},
 	}
 
@@ -197,6 +200,16 @@ func TestLinuxKit_LinuxKitBuilderGetArtifactPath_Good(t *testing.T) {
 	t.Run("constructs correct path for qcow2", func(t *testing.T) {
 		path := builder.getArtifactPath("/output/linuxkit", "server-arm64", "qcow2-bios")
 		assert.Equal(t, "/output/linuxkit/server-arm64.qcow2", path)
+	})
+
+	t.Run("constructs correct path for docker images", func(t *testing.T) {
+		path := builder.getArtifactPath("/output/linuxkit", "server-amd64", "docker")
+		assert.Equal(t, "/output/linuxkit/server-amd64.docker.tar", path)
+	})
+
+	t.Run("constructs correct path for kernel+initrd images", func(t *testing.T) {
+		path := builder.getArtifactPath("/output/linuxkit", "server-amd64", "kernel+initrd")
+		assert.Equal(t, "/output/linuxkit/server-amd64-initrd.img", path)
 	})
 }
 
@@ -259,6 +272,24 @@ func TestLinuxKit_LinuxKitBuilderFindArtifact_Good(t *testing.T) {
 		require.NoError(t, ax.WriteFile(artifactPath, []byte("fake gcp image"), 0644))
 
 		found := builder.findArtifact(fs, dir, "server-amd64", "gcp")
+		assert.Equal(t, artifactPath, found)
+	})
+
+	t.Run("finds docker artifacts", func(t *testing.T) {
+		dir := t.TempDir()
+		artifactPath := ax.Join(dir, "server-amd64.docker.tar")
+		require.NoError(t, ax.WriteFile(artifactPath, []byte("fake docker tar"), 0644))
+
+		found := builder.findArtifact(fs, dir, "server-amd64", "docker")
+		assert.Equal(t, artifactPath, found)
+	})
+
+	t.Run("finds kernel+initrd artifacts", func(t *testing.T) {
+		dir := t.TempDir()
+		artifactPath := ax.Join(dir, "server-amd64-initrd.img")
+		require.NoError(t, ax.WriteFile(artifactPath, []byte("fake initrd"), 0644))
+
+		found := builder.findArtifact(fs, dir, "server-amd64", "kernel+initrd")
 		assert.Equal(t, artifactPath, found)
 	})
 }

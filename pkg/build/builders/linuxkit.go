@@ -254,6 +254,12 @@ func (b *LinuxKitBuilder) getFormatExtension(format string) string {
 		return ".img.tar.gz"
 	case "aws":
 		return ".raw"
+	case "docker":
+		return ".docker.tar"
+	case "tar":
+		return ".tar"
+	case "kernel+initrd":
+		return "-initrd.img"
 	default:
 		return "." + core.TrimSuffix(format, "-bios")
 	}
@@ -263,6 +269,12 @@ func (b *LinuxKitBuilder) getFormatExtension(format string) string {
 func isLinuxKitArtifact(path string) bool {
 	switch {
 	case core.HasSuffix(path, ".img.tar.gz"):
+		return true
+	case core.HasSuffix(path, ".docker.tar"):
+		return true
+	case core.HasSuffix(path, "-initrd.img"):
+		return true
+	case core.HasSuffix(path, ".tar"):
 		return true
 	case core.HasSuffix(path, ".iso"):
 		return true

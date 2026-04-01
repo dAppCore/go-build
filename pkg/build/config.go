@@ -97,6 +97,7 @@ type Build struct {
 	// LinuxKitConfig is the path to the LinuxKit config file.
 	LinuxKitConfig string `yaml:"linuxkit_config,omitempty"`
 	// Formats is the list of LinuxKit output formats.
+	// Supported values include iso, raw, qcow2, vmdk, vhd, gcp, aws, docker, tar, and kernel+initrd.
 	Formats []string `yaml:"formats,omitempty"`
 }
 
