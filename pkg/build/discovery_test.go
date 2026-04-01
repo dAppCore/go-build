@@ -45,6 +45,17 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeNode}, types)
 	})
 
+	t.Run("detects nested Node.js project", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(nested, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeNode}, types)
+	})
+
 	t.Run("detects PHP project", func(t *testing.T) {
 		dir := setupTestDir(t, "composer.json")
 		types, err := Discover(fs, dir)
@@ -201,6 +212,17 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 		primary, err := PrimaryType(fs, dir)
 		assert.NoError(t, err)
 		assert.Equal(t, ProjectTypeGo, primary)
+	})
+
+	t.Run("returns node for nested package.json project", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(nested, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644))
+
+		primary, err := PrimaryType(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, ProjectTypeNode, primary)
 	})
 
 	t.Run("returns empty string for empty directory", func(t *testing.T) {
@@ -537,7 +559,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo}, result.Types)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		assert.Equal(t, "wails", result.PrimaryStack)
 		assert.True(t, result.HasFrontend)
 		assert.True(t, result.Markers["wails.json"])
@@ -556,7 +578,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
+		assert.Equal(t, []ProjectType{ProjectTypeGo, ProjectTypeNode}, result.Types)
 		assert.True(t, result.HasSubtreeNpm)
 		assert.True(t, result.HasFrontend)
 	})

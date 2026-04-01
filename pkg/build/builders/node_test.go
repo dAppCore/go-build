@@ -80,6 +80,18 @@ func TestNode_NodeBuilderDetect_Good(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, detected)
 	})
+
+	t.Run("detects nested package.json projects", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
+
+		builder := NewNodeBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.True(t, detected)
+	})
 }
 
 func TestNode_NodeBuilderBuild_Good(t *testing.T) {
@@ -227,4 +239,45 @@ func TestNode_NodeBuilderBuildDefaults_Good(t *testing.T) {
 	require.Len(t, artifacts, 1)
 	assert.Equal(t, runtime.GOOS, artifacts[0].OS)
 	assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
+}
+
+func TestNode_NodeBuilderBuild_Good_NestedProject(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeNodeToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	nestedDir := ax.Join(projectDir, "apps", "web")
+	require.NoError(t, ax.MkdirAll(nestedDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(nestedDir, "package.json"), []byte(`{"name":"nested-app","scripts":{"build":"node build.js"}}`), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(nestedDir, "build.js"), []byte(`console.log("nested build")`), 0o644))
+
+	outputDir := t.TempDir()
+	logDir := t.TempDir()
+	logPath := ax.Join(logDir, "node-nested.log")
+	t.Setenv("NODE_BUILD_LOG_FILE", logPath)
+
+	builder := NewNodeBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Name:       "nested-app",
+		Version:    "v1.2.3",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.FileExists(t, artifacts[0].Path)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "PWD="+nestedDir)
+	assert.Contains(t, string(content), "GOOS=linux")
+	assert.Contains(t, string(content), "GOARCH=amd64")
 }

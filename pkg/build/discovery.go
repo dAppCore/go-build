@@ -74,6 +74,7 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		projectType ProjectType
 		detected    bool
 	}{
+		{ProjectTypeNode, IsNodeProject(fs, dir) || HasSubtreeNpm(fs, dir)},
 		{ProjectTypeDocs, IsMkDocsProject(fs, dir)},
 		{ProjectTypeDocker, IsDockerProject(fs, dir)},
 		{ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir)},

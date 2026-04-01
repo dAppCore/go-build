@@ -60,6 +60,17 @@ func TestDetectProjectType_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, build.ProjectTypeTaskfile, projectType)
 	})
+
+	t.Run("detects nested Node.js projects", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
+
+		projectType, err := DetectProjectType(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeNode, projectType)
+	})
 }
 
 func TestDetectProjectType_Bad(t *testing.T) {

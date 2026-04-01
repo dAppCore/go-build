@@ -36,7 +36,7 @@ func (b *NodeBuilder) Name() string {
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *NodeBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return build.IsNodeProject(fs, dir), nil
+	return build.IsNodeProject(fs, dir) || b.resolveNodeProjectDir(fs, dir) != "", nil
 }
 
 // Build runs the project build script once per target and collects artifacts
@@ -60,7 +60,12 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		return nil, coreerr.E("NodeBuilder.Build", "failed to create output directory", err)
 	}
 
-	packageManager, err := b.resolvePackageManager(cfg.FS, cfg.ProjectDir)
+	projectDir := b.resolveNodeProjectDir(cfg.FS, cfg.ProjectDir)
+	if projectDir == "" {
+		projectDir = cfg.ProjectDir
+	}
+
+	packageManager, err := b.resolvePackageManager(cfg.FS, projectDir)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +97,7 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 			env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
 		}
 
-		output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, command, args...)
+		output, err := ax.CombinedOutput(ctx, projectDir, env, command, args...)
 		if err != nil {
 			return artifacts, coreerr.E("NodeBuilder.Build", command+" build failed: "+output, err)
 		}
@@ -102,6 +107,50 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	}
 
 	return artifacts, nil
+}
+
+// resolveNodeProjectDir locates the directory containing package.json.
+// It prefers the project root, then searches nested directories to depth 2.
+func (b *NodeBuilder) resolveNodeProjectDir(fs io.Medium, projectDir string) string {
+	if fs.IsFile(ax.Join(projectDir, "package.json")) {
+		return projectDir
+	}
+
+	return b.findNodeProjectDir(fs, projectDir, 0)
+}
+
+// findNodeProjectDir searches for a package.json within nested directories.
+func (b *NodeBuilder) findNodeProjectDir(fs io.Medium, dir string, depth int) string {
+	if depth >= 2 {
+		return ""
+	}
+
+	entries, err := fs.List(dir)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if name == "node_modules" || core.HasPrefix(name, ".") {
+			continue
+		}
+
+		candidateDir := ax.Join(dir, name)
+		if fs.IsFile(ax.Join(candidateDir, "package.json")) {
+			return candidateDir
+		}
+
+		if nested := b.findNodeProjectDir(fs, candidateDir, depth+1); nested != "" {
+			return nested
+		}
+	}
+
+	return ""
 }
 
 // resolvePackageManager selects the package manager from lockfiles.
