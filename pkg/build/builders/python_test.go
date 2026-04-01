@@ -118,6 +118,35 @@ func TestPython_PythonBuilderBuildDefaults_Good(t *testing.T) {
 	assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
 }
 
+func TestPython_PythonBuilderBuildIsDeterministic_Good(t *testing.T) {
+	projectDir := setupPythonTestProject(t)
+
+	builder := NewPythonBuilder()
+	buildOnce := func(outputDir string) []byte {
+		t.Helper()
+
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "demo-app",
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+
+		content, err := ax.ReadFile(artifacts[0].Path)
+		require.NoError(t, err)
+		return content
+	}
+
+	first := buildOnce(t.TempDir())
+	second := buildOnce(t.TempDir())
+
+	assert.Equal(t, first, second)
+}
+
 func TestPython_PythonBuilderInterface_Good(t *testing.T) {
 	var _ build.Builder = (*PythonBuilder)(nil)
 	var _ build.Builder = NewPythonBuilder()
