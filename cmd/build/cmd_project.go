@@ -33,6 +33,12 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		return coreerr.E("build.Run", "failed to get working directory", err)
 	}
 
+	// PWA builds use the dedicated local web-app pipeline rather than the
+	// project-type builder registry.
+	if buildType == "pwa" {
+		return runLocalPwaBuild(ctx, projectDir)
+	}
+
 	// Load configuration from .core/build.yaml (or defaults)
 	var buildConfig *build.BuildConfig
 	if configPath != "" {
@@ -48,6 +54,10 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 	if err != nil {
 		return coreerr.E("build.Run", "failed to load config", err)
+	}
+
+	if buildConfig.Build.Type == "pwa" {
+		return runLocalPwaBuild(ctx, projectDir)
 	}
 
 	if err := build.SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {

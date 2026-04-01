@@ -28,6 +28,10 @@ var (
 	errURLRequired  = coreerr.E("buildcmd.Init", "the --url flag is required", nil)
 )
 
+// runLocalPwaBuild points at the local PWA build entrypoint.
+// Tests replace this to avoid invoking the real build toolchain.
+var runLocalPwaBuild = runBuild
+
 // runPwaBuild downloads a PWA from URL and builds it.
 func runPwaBuild(ctx context.Context, pwaURL string) error {
 	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.starting"), pwaURL)

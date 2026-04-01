@@ -162,3 +162,24 @@ func TestBuildCmd_selectOutputArtifacts_Good(t *testing.T) {
 		assert.Equal(t, rawArtifacts, selected)
 	})
 }
+
+func TestBuildCmd_runProjectBuild_PwaOverride_Good(t *testing.T) {
+	expectedWD, err := ax.Getwd()
+	require.NoError(t, err)
+
+	original := runLocalPwaBuild
+	t.Cleanup(func() {
+		runLocalPwaBuild = original
+	})
+
+	called := false
+	runLocalPwaBuild = func(ctx context.Context, projectDir string) error {
+		called = true
+		assert.Equal(t, expectedWD, projectDir)
+		return nil
+	}
+
+	err = runProjectBuild(context.Background(), "pwa", false, "", "", false, false, "", "", false, "", false, false, false)
+	require.NoError(t, err)
+	assert.True(t, called)
+}
