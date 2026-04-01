@@ -61,11 +61,7 @@ func runReleaseWorkflow(ctx context.Context, path string) error {
 // runReleaseWorkflowInDir("/tmp/project", "")               // /tmp/project/.github/workflows/release.yml
 // runReleaseWorkflowInDir("/tmp/project", "ci/release.yml") // /tmp/project/ci/release.yml
 func runReleaseWorkflowInDir(projectDir, path string) error {
-	if path == "" {
-		path = build.ReleaseWorkflowPath(projectDir)
-	} else if !ax.IsAbs(path) {
-		path = ax.Join(projectDir, path)
-	}
+	path = build.ResolveReleaseWorkflowPath(projectDir, path)
 
 	if err := io.Local.EnsureDir(ax.Dir(path)); err != nil {
 		return coreerr.E("build.runReleaseWorkflowInDir", "failed to create release workflow directory", err)

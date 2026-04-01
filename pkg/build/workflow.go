@@ -49,3 +49,19 @@ func WriteReleaseWorkflow(fs io_interface.Medium, path string) error {
 func ReleaseWorkflowPath(projectDir string) string {
 	return ax.Join(projectDir, DefaultReleaseWorkflowPath)
 }
+
+// ResolveReleaseWorkflowPath resolves the workflow output path relative to the
+// project directory when the caller supplies a relative path.
+//
+// build.ResolveReleaseWorkflowPath("/tmp/project", "")                // /tmp/project/.github/workflows/release.yml
+// build.ResolveReleaseWorkflowPath("/tmp/project", "ci/release.yml")   // /tmp/project/ci/release.yml
+// build.ResolveReleaseWorkflowPath("/tmp/project", "/tmp/release.yml") // /tmp/release.yml
+func ResolveReleaseWorkflowPath(projectDir, path string) string {
+	if path == "" {
+		return ReleaseWorkflowPath(projectDir)
+	}
+	if !ax.IsAbs(path) {
+		return ax.Join(projectDir, path)
+	}
+	return path
+}

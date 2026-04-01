@@ -63,3 +63,17 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 func TestWorkflow_ReleaseWorkflowPath_Good(t *testing.T) {
 	assert.Equal(t, "/tmp/project/.github/workflows/release.yml", ReleaseWorkflowPath("/tmp/project"))
 }
+
+func TestWorkflow_ResolveReleaseWorkflowPath_Good(t *testing.T) {
+	t.Run("uses the conventional path when empty", func(t *testing.T) {
+		assert.Equal(t, "/tmp/project/.github/workflows/release.yml", ResolveReleaseWorkflowPath("/tmp/project", ""))
+	})
+
+	t.Run("joins relative paths to the project directory", func(t *testing.T) {
+		assert.Equal(t, "/tmp/project/ci/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "ci/release.yml"))
+	})
+
+	t.Run("keeps absolute paths unchanged", func(t *testing.T) {
+		assert.Equal(t, "/tmp/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "/tmp/release.yml"))
+	})
+}

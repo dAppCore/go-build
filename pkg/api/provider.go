@@ -8,7 +8,6 @@ package api
 import (
 	"io/fs"
 	"net/http"
-	"path/filepath"
 
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
@@ -539,11 +538,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 	}
 
 	path := req.Path
-	if path == "" {
-		path = build.ReleaseWorkflowPath(dir)
-	} else if !filepath.IsAbs(path) {
-		path = ax.Join(dir, path)
-	}
+	path = build.ResolveReleaseWorkflowPath(dir, path)
 
 	if err := build.WriteReleaseWorkflow(p.medium, path); err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
