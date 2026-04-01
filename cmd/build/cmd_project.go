@@ -23,7 +23,7 @@ import (
 )
 
 // runProjectBuild handles the main `core build` command with auto-detection.
-func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targetsFlag string, outputDir string, archiveOutput bool, checksumOutput bool, configPath string, format string, push bool, imageName string, noSign bool, notarize bool, verbose bool) error {
+func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targetsFlag string, outputDir string, archiveOutput bool, checksumOutput bool, archiveFormat string, configPath string, format string, push bool, imageName string, noSign bool, notarize bool, verbose bool) error {
 	// Use local filesystem as the default medium.
 	filesystem := io.Local
 
@@ -227,12 +227,12 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.archive")), i18n.T("cmd.build.creating_archives"))
 		}
 
-		archiveFormat, err := build.ParseArchiveFormat(buildConfig.Build.ArchiveFormat)
+		archiveFormatValue, err := resolveArchiveFormat(buildConfig.Build.ArchiveFormat, archiveFormat)
 		if err != nil {
 			return err
 		}
 
-		archivedArtifacts, err = build.ArchiveAllWithFormat(filesystem, artifacts, archiveFormat)
+		archivedArtifacts, err = build.ArchiveAllWithFormat(filesystem, artifacts, archiveFormatValue)
 		if err != nil {
 			if !ciMode {
 				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.archive_failed"), err)
@@ -361,6 +361,14 @@ func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName 
 	}
 
 	return cfg
+}
+
+// resolveArchiveFormat selects the archive format from CLI overrides or config defaults.
+func resolveArchiveFormat(configFormat, cliFormat string) (build.ArchiveFormat, error) {
+	if cliFormat != "" {
+		return build.ParseArchiveFormat(cliFormat)
+	}
+	return build.ParseArchiveFormat(configFormat)
 }
 
 // resolveBuildVersion determines the version string embedded into build artifacts.

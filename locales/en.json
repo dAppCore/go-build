@@ -32,6 +32,7 @@
       },
       "flag": {
         "archive": "Create release archives",
+        "archive_format": "Override the archive format (gz, xz, or zip)",
         "checksum": "Generate checksums for artefacts",
         "ci": "Run in CI mode (all targets, JSON output)",
         "config": "Path to build configuration file",

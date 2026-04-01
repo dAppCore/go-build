@@ -33,6 +33,7 @@ var (
 	outputDir      string
 	archiveOutput  bool
 	checksumOutput bool
+	archiveFormat  string
 	verbose        bool
 
 	// Docker/LinuxKit specific flags
@@ -61,7 +62,7 @@ var (
 var buildCmd = &cli.Command{
 	Use: "build",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runProjectBuild(cmd.Context(), buildType, ciMode, targets, outputDir, archiveOutput, checksumOutput, configPath, format, push, imageName, noSign, notarize, verbose)
+		return runProjectBuild(cmd.Context(), buildType, ciMode, targets, outputDir, archiveOutput, checksumOutput, archiveFormat, configPath, format, push, imageName, noSign, notarize, verbose)
 	},
 }
 
@@ -110,6 +111,7 @@ func initBuildFlags() {
 	buildCmd.Flags().StringVar(&outputDir, "output", "", i18n.T("cmd.build.flag.output"))
 	buildCmd.Flags().BoolVar(&archiveOutput, "archive", true, i18n.T("cmd.build.flag.archive"))
 	buildCmd.Flags().BoolVar(&checksumOutput, "checksum", true, i18n.T("cmd.build.flag.checksum"))
+	buildCmd.Flags().StringVar(&archiveFormat, "archive-format", "", i18n.T("cmd.build.flag.archive_format"))
 
 	// Build config override.
 	buildCmd.Flags().StringVar(&configPath, "config", "", i18n.T("cmd.build.flag.config"))

@@ -102,6 +102,20 @@ func TestBuildCmd_buildRuntimeConfig_ClonesBuildArgs_Good(t *testing.T) {
 	assert.Equal(t, "v1.2.3", buildConfig.Build.BuildArgs["VERSION"])
 }
 
+func TestBuildCmd_resolveArchiveFormat_Good(t *testing.T) {
+	t.Run("uses cli override when present", func(t *testing.T) {
+		format, err := resolveArchiveFormat("gz", "xz")
+		require.NoError(t, err)
+		assert.Equal(t, build.ArchiveFormatXZ, format)
+	})
+
+	t.Run("falls back to config when cli override is empty", func(t *testing.T) {
+		format, err := resolveArchiveFormat("zip", "")
+		require.NoError(t, err)
+		assert.Equal(t, build.ArchiveFormatZip, format)
+	})
+}
+
 func TestBuildCmd_resolveBuildVersion_Good(t *testing.T) {
 	dir := t.TempDir()
 
@@ -195,7 +209,7 @@ func TestBuildCmd_runProjectBuild_PwaOverride_Good(t *testing.T) {
 		return nil
 	}
 
-	err = runProjectBuild(context.Background(), "pwa", false, "", "", false, false, "", "", false, "", false, false, false)
+	err = runProjectBuild(context.Background(), "pwa", false, "", "", false, false, "", "", "", false, "", false, false, false)
 	require.NoError(t, err)
 	assert.True(t, called)
 }
