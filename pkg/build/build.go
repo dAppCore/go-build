@@ -85,6 +85,8 @@ type Config struct {
 	LDFlags []string
 	// Flags are additional build flags.
 	Flags []string
+	// BuildTags are Go build tags passed through to `go build`.
+	BuildTags []string
 	// Env are additional environment variables.
 	Env []string
 	// CGO enables CGO for the build (required for Wails, FrankenPHP, etc).

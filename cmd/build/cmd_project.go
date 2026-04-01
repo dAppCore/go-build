@@ -38,6 +38,11 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		return coreerr.E("build.Run", "failed to load config", err)
 	}
 
+	discovery, err := build.DiscoverFull(filesystem, projectDir)
+	if err != nil {
+		return coreerr.E("build.Run", "failed to inspect project for build options", err)
+	}
+
 	// Detect project type if not specified
 	var projectType build.ProjectType
 	if buildType != "" {
@@ -130,6 +135,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		Push:           push,
 		Image:          imageName,
 	}
+	build.ApplyOptions(cfg, build.ComputeOptions(buildConfig, discovery))
 
 	// Parse formats for LinuxKit
 	if format != "" {

@@ -52,6 +52,19 @@ func ComputeOptions(cfg *BuildConfig, discovery *DiscoveryResult) *BuildOptions 
 	return options
 }
 
+// ApplyOptions copies computed build options onto a runtime build config.
+//
+// build.ApplyOptions(cfg, build.ComputeOptions(config, discovery))
+func ApplyOptions(cfg *Config, options *BuildOptions) {
+	if cfg == nil || options == nil {
+		return
+	}
+
+	if len(options.Tags) > 0 {
+		cfg.BuildTags = deduplicateTags(append(cfg.BuildTags, options.Tags...))
+	}
+}
+
 // InjectWebKitTag adds webkit2_41 tag for Ubuntu 24.04+ if not already present.
 // Called automatically by ComputeOptions when discovery detects Linux.
 //

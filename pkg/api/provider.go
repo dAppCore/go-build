@@ -268,6 +268,12 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		return
 	}
 
+	discovery, err := build.DiscoverFull(p.medium, dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
+		return
+	}
+
 	// Detect project type
 	projectType, err := build.PrimaryType(p.medium, dir)
 	if err != nil || projectType == "" {
@@ -308,6 +314,7 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		LDFlags:    cfg.Build.LDFlags,
 		CGO:        cfg.Build.CGO,
 	}
+	build.ApplyOptions(buildConfig, build.ComputeOptions(cfg, discovery))
 
 	targets := cfg.ToTargets()
 

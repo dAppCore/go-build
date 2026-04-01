@@ -233,6 +233,11 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		return nil, coreerr.E("release.buildArtifacts", "failed to load build config", err)
 	}
 
+	discovery, err := build.DiscoverFull(filesystem, projectDir)
+	if err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "failed to inspect project for build options", err)
+	}
+
 	// Determine targets
 	var targets []build.Target
 	if len(cfg.Build.Targets) > 0 {
@@ -286,6 +291,7 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		Version:    version,
 		LDFlags:    buildConfig.Build.LDFlags,
 	}
+	build.ApplyOptions(builderConfig, build.ComputeOptions(buildConfig, discovery))
 
 	// Build
 	artifacts, err := builder.Build(ctx, builderConfig, targets)

@@ -342,6 +342,37 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.Contains(t, envLines, "CGO_ENABLED=0")
 	})
 
+	t.Run("passes build tags through to go build", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logPath := ax.Join(t.TempDir(), "go-tags.log")
+		t.Setenv("GO_BUILD_LOG_FILE", logPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "tagged",
+			BuildTags:  []string{"webkit2_41", "integration"},
+		}
+		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-tags")
+		assert.Contains(t, args, "webkit2_41,integration")
+	})
+
 	t.Run("uses garble when obfuscation is enabled", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("garble test helper uses a shell script")

@@ -99,6 +99,10 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 		args = append(args, cfg.Flags...)
 	}
 
+	if len(cfg.BuildTags) > 0 {
+		args = append(args, "-tags", core.Join(",", cfg.BuildTags...))
+	}
+
 	// Add ldflags if specified
 	if len(cfg.LDFlags) > 0 {
 		ldflags := core.Join(" ", cfg.LDFlags...)
