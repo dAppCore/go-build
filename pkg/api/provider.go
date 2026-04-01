@@ -128,7 +128,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Method:      "GET",
 			Path:        "/discover",
 			Summary:     "Detect project type",
-			Description: "Scans the project directory for marker files and returns detected project types.",
+			Description: "Scans the project directory for marker files and returns detected project types plus frontend and distro metadata.",
 			Tags:        []string{"build", "discovery"},
 		},
 		{
@@ -248,27 +248,31 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		return
 	}
 
-	types, err := build.Discover(p.medium, dir)
+	discovery, err := build.DiscoverFull(p.medium, dir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
 		return
 	}
 
 	// Convert to string slice for JSON
-	typeStrings := make([]string, len(types))
-	for i, t := range types {
+	typeStrings := make([]string, len(discovery.Types))
+	for i, t := range discovery.Types {
 		typeStrings[i] = string(t)
 	}
 
 	primary := ""
-	if len(types) > 0 {
-		primary = string(types[0])
+	if len(discovery.Types) > 0 {
+		primary = string(discovery.Types[0])
 	}
 
 	c.JSON(http.StatusOK, api.OK(map[string]any{
-		"types":   typeStrings,
-		"primary": primary,
-		"dir":     dir,
+		"types":           typeStrings,
+		"primary":         primary,
+		"dir":             dir,
+		"has_frontend":    discovery.HasFrontend,
+		"has_subtree_npm": discovery.HasSubtreeNpm,
+		"markers":         discovery.Markers,
+		"distro":          discovery.Distro,
 	}))
 }
 

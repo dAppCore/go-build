@@ -226,3 +226,31 @@ func TestProvider_GenerateReleaseWorkflow_CustomPath_Good(t *testing.T) {
 	assert.Contains(t, content, "workflow_call:")
 	assert.Contains(t, content, "workflow_dispatch:")
 }
+
+func TestProvider_DiscoverProject_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example"), 0o644))
+	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, "frontend"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "frontend", "package.json"), []byte("{}"), 0o644))
+
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/discover", nil)
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.discoverProject(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	body := recorder.Body.String()
+	assert.Contains(t, body, `"types":["go","node"]`)
+	assert.Contains(t, body, `"primary":"go"`)
+	assert.Contains(t, body, `"has_frontend":true`)
+	assert.Contains(t, body, `"has_subtree_npm":true`)
+	assert.Contains(t, body, `"go.mod":true`)
+	assert.Contains(t, body, `"frontend/package.json":true`)
+}
