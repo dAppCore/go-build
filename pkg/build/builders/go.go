@@ -3,6 +3,7 @@ package builders
 
 import (
 	"context"
+	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -103,10 +104,13 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 		args = append(args, "-tags", core.Join(",", cfg.BuildTags...))
 	}
 
-	// Add ldflags if specified
-	if len(cfg.LDFlags) > 0 {
-		ldflags := core.Join(" ", cfg.LDFlags...)
-		args = append(args, "-ldflags", ldflags)
+	// Add ldflags if specified, and inject the build version when needed.
+	ldflags := append([]string{}, cfg.LDFlags...)
+	if cfg.Version != "" && !hasVersionLDFlag(ldflags) {
+		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+	}
+	if len(ldflags) > 0 {
+		args = append(args, "-ldflags", core.Join(" ", ldflags...))
 	}
 
 	// Add output path
@@ -126,6 +130,9 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 		core.Sprintf("GOOS=%s", target.OS),
 		core.Sprintf("GOARCH=%s", target.Arch),
 	)
+	if cfg.Version != "" {
+		env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
+	}
 	if cfg.CGO {
 		env = append(env, "CGO_ENABLED=1")
 	} else {
@@ -175,6 +182,16 @@ func (b *GoBuilder) resolveGarbleCli(paths ...string) (string, error) {
 	}
 
 	return command, nil
+}
+
+// hasVersionLDFlag reports whether a version linker flag is already present.
+func hasVersionLDFlag(ldflags []string) bool {
+	for _, flag := range ldflags {
+		if strings.Contains(flag, "main.version=") || strings.Contains(flag, "main.Version=") {
+			return true
+		}
+	}
+	return false
 }
 
 // Ensure GoBuilder implements the Builder interface.

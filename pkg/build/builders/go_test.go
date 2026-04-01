@@ -410,6 +410,45 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.Contains(t, args, "webkit2_41,integration")
 	})
 
+	t.Run("injects version into ldflags and environment", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		argsLogPath := ax.Join(t.TempDir(), "go-version-args.log")
+		envLogPath := ax.Join(t.TempDir(), "go-version-env.log")
+
+		t.Setenv("GO_BUILD_LOG_FILE", argsLogPath)
+		t.Setenv("GO_BUILD_ENV_LOG_FILE", envLogPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "versioned",
+			Version:    "v1.2.3",
+		}
+		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		argsContent, err := ax.ReadFile(argsLogPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(argsContent)), "\n")
+		require.NotEmpty(t, args)
+		assert.Contains(t, args, "-ldflags")
+		assert.Contains(t, args, "-X main.version=v1.2.3")
+
+		envContent, err := ax.ReadFile(envLogPath)
+		require.NoError(t, err)
+
+		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
+		assert.Contains(t, envLines, "VERSION=v1.2.3")
+	})
+
 	t.Run("uses garble when obfuscation is enabled", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("garble test helper uses a shell script")
