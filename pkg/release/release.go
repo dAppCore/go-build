@@ -307,7 +307,17 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	}
 
 	// Archive artifacts
-	archivedArtifacts, err := build.ArchiveAll(filesystem, artifacts)
+	archiveFormatValue := cfg.Build.ArchiveFormat
+	if archiveFormatValue == "" {
+		archiveFormatValue = buildConfig.Build.ArchiveFormat
+	}
+
+	archiveFormat, err := build.ParseArchiveFormat(archiveFormatValue)
+	if err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "invalid archive format", err)
+	}
+
+	archivedArtifacts, err := build.ArchiveAllWithFormat(filesystem, artifacts, archiveFormat)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "archive failed", err)
 	}

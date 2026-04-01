@@ -39,6 +39,7 @@ build:
       arch: amd64
     - os: darwin
       arch: arm64
+  archive_format: xz
 publishers:
   - type: github
     prerelease: true
@@ -60,6 +61,7 @@ changelog:
 		assert.Equal(t, "myapp", cfg.Project.Name)
 		assert.Equal(t, "owner/repo", cfg.Project.Repository)
 		assert.Len(t, cfg.Build.Targets, 2)
+		assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
 		assert.Equal(t, "linux", cfg.Build.Targets[0].OS)
 		assert.Equal(t, "amd64", cfg.Build.Targets[0].Arch)
 		assert.Equal(t, "darwin", cfg.Build.Targets[1].OS)

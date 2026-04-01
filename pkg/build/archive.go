@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
+	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -28,6 +29,20 @@ const (
 	// ArchiveFormatZip uses zip - for Windows.
 	ArchiveFormatZip ArchiveFormat = "zip"
 )
+
+// ParseArchiveFormat converts a user-facing archive format string into an ArchiveFormat.
+//
+//	format, err := build.ParseArchiveFormat("xz") // → build.ArchiveFormatXZ
+func ParseArchiveFormat(value string) (ArchiveFormat, error) {
+	switch core.Trim(strings.ToLower(value)) {
+	case "", "gz", "gzip", "tar.gz":
+		return ArchiveFormatGzip, nil
+	case "xz", "tar.xz":
+		return ArchiveFormatXZ, nil
+	default:
+		return "", coreerr.E("build.ParseArchiveFormat", "unsupported archive format: "+value, nil)
+	}
+}
 
 // Archive creates an archive for a single artifact using gzip compression.
 // Uses tar.gz for linux/darwin and zip for windows.

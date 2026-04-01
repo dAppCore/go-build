@@ -46,6 +46,7 @@ build:
   ldflags:
     - -s
     - -w
+  archive_format: xz
   env:
     - FOO=bar
 targets:
@@ -68,6 +69,7 @@ targets:
 		assert.True(t, cfg.Build.CGO)
 		assert.Equal(t, []string{"-trimpath", "-race"}, cfg.Build.Flags)
 		assert.Equal(t, []string{"-s", "-w"}, cfg.Build.LDFlags)
+		assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
 		assert.Equal(t, []string{"FOO=bar"}, cfg.Build.Env)
 		assert.Len(t, cfg.Targets, 2)
 		assert.Equal(t, "linux", cfg.Targets[0].OS)

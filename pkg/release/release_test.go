@@ -798,6 +798,7 @@ fi
 	cfg := DefaultConfig()
 	cfg.SetProjectDir(dir)
 	cfg.Project.Name = "signedapp"
+	cfg.Build.ArchiveFormat = "xz"
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
@@ -805,13 +806,18 @@ fi
 	require.NoError(t, err)
 
 	var sawChecksumSignature bool
+	var sawXzArchive bool
 	for _, artifact := range artifacts {
 		if artifact.Path == ax.Join(dir, "dist", "CHECKSUMS.txt.asc") {
 			sawChecksumSignature = true
 		}
+		if artifact.Path == ax.Join(dir, "dist", "signedapp_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz") {
+			sawXzArchive = true
+		}
 	}
 
 	assert.True(t, sawChecksumSignature)
+	assert.True(t, sawXzArchive)
 	assert.FileExists(t, ax.Join(dir, "dist", "CHECKSUMS.txt.asc"))
 }
 

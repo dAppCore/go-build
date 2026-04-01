@@ -217,7 +217,12 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.archive")), i18n.T("cmd.build.creating_archives"))
 		}
 
-		archivedArtifacts, err = build.ArchiveAll(filesystem, artifacts)
+		archiveFormat, err := build.ParseArchiveFormat(buildConfig.Build.ArchiveFormat)
+		if err != nil {
+			return err
+		}
+
+		archivedArtifacts, err = build.ArchiveAllWithFormat(filesystem, artifacts, archiveFormat)
 		if err != nil {
 			if !ciMode {
 				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.archive_failed"), err)

@@ -178,6 +178,29 @@ func TestArchive_Archive_Good(t *testing.T) {
 	})
 }
 
+func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
+	t.Run("defaults to gzip when empty", func(t *testing.T) {
+		format, err := ParseArchiveFormat("")
+		require.NoError(t, err)
+		assert.Equal(t, ArchiveFormatGzip, format)
+	})
+
+	t.Run("accepts xz aliases", func(t *testing.T) {
+		for _, input := range []string{"xz", "tar.xz"} {
+			format, err := ParseArchiveFormat(input)
+			require.NoError(t, err)
+			assert.Equal(t, ArchiveFormatXZ, format)
+		}
+	})
+
+	t.Run("rejects unsupported formats", func(t *testing.T) {
+		format, err := ParseArchiveFormat("bzip2")
+		assert.Error(t, err)
+		assert.Empty(t, format)
+		assert.Contains(t, err.Error(), "unsupported archive format")
+	})
+}
+
 func TestArchive_Archive_Bad(t *testing.T) {
 	fs := io_interface.Local
 	t.Run("returns error for empty path", func(t *testing.T) {

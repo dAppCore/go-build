@@ -71,6 +71,9 @@ type Build struct {
 	Flags []string `yaml:"flags"`
 	// LDFlags are linker flags (e.g., ["-s", "-w"]).
 	LDFlags []string `yaml:"ldflags"`
+	// ArchiveFormat selects the archive compression format for build outputs.
+	// Supported values are "gz" and "xz"; empty uses gzip.
+	ArchiveFormat string `yaml:"archive_format,omitempty"`
 	// Env are additional environment variables.
 	Env []string `yaml:"env"`
 	// Cache controls build cache setup.
