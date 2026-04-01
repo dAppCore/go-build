@@ -271,6 +271,21 @@ func expandEnvMap(values map[string]string) map[string]string {
 	return result
 }
 
+// CloneStringMap returns a shallow copy of a string map.
+//
+// clone := build.CloneStringMap(map[string]string{"VERSION": "v1.2.3"})
+func CloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make(map[string]string, len(values))
+	for key, value := range values {
+		result[key] = value
+	}
+	return result
+}
+
 // expandEnv expands $VAR or ${VAR} using the current process environment.
 func expandEnv(s string) string {
 	if !core.Contains(s, "$") {

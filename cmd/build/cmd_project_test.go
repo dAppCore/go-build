@@ -88,6 +88,20 @@ func TestBuildCmd_buildRuntimeConfig_ImageOverride_Good(t *testing.T) {
 	assert.Equal(t, "v2.0.0", cfg.Version)
 }
 
+func TestBuildCmd_buildRuntimeConfig_ClonesBuildArgs_Good(t *testing.T) {
+	buildConfig := &build.BuildConfig{
+		Build: build.Build{
+			BuildArgs: map[string]string{"VERSION": "v1.2.3"},
+		},
+	}
+
+	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, false, "", "v1.2.3")
+	require.NotNil(t, cfg.BuildArgs)
+
+	cfg.BuildArgs["VERSION"] = "mutated"
+	assert.Equal(t, "v1.2.3", buildConfig.Build.BuildArgs["VERSION"])
+}
+
 func TestBuildCmd_resolveBuildVersion_Good(t *testing.T) {
 	dir := t.TempDir()
 

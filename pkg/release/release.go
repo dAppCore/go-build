@@ -419,7 +419,7 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		Registry:       buildConfig.Build.Registry,
 		Image:          buildConfig.Build.Image,
 		Tags:           append([]string{}, buildConfig.Build.Tags...),
-		BuildArgs:      buildConfig.Build.BuildArgs,
+		BuildArgs:      build.CloneStringMap(buildConfig.Build.BuildArgs),
 		Push:           buildConfig.Build.Push,
 		Load:           buildConfig.Build.Load,
 		LinuxKitConfig: buildConfig.Build.LinuxKitConfig,

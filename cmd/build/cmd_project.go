@@ -349,7 +349,7 @@ func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName 
 		Registry:       buildDefaults.Registry,
 		Image:          buildDefaults.Image,
 		Tags:           append([]string{}, buildDefaults.Tags...),
-		BuildArgs:      buildDefaults.BuildArgs,
+		BuildArgs:      build.CloneStringMap(buildDefaults.BuildArgs),
 		Push:           buildDefaults.Push || push,
 		Load:           buildDefaults.Load,
 		LinuxKitConfig: buildDefaults.LinuxKitConfig,
