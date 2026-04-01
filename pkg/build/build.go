@@ -107,6 +107,7 @@ type Config struct {
 	Tags       []string          // Additional tags to apply
 	BuildArgs  map[string]string // Docker build arguments
 	Push       bool              // Whether to push after build
+	Load       bool              // Whether to load a single-platform image into the local daemon after build
 
 	// LinuxKit-specific config
 	LinuxKitConfig string   // Path to LinuxKit YAML config

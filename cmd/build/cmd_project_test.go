@@ -45,6 +45,7 @@ func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
 			Tags:           []string{"latest", "{{.Version}}"},
 			BuildArgs:      map[string]string{"VERSION": "{{.Version}}"},
 			Push:           true,
+			Load:           true,
 			LinuxKitConfig: ".core/linuxkit/server.yml",
 			Formats:        []string{"iso", "qcow2"},
 		},
@@ -65,6 +66,7 @@ func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
 	assert.Equal(t, []string{"latest", "{{.Version}}"}, cfg.Tags)
 	assert.Equal(t, map[string]string{"VERSION": "{{.Version}}"}, cfg.BuildArgs)
 	assert.True(t, cfg.Push)
+	assert.True(t, cfg.Load)
 	assert.Equal(t, ".core/linuxkit/server.yml", cfg.LinuxKitConfig)
 	assert.Equal(t, []string{"iso", "qcow2"}, cfg.Formats)
 	assert.Equal(t, "v1.2.3", cfg.Version)

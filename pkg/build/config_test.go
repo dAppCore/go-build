@@ -52,6 +52,7 @@ build:
   archive_format: xz
   env:
     - FOO=bar
+  load: true
 targets:
   - os: linux
     arch: amd64
@@ -75,6 +76,7 @@ targets:
 		assert.Equal(t, []string{"integration", "webkit2_41"}, cfg.Build.BuildTags)
 		assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
 		assert.Equal(t, []string{"FOO=bar"}, cfg.Build.Env)
+		assert.True(t, cfg.Build.Load)
 		assert.Len(t, cfg.Targets, 2)
 		assert.Equal(t, "linux", cfg.Targets[0].OS)
 		assert.Equal(t, "amd64", cfg.Targets[0].Arch)
@@ -95,6 +97,7 @@ targets:
 		assert.Equal(t, defaults.Build.CGO, cfg.Build.CGO)
 		assert.Equal(t, defaults.Build.Flags, cfg.Build.Flags)
 		assert.Equal(t, defaults.Build.LDFlags, cfg.Build.LDFlags)
+		assert.False(t, cfg.Build.Load)
 		assert.Empty(t, cfg.Build.BuildTags)
 		assert.Equal(t, defaults.Targets, cfg.Targets)
 	})

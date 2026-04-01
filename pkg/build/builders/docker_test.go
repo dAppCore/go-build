@@ -193,3 +193,50 @@ func TestDocker_DockerBuilderBuild_Good(t *testing.T) {
 	assert.Equal(t, runtime.GOOS, artifacts[0].OS)
 	assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
 }
+
+func TestDocker_DockerBuilderBuild_Load_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeDockerToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644))
+
+	outputDir := t.TempDir()
+	logDir := t.TempDir()
+	logPath := ax.Join(logDir, "docker.log")
+	t.Setenv("DOCKER_BUILD_LOG_FILE", logPath)
+
+	builder := NewDockerBuilder()
+	cfg := &build.Config{
+		FS:         coreio.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Image:      "owner/repo",
+		Load:       true,
+	}
+	targets := []build.Target{
+		{OS: "linux", Arch: "amd64"},
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, targets)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	assert.Equal(t, "ghcr.io/owner/repo:latest", artifacts[0].Path)
+	assert.Equal(t, "linux", artifacts[0].OS)
+	assert.Equal(t, "amd64", artifacts[0].Arch)
+	assert.DirExists(t, outputDir)
+
+	logContent, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+
+	log := string(logContent)
+	assert.Contains(t, log, "buildx build")
+	assert.Contains(t, log, "--load")
+	assert.NotContains(t, log, "--output")
+}

@@ -337,6 +337,7 @@ func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName 
 		Tags:           append([]string{}, buildDefaults.Tags...),
 		BuildArgs:      buildDefaults.BuildArgs,
 		Push:           buildDefaults.Push || push,
+		Load:           buildDefaults.Load,
 		LinuxKitConfig: buildDefaults.LinuxKitConfig,
 		Formats:        append([]string{}, buildDefaults.Formats...),
 	}

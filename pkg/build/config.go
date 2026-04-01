@@ -92,6 +92,8 @@ type Build struct {
 	BuildArgs map[string]string `yaml:"build_args,omitempty"`
 	// Push enables pushing Docker images after build.
 	Push bool `yaml:"push,omitempty"`
+	// Load loads a single-platform Docker image into the local daemon after build.
+	Load bool `yaml:"load,omitempty"`
 	// LinuxKitConfig is the path to the LinuxKit config file.
 	LinuxKitConfig string `yaml:"linuxkit_config,omitempty"`
 	// Formats is the list of LinuxKit output formats.

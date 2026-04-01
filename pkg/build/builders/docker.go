@@ -145,9 +145,14 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	safeImageName := strings.ReplaceAll(imageName, "/", "_")
 
-	// Output to local docker images or push
+	// Output to local docker images or push.
+	// `--load` only works for a single target, so multi-platform local builds
+	// fall back to an OCI archive on disk.
+	useLoad := cfg.Load && !cfg.Push && len(buildTargets) == 1
 	if cfg.Push {
 		args = append(args, "--push")
+	} else if useLoad {
+		args = append(args, "--load")
 	} else {
 		// Local Docker builds emit an OCI archive so the build output is a file.
 		outputPath := ax.Join(cfg.OutputDir, core.Sprintf("%s.tar", safeImageName))
@@ -173,7 +178,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	}
 
 	artifactPath := imageRefs[0]
-	if !cfg.Push {
+	if !cfg.Push && !useLoad {
 		artifactPath = ax.Join(cfg.OutputDir, core.Sprintf("%s.tar", safeImageName))
 	}
 
