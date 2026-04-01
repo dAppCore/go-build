@@ -1,6 +1,7 @@
 package builders
 
 import (
+	"context"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -252,4 +253,41 @@ func TestTaskfile_TaskfileBuilderResolveTaskCli_Bad(t *testing.T) {
 	_, err := builder.resolveTaskCli(ax.Join(t.TempDir(), "missing-task"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "task CLI not found")
+}
+
+func TestTaskfile_TaskfileBuilderRunTask_Good(t *testing.T) {
+	binDir := t.TempDir()
+	taskPath := ax.Join(binDir, "task")
+	logPath := ax.Join(t.TempDir(), "task.env")
+
+	script := `#!/bin/sh
+set -eu
+
+env | sort > "${TASK_BUILD_LOG_FILE}"
+`
+	require.NoError(t, ax.WriteFile(taskPath, []byte(script), 0o755))
+
+	t.Setenv("TASK_BUILD_LOG_FILE", logPath)
+
+	builder := NewTaskfileBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: t.TempDir(),
+		OutputDir:  "/tmp/out",
+		Name:       "sample",
+		Version:    "v1.2.3",
+		Env:        []string{"FOO=bar"},
+	}
+
+	require.NoError(t, builder.runTask(context.Background(), cfg, taskPath, "linux", "amd64"))
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(content), "FOO=bar")
+	assert.Contains(t, string(content), "GOOS=linux")
+	assert.Contains(t, string(content), "GOARCH=amd64")
+	assert.Contains(t, string(content), "OUTPUT_DIR=/tmp/out")
+	assert.Contains(t, string(content), "NAME=sample")
+	assert.Contains(t, string(content), "VERSION=v1.2.3")
 }

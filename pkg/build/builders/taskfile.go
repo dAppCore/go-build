@@ -102,7 +102,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand, goos, goarch string) error {
 	// Build task command
 	args := []string{"build"}
-	env := []string{}
+	env := append([]string{}, cfg.Env...)
 
 	// Pass variables if targets are specified
 	if goos != "" {
