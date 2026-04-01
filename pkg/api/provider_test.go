@@ -43,8 +43,9 @@ func TestProvider_BuildProviderChannels_Good(t *testing.T) {
 	assert.Contains(t, channels, "build.failed")
 	assert.Contains(t, channels, "release.started")
 	assert.Contains(t, channels, "release.complete")
+	assert.Contains(t, channels, "workflow.generated")
 	assert.Contains(t, channels, "sdk.generated")
-	assert.Len(t, channels, 6)
+	assert.Len(t, channels, 7)
 }
 
 func TestProvider_BuildProviderDescribe_Good(t *testing.T) {

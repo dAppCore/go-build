@@ -87,6 +87,7 @@ func (p *BuildProvider) Channels() []string {
 		"build.failed",
 		"release.started",
 		"release.complete",
+		"workflow.generated",
 		"sdk.generated",
 	}
 }
@@ -549,6 +550,11 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
 		return
 	}
+
+	p.emitEvent("workflow.generated", map[string]any{
+		"path":      path,
+		"generated": true,
+	})
 
 	c.JSON(http.StatusOK, api.OK(map[string]any{
 		"generated": true,
