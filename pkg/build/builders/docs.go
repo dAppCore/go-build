@@ -84,7 +84,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		}
 
 		args := []string{"build", "--clean", "--site-dir", siteDir}
-		output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, nil, mkdocsCommand, args...)
+		output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, cfg.Env, mkdocsCommand, args...)
 		if err != nil {
 			return artifacts, coreerr.E("DocsBuilder.Build", "mkdocs build failed: "+output, err)
 		}

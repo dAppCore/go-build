@@ -84,14 +84,14 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 			return artifacts, coreerr.E("PHPBuilder.Build", "failed to create platform directory", err)
 		}
 
-		env := []string{
+		env := appendConfiguredEnv(cfg.Env,
 			core.Sprintf("GOOS=%s", target.OS),
 			core.Sprintf("GOARCH=%s", target.Arch),
 			core.Sprintf("TARGET_OS=%s", target.OS),
 			core.Sprintf("TARGET_ARCH=%s", target.Arch),
 			core.Sprintf("OUTPUT_DIR=%s", outputDir),
 			core.Sprintf("TARGET_DIR=%s", platformDir),
-		}
+		)
 		if cfg.Name != "" {
 			env = append(env, core.Sprintf("NAME=%s", cfg.Name))
 		}
@@ -129,7 +129,7 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 // installDependencies runs composer install once before the per-target build.
 func (b *PHPBuilder) installDependencies(ctx context.Context, cfg *build.Config, composerCommand string) error {
 	args := []string{"install", "--no-interaction", "--no-dev", "--prefer-dist", "--optimize-autoloader"}
-	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, nil, composerCommand, args...)
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, cfg.Env, composerCommand, args...)
 	if err != nil {
 		return coreerr.E("PHPBuilder.installDependencies", "composer install failed: "+output, err)
 	}

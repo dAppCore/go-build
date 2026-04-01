@@ -77,14 +77,14 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 			return artifacts, coreerr.E("NodeBuilder.Build", "failed to create platform directory", err)
 		}
 
-		env := []string{
+		env := appendConfiguredEnv(cfg.Env,
 			core.Sprintf("GOOS=%s", target.OS),
 			core.Sprintf("GOARCH=%s", target.Arch),
 			core.Sprintf("TARGET_OS=%s", target.OS),
 			core.Sprintf("TARGET_ARCH=%s", target.Arch),
 			core.Sprintf("OUTPUT_DIR=%s", outputDir),
 			core.Sprintf("TARGET_DIR=%s", platformDir),
-		}
+		)
 		if cfg.Name != "" {
 			env = append(env, core.Sprintf("NAME=%s", cfg.Name))
 		}

@@ -28,6 +28,7 @@ if [ -n "$log_file" ]; then
 	printf '%s\n' "GOARCH=${GOARCH:-}" >> "$log_file"
 	printf '%s\n' "OUTPUT_DIR=${OUTPUT_DIR:-}" >> "$log_file"
 	printf '%s\n' "TARGET_DIR=${TARGET_DIR:-}" >> "$log_file"
+	env | sort >> "$log_file"
 fi
 
 output_dir="${OUTPUT_DIR:-dist}"
@@ -105,6 +106,7 @@ func TestNode_NodeBuilderBuild_Good(t *testing.T) {
 		OutputDir:  outputDir,
 		Name:       "testapp",
 		Version:    "v1.2.3",
+		Env:        []string{"FOO=bar"},
 	}
 
 	targets := []build.Target{
@@ -130,6 +132,7 @@ func TestNode_NodeBuilderBuild_Good(t *testing.T) {
 	assert.Equal(t, "GOARCH=amd64", lines[4])
 	assert.Contains(t, lines, "OUTPUT_DIR="+outputDir)
 	assert.Contains(t, lines, "TARGET_DIR="+ax.Join(outputDir, "linux_amd64"))
+	assert.Contains(t, string(content), "FOO=bar")
 }
 
 func TestNode_NodeBuilderFindArtifactsForTarget_Good(t *testing.T) {
@@ -192,6 +195,7 @@ func TestNode_NodeBuilderBuildDefaults_Good(t *testing.T) {
 		FS:         io.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
+		Env:        []string{"FOO=bar"},
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, nil)

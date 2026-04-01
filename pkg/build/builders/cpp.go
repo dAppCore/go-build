@@ -92,17 +92,17 @@ func (b *CPPBuilder) buildHost(ctx context.Context, cfg *build.Config, target bu
 	core.Print(nil, "Building C++ project for %s/%s (host)", target.OS, target.Arch)
 
 	// Step 1: Configure (runs conan install + cmake configure)
-	if err := b.runMake(ctx, cfg.ProjectDir, "configure"); err != nil {
+	if err := b.runMake(ctx, cfg, "configure"); err != nil {
 		return nil, coreerr.E("CPPBuilder.buildHost", "configure failed", err)
 	}
 
 	// Step 2: Build
-	if err := b.runMake(ctx, cfg.ProjectDir, "build"); err != nil {
+	if err := b.runMake(ctx, cfg, "build"); err != nil {
 		return nil, coreerr.E("CPPBuilder.buildHost", "build failed", err)
 	}
 
 	// Step 3: Package
-	if err := b.runMake(ctx, cfg.ProjectDir, "package"); err != nil {
+	if err := b.runMake(ctx, cfg, "package"); err != nil {
 		return nil, coreerr.E("CPPBuilder.buildHost", "package failed", err)
 	}
 
@@ -122,7 +122,7 @@ func (b *CPPBuilder) buildCross(ctx context.Context, cfg *build.Config, target b
 	core.Print(nil, "Building C++ project for %s/%s (cross: %s)", target.OS, target.Arch, profile)
 
 	// The Makefile exposes each profile as a top-level target
-	if err := b.runMake(ctx, cfg.ProjectDir, profile); err != nil {
+	if err := b.runMake(ctx, cfg, profile); err != nil {
 		return nil, coreerr.E("CPPBuilder.buildCross", "cross-compile for "+profile+" failed", err)
 	}
 
@@ -130,13 +130,13 @@ func (b *CPPBuilder) buildCross(ctx context.Context, cfg *build.Config, target b
 }
 
 // runMake executes a make target in the project directory.
-func (b *CPPBuilder) runMake(ctx context.Context, projectDir string, target string) error {
+func (b *CPPBuilder) runMake(ctx context.Context, cfg *build.Config, target string) error {
 	makeCommand, err := b.resolveMakeCli()
 	if err != nil {
 		return err
 	}
 
-	if err := ax.ExecDir(ctx, projectDir, makeCommand, target); err != nil {
+	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, cfg.Env, makeCommand, target); err != nil {
 		return coreerr.E("CPPBuilder.runMake", "make "+target+" failed", err)
 	}
 	return nil

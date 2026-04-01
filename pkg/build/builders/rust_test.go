@@ -26,6 +26,7 @@ if [ -n "$log_file" ]; then
 	printf '%s\n' "CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-}" >> "$log_file"
 	printf '%s\n' "TARGET_OS=${TARGET_OS:-}" >> "$log_file"
 	printf '%s\n' "TARGET_ARCH=${TARGET_ARCH:-}" >> "$log_file"
+	env | sort >> "$log_file"
 fi
 
 target_triple=""
@@ -118,6 +119,7 @@ func TestRust_RustBuilderBuild_Good(t *testing.T) {
 		OutputDir:  outputDir,
 		Name:       "testapp",
 		Version:    "v1.2.3",
+		Env:        []string{"FOO=bar"},
 	}
 
 	targets := []build.Target{{OS: "linux", Arch: "amd64"}}
@@ -140,6 +142,7 @@ func TestRust_RustBuilderBuild_Good(t *testing.T) {
 	assert.Equal(t, "--target", lines[3])
 	assert.Equal(t, "x86_64-unknown-linux-gnu", lines[4])
 	assert.Contains(t, lines, "CARGO_TARGET_DIR="+ax.Join(outputDir, "linux_amd64"))
+	assert.Contains(t, string(content), "FOO=bar")
 }
 
 func TestRust_RustBuilderInterface_Good(t *testing.T) {

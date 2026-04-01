@@ -173,7 +173,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Build once for the full platform set. Docker buildx produces a single
 	// multi-arch image or OCI archive from the combined platform list.
-	if err := ax.ExecDir(ctx, cfg.ProjectDir, dockerCommand, args...); err != nil {
+	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, cfg.Env, dockerCommand, args...); err != nil {
 		return nil, coreerr.E("DockerBuilder.Build", "buildx build failed", err)
 	}
 

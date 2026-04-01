@@ -29,6 +29,7 @@ if [ -n "$log_file" ]; then
 	printf '%s\n' "GOARCH=${GOARCH:-}" >> "$log_file"
 	printf '%s\n' "OUTPUT_DIR=${OUTPUT_DIR:-}" >> "$log_file"
 	printf '%s\n' "TARGET_DIR=${TARGET_DIR:-}" >> "$log_file"
+	env | sort >> "$log_file"
 fi
 
 output_dir="${OUTPUT_DIR:-dist}"
@@ -112,6 +113,7 @@ func TestPHP_PHPBuilderBuild_Good(t *testing.T) {
 		OutputDir:  outputDir,
 		Name:       "testapp",
 		Version:    "v1.2.3",
+		Env:        []string{"FOO=bar"},
 	}
 
 	targets := []build.Target{{OS: "linux", Arch: "amd64"}}
@@ -134,6 +136,7 @@ func TestPHP_PHPBuilderBuild_Good(t *testing.T) {
 	assert.Contains(t, lines, "GOARCH=amd64")
 	assert.Contains(t, lines, "OUTPUT_DIR="+outputDir)
 	assert.Contains(t, lines, "TARGET_DIR="+ax.Join(outputDir, "linux_amd64"))
+	assert.Contains(t, string(content), "FOO=bar")
 }
 
 func TestPHP_PHPBuilderBuildFallbackBundle_Good(t *testing.T) {
@@ -154,6 +157,7 @@ func TestPHP_PHPBuilderBuildFallbackBundle_Good(t *testing.T) {
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "testapp",
+		Env:        []string{"FOO=bar"},
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
@@ -193,6 +197,7 @@ func TestPHP_PHPBuilderBuildDefaults_Good(t *testing.T) {
 		FS:         io.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
+		Env:        []string{"FOO=bar"},
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, nil)

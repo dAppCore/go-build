@@ -21,12 +21,13 @@ func setupFakeDockerToolchain(t *testing.T, binDir string) {
 	script := `#!/bin/sh
 set -eu
 
-log_file="${DOCKER_BUILD_LOG_FILE:-}"
-if [ -n "$log_file" ]; then
-	printf '%s\n' "$*" >> "$log_file"
-fi
+	log_file="${DOCKER_BUILD_LOG_FILE:-}"
+	if [ -n "$log_file" ]; then
+		printf '%s\n' "$*" >> "$log_file"
+		env | sort >> "$log_file"
+	fi
 
-if [ "${1:-}" = "buildx" ] && [ "${2:-}" = "build" ]; then
+	if [ "${1:-}" = "buildx" ] && [ "${2:-}" = "build" ]; then
 	dest=""
 	while [ $# -gt 0 ]; do
 		if [ "$1" = "--output" ]; then
@@ -161,6 +162,7 @@ func TestDocker_DockerBuilderBuild_Good(t *testing.T) {
 		OutputDir:  outputDir,
 		Name:       "sample-app",
 		Image:      "owner/repo",
+		Env:        []string{"FOO=bar"},
 	}
 	targets := []build.Target{
 		{OS: "linux", Arch: "amd64"},
@@ -186,6 +188,8 @@ func TestDocker_DockerBuilderBuild_Good(t *testing.T) {
 	assert.Contains(t, log, "linux/amd64,linux/arm64")
 	assert.Contains(t, log, "--output")
 	assert.Contains(t, log, "type=oci,dest="+expectedPath)
+
+	assert.Contains(t, log, "FOO=bar")
 
 	artifacts, err = builder.Build(context.Background(), cfg, nil)
 	require.NoError(t, err)
@@ -218,6 +222,7 @@ func TestDocker_DockerBuilderBuild_Load_Good(t *testing.T) {
 		OutputDir:  outputDir,
 		Image:      "owner/repo",
 		Load:       true,
+		Env:        []string{"FOO=bar"},
 	}
 	targets := []build.Target{
 		{OS: "linux", Arch: "amd64"},

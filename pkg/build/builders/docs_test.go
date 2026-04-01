@@ -63,15 +63,17 @@ func TestDocs_DocsBuilderBuild_Good(t *testing.T) {
 
 	binDir := t.TempDir()
 	mkdocsPath := ax.Join(binDir, "mkdocs")
-	script := "#!/bin/sh\nset -eu\nsite_dir=\"\"\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = \"--site-dir\" ]; then\n    shift\n    site_dir=\"$1\"\n  fi\n  shift\ndone\nmkdir -p \"$site_dir\"\nprintf '%s' 'demo docs' > \"$site_dir/index.html\"\n"
+	script := "#!/bin/sh\nset -eu\nif [ -n \"${DOCS_BUILD_LOG_FILE:-}\" ]; then\n  env | sort > \"${DOCS_BUILD_LOG_FILE}\"\nfi\nsite_dir=\"\"\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = \"--site-dir\" ]; then\n    shift\n    site_dir=\"$1\"\n  fi\n  shift\ndone\nmkdir -p \"$site_dir\"\nprintf '%s' 'demo docs' > \"$site_dir/index.html\"\n"
 	require.NoError(t, ax.WriteFile(mkdocsPath, []byte(script), 0o755))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	logPath := ax.Join(t.TempDir(), "docs.env")
 
 	cfg := &build.Config{
 		FS:         io.Local,
 		ProjectDir: dir,
 		OutputDir:  ax.Join(dir, "dist"),
 		Name:       "demo-site",
+		Env:        []string{"FOO=bar", "DOCS_BUILD_LOG_FILE=" + logPath},
 	}
 
 	builder := NewDocsBuilder()
@@ -98,6 +100,10 @@ func TestDocs_DocsBuilderBuild_Good(t *testing.T) {
 	data, err := stdio.ReadAll(file)
 	require.NoError(t, err)
 	assert.Equal(t, "demo docs", string(data))
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "FOO=bar")
 }
 
 func TestDocs_DocsBuilderBuild_Bad(t *testing.T) {
