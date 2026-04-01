@@ -295,6 +295,7 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	assert.Contains(t, string(content), "TARGET_DIR=/tmp/out/linux_amd64")
 	assert.Contains(t, string(content), "NAME=sample")
 	assert.Contains(t, string(content), "VERSION=v1.2.3")
+	assert.Contains(t, string(content), "CGO_ENABLED=0")
 }
 
 func TestTaskfile_TaskfileBuilderBuild_DoesNotMutateOutputDir_Good(t *testing.T) {
@@ -370,6 +371,7 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	assert.Contains(t, string(content), "TARGET_OS=linux")
 	assert.Contains(t, string(content), "TARGET_ARCH=amd64")
 	assert.Contains(t, string(content), "TARGET_DIR="+ax.Join(projectDir, "dist", "linux_amd64"))
+	assert.Contains(t, string(content), "CGO_ENABLED=0")
 }
 
 func TestTaskfile_TaskfileBuilderBuild_DefaultTarget_Good(t *testing.T) {
@@ -417,4 +419,37 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	assert.Contains(t, string(content), "TARGET_OS="+runtime.GOOS)
 	assert.Contains(t, string(content), "TARGET_ARCH="+runtime.GOARCH)
 	assert.Contains(t, string(content), "TARGET_DIR="+ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH))
+	assert.Contains(t, string(content), "CGO_ENABLED=0")
+}
+
+func TestTaskfile_TaskfileBuilderRunTask_CGOEnabled_Good(t *testing.T) {
+	binDir := t.TempDir()
+	taskPath := ax.Join(binDir, "task")
+	logPath := ax.Join(t.TempDir(), "task.cgo.env")
+
+	script := `#!/bin/sh
+set -eu
+
+env | sort > "${TASK_BUILD_LOG_FILE}"
+`
+	require.NoError(t, ax.WriteFile(taskPath, []byte(script), 0o755))
+
+	t.Setenv("TASK_BUILD_LOG_FILE", logPath)
+
+	builder := NewTaskfileBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: t.TempDir(),
+		OutputDir:  "/tmp/out",
+		Name:       "sample",
+		Version:    "v1.2.3",
+		CGO:        true,
+	}
+
+	require.NoError(t, builder.runTask(context.Background(), cfg, taskPath, cfg.OutputDir, build.Target{OS: "linux", Arch: "amd64"}))
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(content), "CGO_ENABLED=1")
 }

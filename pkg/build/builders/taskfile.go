@@ -140,6 +140,12 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 		args = append(args, value)
 		env = append(env, value)
 	}
+	value = "CGO_ENABLED=0"
+	if cfg.CGO {
+		value = "CGO_ENABLED=1"
+	}
+	args = append(args, value)
+	env = append(env, value)
 
 	if target.OS != "" && target.Arch != "" {
 		core.Print(nil, "Running task build for %s/%s", target.OS, target.Arch)
