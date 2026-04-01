@@ -19,6 +19,7 @@ Detection order:
 2. `go.mod` -- `ProjectTypeGo`
 3. `package.json` -- `ProjectTypeNode`
 4. `composer.json` -- `ProjectTypePHP`
+5. `mkdocs.yml` -- `ProjectTypeDocs`
 
 Docker (`Dockerfile`), LinuxKit (`linuxkit.yml` or `.core/linuxkit/*.yml`), C++ (`CMakeLists.txt`), and Taskfile (`Taskfile.yml`) are detected by their respective builders' `Detect()` methods rather than the central discovery function.
 
@@ -55,6 +56,7 @@ type Artifact struct {
 | **WailsBuilder** | `wails.json` | Checks `go.mod` for Wails v3 vs v2. V3 delegates to TaskfileBuilder; V2 runs `wails build -platform` then copies from `build/bin/` to `dist/`. |
 | **NodeBuilder** | `package.json` | Detects the active package manager from lockfiles, runs the build script once per target, and collects artifacts from `dist/{os}_{arch}/`. |
 | **PHPBuilder** | `composer.json` | Runs `composer install`, then `composer run-script build` when present. Falls back to a deterministic zip bundle in `dist/{os}_{arch}/`. |
+| **DocsBuilder** | `mkdocs.yml` | Runs `mkdocs build --clean --site-dir` and packages the generated `site/` tree into a zip bundle per target. |
 | **DockerBuilder** | `Dockerfile` | Validates `docker` and `buildx`, builds multi-platform images with `docker buildx build --platform`. Supports `--push` or local load/OCI tarball. |
 | **LinuxKitBuilder** | `linuxkit.yml` or `.core/linuxkit/*.yml` | Validates `linuxkit` CLI, runs `linuxkit build --format --name --dir --arch`. Outputs qcow2, iso, raw, vmdk, vhd, or cloud images. Linux-only targets. |
 | **CPPBuilder** | `CMakeLists.txt` | Validates `make`, runs `make configure` then `make build` then `make package` for host builds. Cross-compilation uses Conan profile targets (e.g. `make gcc-linux-armv8`). Finds artifacts in `build/packages/` or `build/release/src/`. |

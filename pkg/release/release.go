@@ -331,6 +331,8 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 		return builders.NewNodeBuilder(), nil
 	case build.ProjectTypePHP:
 		return builders.NewPHPBuilder(), nil
+	case build.ProjectTypeDocs:
+		return builders.NewDocsBuilder(), nil
 	default:
 		return nil, coreerr.E("release.getBuilder", "unsupported project type: "+string(projectType), nil)
 	}
