@@ -31,8 +31,8 @@ const DefaultReleaseWorkflowFileName = "release.yml"
 // build.WriteReleaseWorkflow(io.Local, ".github/workflows")                       // writes .github/workflows/release.yml
 // build.WriteReleaseWorkflow(io.Local, "ci/release.yml")                          // writes ./ci/release.yml under the project root
 // build.WriteReleaseWorkflow(io.Local, "/tmp/repo/.github/workflows/release.yml") // writes the absolute path unchanged
-func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
-	if medium == nil {
+func WriteReleaseWorkflow(filesystem io_interface.Medium, outputPath string) error {
+	if filesystem == nil {
 		return coreerr.E("build.WriteReleaseWorkflow", "filesystem medium is required", nil)
 	}
 
@@ -41,7 +41,7 @@ func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
 		outputPath = DefaultReleaseWorkflowPath
 	}
 
-	if isWorkflowDirectoryInput(outputPath) || medium.IsDir(outputPath) {
+	if isWorkflowDirectoryInput(outputPath) || filesystem.IsDir(outputPath) {
 		outputPath = ax.Join(outputPath, DefaultReleaseWorkflowFileName)
 	}
 
@@ -50,11 +50,11 @@ func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
 		return coreerr.E("build.WriteReleaseWorkflow", "failed to read embedded workflow template", err)
 	}
 
-	if err := medium.EnsureDir(ax.Dir(outputPath)); err != nil {
+	if err := filesystem.EnsureDir(ax.Dir(outputPath)); err != nil {
 		return coreerr.E("build.WriteReleaseWorkflow", "failed to create release workflow directory", err)
 	}
 
-	if err := medium.Write(outputPath, string(content)); err != nil {
+	if err := filesystem.Write(outputPath, string(content)); err != nil {
 		return coreerr.E("build.WriteReleaseWorkflow", "failed to write release workflow", err)
 	}
 
@@ -102,28 +102,28 @@ func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "")        // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml")        // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci.yml")  // error
-func ResolveReleaseWorkflowInputPath(projectDir, path, outputPath string) (string, error) {
+func ResolveReleaseWorkflowInputPath(projectDir, pathInput, outputPathInput string) (string, error) {
 	resolve := func(input string) string {
 		return resolveReleaseWorkflowInputPath(projectDir, input, nil)
 	}
 
-	path = cleanWorkflowInput(path)
-	outputPath = cleanWorkflowInput(outputPath)
-	if path != "" && outputPath != "" {
-		resolvedPath := resolve(path)
-		resolvedOutput := resolve(outputPath)
+	pathInput = cleanWorkflowInput(pathInput)
+	outputPathInput = cleanWorkflowInput(outputPathInput)
+	if pathInput != "" && outputPathInput != "" {
+		resolvedPath := resolve(pathInput)
+		resolvedOutput := resolve(outputPathInput)
 		if resolvedPath != resolvedOutput {
 			return "", coreerr.E("build.ResolveReleaseWorkflowInputPath", "path and output specify different locations", nil)
 		}
 		return resolvedPath, nil
 	}
 
-	if path != "" {
-		return resolve(path), nil
+	if pathInput != "" {
+		return resolve(pathInput), nil
 	}
 
-	if outputPath != "" {
-		return resolve(outputPath), nil
+	if outputPathInput != "" {
+		return resolve(outputPathInput), nil
 	}
 
 	return resolve(""), nil
@@ -135,28 +135,28 @@ func ResolveReleaseWorkflowInputPath(projectDir, path, outputPath string) (strin
 //
 // build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "ci", "") // /tmp/project/ci/release.yml when /tmp/project/ci exists
 // build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "./ci", "") // /tmp/project/ci/release.yml
-func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, projectDir, path, outputPath string) (string, error) {
+func ResolveReleaseWorkflowInputPathWithMedium(filesystem io_interface.Medium, projectDir, pathInput, outputPathInput string) (string, error) {
 	resolve := func(input string) string {
-		return resolveReleaseWorkflowInputPath(projectDir, input, medium)
+		return resolveReleaseWorkflowInputPath(projectDir, input, filesystem)
 	}
 
-	path = cleanWorkflowInput(path)
-	outputPath = cleanWorkflowInput(outputPath)
-	if path != "" && outputPath != "" {
-		resolvedPath := resolve(path)
-		resolvedOutput := resolve(outputPath)
+	pathInput = cleanWorkflowInput(pathInput)
+	outputPathInput = cleanWorkflowInput(outputPathInput)
+	if pathInput != "" && outputPathInput != "" {
+		resolvedPath := resolve(pathInput)
+		resolvedOutput := resolve(outputPathInput)
 		if resolvedPath != resolvedOutput {
 			return "", coreerr.E("build.ResolveReleaseWorkflowInputPathWithMedium", "path and output specify different locations", nil)
 		}
 		return resolvedPath, nil
 	}
 
-	if path != "" {
-		return resolve(path), nil
+	if pathInput != "" {
+		return resolve(pathInput), nil
 	}
 
-	if outputPath != "" {
-		return resolve(outputPath), nil
+	if outputPathInput != "" {
+		return resolve(outputPathInput), nil
 	}
 
 	return resolve(""), nil

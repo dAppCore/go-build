@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	releaseWorkflowPath            string
+	releaseWorkflowPathInput       string
 	releaseWorkflowOutputPathInput string
 )
 
 var releaseWorkflowCmd = &cli.Command{
 	Use: "workflow",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runReleaseWorkflow(cmd.Context(), releaseWorkflowPath, releaseWorkflowOutputPathInput)
+		return runReleaseWorkflow(cmd.Context(), releaseWorkflowPathInput, releaseWorkflowOutputPathInput)
 	},
 }
 
@@ -31,7 +31,7 @@ func setWorkflowI18n() {
 }
 
 func initWorkflowFlags() {
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPath, "path", "", i18n.T("cmd.build.workflow.flag.path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathInput, "path", "", i18n.T("cmd.build.workflow.flag.path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathInput, "output-path", "", i18n.T("cmd.build.workflow.flag.output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathInput, "output", "", i18n.T("cmd.build.workflow.flag.output"))
 }
@@ -44,20 +44,20 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 	buildCmd.AddCommand(releaseWorkflowCmd)
 }
 
-// runReleaseWorkflow writes the embedded release workflow into the project.
+// runReleaseWorkflow writes the embedded release workflow into the current project directory.
 //
 // buildcmd.AddWorkflowCommand(buildCmd)
 // runReleaseWorkflow(ctx, "", "")                  // writes to .github/workflows/release.yml
 // runReleaseWorkflow(ctx, "ci/release.yml", "")    // writes to ./ci/release.yml under the project root
 // runReleaseWorkflow(ctx, "", "ci/release.yml")    // output-path and output are aliases for the output path input
-func runReleaseWorkflow(_ context.Context, workflowPath, workflowOutputPathInput string) error {
+func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPathInput string) error {
 
 	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("build.runReleaseWorkflow", "failed to get working directory", err)
 	}
 
-	return runReleaseWorkflowInDir(projectDir, workflowPath, workflowOutputPathInput)
+	return runReleaseWorkflowInDir(projectDir, workflowPathInput, workflowOutputPathInput)
 }
 
 // runReleaseWorkflowInDir writes the embedded release workflow into projectDir.
@@ -65,8 +65,8 @@ func runReleaseWorkflow(_ context.Context, workflowPath, workflowOutputPathInput
 // runReleaseWorkflowInDir("/tmp/project", "", "")                // /tmp/project/.github/workflows/release.yml
 // runReleaseWorkflowInDir("/tmp/project", "ci/release.yml", "")  // /tmp/project/ci/release.yml
 // runReleaseWorkflowInDir("/tmp/project", ".github/workflows", "") // /tmp/project/.github/workflows/release.yml
-func runReleaseWorkflowInDir(projectDir, workflowPath, workflowOutputPathInput string) error {
-	resolvedPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, projectDir, workflowPath, workflowOutputPathInput)
+func runReleaseWorkflowInDir(projectDir, workflowPathInput, workflowOutputPathInput string) error {
+	resolvedPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, projectDir, workflowPathInput, workflowOutputPathInput)
 	if err != nil {
 		return err
 	}
