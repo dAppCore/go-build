@@ -117,12 +117,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Download build artefacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: ${{ inputs.working-directory }}/dist
+          merge-multiple: true
+
       - name: Install Core CLI
         uses: dAppCore/build@v4
         with:
-          command: release
+          command: ci
           working-directory: ${{ inputs.working-directory }}
           core-version: ${{ inputs.core-version }}
           version: ${{ inputs.version }}
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
+          we-are-go-for-launch: true

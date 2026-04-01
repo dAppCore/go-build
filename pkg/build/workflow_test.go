@@ -26,6 +26,9 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "workflow_call:")
 		assert.Contains(t, content, "workflow_dispatch:")
 		assert.Contains(t, content, "core build --targets")
+		assert.Contains(t, content, "actions/download-artifact@v4")
+		assert.Contains(t, content, "command: ci")
+		assert.Contains(t, content, "we-are-go-for-launch: true")
 	})
 
 	t.Run("writes to a custom path", func(t *testing.T) {

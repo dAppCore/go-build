@@ -22,6 +22,8 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, content, "workflow_call:")
 		assert.Contains(t, content, "workflow_dispatch:")
+		assert.Contains(t, content, "actions/download-artifact@v4")
+		assert.Contains(t, content, "command: ci")
 	})
 
 	t.Run("writes to a custom relative path", func(t *testing.T) {
@@ -33,5 +35,7 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, content, "workflow_call:")
 		assert.Contains(t, content, "workflow_dispatch:")
+		assert.Contains(t, content, "actions/download-artifact@v4")
+		assert.Contains(t, content, "command: ci")
 	})
 }
