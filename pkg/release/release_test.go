@@ -856,6 +856,47 @@ fi
 	assert.FileExists(t, ax.Join(dir, "dist", "CHECKSUMS.txt.asc"))
 }
 
+func TestRelease_BuildArtifacts_HonoursBuildProjectMain_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, "cmd", "app"), 0o755))
+
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/releaseapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "cmd", "app", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	buildConfig := `version: 1
+project:
+  name: releaseapp
+  binary: releaseapp
+  main: ./cmd/app
+build:
+  flags: ["-trimpath"]
+targets:
+  - os: ` + runtime.GOOS + `
+    arch: ` + runtime.GOARCH + `
+`
+	require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(buildConfig), 0o644))
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.Project.Name = "releaseapp"
+	cfg.Publishers = nil
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	require.NoError(t, err)
+
+	var sawArchive bool
+	for _, artifact := range artifacts {
+		if artifact.Path == ax.Join(dir, "dist", "releaseapp_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz") {
+			sawArchive = true
+			break
+		}
+	}
+
+	assert.True(t, sawArchive)
+}
+
 // Helper functions for publish tests
 func setupPublishGitRepo(t *testing.T) string {
 	t.Helper()

@@ -381,12 +381,30 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 
 	// Build configuration
 	builderConfig := &build.Config{
-		FS:         filesystem,
-		ProjectDir: projectDir,
-		OutputDir:  outputDir,
-		Name:       binaryName,
-		Version:    version,
-		LDFlags:    buildConfig.Build.LDFlags,
+		FS:             filesystem,
+		Project:        buildConfig.Project,
+		ProjectDir:     projectDir,
+		OutputDir:      outputDir,
+		Name:           binaryName,
+		Version:        version,
+		LDFlags:        append([]string{}, buildConfig.Build.LDFlags...),
+		Flags:          append([]string{}, buildConfig.Build.Flags...),
+		BuildTags:      append([]string{}, buildConfig.Build.BuildTags...),
+		Env:            append([]string{}, buildConfig.Build.Env...),
+		Cache:          buildConfig.Build.Cache,
+		CGO:            buildConfig.Build.CGO,
+		Obfuscate:      buildConfig.Build.Obfuscate,
+		NSIS:           buildConfig.Build.NSIS,
+		WebView2:       buildConfig.Build.WebView2,
+		Dockerfile:     buildConfig.Build.Dockerfile,
+		Registry:       buildConfig.Build.Registry,
+		Image:          buildConfig.Build.Image,
+		Tags:           append([]string{}, buildConfig.Build.Tags...),
+		BuildArgs:      buildConfig.Build.BuildArgs,
+		Push:           buildConfig.Build.Push,
+		Load:           buildConfig.Build.Load,
+		LinuxKitConfig: buildConfig.Build.LinuxKitConfig,
+		Formats:        append([]string{}, buildConfig.Build.Formats...),
 	}
 	build.ApplyOptions(builderConfig, build.ComputeOptions(buildConfig, discovery))
 

@@ -34,6 +34,7 @@ func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
 		Build: build.Build{
 			LDFlags:        []string{"-s", "-w"},
 			Flags:          []string{"-trimpath"},
+			BuildTags:      []string{"integration"},
 			Env:            []string{"FOO=bar"},
 			CGO:            true,
 			Obfuscate:      true,
@@ -55,6 +56,7 @@ func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
 
 	assert.Equal(t, []string{"-s", "-w"}, cfg.LDFlags)
 	assert.Equal(t, []string{"-trimpath"}, cfg.Flags)
+	assert.Equal(t, []string{"integration"}, cfg.BuildTags)
 	assert.Equal(t, []string{"FOO=bar"}, cfg.Env)
 	assert.True(t, cfg.CGO)
 	assert.True(t, cfg.Obfuscate)
