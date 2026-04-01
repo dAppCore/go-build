@@ -120,6 +120,10 @@ func TestWorkflow_ResolveReleaseWorkflowPath_Good(t *testing.T) {
 		assert.Equal(t, "/tmp/project/ci/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "ci/release.yml"))
 	})
 
+	t.Run("treats bare relative directory names as directories", func(t *testing.T) {
+		assert.Equal(t, "/tmp/project/ci/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "ci"))
+	})
+
 	t.Run("treats trailing-slash relative paths as directories", func(t *testing.T) {
 		assert.Equal(t, "/tmp/project/ci/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "ci/"))
 	})

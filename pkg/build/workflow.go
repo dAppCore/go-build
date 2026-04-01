@@ -69,12 +69,13 @@ func ReleaseWorkflowPath(projectDir string) string {
 //
 // build.ResolveReleaseWorkflowPath("/tmp/project", "")                // /tmp/project/.github/workflows/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "ci/release.yml")   // /tmp/project/ci/release.yml
+// build.ResolveReleaseWorkflowPath("/tmp/project", "ci")               // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowPath("/tmp/project", "/tmp/release.yml") // /tmp/release.yml
 func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
 	if outputPath == "" {
 		return ReleaseWorkflowPath(projectDir)
 	}
-	if isWorkflowDirectoryPath(outputPath) {
+	if isWorkflowDirectoryPath(outputPath) || isWorkflowDirectoryInput(outputPath) {
 		if ax.IsAbs(outputPath) {
 			return ax.Join(outputPath, DefaultReleaseWorkflowFileName)
 		}
