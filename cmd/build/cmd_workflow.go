@@ -63,7 +63,7 @@ func runReleaseWorkflow(_ context.Context, path, outputPath string) error {
 // runReleaseWorkflowInDir("/tmp/project", "", "")               // /tmp/project/.github/workflows/release.yml
 // runReleaseWorkflowInDir("/tmp/project", "ci/release.yml", "") // /tmp/project/ci/release.yml
 func runReleaseWorkflowInDir(projectDir, path, outputPath string) error {
-	resolvedPath, err := build.ResolveReleaseWorkflowInputPath(projectDir, path, outputPath)
+	resolvedPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, projectDir, path, outputPath)
 	if err != nil {
 		return err
 	}

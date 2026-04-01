@@ -68,6 +68,18 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "workflow_dispatch:")
 	})
 
+	t.Run("writes release.yml inside an existing directory without a trailing slash", func(t *testing.T) {
+		require.NoError(t, io.Local.EnsureDir(ax.Join(projectDir, "ops")))
+
+		err := runReleaseWorkflowInDir(projectDir, "ops", "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, "ops", "release.yml"))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
 	t.Run("writes to the output alias", func(t *testing.T) {
 		customPath := "ci/alias-release.yml"
 		err := runReleaseWorkflowInDir(projectDir, "", customPath)

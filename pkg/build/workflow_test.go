@@ -126,3 +126,31 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Bad(t *testing.T) {
 		assert.Contains(t, err.Error(), "path and output specify different locations")
 	})
 }
+
+func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
+	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
+		fs := io.NewMockMedium()
+		fs.Dirs["/tmp/project/ci"] = true
+
+		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("keeps a file path unchanged when the target is not a directory", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci/release.yml", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("normalizes matching directory aliases", func(t *testing.T) {
+		fs := io.NewMockMedium()
+		fs.Dirs["/tmp/project/ci"] = true
+
+		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "ci/")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+}

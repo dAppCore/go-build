@@ -554,7 +554,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		}
 	}
 
-	path, err := build.ResolveReleaseWorkflowInputPath(dir, req.Path, req.Output)
+	path, err := build.ResolveReleaseWorkflowInputPathWithMedium(p.medium, dir, req.Path, req.Output)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 		return

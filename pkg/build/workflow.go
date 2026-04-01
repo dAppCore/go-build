@@ -105,6 +105,40 @@ func ResolveReleaseWorkflowInputPath(projectDir, path, outputPath string) (strin
 	return ReleaseWorkflowPath(projectDir), nil
 }
 
+// ResolveReleaseWorkflowInputPathWithMedium resolves the workflow path and
+// treats an existing directory as a directory even when the caller omits a
+// trailing slash.
+//
+// build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "ci", "") // /tmp/project/ci/release.yml when /tmp/project/ci exists
+func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, projectDir, path, outputPath string) (string, error) {
+	resolve := func(input string) string {
+		resolved := ResolveReleaseWorkflowPath(projectDir, input)
+		if medium != nil && medium.IsDir(resolved) {
+			return ax.Join(resolved, DefaultReleaseWorkflowFileName)
+		}
+		return resolved
+	}
+
+	if path != "" && outputPath != "" {
+		resolvedPath := resolve(path)
+		resolvedOutput := resolve(outputPath)
+		if resolvedPath != resolvedOutput {
+			return "", coreerr.E("build.ResolveReleaseWorkflowInputPath", "path and output specify different locations", nil)
+		}
+		return resolvedPath, nil
+	}
+
+	if path != "" {
+		return resolve(path), nil
+	}
+
+	if outputPath != "" {
+		return resolve(outputPath), nil
+	}
+
+	return resolve(""), nil
+}
+
 // isDirectoryLikePath reports whether a path should be treated as a directory
 // rather than a file path.
 func isDirectoryLikePath(path string) bool {
