@@ -110,6 +110,13 @@
           "release": "Release"
         }
       },
+      "workflow": {
+        "short": "Generate the release workflow",
+        "long": "Write the embedded GitHub Actions release workflow into .github/workflows/release.yml or a custom path.",
+        "flag": {
+          "path": "Output path for the workflow file"
+        }
+      },
       "sdk": {
         "short": "Generate SDK client libraries",
         "long": "Generate typed SDK client libraries from an OpenAPI spec. Supports multiple languages and versioned output.",

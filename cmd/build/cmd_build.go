@@ -148,5 +148,6 @@ func AddBuildCommands(root *cli.Command) {
 	setBuildI18n()
 	initBuildFlags()
 	AddReleaseCommand(buildCmd)
+	AddWorkflowCommand(buildCmd)
 	root.AddCommand(buildCmd)
 }
