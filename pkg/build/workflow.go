@@ -4,6 +4,7 @@ package build
 
 import (
 	"embed"
+	"strings"
 
 	"dappco.re/go/core/build/internal/ax"
 	io_interface "dappco.re/go/core/io"
@@ -188,10 +189,13 @@ func isWorkflowDirectoryPath(path string) bool {
 
 // isWorkflowDirectoryInput reports whether a workflow input should be treated
 // as a directory target. This includes explicit directory paths and bare names
-// without a file extension.
+// without path separators or a file extension.
 func isWorkflowDirectoryInput(path string) bool {
 	if isWorkflowDirectoryPath(path) {
 		return true
 	}
-	return path != "" && ax.Ext(path) == ""
+	if path == "" || ax.Ext(path) != "" {
+		return false
+	}
+	return !strings.ContainsAny(path, "/\\")
 }

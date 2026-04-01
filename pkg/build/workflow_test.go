@@ -124,6 +124,10 @@ func TestWorkflow_ResolveReleaseWorkflowPath_Good(t *testing.T) {
 		assert.Equal(t, "/tmp/project/ci/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "ci"))
 	})
 
+	t.Run("keeps nested extensionless paths as files", func(t *testing.T) {
+		assert.Equal(t, "/tmp/project/ci/release", ResolveReleaseWorkflowPath("/tmp/project", "ci/release"))
+	})
+
 	t.Run("treats the current directory as a workflow directory", func(t *testing.T) {
 		assert.Equal(t, "/tmp/project/release.yml", ResolveReleaseWorkflowPath("/tmp/project", "."))
 	})
@@ -158,6 +162,12 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci", "")
 		require.NoError(t, err)
 		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("keeps nested extensionless paths as files", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release", path)
 	})
 
 	t.Run("accepts the current directory as the primary input", func(t *testing.T) {
