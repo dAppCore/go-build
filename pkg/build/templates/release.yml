@@ -28,6 +28,11 @@ on:
         required: false
         type: boolean
         default: false
+      archive-format:
+        description: Archive compression format for release artefacts.
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       working-directory:
@@ -55,6 +60,11 @@ on:
         required: false
         type: boolean
         default: false
+      archive-format:
+        description: Archive compression format for release artefacts.
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -98,7 +108,7 @@ jobs:
       - name: Build release artefacts
         working-directory: ${{ inputs.working-directory }}
         shell: bash
-        run: core build --targets "${{ matrix.target }}" --archive --checksum
+        run: core build --targets "${{ matrix.target }}" --archive --checksum --archive-format "${{ inputs.archive-format }}"
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
