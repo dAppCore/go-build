@@ -85,9 +85,6 @@ func (s *SDK) detectScramble() (string, error) {
 	}
 
 	scrambleSpecPath := ax.Join(s.projectDir, "api.json")
-	if ax.IsFile(scrambleSpecPath) {
-		return scrambleSpecPath, nil
-	}
 
 	phpCommand, err := resolvePHPCli()
 	if err != nil {

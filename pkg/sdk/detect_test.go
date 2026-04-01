@@ -146,3 +146,23 @@ func TestDetect_DetectSpecScramble_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `"openapi":"3.1.0"`)
 }
+
+func TestDetect_DetectSpecScrambleOverwritesExistingSpec_Good(t *testing.T) {
+	tmpDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "composer.json"), []byte(`{"require":{"dedoc/scramble":"^0.1"}}`), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "api.json"), []byte(`{"openapi":"3.0.0","info":{"title":"stale"}}`), 0o644))
+
+	phpDir := t.TempDir()
+	writeFakePHP(t, phpDir)
+	t.Setenv("PATH", phpDir)
+
+	sdk := New(tmpDir, nil)
+	got, err := sdk.DetectSpec()
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(tmpDir, "api.json"), got)
+
+	data, err := ax.ReadFile(got)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "stale")
+	assert.Contains(t, string(data), `"openapi":"3.1.0"`)
+}
