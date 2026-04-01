@@ -76,6 +76,9 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	// Determine output binary name
 	binaryName := cfg.Name
 	if binaryName == "" {
+		binaryName = cfg.Project.Binary
+	}
+	if binaryName == "" {
 		binaryName = ax.Base(cfg.ProjectDir)
 	}
 

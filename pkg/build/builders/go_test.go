@@ -274,6 +274,32 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.Contains(t, artifacts[0].Path, baseName)
 	})
 
+	t.Run("uses configured project binary when Name not specified", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+		}
+		cfg.Project.Binary = "example-binary"
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+
+		expectedName := "example-binary"
+		if runtime.GOOS == "windows" {
+			expectedName += ".exe"
+		}
+		assert.Contains(t, artifacts[0].Path, expectedName)
+	})
+
 	t.Run("applies ldflags", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
 		outputDir := t.TempDir()
