@@ -96,18 +96,7 @@ func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci.yml")  // error
 func ResolveReleaseWorkflowInputPath(projectDir, path, outputPath string) (string, error) {
 	resolve := func(input string) string {
-		if input == "" {
-			return ReleaseWorkflowPath(projectDir)
-		}
-
-		if isWorkflowDirectoryInput(input) {
-			if ax.IsAbs(input) {
-				return ax.Join(input, DefaultReleaseWorkflowFileName)
-			}
-			return ax.Join(projectDir, input, DefaultReleaseWorkflowFileName)
-		}
-
-		return ResolveReleaseWorkflowPath(projectDir, input)
+		return resolveReleaseWorkflowInputPath(projectDir, input, nil)
 	}
 
 	if path != "" && outputPath != "" {
@@ -137,22 +126,7 @@ func ResolveReleaseWorkflowInputPath(projectDir, path, outputPath string) (strin
 // build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "ci", "") // /tmp/project/ci/release.yml when /tmp/project/ci exists
 func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, projectDir, path, outputPath string) (string, error) {
 	resolve := func(input string) string {
-		if input == "" {
-			return ReleaseWorkflowPath(projectDir)
-		}
-
-		if isWorkflowDirectoryInput(input) {
-			if ax.IsAbs(input) {
-				return ax.Join(input, DefaultReleaseWorkflowFileName)
-			}
-			return ax.Join(projectDir, input, DefaultReleaseWorkflowFileName)
-		}
-
-		resolved := ResolveReleaseWorkflowPath(projectDir, input)
-		if medium != nil && medium.IsDir(resolved) {
-			return ax.Join(resolved, DefaultReleaseWorkflowFileName)
-		}
-		return resolved
+		return resolveReleaseWorkflowInputPath(projectDir, input, medium)
 	}
 
 	if path != "" && outputPath != "" {
@@ -173,6 +147,28 @@ func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, proje
 	}
 
 	return resolve(""), nil
+}
+
+// resolveReleaseWorkflowInputPath resolves one workflow input into a file path.
+//
+// resolveReleaseWorkflowInputPath("/tmp/project", "ci", io.Local) // /tmp/project/ci/release.yml
+func resolveReleaseWorkflowInputPath(projectDir, input string, medium io_interface.Medium) string {
+	if input == "" {
+		return ReleaseWorkflowPath(projectDir)
+	}
+
+	if isWorkflowDirectoryInput(input) {
+		if ax.IsAbs(input) {
+			return ax.Join(input, DefaultReleaseWorkflowFileName)
+		}
+		return ax.Join(projectDir, input, DefaultReleaseWorkflowFileName)
+	}
+
+	resolved := ResolveReleaseWorkflowPath(projectDir, input)
+	if medium != nil && medium.IsDir(resolved) {
+		return ax.Join(resolved, DefaultReleaseWorkflowFileName)
+	}
+	return resolved
 }
 
 // isWorkflowDirectoryPath reports whether a workflow path is explicitly marked
