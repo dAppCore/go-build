@@ -1,6 +1,7 @@
 package buildcmd
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -10,6 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	require.NoError(t, ax.ExecDir(context.Background(), dir, "git", args...))
+}
 
 func TestBuildCmd_GetBuilder_Good(t *testing.T) {
 	t.Run("returns Python builder for python project type", func(t *testing.T) {
@@ -44,7 +50,7 @@ func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
 		},
 	}
 
-	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, false, "")
+	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, false, "", "v1.2.3")
 
 	assert.Equal(t, []string{"-s", "-w"}, cfg.LDFlags)
 	assert.Equal(t, []string{"-trimpath"}, cfg.Flags)
@@ -61,6 +67,7 @@ func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
 	assert.True(t, cfg.Push)
 	assert.Equal(t, ".core/linuxkit/server.yml", cfg.LinuxKitConfig)
 	assert.Equal(t, []string{"iso", "qcow2"}, cfg.Formats)
+	assert.Equal(t, "v1.2.3", cfg.Version)
 }
 
 func TestBuildCmd_buildRuntimeConfig_ImageOverride_Good(t *testing.T) {
@@ -70,10 +77,28 @@ func TestBuildCmd_buildRuntimeConfig_ImageOverride_Good(t *testing.T) {
 		},
 	}
 
-	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, true, "cli/image")
+	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, true, "cli/image", "v2.0.0")
 
 	assert.Equal(t, "cli/image", cfg.Image)
 	assert.True(t, cfg.Push)
+	assert.Equal(t, "v2.0.0", cfg.Version)
+}
+
+func TestBuildCmd_resolveBuildVersion_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	runGit(t, dir, "init")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test User")
+
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0644))
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "feat: initial commit")
+	runGit(t, dir, "tag", "v1.4.2")
+
+	version, err := resolveBuildVersion(context.Background(), dir)
+	require.NoError(t, err)
+	assert.Equal(t, "v1.4.2", version)
 }
 
 func TestBuildCmd_writeArtifactMetadata_Good(t *testing.T) {

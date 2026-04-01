@@ -15,6 +15,7 @@ import (
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/build/signing"
+	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -128,7 +129,12 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	// Create build config for the builder
-	cfg := buildRuntimeConfig(filesystem, projectDir, outputDir, binaryName, buildConfig, push, imageName)
+	version, err := resolveBuildVersion(ctx, projectDir)
+	if err != nil {
+		return coreerr.E("build.Run", "failed to determine build version", err)
+	}
+
+	cfg := buildRuntimeConfig(filesystem, projectDir, outputDir, binaryName, buildConfig, push, imageName, version)
 	discovery, err := build.DiscoverFull(filesystem, projectDir)
 	if err != nil {
 		return coreerr.E("build.Run", "failed to inspect project for build options", err)
@@ -308,7 +314,7 @@ func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []b
 }
 
 // buildRuntimeConfig maps persisted build configuration onto the runtime builder config.
-func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName string, buildConfig *build.BuildConfig, push bool, imageName string) *build.Config {
+func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName string, buildConfig *build.BuildConfig, push bool, imageName string, version string) *build.Config {
 	buildDefaults := buildConfig.Build
 	cfg := &build.Config{
 		FS:             filesystem,
@@ -316,7 +322,7 @@ func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName 
 		ProjectDir:     projectDir,
 		OutputDir:      outputDir,
 		Name:           binaryName,
-		Version:        buildConfig.Project.Name, // Could be enhanced with git describe
+		Version:        version,
 		LDFlags:        append([]string{}, buildDefaults.LDFlags...),
 		Flags:          append([]string{}, buildDefaults.Flags...),
 		Env:            append([]string{}, buildDefaults.Env...),
@@ -340,6 +346,13 @@ func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName 
 	}
 
 	return cfg
+}
+
+// resolveBuildVersion determines the version string embedded into build artifacts.
+//
+// version, err := resolveBuildVersion(ctx, ".")
+func resolveBuildVersion(ctx context.Context, projectDir string) (string, error) {
+	return release.DetermineVersionWithContext(ctx, projectDir)
 }
 
 // computeAndWriteChecksums computes checksums for artifacts and writes CHECKSUMS.txt.
