@@ -500,6 +500,10 @@ func (b *WailsBuilder) resolveYarnCli(paths ...string) (string, error) {
 // detectPackageManager detects the frontend package manager based on lock files.
 // Returns "bun", "pnpm", "yarn", or "npm" (default).
 func detectPackageManager(fs io.Medium, dir string) string {
+	if declared := detectDeclaredPackageManager(fs, dir); declared != "" {
+		return declared
+	}
+
 	// Check in priority order: bun, pnpm, yarn, npm
 	lockFiles := []struct {
 		file    string

@@ -657,6 +657,15 @@ func TestWails_WailsBuilderDetect_Good(t *testing.T) {
 
 func TestWails_DetectPackageManager_Good(t *testing.T) {
 	fs := io.Local
+	t.Run("detects declared packageManager value", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte(`{"packageManager":"yarn@4.5.1"}`), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "pnpm-lock.yaml"), []byte(""), 0o644))
+
+		result := detectPackageManager(fs, dir)
+		assert.Equal(t, "yarn", result)
+	})
+
 	t.Run("detects bun from bun.lockb", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "bun.lockb"), []byte(""), 0o644)
@@ -739,6 +748,14 @@ func TestWails_DetectPackageManager_Good(t *testing.T) {
 
 		result := detectPackageManager(fs, dir)
 		assert.Equal(t, "yarn", result)
+	})
+
+	t.Run("normalises package manager version pins", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte(`{"packageManager":"npm@10.8.2"}`), 0o644))
+
+		result := detectPackageManager(fs, dir)
+		assert.Equal(t, "npm", result)
 	})
 }
 

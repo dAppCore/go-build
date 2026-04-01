@@ -135,6 +135,30 @@ func TestNode_NodeBuilderBuild_Good(t *testing.T) {
 	assert.Contains(t, string(content), "FOO=bar")
 }
 
+func TestNode_ResolvePackageManager_Good(t *testing.T) {
+	fs := io.Local
+	builder := NewNodeBuilder()
+
+	t.Run("prefers packageManager declaration over lockfiles", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte(`{"packageManager":"pnpm@9.12.0"}`), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "bun.lockb"), []byte(""), 0o644))
+
+		result, err := builder.resolvePackageManager(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, "pnpm", result)
+	})
+
+	t.Run("normalises package manager version pins", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte(`{"packageManager":"bun@1.1.38"}`), 0o644))
+
+		result, err := builder.resolvePackageManager(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, "bun", result)
+	})
+}
+
 func TestNode_NodeBuilderFindArtifactsForTarget_Good(t *testing.T) {
 	fs := io.Local
 	builder := NewNodeBuilder()

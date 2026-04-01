@@ -108,6 +108,10 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 //
 // packageManager := b.resolvePackageManager(io.Local, ".")
 func (b *NodeBuilder) resolvePackageManager(fs io.Medium, projectDir string) (string, error) {
+	if declared := detectDeclaredPackageManager(fs, projectDir); declared != "" {
+		return declared, nil
+	}
+
 	switch {
 	case fs.IsFile(ax.Join(projectDir, "bun.lockb")) || fs.IsFile(ax.Join(projectDir, "bun.lock")):
 		return "bun", nil
