@@ -39,8 +39,8 @@ func (b *GoBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 }
 
 // Build compiles the Go project for the specified targets.
-// It sets GOOS, GOARCH, and CGO_ENABLED, applies ldflags and trimpath, and
-// uses garble when obfuscation is enabled.
+// It sets GOOS, GOARCH, and CGO_ENABLED, applies config-defined build flags
+// and ldflags, and uses garble when obfuscation is enabled.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
@@ -91,11 +91,13 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 
 	outputPath := ax.Join(platformDir, binaryName)
 
-	// Build the go/garble arguments
+	// Build the go/garble arguments.
 	args := []string{"build"}
-
-	// Add trimpath flag
-	args = append(args, "-trimpath")
+	if cfg.Flags == nil {
+		args = append(args, "-trimpath")
+	} else if len(cfg.Flags) > 0 {
+		args = append(args, cfg.Flags...)
+	}
 
 	// Add ldflags if specified
 	if len(cfg.LDFlags) > 0 {
@@ -109,11 +111,12 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	// Add the project directory as the build target (current directory)
 	args = append(args, ".")
 
-	// Set up environment
-	env := []string{
+	// Set up environment.
+	env := append([]string{}, cfg.Env...)
+	env = append(env,
 		core.Sprintf("GOOS=%s", target.OS),
 		core.Sprintf("GOARCH=%s", target.Arch),
-	}
+	)
 	if cfg.CGO {
 		env = append(env, "CGO_ENABLED=1")
 	} else {

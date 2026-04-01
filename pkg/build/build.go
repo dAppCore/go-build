@@ -81,6 +81,10 @@ type Config struct {
 	Version string
 	// LDFlags are additional linker flags.
 	LDFlags []string
+	// Flags are additional build flags.
+	Flags []string
+	// Env are additional environment variables.
+	Env []string
 	// CGO enables CGO for the build (required for Wails, FrankenPHP, etc).
 	CGO bool
 	// Obfuscate uses garble instead of go build for binary obfuscation.

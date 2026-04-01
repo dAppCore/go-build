@@ -120,6 +120,8 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		Name:       binaryName,
 		Version:    buildConfig.Project.Name, // Could be enhanced with git describe
 		LDFlags:    buildConfig.Build.LDFlags,
+		Flags:      buildConfig.Build.Flags,
+		Env:        buildConfig.Build.Env,
 		CGO:        buildConfig.Build.CGO,
 		// Docker/LinuxKit specific
 		Dockerfile:     configPath, // Reuse for Dockerfile path

@@ -52,6 +52,11 @@ if [ -n "$log_file" ]; then
 	printf '%s\n' "$@" > "$log_file"
 fi
 
+env_log_file="${GO_BUILD_ENV_LOG_FILE:-}"
+if [ -n "$env_log_file" ]; then
+	env | sort > "$env_log_file"
+fi
+
 if [ "${GOARCH:-}" = "invalid_arch" ]; then
 	exit 1
 fi
@@ -289,6 +294,52 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, artifacts, 1)
 		assert.FileExists(t, artifacts[0].Path)
+	})
+
+	t.Run("applies config flags and env", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logDir := t.TempDir()
+		argsLogPath := ax.Join(logDir, "go-args.log")
+		envLogPath := ax.Join(logDir, "go-env.log")
+
+		t.Setenv("GO_BUILD_LOG_FILE", argsLogPath)
+		t.Setenv("GO_BUILD_ENV_LOG_FILE", envLogPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "envflags",
+			Flags:      []string{"-race"},
+			Env:        []string{"FOO=bar", "BAR=baz"},
+		}
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		argsContent, err := ax.ReadFile(argsLogPath)
+		require.NoError(t, err)
+		args := strings.Split(strings.TrimSpace(string(argsContent)), "\n")
+		require.NotEmpty(t, args)
+		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-race")
+		assert.NotContains(t, args, "-trimpath")
+
+		envContent, err := ax.ReadFile(envLogPath)
+		require.NoError(t, err)
+		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
+		assert.Contains(t, envLines, "BAR=baz")
+		assert.Contains(t, envLines, "FOO=bar")
+		assert.Contains(t, envLines, "GOOS="+runtime.GOOS)
+		assert.Contains(t, envLines, "GOARCH="+runtime.GOARCH)
+		assert.Contains(t, envLines, "CGO_ENABLED=0")
 	})
 
 	t.Run("uses garble when obfuscation is enabled", func(t *testing.T) {
