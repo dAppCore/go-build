@@ -3,6 +3,7 @@ package builders
 
 import (
 	"context"
+	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -82,6 +83,10 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	}
 
 	// If no targets specified, use current platform
+	buildTargets := targets
+	if len(buildTargets) == 0 {
+		buildTargets = []build.Target{{OS: "linux", Arch: "amd64"}}
+	}
 	if len(platforms) == 0 {
 		platforms = []string{"linux/amd64"}
 	}
@@ -141,18 +146,15 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 		args = append(args, "--build-arg", core.Sprintf("VERSION=%s", cfg.Version))
 	}
 
+	safeImageName := strings.ReplaceAll(imageName, "/", "_")
+
 	// Output to local docker images or push
 	if cfg.Push {
 		args = append(args, "--push")
 	} else {
-		// For multi-platform builds without push, we need to load or output somewhere
-		if len(platforms) == 1 {
-			args = append(args, "--load")
-		} else {
-			// Multi-platform builds can't use --load, output to tarball
-			outputPath := ax.Join(cfg.OutputDir, core.Sprintf("%s.tar", imageName))
-			args = append(args, "--output", core.Sprintf("type=oci,dest=%s", outputPath))
-		}
+		// Local Docker builds emit an OCI archive so the build output is a file.
+		outputPath := ax.Join(cfg.OutputDir, core.Sprintf("%s.tar", safeImageName))
+		args = append(args, "--output", core.Sprintf("type=oci,dest=%s", outputPath))
 	}
 
 	// Build context (project directory)
@@ -167,21 +169,23 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	core.Print(nil, "  Platforms: %s", core.Join(", ", platforms...))
 	core.Print(nil, "  Tags: %s", core.Join(", ", imageRefs...))
 
+	// Build once for the full platform set. Docker buildx produces a single
+	// multi-arch image or OCI archive from the combined platform list.
 	if err := ax.ExecDir(ctx, cfg.ProjectDir, dockerCommand, args...); err != nil {
 		return nil, coreerr.E("DockerBuilder.Build", "buildx build failed", err)
 	}
 
-	// Create artifacts for each platform
-	var artifacts []build.Artifact
-	for _, t := range targets {
-		artifacts = append(artifacts, build.Artifact{
-			Path: imageRefs[0], // Primary image reference
-			OS:   t.OS,
-			Arch: t.Arch,
-		})
+	artifactPath := imageRefs[0]
+	if !cfg.Push {
+		artifactPath = ax.Join(cfg.OutputDir, core.Sprintf("%s.tar", safeImageName))
 	}
 
-	return artifacts, nil
+	primaryTarget := buildTargets[0]
+	return []build.Artifact{{
+		Path: artifactPath,
+		OS:   primaryTarget.OS,
+		Arch: primaryTarget.Arch,
+	}}, nil
 }
 
 // resolveDockerCli returns the executable path for the docker CLI.
