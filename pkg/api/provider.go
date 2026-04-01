@@ -10,6 +10,7 @@ import (
 	stdio "io"
 	"io/fs"
 	"net/http"
+	"strings"
 
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
@@ -20,6 +21,7 @@ import (
 	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 	"dappco.re/go/core/ws"
 	"github.com/gin-gonic/gin"
 )
@@ -551,18 +553,36 @@ type ReleaseWorkflowRequest struct {
 	LegacyOutputPath string `json:"output"`
 }
 
-// resolvedOutputPath returns the preferred workflow output path, falling back to
-// the legacy short alias when needed.
-func (r ReleaseWorkflowRequest) resolvedOutputPath() string {
-	if r.OutputPath != "" {
-		return r.OutputPath
+// resolvedOutputPath resolves the workflow output aliases with the same
+// conflict rules as the CLI.
+func (r ReleaseWorkflowRequest) resolvedOutputPath() (string, error) {
+	return resolveOutputPathInput(r.OutputPath, r.OutputPathSnake, r.LegacyOutputPath)
+}
+
+// resolveOutputPathInput chooses the workflow output path alias with
+// deterministic precedence.
+func resolveOutputPathInput(outputPathInput, outputPathSnakeInput, outputLegacyInput string) (string, error) {
+	values := []string{
+		strings.TrimSpace(outputPathInput),
+		strings.TrimSpace(outputPathSnakeInput),
+		strings.TrimSpace(outputLegacyInput),
 	}
 
-	if r.OutputPathSnake != "" {
-		return r.OutputPathSnake
+	var resolved string
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if resolved == "" {
+			resolved = value
+			continue
+		}
+		if resolved != value {
+			return "", coreerr.E("api.resolveOutputPathInput", "output aliases specify different locations", nil)
+		}
 	}
 
-	return r.LegacyOutputPath
+	return resolved, nil
 }
 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
@@ -581,7 +601,13 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		}
 	}
 
-	workflowPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(p.medium, dir, req.Path, req.resolvedOutputPath())
+	outputPath, err := req.resolvedOutputPath()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+		return
+	}
+
+	workflowPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(p.medium, dir, req.Path, outputPath)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 		return

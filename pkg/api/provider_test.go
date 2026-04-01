@@ -315,6 +315,28 @@ func TestProvider_GenerateReleaseWorkflow_OutputPathSnake_Good(t *testing.T) {
 	assert.Contains(t, content, "workflow_dispatch:")
 }
 
+func TestProvider_GenerateReleaseWorkflow_ConflictingOutputAliases_Bad(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"outputPath":"ci/output-path.yml","output_path":"ops/output-path.yml"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+
+	path := build.ReleaseWorkflowPath(projectDir)
+	_, err := io.Local.Read(path)
+	assert.Error(t, err)
+}
+
 func TestProvider_GenerateReleaseWorkflow_BareDirectoryPath_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
