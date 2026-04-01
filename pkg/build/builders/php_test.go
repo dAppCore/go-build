@@ -172,6 +172,7 @@ func TestPHP_PHPBuilderBuildFallbackBundle_Good(t *testing.T) {
 
 	var foundComposer bool
 	for _, file := range reader.File {
+		assert.True(t, file.Modified.Equal(deterministicZipTime))
 		if file.Name == "composer.json" {
 			foundComposer = true
 			break

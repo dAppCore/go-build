@@ -223,6 +223,7 @@ func (b *PHPBuilder) writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, cur
 		}
 		header.Name = strings.ReplaceAll(relPath, ax.DS(), "/")
 		header.Method = zip.Deflate
+		header.SetModTime(deterministicZipTime)
 
 		zipEntry, err := writer.CreateHeader(header)
 		if err != nil {
