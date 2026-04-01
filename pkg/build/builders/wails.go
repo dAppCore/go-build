@@ -142,14 +142,41 @@ func (b *WailsBuilder) resolveFrontendBuild(fs io.Medium, projectDir string) (st
 	}
 
 	if fs.IsFile(ax.Join(frontendDir, "package.json")) {
+		packageManager := detectPackageManager(fs, frontendDir)
+		return b.resolvePackageManagerBuild(frontendDir, packageManager)
+	}
+
+	return "", "", nil, nil
+}
+
+// resolvePackageManagerBuild returns the frontend build command for a detected package manager.
+func (b *WailsBuilder) resolvePackageManagerBuild(frontendDir, packageManager string) (string, string, []string, error) {
+	switch packageManager {
+	case "bun":
+		command, err := b.resolveBunCli()
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, []string{"run", "build"}, nil
+	case "pnpm":
+		command, err := b.resolvePnpmCli()
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, []string{"run", "build"}, nil
+	case "yarn":
+		command, err := b.resolveYarnCli()
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, []string{"build"}, nil
+	default:
 		command, err := b.resolveNpmCli()
 		if err != nil {
 			return "", "", nil, err
 		}
 		return frontendDir, command, []string{"run", "build"}, nil
 	}
-
-	return "", "", nil, nil
 }
 
 // resolveFrontendDir returns the directory that contains the frontend build manifest.
@@ -362,6 +389,57 @@ func (b *WailsBuilder) resolveNpmCli(paths ...string) (string, error) {
 	command, err := ax.ResolveCommand("npm", paths...)
 	if err != nil {
 		return "", coreerr.E("WailsBuilder.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", err)
+	}
+
+	return command, nil
+}
+
+// resolveBunCli returns the executable path for the bun CLI.
+func (b *WailsBuilder) resolveBunCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/bun",
+			"/opt/homebrew/bin/bun",
+		}
+	}
+
+	command, err := ax.ResolveCommand("bun", paths...)
+	if err != nil {
+		return "", coreerr.E("WailsBuilder.resolveBunCli", "bun CLI not found. Install it from https://bun.sh/", err)
+	}
+
+	return command, nil
+}
+
+// resolvePnpmCli returns the executable path for the pnpm CLI.
+func (b *WailsBuilder) resolvePnpmCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/pnpm",
+			"/opt/homebrew/bin/pnpm",
+		}
+	}
+
+	command, err := ax.ResolveCommand("pnpm", paths...)
+	if err != nil {
+		return "", coreerr.E("WailsBuilder.resolvePnpmCli", "pnpm CLI not found. Install it from https://pnpm.io/installation", err)
+	}
+
+	return command, nil
+}
+
+// resolveYarnCli returns the executable path for the yarn CLI.
+func (b *WailsBuilder) resolveYarnCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/yarn",
+			"/opt/homebrew/bin/yarn",
+		}
+	}
+
+	command, err := ax.ResolveCommand("yarn", paths...)
+	if err != nil {
+		return "", coreerr.E("WailsBuilder.resolveYarnCli", "yarn CLI not found. Install it from https://yarnpkg.com/getting-started/install", err)
 	}
 
 	return command, nil
