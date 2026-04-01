@@ -111,8 +111,10 @@ func initBuildFlags() {
 	buildCmd.Flags().BoolVar(&archiveOutput, "archive", true, i18n.T("cmd.build.flag.archive"))
 	buildCmd.Flags().BoolVar(&checksumOutput, "checksum", true, i18n.T("cmd.build.flag.checksum"))
 
-	// Docker/LinuxKit specific
+	// Build config override.
 	buildCmd.Flags().StringVar(&configPath, "config", "", i18n.T("cmd.build.flag.config"))
+
+	// Docker/LinuxKit specific
 	buildCmd.Flags().StringVar(&format, "format", "", i18n.T("cmd.build.flag.format"))
 	buildCmd.Flags().BoolVar(&push, "push", false, i18n.T("cmd.build.flag.push"))
 	buildCmd.Flags().StringVar(&imageName, "image", "", i18n.T("cmd.build.flag.image"))

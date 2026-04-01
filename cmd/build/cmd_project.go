@@ -33,14 +33,20 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	// Load configuration from .core/build.yaml (or defaults)
-	buildConfig, err := build.LoadConfig(filesystem, projectDir)
+	var buildConfig *build.BuildConfig
+	if configPath != "" {
+		if !ax.IsAbs(configPath) {
+			configPath = ax.Join(projectDir, configPath)
+		}
+		if !filesystem.Exists(configPath) {
+			return coreerr.E("build.Run", "build config not found: "+configPath, nil)
+		}
+		buildConfig, err = build.LoadConfigAtPath(filesystem, configPath)
+	} else {
+		buildConfig, err = build.LoadConfig(filesystem, projectDir)
+	}
 	if err != nil {
 		return coreerr.E("build.Run", "failed to load config", err)
-	}
-
-	discovery, err := build.DiscoverFull(filesystem, projectDir)
-	if err != nil {
-		return coreerr.E("build.Run", "failed to inspect project for build options", err)
 	}
 
 	// Detect project type if not specified
@@ -129,11 +135,12 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		Flags:      buildConfig.Build.Flags,
 		Env:        buildConfig.Build.Env,
 		CGO:        buildConfig.Build.CGO,
-		// Docker/LinuxKit specific
-		Dockerfile:     configPath, // Reuse for Dockerfile path
-		LinuxKitConfig: configPath,
-		Push:           push,
-		Image:          imageName,
+		Push:       push,
+		Image:      imageName,
+	}
+	discovery, err := build.DiscoverFull(filesystem, projectDir)
+	if err != nil {
+		return coreerr.E("build.Run", "failed to inspect project for build options", err)
 	}
 	build.ApplyOptions(cfg, build.ComputeOptions(buildConfig, discovery))
 

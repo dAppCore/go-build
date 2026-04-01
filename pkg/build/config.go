@@ -94,8 +94,15 @@ type TargetConfig struct {
 //
 // cfg, err := build.LoadConfig(io.Local, ".")
 func LoadConfig(fs io.Medium, dir string) (*BuildConfig, error) {
-	configPath := ax.Join(dir, ConfigDir, ConfigFileName)
+	return LoadConfigAtPath(fs, ax.Join(dir, ConfigDir, ConfigFileName))
+}
 
+// LoadConfigAtPath loads build configuration from an explicit file path.
+// If the file does not exist, it returns DefaultConfig().
+// Returns an error if the file exists but cannot be parsed.
+//
+// cfg, err := build.LoadConfigAtPath(io.Local, "/tmp/project/build.yaml")
+func LoadConfigAtPath(fs io.Medium, configPath string) (*BuildConfig, error) {
 	content, err := fs.Read(configPath)
 	if err != nil {
 		if !fs.Exists(configPath) {

@@ -142,6 +142,40 @@ targets:
 	})
 }
 
+func TestConfig_LoadConfigAtPath_Good(t *testing.T) {
+	fs := io.Local
+
+	t.Run("loads config from explicit file path", func(t *testing.T) {
+		dir := t.TempDir()
+		configPath := ax.Join(dir, "custom-build.yaml")
+		content := `
+version: 3
+project:
+  name: custom-app
+  binary: custom-app
+build:
+  cgo: true
+targets:
+  - os: linux
+    arch: amd64
+`
+		err := ax.WriteFile(configPath, []byte(content), 0644)
+		require.NoError(t, err)
+
+		cfg, err := LoadConfigAtPath(fs, configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, 3, cfg.Version)
+		assert.Equal(t, "custom-app", cfg.Project.Name)
+		assert.Equal(t, "custom-app", cfg.Project.Binary)
+		assert.True(t, cfg.Build.CGO)
+		assert.Len(t, cfg.Targets, 1)
+		assert.Equal(t, "linux", cfg.Targets[0].OS)
+		assert.Equal(t, "amd64", cfg.Targets[0].Arch)
+	})
+}
+
 func TestConfig_LoadConfig_Bad(t *testing.T) {
 	fs := io.Local
 	t.Run("returns error for invalid YAML", func(t *testing.T) {
