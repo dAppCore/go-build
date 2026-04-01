@@ -551,6 +551,36 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.True(t, result.HasFrontend)
 	})
 
+	t.Run("detects frontend deno manifest at project root", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		frontendDir := ax.Join(dir, "frontend")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
+		assert.True(t, result.HasFrontend)
+		assert.False(t, result.HasSubtreeNpm)
+	})
+
+	t.Run("detects nested deno frontend manifests", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644)
+		require.NoError(t, err)
+		frontendDir := ax.Join(dir, "apps", "site")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.jsonc"), []byte("{}"), 0644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
+		assert.True(t, result.HasFrontend)
+		assert.False(t, result.HasSubtreeNpm)
+	})
+
 	t.Run("empty directory returns empty result", func(t *testing.T) {
 		dir := t.TempDir()
 		result, err := DiscoverFull(fs, dir)

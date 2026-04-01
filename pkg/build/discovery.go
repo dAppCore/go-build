@@ -264,8 +264,10 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	// Subtree npm detection
 	result.HasSubtreeNpm = HasSubtreeNpm(fs, dir)
 
-	// Frontend detection: frontend/package.json or subtree npm
-	result.HasFrontend = fileExists(fs, ax.Join(dir, "frontend", markerNodePackage)) || result.HasSubtreeNpm
+	// Frontend detection: frontend package managers or nested frontend manifests.
+	result.HasFrontend = hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
+		hasSubtreeFrontendManifest(fs, dir) ||
+		result.HasSubtreeNpm
 
 	result.Types = types
 
@@ -278,6 +280,55 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	}
 
 	return result, nil
+}
+
+// hasFrontendManifest reports whether a frontend directory contains a supported manifest.
+func hasFrontendManifest(fs io.Medium, dir string) bool {
+	return fs.IsFile(ax.Join(dir, markerNodePackage)) ||
+		fs.IsFile(ax.Join(dir, "deno.json")) ||
+		fs.IsFile(ax.Join(dir, "deno.jsonc"))
+}
+
+// hasSubtreeFrontendManifest checks for package.json or deno.json within depth 2 subdirectories.
+func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
+	entries, err := fs.List(dir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if name == "node_modules" || strings.HasPrefix(name, ".") {
+			continue
+		}
+
+		subdir := ax.Join(dir, name)
+		if hasFrontendManifest(fs, subdir) {
+			return true
+		}
+
+		subEntries, err := fs.List(subdir)
+		if err != nil {
+			continue
+		}
+		for _, subEntry := range subEntries {
+			if !subEntry.IsDir() {
+				continue
+			}
+			if subEntry.Name() == "node_modules" || strings.HasPrefix(subEntry.Name(), ".") {
+				continue
+			}
+			nested := ax.Join(subdir, subEntry.Name())
+			if hasFrontendManifest(fs, nested) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // fileExists checks if a file exists and is not a directory.
