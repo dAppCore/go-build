@@ -13,6 +13,7 @@ import (
 // setenvCI sets the GitHub Actions environment variables for a test and cleans up afterwards.
 func setenvCI(t *testing.T, sha, ref, repo string) {
 	t.Helper()
+	t.Setenv("GITHUB_ACTIONS", "true")
 	t.Setenv("GITHUB_SHA", sha)
 	t.Setenv("GITHUB_REF", ref)
 	t.Setenv("GITHUB_REPOSITORY", repo)
@@ -124,7 +125,18 @@ func TestCi_DetectCI_Good(t *testing.T) {
 }
 
 func TestCi_DetectCI_Bad(t *testing.T) {
+	t.Run("returns nil when GITHUB_ACTIONS is not set", func(t *testing.T) {
+		t.Setenv("GITHUB_ACTIONS", "")
+		t.Setenv("GITHUB_SHA", "abc1234def5678901234567890123456789012345")
+		t.Setenv("GITHUB_REF", "refs/heads/main")
+		t.Setenv("GITHUB_REPOSITORY", "org/repo")
+
+		ci := DetectCI()
+		assert.Nil(t, ci)
+	})
+
 	t.Run("returns nil when GITHUB_SHA is not set", func(t *testing.T) {
+		t.Setenv("GITHUB_ACTIONS", "true")
 		t.Setenv("GITHUB_SHA", "")
 		t.Setenv("GITHUB_REF", "")
 		t.Setenv("GITHUB_REPOSITORY", "")

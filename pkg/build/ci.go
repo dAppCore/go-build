@@ -68,7 +68,8 @@ func FormatGitHubAnnotation(level, file string, line int, message string) string
 }
 
 // DetectCI reads GitHub Actions environment variables and returns a populated CIContext.
-// Returns nil if GITHUB_ACTIONS is not set or GITHUB_SHA is empty — indicating not in CI.
+// Returns nil if GITHUB_ACTIONS is not set or GITHUB_SHA is empty, which indicates
+// the process is not running inside GitHub Actions.
 //
 //	ci := build.DetectCI()
 //	if ci == nil {
@@ -78,6 +79,10 @@ func FormatGitHubAnnotation(level, file string, line int, message string) string
 //	    // upload release assets
 //	}
 func DetectCI() *CIContext {
+	if core.Env("GITHUB_ACTIONS") == "" {
+		return nil
+	}
+
 	sha := core.Env("GITHUB_SHA")
 	if sha == "" {
 		return nil
