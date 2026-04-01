@@ -250,7 +250,7 @@ func TestCi_WriteArtifactMeta_Good(t *testing.T) {
 			Owner:    "dappcore",
 		}
 
-		err := WriteArtifactMeta(fs, path, "core", ci)
+		err := WriteArtifactMeta(fs, path, "core", Target{OS: "linux", Arch: "amd64"}, ci)
 		require.NoError(t, err)
 
 		content, readErr := ax.ReadFile(path)
@@ -260,6 +260,8 @@ func TestCi_WriteArtifactMeta_Good(t *testing.T) {
 		require.NoError(t, json.Unmarshal(content, &meta))
 
 		assert.Equal(t, "core", meta["name"])
+		assert.Equal(t, "linux", meta["os"])
+		assert.Equal(t, "amd64", meta["arch"])
 		assert.Equal(t, "v1.2.3", meta["tag"])
 		assert.Equal(t, true, meta["is_tag"])
 		assert.Equal(t, "dappcore/core", meta["repo"])
@@ -270,7 +272,7 @@ func TestCi_WriteArtifactMeta_Good(t *testing.T) {
 		dir := t.TempDir()
 		path := ax.Join(dir, "artifact_meta.json")
 
-		err := WriteArtifactMeta(fs, path, "myapp", nil)
+		err := WriteArtifactMeta(fs, path, "myapp", Target{OS: "darwin", Arch: "arm64"}, nil)
 		require.NoError(t, err)
 
 		content, readErr := ax.ReadFile(path)
@@ -280,6 +282,8 @@ func TestCi_WriteArtifactMeta_Good(t *testing.T) {
 		require.NoError(t, json.Unmarshal(content, &meta))
 
 		assert.Equal(t, "myapp", meta["name"])
+		assert.Equal(t, "darwin", meta["os"])
+		assert.Equal(t, "arm64", meta["arch"])
 		assert.Equal(t, false, meta["is_tag"])
 	})
 
@@ -287,7 +291,7 @@ func TestCi_WriteArtifactMeta_Good(t *testing.T) {
 		dir := t.TempDir()
 		path := ax.Join(dir, "artifact_meta.json")
 
-		err := WriteArtifactMeta(fs, path, "core", nil)
+		err := WriteArtifactMeta(fs, path, "core", Target{OS: "windows", Arch: "amd64"}, nil)
 		require.NoError(t, err)
 
 		content, readErr := ax.ReadFile(path)

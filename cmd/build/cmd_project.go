@@ -149,6 +149,12 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		return err
 	}
 
+	if ciMode {
+		if err := writeArtifactMetadata(filesystem, binaryName, artifacts); err != nil {
+			return err
+		}
+	}
+
 	if verbose && !ciMode {
 		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}))
 		cli.Blank()
@@ -274,6 +280,23 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 			i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}),
 			buildDimStyle.Render(core.Sprintf("(%s)", outputDir)),
 		)
+	}
+
+	return nil
+}
+
+// writeArtifactMetadata writes artifact_meta.json files next to built artifacts when CI metadata is available.
+func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []build.Artifact) error {
+	ci := build.DetectCI()
+	if ci == nil {
+		return nil
+	}
+
+	for _, artifact := range artifacts {
+		metaPath := ax.Join(ax.Dir(artifact.Path), "artifact_meta.json")
+		if err := build.WriteArtifactMeta(filesystem, metaPath, buildName, build.Target{OS: artifact.OS, Arch: artifact.Arch}, ci); err != nil {
+			return err
+		}
 	}
 
 	return nil

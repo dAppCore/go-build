@@ -154,11 +154,13 @@ func ArtifactName(buildName string, ci *CIContext, target Target) string {
 // WriteArtifactMeta writes an artifact_meta.json file to path.
 // The file contains the build name, target OS/arch, and CI metadata if available.
 //
-//	err := build.WriteArtifactMeta(io.Local, "dist/artifact_meta.json", "core", ci)
+//	err := build.WriteArtifactMeta(io.Local, "dist/artifact_meta.json", "core", build.Target{OS: "linux", Arch: "amd64"}, ci)
 //	// writes: {"name":"core","os":"linux","arch":"amd64","tag":"v1.2.3","is_tag":true,...}
-func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, ci *CIContext) error {
+func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, target Target, ci *CIContext) error {
 	meta := artifactMeta{
 		Name: buildName,
+		OS:   target.OS,
+		Arch: target.Arch,
 	}
 
 	if ci != nil {
