@@ -4,6 +4,7 @@ import (
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/io"
+	"strings"
 )
 
 // Marker files for project type detection.
@@ -232,6 +233,9 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	// Frontend detection: frontend/package.json or subtree npm
 	result.HasFrontend = fileExists(fs, ax.Join(dir, "frontend", markerNodePackage)) || result.HasSubtreeNpm
 
+	// Linux distro detection: used for distro-sensitive build flags.
+	result.Distro = detectDistroVersion(fs)
+
 	// Primary stack: first detected type as string, or empty
 	if len(types) > 0 {
 		result.PrimaryStack = string(types[0])
@@ -243,4 +247,65 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 // fileExists checks if a file exists and is not a directory.
 func fileExists(fs io.Medium, path string) bool {
 	return fs.IsFile(path)
+}
+
+// detectDistroVersion extracts the Ubuntu VERSION_ID from os-release data.
+func detectDistroVersion(fs io.Medium) string {
+	if fs == nil {
+		return ""
+	}
+
+	for _, path := range []string{"/etc/os-release", "/usr/lib/os-release"} {
+		content, err := fs.Read(path)
+		if err != nil {
+			continue
+		}
+
+		if distro := parseOSReleaseDistro(content); distro != "" {
+			return distro
+		}
+	}
+
+	return ""
+}
+
+// parseOSReleaseDistro returns VERSION_ID for Ubuntu-style os-release content.
+func parseOSReleaseDistro(content string) string {
+	var id string
+	var idLike string
+	var version string
+
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+
+		key = strings.TrimSpace(key)
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+
+		switch key {
+		case "ID":
+			id = value
+		case "ID_LIKE":
+			idLike = value
+		case "VERSION_ID":
+			version = value
+		}
+	}
+
+	if version == "" {
+		return ""
+	}
+
+	if id == "ubuntu" || strings.Contains(" "+idLike+" ", " ubuntu ") {
+		return version
+	}
+
+	return ""
 }

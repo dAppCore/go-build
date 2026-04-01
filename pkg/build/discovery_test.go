@@ -548,3 +548,60 @@ func TestDiscovery_DiscoverFull_Ugly(t *testing.T) {
 		assert.NotNil(t, result.Markers)
 	})
 }
+
+func TestDiscovery_ParseOSReleaseDistro_Good(t *testing.T) {
+	t.Run("returns ubuntu version id", func(t *testing.T) {
+		content := `
+NAME="Ubuntu"
+ID=ubuntu
+VERSION_ID="24.04"
+ID_LIKE=debian
+`
+		assert.Equal(t, "24.04", parseOSReleaseDistro(content))
+	})
+
+	t.Run("accepts ubuntu-style values without quotes", func(t *testing.T) {
+		content := `
+ID=ubuntu
+VERSION_ID=25.10
+`
+		assert.Equal(t, "25.10", parseOSReleaseDistro(content))
+	})
+}
+
+func TestDiscovery_ParseOSReleaseDistro_Bad(t *testing.T) {
+	t.Run("returns empty for non-ubuntu distro", func(t *testing.T) {
+		content := `
+ID=fedora
+VERSION_ID=41
+`
+		assert.Empty(t, parseOSReleaseDistro(content))
+	})
+
+	t.Run("returns empty when version missing", func(t *testing.T) {
+		content := `
+ID=ubuntu
+`
+		assert.Empty(t, parseOSReleaseDistro(content))
+	})
+}
+
+func TestDiscovery_DetectDistroVersion_Good(t *testing.T) {
+	fs := io.NewMockMedium()
+	require.NoError(t, fs.Write("/etc/os-release", `
+ID=ubuntu
+VERSION_ID="24.04"
+`))
+
+	assert.Equal(t, "24.04", detectDistroVersion(fs))
+}
+
+func TestDiscovery_DetectDistroVersion_Bad(t *testing.T) {
+	fs := io.NewMockMedium()
+	require.NoError(t, fs.Write("/etc/os-release", `
+ID=fedora
+VERSION_ID=41
+`))
+
+	assert.Empty(t, detectDistroVersion(fs))
+}
