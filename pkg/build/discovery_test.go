@@ -94,6 +94,16 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeDocs}, types)
 	})
 
+	t.Run("detects docs project in docs directory with mkdocs.yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, "docs"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "docs", "mkdocs.yaml"), []byte("site_name: Demo\n"), 0644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocs}, types)
+	})
+
 	t.Run("detects Python project with pyproject.toml", func(t *testing.T) {
 		dir := setupTestDir(t, "pyproject.toml")
 		types, err := Discover(fs, dir)

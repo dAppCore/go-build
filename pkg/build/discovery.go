@@ -52,6 +52,8 @@ var markers = []projectMarker{
 	{markerComposer, ProjectTypePHP},
 	{markerMkDocs, ProjectTypeDocs},
 	{markerMkDocsYAML, ProjectTypeDocs},
+	{markerDocsMkDocs, ProjectTypeDocs},
+	{markerDocsMkDocsYAML, ProjectTypeDocs},
 	{markerPyProject, ProjectTypePython},
 	{markerRequirements, ProjectTypePython},
 	{markerCargo, ProjectTypeRust},
