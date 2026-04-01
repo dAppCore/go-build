@@ -1,6 +1,6 @@
 // Package build provides project type detection and cross-compilation for the Core build system.
-// It supports Go, Wails, Node.js, PHP, and Rust projects with automatic detection based on
-// marker files (go.mod, wails.json, package.json, composer.json, Cargo.toml).
+// It supports Go, Wails, Node.js, PHP, Python, Rust, Docs, Docker, LinuxKit, C++, and Taskfile
+// projects with automatic detection based on marker files and builder-specific probes.
 package build
 
 import (

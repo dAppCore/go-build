@@ -87,11 +87,50 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeRust}, types)
 	})
 
+	t.Run("detects Docker project", func(t *testing.T) {
+		dir := setupTestDir(t, "Dockerfile")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocker}, types)
+	})
+
+	t.Run("detects LinuxKit project", func(t *testing.T) {
+		dir := t.TempDir()
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n"), 0644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeLinuxKit}, types)
+	})
+
+	t.Run("detects C++ project", func(t *testing.T) {
+		dir := setupTestDir(t, "CMakeLists.txt")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeCPP}, types)
+	})
+
+	t.Run("detects Taskfile project", func(t *testing.T) {
+		dir := setupTestDir(t, "Taskfile.yml")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeTaskfile}, types)
+	})
+
 	t.Run("detects multiple project types", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod", "package.json")
 		types, err := Discover(fs, dir)
 		assert.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeGo, ProjectTypeNode}, types)
+	})
+
+	t.Run("preserves priority when core and fallback markers overlap", func(t *testing.T) {
+		dir := setupTestDir(t, "go.mod", "Dockerfile", "Taskfile.yml")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeGo, ProjectTypeDocker, ProjectTypeTaskfile}, types)
 	})
 
 	t.Run("empty directory returns empty slice", func(t *testing.T) {

@@ -64,6 +64,21 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		}
 	}
 
+	additionalTypes := []struct {
+		projectType ProjectType
+		detected    bool
+	}{
+		{ProjectTypeDocker, IsDockerProject(fs, dir)},
+		{ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir)},
+		{ProjectTypeCPP, IsCPPProject(fs, dir)},
+		{ProjectTypeTaskfile, IsTaskfileProject(fs, dir)},
+	}
+	for _, candidate := range additionalTypes {
+		if candidate.detected && !core.NewArray(detected...).Contains(candidate.projectType) {
+			detected = append(detected, candidate.projectType)
+		}
+	}
+
 	return detected, nil
 }
 
@@ -246,21 +261,6 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	// Frontend detection: frontend/package.json or subtree npm
 	result.HasFrontend = fileExists(fs, ax.Join(dir, "frontend", markerNodePackage)) || result.HasSubtreeNpm
 
-	// Add fallback builders that are not covered by Discover().
-	additionalTypes := []struct {
-		projectType ProjectType
-		detected    bool
-	}{
-		{ProjectTypeDocker, IsDockerProject(fs, dir)},
-		{ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir)},
-		{ProjectTypeCPP, IsCPPProject(fs, dir)},
-		{ProjectTypeTaskfile, IsTaskfileProject(fs, dir)},
-	}
-	for _, candidate := range additionalTypes {
-		if candidate.detected && !core.NewArray(types...).Contains(candidate.projectType) {
-			types = append(types, candidate.projectType)
-		}
-	}
 	result.Types = types
 
 	// Linux distro detection: used for distro-sensitive build flags.
