@@ -234,6 +234,10 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		return nil, coreerr.E("release.buildArtifacts", "failed to load build config", err)
 	}
 
+	if err := build.SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "failed to set up build cache", err)
+	}
+
 	discovery, err := build.DiscoverFull(filesystem, projectDir)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to inspect project for build options", err)

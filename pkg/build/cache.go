@@ -100,6 +100,17 @@ func SetupCache(fs io.Medium, dir string, cfg *CacheConfig) error {
 	return nil
 }
 
+// SetupBuildCache prepares the cache configuration stored on a build config.
+//
+//	err := build.SetupBuildCache(io.Local, ".", cfg)
+func SetupBuildCache(fs io.Medium, dir string, cfg *BuildConfig) error {
+	if fs == nil || cfg == nil {
+		return nil
+	}
+
+	return SetupCache(fs, dir, &cfg.Build.Cache)
+}
+
 // CacheKey returns a deterministic cache key for the build configuration and target.
 //
 //	key := build.CacheKey("core-build", build.Target{OS: "linux", Arch: "amd64"}, &build.CacheConfig{

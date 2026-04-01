@@ -49,6 +49,10 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 		return coreerr.E("build.Run", "failed to load config", err)
 	}
 
+	if err := build.SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
+		return coreerr.E("build.Run", "failed to set up build cache", err)
+	}
+
 	// Detect project type if not specified
 	var projectType build.ProjectType
 	if buildType != "" {
