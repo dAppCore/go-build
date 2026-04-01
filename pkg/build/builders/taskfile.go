@@ -67,6 +67,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
+	cfg.OutputDir = outputDir
 	if err := cfg.FS.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("TaskfileBuilder.Build", "failed to create output directory", err)
 	}

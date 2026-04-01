@@ -2,6 +2,7 @@ package builders
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -290,4 +291,46 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	assert.Contains(t, string(content), "OUTPUT_DIR=/tmp/out")
 	assert.Contains(t, string(content), "NAME=sample")
 	assert.Contains(t, string(content), "VERSION=v1.2.3")
+}
+
+func TestTaskfile_TaskfileBuilderBuild_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Taskfile.yml"), []byte("version: '3'\n"), 0o644))
+
+	binDir := t.TempDir()
+	taskPath := ax.Join(binDir, "task")
+	logPath := ax.Join(t.TempDir(), "task.build.env")
+
+	script := `#!/bin/sh
+set -eu
+
+mkdir -p "${OUTPUT_DIR}/${GOOS}_${GOARCH}"
+printf '%s\n' "${NAME:-taskfile}" > "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${NAME:-taskfile}"
+env | sort > "${TASK_BUILD_LOG_FILE}"
+`
+	require.NoError(t, ax.WriteFile(taskPath, []byte(script), 0o755))
+
+	t.Setenv("TASK_BUILD_LOG_FILE", logPath)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	builder := NewTaskfileBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		Name:       "sample",
+		Version:    "v1.2.3",
+		Env:        []string{"FOO=bar"},
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.Equal(t, ax.Join(projectDir, "dist", "linux_amd64", "sample"), artifacts[0].Path)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "FOO=bar")
+	assert.Contains(t, string(content), "OUTPUT_DIR="+ax.Join(projectDir, "dist"))
+	assert.Contains(t, string(content), "GOOS=linux")
+	assert.Contains(t, string(content), "GOARCH=amd64")
 }
