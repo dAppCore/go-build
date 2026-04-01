@@ -33,6 +33,7 @@ func setWorkflowI18n() {
 func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathInput, "path", "", i18n.T("cmd.build.workflow.flag.path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathInput, "output-path", "", i18n.T("cmd.build.workflow.flag.output_path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathInput, "output_path", "", i18n.T("cmd.build.workflow.flag.output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathInput, "output", "", i18n.T("cmd.build.workflow.flag.output"))
 }
 
@@ -49,7 +50,7 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // buildcmd.AddWorkflowCommand(buildCmd)
 // runReleaseWorkflow(ctx, "", "")                  // writes to .github/workflows/release.yml
 // runReleaseWorkflow(ctx, "ci/release.yml", "")    // writes to ./ci/release.yml under the project root
-// runReleaseWorkflow(ctx, "", "ci/release.yml")    // output-path and output are aliases for the output path input
+// runReleaseWorkflow(ctx, "", "ci/release.yml")    // output-path, output_path, and output are aliases for the output path input
 func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPathInput string) error {
 
 	projectDir, err := ax.Getwd()
