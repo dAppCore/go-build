@@ -588,6 +588,24 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 		return builders.NewWailsBuilder(), nil
 	case build.ProjectTypeGo:
 		return builders.NewGoBuilder(), nil
+	case build.ProjectTypeNode:
+		return builders.NewNodeBuilder(), nil
+	case build.ProjectTypePHP:
+		return builders.NewPHPBuilder(), nil
+	case build.ProjectTypePython:
+		return builders.NewPythonBuilder(), nil
+	case build.ProjectTypeRust:
+		return builders.NewRustBuilder(), nil
+	case build.ProjectTypeDocs:
+		return builders.NewDocsBuilder(), nil
+	case build.ProjectTypeCPP:
+		return builders.NewCPPBuilder(), nil
+	case build.ProjectTypeDocker:
+		return builders.NewDockerBuilder(), nil
+	case build.ProjectTypeLinuxKit:
+		return builders.NewLinuxKitBuilder(), nil
+	case build.ProjectTypeTaskfile:
+		return builders.NewTaskfileBuilder(), nil
 	default:
 		return nil, fs.ErrNotExist
 	}

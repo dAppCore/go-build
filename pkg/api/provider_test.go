@@ -80,13 +80,30 @@ func TestProvider_BuildProviderNilHub_Good(t *testing.T) {
 }
 
 func TestProvider_GetBuilderSupportedTypes_Good(t *testing.T) {
-	b, err := getBuilder(build.ProjectTypeGo)
-	require.NoError(t, err)
-	assert.Equal(t, "go", b.Name())
+	cases := []struct {
+		projectType build.ProjectType
+		name        string
+	}{
+		{build.ProjectTypeGo, "go"},
+		{build.ProjectTypeWails, "wails"},
+		{build.ProjectTypeNode, "node"},
+		{build.ProjectTypePHP, "php"},
+		{build.ProjectTypePython, "python"},
+		{build.ProjectTypeRust, "rust"},
+		{build.ProjectTypeDocs, "docs"},
+		{build.ProjectTypeCPP, "cpp"},
+		{build.ProjectTypeDocker, "docker"},
+		{build.ProjectTypeLinuxKit, "linuxkit"},
+		{build.ProjectTypeTaskfile, "taskfile"},
+	}
 
-	b, err = getBuilder(build.ProjectTypeWails)
-	require.NoError(t, err)
-	assert.Equal(t, "wails", b.Name())
+	for _, tc := range cases {
+		t.Run(string(tc.projectType), func(t *testing.T) {
+			b, err := getBuilder(tc.projectType)
+			require.NoError(t, err)
+			assert.Equal(t, tc.name, b.Name())
+		})
+	}
 }
 
 func TestProvider_GetBuilderUnsupportedType_Bad(t *testing.T) {
