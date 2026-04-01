@@ -5,6 +5,8 @@ package release
 
 import (
 	"context"
+	"sort"
+	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -120,33 +122,121 @@ func findArtifacts(filesystem io.Medium, distDir string) ([]build.Artifact, erro
 		return nil, coreerr.E("release.findArtifacts", "dist/ directory not found", nil)
 	}
 
-	var artifacts []build.Artifact
-
 	entries, err := filesystem.List(distDir)
 	if err != nil {
 		return nil, coreerr.E("release.findArtifacts", "failed to read dist/", err)
 	}
 
+	var artifacts []build.Artifact
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
 
-		name := entry.Name()
-		path := ax.Join(distDir, name)
-
-		// Include archives and checksums
-		if core.HasSuffix(name, ".tar.gz") ||
-			core.HasSuffix(name, ".tar.xz") ||
-			core.HasSuffix(name, ".zip") ||
-			core.HasSuffix(name, ".txt") ||
-			core.HasSuffix(name, ".asc") ||
-			core.HasSuffix(name, ".sig") {
-			artifacts = append(artifacts, build.Artifact{Path: path})
+		if artifact, ok := releaseArtifactFromName(ax.Join(distDir, entry.Name()), entry.Name()); ok {
+			artifacts = append(artifacts, artifact)
 		}
 	}
 
+	if len(artifacts) > 0 {
+		return artifacts, nil
+	}
+
+	platformArtifacts, err := findPlatformArtifacts(filesystem, distDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return platformArtifacts, nil
+}
+
+func findPlatformArtifacts(filesystem io.Medium, distDir string) ([]build.Artifact, error) {
+	entries, err := filesystem.List(distDir)
+	if err != nil {
+		return nil, coreerr.E("release.findArtifacts", "failed to read dist/", err)
+	}
+
+	var artifacts []build.Artifact
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		osValue, archValue, ok := parsePlatformDir(entry.Name())
+		if !ok {
+			continue
+		}
+
+		platformDir := ax.Join(distDir, entry.Name())
+		files, err := filesystem.List(platformDir)
+		if err != nil {
+			continue
+		}
+
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+
+			name := file.Name()
+			if !shouldPublishRawArtifact(name) {
+				continue
+			}
+
+			artifacts = append(artifacts, build.Artifact{
+				Path: ax.Join(platformDir, name),
+				OS:   osValue,
+				Arch: archValue,
+			})
+		}
+	}
+
+	sort.Slice(artifacts, func(i, j int) bool {
+		return artifacts[i].Path < artifacts[j].Path
+	})
+
 	return artifacts, nil
+}
+
+func releaseArtifactFromName(path, name string) (build.Artifact, bool) {
+	if shouldPublishArchive(name) || shouldPublishChecksum(name) || shouldPublishSignature(name) {
+		return build.Artifact{Path: path}, true
+	}
+	return build.Artifact{}, false
+}
+
+func shouldPublishArchive(name string) bool {
+	return core.HasSuffix(name, ".tar.gz") ||
+		core.HasSuffix(name, ".tar.xz") ||
+		core.HasSuffix(name, ".zip")
+}
+
+func shouldPublishChecksum(name string) bool {
+	return core.HasSuffix(name, ".txt")
+}
+
+func shouldPublishSignature(name string) bool {
+	return core.HasSuffix(name, ".asc") ||
+		core.HasSuffix(name, ".sig")
+}
+
+func shouldPublishRawArtifact(name string) bool {
+	if name == "" || strings.HasPrefix(name, ".") {
+		return false
+	}
+	if name == "artifact_meta.json" || name == "CHECKSUMS.txt" || name == "CHECKSUMS.txt.asc" {
+		return false
+	}
+	return true
+}
+
+func parsePlatformDir(name string) (string, string, bool) {
+	osValue, archValue, ok := strings.Cut(name, "_")
+	if !ok || osValue == "" || archValue == "" {
+		return "", "", false
+	}
+
+	return osValue, archValue, true
 }
 
 // Run executes the full release process: determine version, build artifacts,

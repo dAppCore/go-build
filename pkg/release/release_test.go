@@ -151,6 +151,28 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		assert.Len(t, artifacts, 1)
 	})
 
+	t.Run("falls back to raw platform artifacts when no archives exist", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0755))
+		require.NoError(t, ax.MkdirAll(ax.Join(distDir, "windows_amd64"), 0755))
+
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "linux_amd64", "myapp"), []byte("binary"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "windows_amd64", "myapp.exe"), []byte("binary"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "linux_amd64", "artifact_meta.json"), []byte("{}"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		require.Len(t, artifacts, 2)
+		assert.Equal(t, ax.Join(distDir, "linux_amd64", "myapp"), artifacts[0].Path)
+		assert.Equal(t, "linux", artifacts[0].OS)
+		assert.Equal(t, "amd64", artifacts[0].Arch)
+		assert.Equal(t, ax.Join(distDir, "windows_amd64", "myapp.exe"), artifacts[1].Path)
+		assert.Equal(t, "windows", artifacts[1].OS)
+		assert.Equal(t, "amd64", artifacts[1].Arch)
+	})
+
 	t.Run("returns empty slice for empty dist directory", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
