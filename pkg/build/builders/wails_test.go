@@ -201,6 +201,31 @@ func TestWails_WailsBuilderBuildV3Config_Good(t *testing.T) {
 	assert.Equal(t, cfg.LDFlags, v3Config.LDFlags)
 }
 
+func TestWails_WailsBuilderResolveFrontendDir_Good(t *testing.T) {
+	builder := NewWailsBuilder()
+	fs := io.Local
+
+	t.Run("finds nested package.json frontends", func(t *testing.T) {
+		projectDir := t.TempDir()
+		frontendDir := ax.Join(projectDir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644))
+
+		got := builder.resolveFrontendDir(fs, projectDir)
+		assert.Equal(t, frontendDir, got)
+	})
+
+	t.Run("finds nested deno.json frontends", func(t *testing.T) {
+		projectDir := t.TempDir()
+		frontendDir := ax.Join(projectDir, "packages", "site")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644))
+
+		got := builder.resolveFrontendDir(fs, projectDir)
+		assert.Equal(t, frontendDir, got)
+	})
+}
+
 func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

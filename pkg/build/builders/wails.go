@@ -213,38 +213,37 @@ func (b *WailsBuilder) hasDenoConfig(fs io.Medium, dir string) bool {
 	return fs.IsFile(ax.Join(dir, "deno.json")) || fs.IsFile(ax.Join(dir, "deno.jsonc"))
 }
 
-// resolveSubtreeFrontendDir finds a nested package.json within two directory levels.
-// This supports monorepo layouts such as apps/web/package.json when frontend/ is absent.
+// resolveSubtreeFrontendDir finds a nested frontend manifest within the project tree.
+// This supports monorepo layouts such as apps/web/package.json or apps/web/deno.json
+// when frontend/ is absent.
 func (b *WailsBuilder) resolveSubtreeFrontendDir(fs io.Medium, projectDir string) string {
-	entries, err := fs.List(projectDir)
+	return b.findFrontendDir(fs, projectDir)
+}
+
+// findFrontendDir walks nested directories until it finds a frontend manifest.
+func (b *WailsBuilder) findFrontendDir(fs io.Medium, dir string) string {
+	entries, err := fs.List(dir)
 	if err != nil {
 		return ""
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == "node_modules" {
+		if !entry.IsDir() {
 			continue
 		}
 
-		firstLevel := ax.Join(projectDir, entry.Name())
-		if fs.IsFile(ax.Join(firstLevel, "package.json")) {
-			return firstLevel
-		}
-
-		subEntries, err := fs.List(firstLevel)
-		if err != nil {
+		name := entry.Name()
+		if name == "node_modules" || core.HasPrefix(name, ".") {
 			continue
 		}
 
-		for _, subEntry := range subEntries {
-			if !subEntry.IsDir() || subEntry.Name() == "node_modules" {
-				continue
-			}
+		candidateDir := ax.Join(dir, name)
+		if b.hasDenoConfig(fs, candidateDir) || fs.IsFile(ax.Join(candidateDir, "package.json")) {
+			return candidateDir
+		}
 
-			nested := ax.Join(firstLevel, subEntry.Name())
-			if fs.IsFile(ax.Join(nested, "package.json")) {
-				return nested
-			}
+		if nested := b.findFrontendDir(fs, candidateDir); nested != "" {
+			return nested
 		}
 	}
 
