@@ -41,7 +41,7 @@ The builder is chosen by marker-file priority:
 |-------------------|------------|
 | `wails.json`      | Wails      |
 | `go.mod`          | Go         |
-| `package.json`    | Node (stub)|
+| `package.json`    | Node       |
 | `composer.json`   | PHP (stub) |
 | `CMakeLists.txt`  | C++        |
 | `Dockerfile`      | Docker     |
@@ -96,7 +96,7 @@ forge.lthn.ai/core/go-build/
 |
 +-- pkg/
     |-- build/              Core build types, config loading, discovery, archiving, checksums
-    |   |-- builders/       Builder implementations (Go, Wails, Docker, LinuxKit, C++, Taskfile)
+    |   |-- builders/       Builder implementations (Go, Wails, Node, Docker, LinuxKit, C++, Taskfile)
     |   +-- signing/        Code-signing implementations (macOS codesign, GPG, Windows stub)
     |
     |-- release/            Release orchestration, versioning, changelog, config

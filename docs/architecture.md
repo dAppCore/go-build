@@ -53,6 +53,7 @@ type Artifact struct {
 |---|---|---|
 | **GoBuilder** | `go.mod` or `wails.json` | Sets `GOOS`/`GOARCH`/`CGO_ENABLED=0`, runs `go build -trimpath` with ldflags. Output per target: `dist/{os}_{arch}/{binary}`. |
 | **WailsBuilder** | `wails.json` | Checks `go.mod` for Wails v3 vs v2. V3 delegates to TaskfileBuilder; V2 runs `wails build -platform` then copies from `build/bin/` to `dist/`. |
+| **NodeBuilder** | `package.json` | Detects the active package manager from lockfiles, runs the build script once per target, and collects artifacts from `dist/{os}_{arch}/`. |
 | **DockerBuilder** | `Dockerfile` | Validates `docker` and `buildx`, builds multi-platform images with `docker buildx build --platform`. Supports `--push` or local load/OCI tarball. |
 | **LinuxKitBuilder** | `linuxkit.yml` or `.core/linuxkit/*.yml` | Validates `linuxkit` CLI, runs `linuxkit build --format --name --dir --arch`. Outputs qcow2, iso, raw, vmdk, vhd, or cloud images. Linux-only targets. |
 | **CPPBuilder** | `CMakeLists.txt` | Validates `make`, runs `make configure` then `make build` then `make package` for host builds. Cross-compilation uses Conan profile targets (e.g. `make gcc-linux-armv8`). Finds artifacts in `build/packages/` or `build/release/src/`. |

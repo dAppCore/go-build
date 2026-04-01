@@ -386,7 +386,7 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 	case build.ProjectTypeCPP:
 		return builders.NewCPPBuilder(), nil
 	case build.ProjectTypeNode:
-		return nil, coreerr.E("build.getBuilder", "node.js builder not yet implemented", nil)
+		return builders.NewNodeBuilder(), nil
 	case build.ProjectTypePHP:
 		return nil, coreerr.E("build.getBuilder", "PHP builder not yet implemented", nil)
 	default:
