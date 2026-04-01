@@ -103,30 +103,14 @@ func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml")        // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci.yml")  // error
 func ResolveReleaseWorkflowInputPath(projectDir, pathInput, outputPathInput string) (string, error) {
-	resolve := func(input string) string {
-		return resolveReleaseWorkflowInputPath(projectDir, input, nil)
-	}
-
-	pathInput = cleanWorkflowInput(pathInput)
-	outputPathInput = cleanWorkflowInput(outputPathInput)
-	if pathInput != "" && outputPathInput != "" {
-		resolvedPath := resolve(pathInput)
-		resolvedOutput := resolve(outputPathInput)
-		if resolvedPath != resolvedOutput {
-			return "", coreerr.E("build.ResolveReleaseWorkflowInputPath", "path and output specify different locations", nil)
-		}
-		return resolvedPath, nil
-	}
-
-	if pathInput != "" {
-		return resolve(pathInput), nil
-	}
-
-	if outputPathInput != "" {
-		return resolve(outputPathInput), nil
-	}
-
-	return resolve(""), nil
+	return resolveReleaseWorkflowInputPathPair(
+		pathInput,
+		outputPathInput,
+		func(input string) string {
+			return resolveReleaseWorkflowInputPath(projectDir, input, nil)
+		},
+		"build.ResolveReleaseWorkflowInputPath",
+	)
 }
 
 // ResolveReleaseWorkflowInputPathWithMedium resolves the workflow path and
@@ -136,17 +120,28 @@ func ResolveReleaseWorkflowInputPath(projectDir, pathInput, outputPathInput stri
 // build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "ci", "") // /tmp/project/ci/release.yml when /tmp/project/ci exists
 // build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "./ci", "") // /tmp/project/ci/release.yml
 func ResolveReleaseWorkflowInputPathWithMedium(filesystem io_interface.Medium, projectDir, pathInput, outputPathInput string) (string, error) {
-	resolve := func(input string) string {
-		return resolveReleaseWorkflowInputPath(projectDir, input, filesystem)
-	}
+	return resolveReleaseWorkflowInputPathPair(
+		pathInput,
+		outputPathInput,
+		func(input string) string {
+			return resolveReleaseWorkflowInputPath(projectDir, input, filesystem)
+		},
+		"build.ResolveReleaseWorkflowInputPathWithMedium",
+	)
+}
 
+// resolveReleaseWorkflowInputPathPair resolves the workflow path from the path
+// and output aliases, rejecting conflicting values and preferring explicit
+// inputs over the default.
+func resolveReleaseWorkflowInputPathPair(pathInput, outputPathInput string, resolve func(string) string, errorName string) (string, error) {
 	pathInput = cleanWorkflowInput(pathInput)
 	outputPathInput = cleanWorkflowInput(outputPathInput)
+
 	if pathInput != "" && outputPathInput != "" {
 		resolvedPath := resolve(pathInput)
 		resolvedOutput := resolve(outputPathInput)
 		if resolvedPath != resolvedOutput {
-			return "", coreerr.E("build.ResolveReleaseWorkflowInputPathWithMedium", "path and output specify different locations", nil)
+			return "", coreerr.E(errorName, "path and output specify different locations", nil)
 		}
 		return resolvedPath, nil
 	}
