@@ -108,8 +108,12 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 	// Add output path
 	args = append(args, "-o", outputPath)
 
-	// Add the project directory as the build target (current directory)
-	args = append(args, ".")
+	// Build the configured main package path, defaulting to the project root.
+	mainPackage := cfg.Project.Main
+	if mainPackage == "" {
+		mainPackage = "."
+	}
+	args = append(args, mainPackage)
 
 	// Set up environment.
 	env := append([]string{}, cfg.Env...)

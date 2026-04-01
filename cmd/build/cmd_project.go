@@ -115,6 +115,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	// Create build config for the builder
 	cfg := &build.Config{
 		FS:         filesystem,
+		Project:    buildConfig.Project,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       binaryName,

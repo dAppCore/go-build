@@ -71,6 +71,8 @@ type Artifact struct {
 type Config struct {
 	// FS is the medium used for file operations.
 	FS io.Medium
+	// Project holds build-time project metadata.
+	Project Project
 	// ProjectDir is the root directory of the project.
 	ProjectDir string
 	// OutputDir is where build artifacts are placed.

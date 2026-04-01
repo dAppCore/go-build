@@ -382,6 +382,42 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.Contains(t, args, ".")
 	})
 
+	t.Run("builds the configured main package path", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		err := ax.MkdirAll(ax.Join(projectDir, "cmd", "myapp"), 0755)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(projectDir, "cmd", "myapp", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
+		require.NoError(t, err)
+
+		outputDir := t.TempDir()
+		logPath := ax.Join(t.TempDir(), "go-build-args.log")
+		t.Setenv("GO_BUILD_LOG_FILE", logPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "mainpackage",
+		}
+		cfg.Project.Main = "./cmd/myapp"
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.Contains(t, args, "./cmd/myapp")
+		assert.NotContains(t, args, ".")
+	})
+
 	t.Run("creates output directory if missing", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
 		outputDir := ax.Join(t.TempDir(), "nested", "output")
