@@ -9,14 +9,22 @@ import (
 
 // Marker files for project type detection.
 const (
-	markerGoMod        = "go.mod"
-	markerWails        = "wails.json"
-	markerNodePackage  = "package.json"
-	markerComposer     = "composer.json"
-	markerMkDocs       = "mkdocs.yml"
-	markerPyProject    = "pyproject.toml"
-	markerRequirements = "requirements.txt"
-	markerCargo        = "Cargo.toml"
+	markerGoMod             = "go.mod"
+	markerWails             = "wails.json"
+	markerNodePackage       = "package.json"
+	markerComposer          = "composer.json"
+	markerMkDocs            = "mkdocs.yml"
+	markerPyProject         = "pyproject.toml"
+	markerRequirements      = "requirements.txt"
+	markerCargo             = "Cargo.toml"
+	markerDockerfile        = "Dockerfile"
+	markerLinuxKitYAML      = "linuxkit.yml"
+	markerTaskfileYML       = "Taskfile.yml"
+	markerTaskfileYAML      = "Taskfile.yaml"
+	markerTaskfileBare      = "Taskfile"
+	markerTaskfileLowerYML  = "taskfile.yml"
+	markerTaskfileLowerYAML = "taskfile.yaml"
+	markerLinuxKitNested    = ".core/linuxkit/*.yml"
 )
 
 // projectMarker maps a marker file to its project type.
@@ -221,17 +229,39 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	allMarkers := []string{
 		markerGoMod, markerWails, markerNodePackage, markerComposer,
 		markerMkDocs, markerPyProject, markerRequirements, markerCargo,
-		"CMakeLists.txt", "Dockerfile", "linuxkit.yml", "Taskfile.yml",
+		"CMakeLists.txt", markerDockerfile, markerLinuxKitYAML,
+		markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,
+		markerTaskfileLowerYML, markerTaskfileLowerYAML,
 	}
 	for _, m := range allMarkers {
 		result.Markers[m] = fileExists(fs, ax.Join(dir, m))
 	}
+
+	// Pattern-based marker: LinuxKit configs may live in .core/linuxkit/*.yml.
+	result.Markers[markerLinuxKitNested] = hasYAMLInDir(fs, ax.Join(dir, ".core", "linuxkit"))
 
 	// Subtree npm detection
 	result.HasSubtreeNpm = HasSubtreeNpm(fs, dir)
 
 	// Frontend detection: frontend/package.json or subtree npm
 	result.HasFrontend = fileExists(fs, ax.Join(dir, "frontend", markerNodePackage)) || result.HasSubtreeNpm
+
+	// Add fallback builders that are not covered by Discover().
+	additionalTypes := []struct {
+		projectType ProjectType
+		detected    bool
+	}{
+		{ProjectTypeDocker, IsDockerProject(fs, dir)},
+		{ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir)},
+		{ProjectTypeCPP, IsCPPProject(fs, dir)},
+		{ProjectTypeTaskfile, IsTaskfileProject(fs, dir)},
+	}
+	for _, candidate := range additionalTypes {
+		if candidate.detected && !core.NewArray(types...).Contains(candidate.projectType) {
+			types = append(types, candidate.projectType)
+		}
+	}
+	result.Types = types
 
 	// Linux distro detection: used for distro-sensitive build flags.
 	result.Distro = detectDistroVersion(fs)
@@ -247,6 +277,64 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 // fileExists checks if a file exists and is not a directory.
 func fileExists(fs io.Medium, path string) bool {
 	return fs.IsFile(path)
+}
+
+// IsDockerProject checks if the directory contains a Dockerfile.
+//
+//	if build.IsDockerProject(io.Local, ".") { ... }
+func IsDockerProject(fs io.Medium, dir string) bool {
+	return fileExists(fs, ax.Join(dir, markerDockerfile))
+}
+
+// IsLinuxKitProject checks for linuxkit.yml or .core/linuxkit/*.yml.
+//
+//	ok := build.IsLinuxKitProject(io.Local, ".")
+func IsLinuxKitProject(fs io.Medium, dir string) bool {
+	if fileExists(fs, ax.Join(dir, markerLinuxKitYAML)) {
+		return true
+	}
+	return hasYAMLInDir(fs, ax.Join(dir, ".core", "linuxkit"))
+}
+
+// IsTaskfileProject checks for supported Taskfile names in the project root.
+//
+//	ok := build.IsTaskfileProject(io.Local, ".")
+func IsTaskfileProject(fs io.Medium, dir string) bool {
+	for _, name := range []string{
+		markerTaskfileYML,
+		markerTaskfileYAML,
+		markerTaskfileBare,
+		markerTaskfileLowerYML,
+		markerTaskfileLowerYAML,
+	} {
+		if fileExists(fs, ax.Join(dir, name)) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasYAMLInDir reports whether a directory contains at least one .yml file.
+func hasYAMLInDir(fs io.Medium, dir string) bool {
+	if !fs.IsDir(dir) {
+		return false
+	}
+
+	entries, err := fs.List(dir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(strings.ToLower(entry.Name()), ".yml") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // detectDistroVersion extracts the Ubuntu VERSION_ID from os-release data.

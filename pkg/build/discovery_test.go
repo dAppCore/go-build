@@ -527,6 +527,46 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, "python", result.PrimaryStack)
 		assert.True(t, result.Markers["pyproject.toml"])
 	})
+
+	t.Run("detects Docker project markers", func(t *testing.T) {
+		dir := setupTestDir(t, "Dockerfile")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocker}, result.Types)
+		assert.Equal(t, "docker", result.PrimaryStack)
+		assert.True(t, result.Markers["Dockerfile"])
+	})
+
+	t.Run("detects LinuxKit project markers in .core/linuxkit", func(t *testing.T) {
+		dir := t.TempDir()
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n  image: test"), 0644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeLinuxKit}, result.Types)
+		assert.Equal(t, "linuxkit", result.PrimaryStack)
+		assert.True(t, result.Markers[".core/linuxkit/*.yml"])
+	})
+
+	t.Run("detects C++ project markers", func(t *testing.T) {
+		dir := setupTestDir(t, "CMakeLists.txt")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeCPP}, result.Types)
+		assert.Equal(t, "cpp", result.PrimaryStack)
+		assert.True(t, result.Markers["CMakeLists.txt"])
+	})
+
+	t.Run("detects Taskfile project markers", func(t *testing.T) {
+		dir := setupTestDir(t, "Taskfile.yaml")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeTaskfile}, result.Types)
+		assert.Equal(t, "taskfile", result.PrimaryStack)
+		assert.True(t, result.Markers["Taskfile.yaml"])
+	})
 }
 
 func TestDiscovery_DiscoverFull_Bad(t *testing.T) {
