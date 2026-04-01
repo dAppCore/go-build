@@ -11,12 +11,16 @@ import (
 // commonSpecPaths are checked in order when no spec is configured.
 var commonSpecPaths = []string{
 	"api/openapi.yaml",
+	"api/openapi.yml",
 	"api/openapi.json",
 	"openapi.yaml",
+	"openapi.yml",
 	"openapi.json",
 	"docs/api.yaml",
+	"docs/api.yml",
 	"docs/api.json",
 	"swagger.yaml",
+	"swagger.yml",
 	"swagger.json",
 }
 

@@ -65,6 +65,18 @@ func TestDetect_DetectSpecCommonPath_Good(t *testing.T) {
 	assert.Equal(t, specPath, got)
 }
 
+func TestDetect_DetectSpecCommonYAMLPath_Good(t *testing.T) {
+	tmpDir := t.TempDir()
+	specPath := ax.Join(tmpDir, "openapi.yml")
+	err := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644)
+	require.NoError(t, err)
+
+	sdk := New(tmpDir, nil)
+	got, err := sdk.DetectSpec()
+	assert.NoError(t, err)
+	assert.Equal(t, specPath, got)
+}
+
 func TestDetect_DetectSpecNotFound_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	sdk := New(tmpDir, nil)
