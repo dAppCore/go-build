@@ -25,6 +25,7 @@ const DefaultReleaseWorkflowFileName = "release.yml"
 // WriteReleaseWorkflow writes the embedded release workflow template to outputPath.
 //
 // build.WriteReleaseWorkflow(io.Local, "")                                        // writes .github/workflows/release.yml
+// build.WriteReleaseWorkflow(io.Local, "ci")                                       // writes ./ci/release.yml under the project root
 // build.WriteReleaseWorkflow(io.Local, "ci/release.yml")                          // writes ./ci/release.yml under the project root
 // build.WriteReleaseWorkflow(io.Local, "/tmp/repo/.github/workflows/release.yml") // writes the absolute path unchanged
 func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
@@ -36,7 +37,7 @@ func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
 		outputPath = DefaultReleaseWorkflowPath
 	}
 
-	if isDirectoryLikePath(outputPath) || medium.IsDir(outputPath) {
+	if isWorkflowDirectoryInput(outputPath) || medium.IsDir(outputPath) {
 		outputPath = ax.Join(outputPath, DefaultReleaseWorkflowFileName)
 	}
 
@@ -73,7 +74,7 @@ func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
 	if outputPath == "" {
 		return ReleaseWorkflowPath(projectDir)
 	}
-	if isDirectoryLikePath(outputPath) {
+	if isWorkflowDirectoryPath(outputPath) {
 		if ax.IsAbs(outputPath) {
 			return ax.Join(outputPath, DefaultReleaseWorkflowFileName)
 		}
@@ -93,38 +94,19 @@ func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml")        // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci.yml")  // error
 func ResolveReleaseWorkflowInputPath(projectDir, path, outputPath string) (string, error) {
-	if path != "" && outputPath != "" {
-		resolvedPath := ResolveReleaseWorkflowPath(projectDir, path)
-		resolvedOutput := ResolveReleaseWorkflowPath(projectDir, outputPath)
-		if resolvedPath != resolvedOutput {
-			return "", coreerr.E("build.ResolveReleaseWorkflowInputPath", "path and output specify different locations", nil)
-		}
-		return resolvedPath, nil
-	}
-
-	if path != "" {
-		return ResolveReleaseWorkflowPath(projectDir, path), nil
-	}
-
-	if outputPath != "" {
-		return ResolveReleaseWorkflowPath(projectDir, outputPath), nil
-	}
-
-	return ReleaseWorkflowPath(projectDir), nil
-}
-
-// ResolveReleaseWorkflowInputPathWithMedium resolves the workflow path and
-// treats an existing directory as a directory even when the caller omits a
-// trailing slash.
-//
-// build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "ci", "") // /tmp/project/ci/release.yml when /tmp/project/ci exists
-func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, projectDir, path, outputPath string) (string, error) {
 	resolve := func(input string) string {
-		resolved := ResolveReleaseWorkflowPath(projectDir, input)
-		if medium != nil && medium.IsDir(resolved) {
-			return ax.Join(resolved, DefaultReleaseWorkflowFileName)
+		if input == "" {
+			return ReleaseWorkflowPath(projectDir)
 		}
-		return resolved
+
+		if isWorkflowDirectoryInput(input) {
+			if ax.IsAbs(input) {
+				return ax.Join(input, DefaultReleaseWorkflowFileName)
+			}
+			return ax.Join(projectDir, input, DefaultReleaseWorkflowFileName)
+		}
+
+		return ResolveReleaseWorkflowPath(projectDir, input)
 	}
 
 	if path != "" && outputPath != "" {
@@ -147,13 +129,68 @@ func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, proje
 	return resolve(""), nil
 }
 
-// isDirectoryLikePath reports whether a path should be treated as a directory
-// rather than a file path.
-func isDirectoryLikePath(path string) bool {
+// ResolveReleaseWorkflowInputPathWithMedium resolves the workflow path and
+// treats an existing directory as a directory even when the caller omits a
+// trailing slash.
+//
+// build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "ci", "") // /tmp/project/ci/release.yml when /tmp/project/ci exists
+func ResolveReleaseWorkflowInputPathWithMedium(medium io_interface.Medium, projectDir, path, outputPath string) (string, error) {
+	resolve := func(input string) string {
+		if input == "" {
+			return ReleaseWorkflowPath(projectDir)
+		}
+
+		if isWorkflowDirectoryInput(input) {
+			if ax.IsAbs(input) {
+				return ax.Join(input, DefaultReleaseWorkflowFileName)
+			}
+			return ax.Join(projectDir, input, DefaultReleaseWorkflowFileName)
+		}
+
+		resolved := ResolveReleaseWorkflowPath(projectDir, input)
+		if medium != nil && medium.IsDir(resolved) {
+			return ax.Join(resolved, DefaultReleaseWorkflowFileName)
+		}
+		return resolved
+	}
+
+	if path != "" && outputPath != "" {
+		resolvedPath := resolve(path)
+		resolvedOutput := resolve(outputPath)
+		if resolvedPath != resolvedOutput {
+			return "", coreerr.E("build.ResolveReleaseWorkflowInputPathWithMedium", "path and output specify different locations", nil)
+		}
+		return resolvedPath, nil
+	}
+
+	if path != "" {
+		return resolve(path), nil
+	}
+
+	if outputPath != "" {
+		return resolve(outputPath), nil
+	}
+
+	return resolve(""), nil
+}
+
+// isWorkflowDirectoryPath reports whether a workflow path is explicitly marked
+// as a directory with a trailing separator.
+func isWorkflowDirectoryPath(path string) bool {
 	if path == "" {
 		return false
 	}
 
 	last := path[len(path)-1]
 	return last == '/' || last == '\\'
+}
+
+// isWorkflowDirectoryInput reports whether a workflow input should be treated
+// as a directory target. This includes explicit directory paths and bare names
+// without a file extension.
+func isWorkflowDirectoryInput(path string) bool {
+	if isWorkflowDirectoryPath(path) {
+		return true
+	}
+	return path != "" && ax.Ext(path) == ""
 }

@@ -43,6 +43,17 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		assert.NotEmpty(t, content)
 	})
 
+	t.Run("writes release.yml for a bare directory-style path", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		err := WriteReleaseWorkflow(fs, "ci")
+		require.NoError(t, err)
+
+		content, err := fs.Read("ci/release.yml")
+		require.NoError(t, err)
+		assert.NotEmpty(t, content)
+	})
+
 	t.Run("writes release.yml inside an existing directory", func(t *testing.T) {
 		projectDir := t.TempDir()
 		outputDir := ax.Join(projectDir, "ci")
@@ -135,6 +146,12 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 		assert.Equal(t, "/tmp/project/ci/release.yml", path)
 	})
 
+	t.Run("accepts bare directory-style path as the primary input", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
 	t.Run("accepts output as an alias for path", func(t *testing.T) {
 		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml")
 		require.NoError(t, err)
@@ -167,6 +184,14 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
 		fs := io.NewMockMedium()
 		fs.Dirs["/tmp/project/ci"] = true
+
+		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("treats a bare directory-style path as a workflow directory", func(t *testing.T) {
+		fs := io.NewMockMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "")
 		require.NoError(t, err)

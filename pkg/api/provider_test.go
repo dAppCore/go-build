@@ -257,6 +257,30 @@ func TestProvider_GenerateReleaseWorkflow_OutputAlias_Good(t *testing.T) {
 	assert.Contains(t, content, "workflow_dispatch:")
 }
 
+func TestProvider_GenerateReleaseWorkflow_BareDirectoryPath_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":"ci"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	path := ax.Join(projectDir, "ci", "release.yml")
+	content, err := io.Local.Read(path)
+	require.NoError(t, err)
+	assert.Contains(t, content, "workflow_call:")
+	assert.Contains(t, content, "workflow_dispatch:")
+}
+
 func TestProvider_GenerateReleaseWorkflow_ExistingDirectoryPath_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
