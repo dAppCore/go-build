@@ -56,6 +56,19 @@ export class BuildApi {
     return this.request<any>(`/release${qs}`, { method: 'POST' });
   }
 
+  releaseWorkflow(request: {
+    path?: string;
+    outputPath?: string;
+    output_path?: string;
+    output?: string;
+  } = {}) {
+    return this.request<any>('/release/workflow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+  }
+
   // -- SDK --------------------------------------------------------------------
 
   sdkDiff(base: string, revision: string) {

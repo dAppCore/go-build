@@ -30,7 +30,7 @@ export class BuildRelease extends LitElement {
     .version-label {
       font-size: 0.75rem;
       font-weight: 600;
-      colour: #6b7280;
+      color: #6b7280;
       text-transform: uppercase;
       letter-spacing: 0.025em;
     }
@@ -39,12 +39,13 @@ export class BuildRelease extends LitElement {
       font-size: 1.25rem;
       font-weight: 700;
       font-family: monospace;
-      colour: #111827;
+      color: #111827;
     }
 
     .actions {
       display: flex;
       gap: 0.5rem;
+      flex-wrap: wrap;
     }
 
     button {
@@ -57,7 +58,7 @@ export class BuildRelease extends LitElement {
 
     button.release {
       background: #6366f1;
-      colour: #fff;
+      color: #fff;
       border: none;
       font-weight: 500;
     }
@@ -73,12 +74,72 @@ export class BuildRelease extends LitElement {
 
     button.dry-run {
       background: #fff;
-      colour: #6366f1;
+      color: #6366f1;
       border: 1px solid #6366f1;
     }
 
     button.dry-run:hover {
       background: #eef2ff;
+    }
+
+    .workflow-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0.875rem 1rem;
+      background: linear-gradient(180deg, #fff, #f8fafc);
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .workflow-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .workflow-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .workflow-input {
+      flex: 1;
+      min-width: 16rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+      font-family: monospace;
+      color: #111827;
+      background: #fff;
+    }
+
+    .workflow-input:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgb(99 102 241 / 12%);
+    }
+
+    button.workflow {
+      background: #111827;
+      color: #fff;
+      border: none;
+      font-weight: 500;
+    }
+
+    button.workflow:hover {
+      background: #1f2937;
+    }
+
+    button.workflow:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .confirm {
@@ -95,13 +156,13 @@ export class BuildRelease extends LitElement {
 
     .confirm-text {
       flex: 1;
-      colour: #991b1b;
+      color: #991b1b;
     }
 
     button.confirm-yes {
       padding: 0.375rem 1rem;
       background: #dc2626;
-      colour: #fff;
+      color: #fff;
       border: none;
       border-radius: 0.375rem;
       font-size: 0.8125rem;
@@ -128,7 +189,7 @@ export class BuildRelease extends LitElement {
       border-bottom: 1px solid #e5e7eb;
       font-size: 0.75rem;
       font-weight: 700;
-      colour: #6b7280;
+      color: #6b7280;
       text-transform: uppercase;
       letter-spacing: 0.025em;
     }
@@ -139,7 +200,7 @@ export class BuildRelease extends LitElement {
       line-height: 1.6;
       white-space: pre-wrap;
       font-family: system-ui, -apple-system, sans-serif;
-      colour: #374151;
+      color: #374151;
       max-height: 400px;
       overflow-y: auto;
     }
@@ -147,18 +208,18 @@ export class BuildRelease extends LitElement {
     .empty {
       text-align: center;
       padding: 2rem;
-      colour: #9ca3af;
+      color: #9ca3af;
       font-size: 0.875rem;
     }
 
     .loading {
       text-align: center;
       padding: 2rem;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     .error {
-      colour: #dc2626;
+      color: #dc2626;
       padding: 0.75rem;
       background: #fef2f2;
       border-radius: 0.375rem;
@@ -172,7 +233,7 @@ export class BuildRelease extends LitElement {
       border: 1px solid #bbf7d0;
       border-radius: 0.375rem;
       font-size: 0.875rem;
-      colour: #166534;
+      color: #166534;
       margin-bottom: 1rem;
     }
   `;
@@ -186,6 +247,9 @@ export class BuildRelease extends LitElement {
   @state() private releasing = false;
   @state() private confirmRelease = false;
   @state() private releaseSuccess = '';
+  @state() private workflowPath = '.github/workflows/release.yml';
+  @state() private generatingWorkflow = false;
+  @state() private workflowSuccess = '';
 
   private api!: BuildApi;
 
@@ -215,6 +279,26 @@ export class BuildRelease extends LitElement {
   private handleReleaseClick() {
     this.confirmRelease = true;
     this.releaseSuccess = '';
+  }
+
+  private handleWorkflowPathInput(event: InputEvent) {
+    const target = event.target as HTMLInputElement | null;
+    this.workflowPath = target?.value ?? '';
+  }
+
+  private async handleGenerateWorkflow() {
+    this.generatingWorkflow = true;
+    this.error = '';
+    this.workflowSuccess = '';
+    try {
+      const result = await this.api.releaseWorkflow({ path: this.workflowPath.trim() });
+      const generatedPath = result.path ?? (this.workflowPath.trim() || '.github/workflows/release.yml');
+      this.workflowSuccess = `Workflow generated at ${generatedPath}`;
+    } catch (e: any) {
+      this.error = e.message ?? 'Failed to generate release workflow';
+    } finally {
+      this.generatingWorkflow = false;
+    }
   }
 
   private handleCancelRelease() {
@@ -254,6 +338,7 @@ export class BuildRelease extends LitElement {
     return html`
       ${this.error ? html`<div class="error">${this.error}</div>` : nothing}
       ${this.releaseSuccess ? html`<div class="success">${this.releaseSuccess}</div>` : nothing}
+      ${this.workflowSuccess ? html`<div class="success">${this.workflowSuccess}</div>` : nothing}
 
       <div class="version-bar">
         <div>
@@ -274,6 +359,27 @@ export class BuildRelease extends LitElement {
             @click=${this.handleReleaseClick}
           >
             ${this.releasing ? 'Publishing\u2026' : 'Publish Release'}
+          </button>
+        </div>
+      </div>
+
+      <div class="workflow-section">
+        <div class="workflow-label">Release Workflow</div>
+        <div class="workflow-row">
+          <input
+            class="workflow-input"
+            type="text"
+            .value=${this.workflowPath}
+            @input=${this.handleWorkflowPathInput}
+            placeholder=".github/workflows/release.yml"
+            aria-label="Release workflow path"
+          />
+          <button
+            class="workflow"
+            ?disabled=${this.generatingWorkflow}
+            @click=${this.handleGenerateWorkflow}
+          >
+            ${this.generatingWorkflow ? 'Generating…' : 'Generate Workflow'}
           </button>
         </div>
       </div>
