@@ -14,33 +14,37 @@ import (
 )
 
 var (
-	workflowPath string
+	releaseWorkflowPathFlag string
 )
 
-var workflowCmd = &cli.Command{
+var releaseWorkflowCmd = &cli.Command{
 	Use: "workflow",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runReleaseWorkflow(cmd.Context(), workflowPath)
+		return runReleaseWorkflow(cmd.Context(), releaseWorkflowPathFlag)
 	},
 }
 
 func setWorkflowI18n() {
-	workflowCmd.Short = i18n.T("cmd.build.workflow.short")
-	workflowCmd.Long = i18n.T("cmd.build.workflow.long")
+	releaseWorkflowCmd.Short = i18n.T("cmd.build.workflow.short")
+	releaseWorkflowCmd.Long = i18n.T("cmd.build.workflow.long")
 }
 
 func initWorkflowFlags() {
-	workflowCmd.Flags().StringVar(&workflowPath, "path", "", i18n.T("cmd.build.workflow.flag.path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathFlag, "path", "", i18n.T("cmd.build.workflow.flag.path"))
 }
 
 // AddWorkflowCommand registers the release workflow generation subcommand.
 func AddWorkflowCommand(buildCmd *cli.Command) {
 	setWorkflowI18n()
 	initWorkflowFlags()
-	buildCmd.AddCommand(workflowCmd)
+	buildCmd.AddCommand(releaseWorkflowCmd)
 }
 
 // runReleaseWorkflow writes the embedded release workflow into the project.
+//
+// buildcmd.AddWorkflowCommand(buildCmd)
+// runReleaseWorkflow(ctx, "")                  // writes to .github/workflows/release.yml
+// runReleaseWorkflow(ctx, "ci/release.yml")   // writes to ./ci/release.yml under the project root
 func runReleaseWorkflow(ctx context.Context, path string) error {
 	_ = ctx
 
@@ -53,6 +57,9 @@ func runReleaseWorkflow(ctx context.Context, path string) error {
 }
 
 // runReleaseWorkflowInDir writes the embedded release workflow into projectDir.
+//
+// runReleaseWorkflowInDir("/tmp/project", "")               // /tmp/project/.github/workflows/release.yml
+// runReleaseWorkflowInDir("/tmp/project", "ci/release.yml") // /tmp/project/ci/release.yml
 func runReleaseWorkflowInDir(projectDir, path string) error {
 	if path == "" {
 		path = build.ReleaseWorkflowPath(projectDir)

@@ -19,10 +19,9 @@ var releaseWorkflowTemplate embed.FS
 const DefaultReleaseWorkflowPath = ".github/workflows/release.yml"
 
 // WriteReleaseWorkflow writes the embedded release workflow template to path.
-// When path is empty, it writes to .github/workflows/release.yml.
 //
-// err := build.WriteReleaseWorkflow(io.Local, "")
-// err := build.WriteReleaseWorkflow(io.Local, "/tmp/repo/.github/workflows/release.yml")
+// build.WriteReleaseWorkflow(io.Local, "")                                   // writes .github/workflows/release.yml
+// build.WriteReleaseWorkflow(io.Local, "/tmp/repo/.github/workflows/release.yml")
 func WriteReleaseWorkflow(fs io_interface.Medium, path string) error {
 	if path == "" {
 		path = DefaultReleaseWorkflowPath
@@ -46,7 +45,7 @@ func WriteReleaseWorkflow(fs io_interface.Medium, path string) error {
 
 // ReleaseWorkflowPath joins a project directory with the conventional workflow path.
 //
-// path := build.ReleaseWorkflowPath("/home/user/project")
+// build.ReleaseWorkflowPath("/home/user/project") // /home/user/project/.github/workflows/release.yml
 func ReleaseWorkflowPath(projectDir string) string {
 	return ax.Join(projectDir, DefaultReleaseWorkflowPath)
 }
