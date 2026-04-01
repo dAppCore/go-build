@@ -60,6 +60,20 @@ func ApplyOptions(cfg *Config, options *BuildOptions) {
 		return
 	}
 
+	if options.Obfuscate {
+		cfg.Obfuscate = true
+	}
+	if options.NSIS {
+		cfg.NSIS = true
+	}
+	if options.WebView2 != "" {
+		cfg.WebView2 = options.WebView2
+	}
+
+	if len(options.LDFlags) > 0 {
+		cfg.LDFlags = append([]string{}, options.LDFlags...)
+	}
+
 	if len(options.Tags) > 0 {
 		cfg.BuildTags = deduplicateTags(append(cfg.BuildTags, options.Tags...))
 	}

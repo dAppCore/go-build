@@ -216,6 +216,70 @@ func TestOptions_InjectWebKitTag_Ugly(t *testing.T) {
 	})
 }
 
+// --- ApplyOptions ---
+
+func TestOptions_ApplyOptions_Good(t *testing.T) {
+	t.Run("copies computed options onto runtime config", func(t *testing.T) {
+		cfg := &Config{
+			BuildTags: []string{"existing"},
+			LDFlags:   []string{"-s"},
+		}
+		options := &BuildOptions{
+			Obfuscate: true,
+			Tags:      []string{"webkit2_41", "integration"},
+			NSIS:      true,
+			WebView2:  "embed",
+			LDFlags:   []string{"-trimpath", "-w"},
+		}
+
+		ApplyOptions(cfg, options)
+
+		assert.True(t, cfg.Obfuscate)
+		assert.True(t, cfg.NSIS)
+		assert.Equal(t, "embed", cfg.WebView2)
+		assert.Equal(t, []string{"-trimpath", "-w"}, cfg.LDFlags)
+		assert.Equal(t, []string{"existing", "webkit2_41", "integration"}, cfg.BuildTags)
+	})
+}
+
+func TestOptions_ApplyOptions_Bad(t *testing.T) {
+	t.Run("nil config is ignored", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			ApplyOptions(nil, &BuildOptions{Obfuscate: true})
+		})
+	})
+
+	t.Run("nil options are ignored", func(t *testing.T) {
+		cfg := &Config{BuildTags: []string{"existing"}}
+
+		assert.NotPanics(t, func() {
+			ApplyOptions(cfg, nil)
+		})
+
+		assert.Equal(t, []string{"existing"}, cfg.BuildTags)
+	})
+}
+
+func TestOptions_ApplyOptions_Ugly(t *testing.T) {
+	t.Run("empty options leaves config unchanged", func(t *testing.T) {
+		cfg := &Config{
+			BuildTags: []string{"existing"},
+			LDFlags:   []string{"-s"},
+			Obfuscate: true,
+			NSIS:      true,
+			WebView2:  "browser",
+		}
+
+		ApplyOptions(cfg, &BuildOptions{})
+
+		assert.True(t, cfg.Obfuscate)
+		assert.True(t, cfg.NSIS)
+		assert.Equal(t, "browser", cfg.WebView2)
+		assert.Equal(t, []string{"-s"}, cfg.LDFlags)
+		assert.Equal(t, []string{"existing"}, cfg.BuildTags)
+	})
+}
+
 // --- String ---
 
 func TestOptions_String_Good(t *testing.T) {
