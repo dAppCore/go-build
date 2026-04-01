@@ -84,6 +84,82 @@ targets:
 		assert.Equal(t, "arm64", cfg.Targets[1].Arch)
 	})
 
+	t.Run("expands environment variables in build and signing config", func(t *testing.T) {
+		t.Setenv("APP_NAME", "demo-app")
+		t.Setenv("APP_ROOT", "./cmd/demo")
+		t.Setenv("APP_BINARY", "demo-bin")
+		t.Setenv("BUILD_TYPE", "wails")
+		t.Setenv("WEBVIEW2", "embed")
+		t.Setenv("ARCHIVE_FORMAT", "xz")
+		t.Setenv("APP_VERSION", "v1.2.3")
+		t.Setenv("APP_TAG", "integration")
+		t.Setenv("CACHE_DIR", ".core/cache/demo-app")
+		t.Setenv("DOCKERFILE", "Dockerfile.release")
+		t.Setenv("IMAGE_NAME", "owner/demo-app")
+		t.Setenv("GPG_KEY_ID", "ABCD1234")
+
+		content := `
+version: 1
+project:
+  name: ${APP_NAME}
+  main: ${APP_ROOT}
+  binary: ${APP_BINARY}
+build:
+  type: ${BUILD_TYPE}
+  webview2: ${WEBVIEW2}
+  archive_format: ${ARCHIVE_FORMAT}
+  flags:
+    - -trimpath
+    - -X
+    - main.version=${APP_VERSION}
+  ldflags:
+    - -s
+    - -w
+  build_tags:
+    - ${APP_TAG}
+  env:
+    - VERSION=${APP_VERSION}
+  cache:
+    enabled: true
+    dir: ${CACHE_DIR}
+    paths:
+      - ${CACHE_DIR}/go-build
+  dockerfile: ${DOCKERFILE}
+  image: ${IMAGE_NAME}
+  tags:
+    - latest
+    - ${APP_VERSION}
+  build_args:
+    VERSION: ${APP_VERSION}
+sign:
+  gpg:
+    key: ${GPG_KEY_ID}
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "demo-app", cfg.Project.Name)
+		assert.Equal(t, "./cmd/demo", cfg.Project.Main)
+		assert.Equal(t, "demo-bin", cfg.Project.Binary)
+		assert.Equal(t, "wails", cfg.Build.Type)
+		assert.Equal(t, "embed", cfg.Build.WebView2)
+		assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
+		assert.Equal(t, []string{"-trimpath", "-X", "main.version=v1.2.3"}, cfg.Build.Flags)
+		assert.Equal(t, []string{"-s", "-w"}, cfg.Build.LDFlags)
+		assert.Equal(t, []string{"integration"}, cfg.Build.BuildTags)
+		assert.Equal(t, []string{"VERSION=v1.2.3"}, cfg.Build.Env)
+		assert.Equal(t, ".core/cache/demo-app", cfg.Build.Cache.Directory)
+		assert.Equal(t, []string{".core/cache/demo-app/go-build"}, cfg.Build.Cache.Paths)
+		assert.Equal(t, "Dockerfile.release", cfg.Build.Dockerfile)
+		assert.Equal(t, "owner/demo-app", cfg.Build.Image)
+		assert.Equal(t, []string{"latest", "v1.2.3"}, cfg.Build.Tags)
+		assert.Equal(t, map[string]string{"VERSION": "v1.2.3"}, cfg.Build.BuildArgs)
+		assert.Equal(t, "ABCD1234", cfg.Sign.GPG.Key)
+	})
+
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
 		dir := t.TempDir()
 

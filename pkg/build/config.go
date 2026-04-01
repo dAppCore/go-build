@@ -5,6 +5,7 @@ package build
 import (
 	"iter"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/io"
@@ -144,6 +145,10 @@ func LoadConfigAtPath(fs io.Medium, configPath string) (*BuildConfig, error) {
 	// Apply defaults for any missing fields
 	applyDefaults(cfg)
 
+	// Expand environment variables after defaults so overrides can still be
+	// expressed declaratively in config files.
+	cfg.ExpandEnv()
+
 	return cfg, nil
 }
 
@@ -202,8 +207,115 @@ func applyDefaults(cfg *BuildConfig) {
 		cfg.Targets = defaults.Targets
 	}
 
-	// Expand environment variables in sign config
+}
+
+// ExpandEnv expands environment variables across the build config.
+//
+// cfg.ExpandEnv() // expands $APP_NAME, $IMAGE_TAG, $GPG_KEY_ID, etc.
+func (cfg *BuildConfig) ExpandEnv() {
+	if cfg == nil {
+		return
+	}
+
+	cfg.Project.Name = expandEnv(cfg.Project.Name)
+	cfg.Project.Description = expandEnv(cfg.Project.Description)
+	cfg.Project.Main = expandEnv(cfg.Project.Main)
+	cfg.Project.Binary = expandEnv(cfg.Project.Binary)
+
+	cfg.Build.Type = expandEnv(cfg.Build.Type)
+	cfg.Build.WebView2 = expandEnv(cfg.Build.WebView2)
+	cfg.Build.ArchiveFormat = expandEnv(cfg.Build.ArchiveFormat)
+	cfg.Build.Dockerfile = expandEnv(cfg.Build.Dockerfile)
+	cfg.Build.Registry = expandEnv(cfg.Build.Registry)
+	cfg.Build.Image = expandEnv(cfg.Build.Image)
+	cfg.Build.LinuxKitConfig = expandEnv(cfg.Build.LinuxKitConfig)
+
+	cfg.Build.Flags = expandEnvSlice(cfg.Build.Flags)
+	cfg.Build.LDFlags = expandEnvSlice(cfg.Build.LDFlags)
+	cfg.Build.BuildTags = expandEnvSlice(cfg.Build.BuildTags)
+	cfg.Build.Env = expandEnvSlice(cfg.Build.Env)
+	cfg.Build.Tags = expandEnvSlice(cfg.Build.Tags)
+	cfg.Build.Formats = expandEnvSlice(cfg.Build.Formats)
+
+	cfg.Build.Cache.Directory = expandEnv(cfg.Build.Cache.Directory)
+	cfg.Build.Cache.KeyPrefix = expandEnv(cfg.Build.Cache.KeyPrefix)
+	cfg.Build.Cache.Paths = expandEnvSlice(cfg.Build.Cache.Paths)
+	cfg.Build.Cache.RestoreKeys = expandEnvSlice(cfg.Build.Cache.RestoreKeys)
+
+	cfg.Build.BuildArgs = expandEnvMap(cfg.Build.BuildArgs)
+
 	cfg.Sign.ExpandEnv()
+}
+
+func expandEnvSlice(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make([]string, len(values))
+	for i, value := range values {
+		result[i] = expandEnv(value)
+	}
+	return result
+}
+
+func expandEnvMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make(map[string]string, len(values))
+	for key, value := range values {
+		result[key] = expandEnv(value)
+	}
+	return result
+}
+
+// expandEnv expands $VAR or ${VAR} using the current process environment.
+func expandEnv(s string) string {
+	if !core.Contains(s, "$") {
+		return s
+	}
+
+	buf := core.NewBuilder()
+	for i := 0; i < len(s); {
+		if s[i] != '$' {
+			buf.WriteByte(s[i])
+			i++
+			continue
+		}
+
+		if i+1 < len(s) && s[i+1] == '{' {
+			j := i + 2
+			for j < len(s) && s[j] != '}' {
+				j++
+			}
+			if j < len(s) {
+				buf.WriteString(core.Env(s[i+2 : j]))
+				i = j + 1
+				continue
+			}
+		}
+
+		j := i + 1
+		for j < len(s) {
+			c := s[j]
+			if c != '_' && (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
+				break
+			}
+			j++
+		}
+		if j > i+1 {
+			buf.WriteString(core.Env(s[i+1 : j]))
+			i = j
+			continue
+		}
+
+		buf.WriteByte(s[i])
+		i++
+	}
+
+	return buf.String()
 }
 
 // ConfigPath returns the path to the build config file for a given directory.
