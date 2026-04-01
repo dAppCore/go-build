@@ -31,6 +31,20 @@ func TestSDK_VersionPassedToGenerator_Good(t *testing.T) {
 	assert.Equal(t, "v2.0.0", s.config.Package.Version)
 }
 
+func TestSDK_VersionTemplateIsRendered_Good(t *testing.T) {
+	config := &Config{
+		Package: PackageConfig{
+			Name:    "test-sdk",
+			Version: "{{.Version}}-beta",
+		},
+	}
+	s := New("/tmp", config)
+	s.SetVersion("v2.0.0")
+
+	assert.Equal(t, "{{.Version}}-beta", s.config.Package.Version)
+	assert.Equal(t, "v2.0.0-beta", s.resolvePackageVersion())
+}
+
 func TestSDK_DefaultConfig_Good(t *testing.T) {
 	cfg := DefaultConfig()
 	assert.Contains(t, cfg.Languages, "typescript")

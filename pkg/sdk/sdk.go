@@ -86,7 +86,7 @@ func New(projectDir string, config *Config) *SDK {
 // s.SetVersion("v1.2.3")
 func (s *SDK) SetVersion(version string) {
 	s.version = version
-	if s.config != nil {
+	if s.config != nil && !containsVersionTemplate(s.config.Package.Version) {
 		s.config.Package.Version = version
 	}
 }
@@ -148,7 +148,7 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 		SpecPath:    specPath,
 		OutputDir:   outputDir,
 		PackageName: s.config.Package.Name,
-		Version:     s.config.Package.Version,
+		Version:     s.resolvePackageVersion(),
 	}
 
 	core.Print(nil, "Generating %s SDK...", lang)
@@ -158,4 +158,37 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 	core.Print(nil, "Generated %s SDK at %s", lang, outputDir)
 
 	return nil
+}
+
+// resolvePackageVersion renders the configured package version against the
+// current SDK version when a template placeholder is present.
+//
+// resolved := s.resolvePackageVersion() // "v1.2.3" or "1.2.3-beta"
+func (s *SDK) resolvePackageVersion() string {
+	if s == nil || s.config == nil {
+		return ""
+	}
+
+	packageVersion := s.config.Package.Version
+	if packageVersion == "" {
+		return s.version
+	}
+
+	if !containsVersionTemplate(packageVersion) {
+		return packageVersion
+	}
+
+	if s.version == "" {
+		return packageVersion
+	}
+
+	resolved := core.Replace(packageVersion, "{{.Version}}", s.version)
+	resolved = core.Replace(resolved, "{{Version}}", s.version)
+	return resolved
+}
+
+// containsVersionTemplate reports whether a package version uses a version
+// placeholder that should be rendered at generation time.
+func containsVersionTemplate(value string) bool {
+	return core.Contains(value, "{{.Version}}") || core.Contains(value, "{{Version}}")
 }
