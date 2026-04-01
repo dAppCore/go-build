@@ -182,6 +182,10 @@ func isWorkflowDirectoryPath(path string) bool {
 		return false
 	}
 
+	if path == "." || path == "./" || path == ".\\" {
+		return true
+	}
+
 	last := path[len(path)-1]
 	return last == '/' || last == '\\'
 }
