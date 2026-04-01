@@ -112,6 +112,15 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeLinuxKit}, types)
 	})
 
+	t.Run("detects LinuxKit project from yaml config", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "linuxkit.yaml"), []byte("kernel:\n"), 0644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeLinuxKit}, types)
+	})
+
 	t.Run("detects C++ project", func(t *testing.T) {
 		dir := setupTestDir(t, "CMakeLists.txt")
 		types, err := Discover(fs, dir)
@@ -608,6 +617,17 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeLinuxKit}, result.Types)
 		assert.Equal(t, "linuxkit", result.PrimaryStack)
 		assert.True(t, result.Markers[".core/linuxkit/*.yml"])
+		assert.True(t, result.Markers[".core/linuxkit/*.yaml"])
+	})
+
+	t.Run("detects LinuxKit project markers in linuxkit.yaml", func(t *testing.T) {
+		dir := setupTestDir(t, "linuxkit.yaml")
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeLinuxKit}, result.Types)
+		assert.Equal(t, "linuxkit", result.PrimaryStack)
+		assert.True(t, result.Markers["linuxkit.yaml"])
 	})
 
 	t.Run("detects C++ project markers", func(t *testing.T) {

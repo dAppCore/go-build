@@ -30,12 +30,12 @@ func (b *LinuxKitBuilder) Name() string {
 	return "linuxkit"
 }
 
-// Detect checks if a linuxkit.yml or .yml config exists in the directory.
+// Detect checks if a linuxkit.yml, linuxkit.yaml, or nested YAML config exists in the directory.
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	// Check for linuxkit.yml
-	if fs.IsFile(ax.Join(dir, "linuxkit.yml")) {
+	if fs.IsFile(ax.Join(dir, "linuxkit.yml")) || fs.IsFile(ax.Join(dir, "linuxkit.yaml")) {
 		return true, nil
 	}
 	// Check for .core/linuxkit/
@@ -44,7 +44,11 @@ func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 		entries, err := fs.List(lkDir)
 		if err == nil {
 			for _, entry := range entries {
-				if !entry.IsDir() && core.HasSuffix(entry.Name(), ".yml") {
+				if entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				if core.HasSuffix(name, ".yml") || core.HasSuffix(name, ".yaml") {
 					return true, nil
 				}
 			}
@@ -68,6 +72,8 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 		// Auto-detect
 		if cfg.FS.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yml")) {
 			configPath = ax.Join(cfg.ProjectDir, "linuxkit.yml")
+		} else if cfg.FS.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yaml")) {
+			configPath = ax.Join(cfg.ProjectDir, "linuxkit.yaml")
 		} else {
 			// Look in .core/linuxkit/
 			lkDir := ax.Join(cfg.ProjectDir, ".core", "linuxkit")
@@ -75,7 +81,11 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 				entries, err := cfg.FS.List(lkDir)
 				if err == nil {
 					for _, entry := range entries {
-						if !entry.IsDir() && core.HasSuffix(entry.Name(), ".yml") {
+						if entry.IsDir() {
+							continue
+						}
+						name := entry.Name()
+						if core.HasSuffix(name, ".yml") || core.HasSuffix(name, ".yaml") {
 							configPath = ax.Join(lkDir, entry.Name())
 							break
 						}
@@ -113,6 +123,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	baseName := cfg.Name
 	if baseName == "" {
 		baseName = core.TrimSuffix(ax.Base(configPath), ".yml")
+		baseName = core.TrimSuffix(baseName, ".yaml")
 	}
 
 	// If no targets, default to linux/amd64

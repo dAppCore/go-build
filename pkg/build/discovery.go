@@ -9,23 +9,25 @@ import (
 
 // Marker files for project type detection.
 const (
-	markerGoMod             = "go.mod"
-	markerWails             = "wails.json"
-	markerNodePackage       = "package.json"
-	markerComposer          = "composer.json"
-	markerMkDocs            = "mkdocs.yml"
-	markerMkDocsYAML        = "mkdocs.yaml"
-	markerPyProject         = "pyproject.toml"
-	markerRequirements      = "requirements.txt"
-	markerCargo             = "Cargo.toml"
-	markerDockerfile        = "Dockerfile"
-	markerLinuxKitYAML      = "linuxkit.yml"
-	markerTaskfileYML       = "Taskfile.yml"
-	markerTaskfileYAML      = "Taskfile.yaml"
-	markerTaskfileBare      = "Taskfile"
-	markerTaskfileLowerYML  = "taskfile.yml"
-	markerTaskfileLowerYAML = "taskfile.yaml"
-	markerLinuxKitNested    = ".core/linuxkit/*.yml"
+	markerGoMod              = "go.mod"
+	markerWails              = "wails.json"
+	markerNodePackage        = "package.json"
+	markerComposer           = "composer.json"
+	markerMkDocs             = "mkdocs.yml"
+	markerMkDocsYAML         = "mkdocs.yaml"
+	markerPyProject          = "pyproject.toml"
+	markerRequirements       = "requirements.txt"
+	markerCargo              = "Cargo.toml"
+	markerDockerfile         = "Dockerfile"
+	markerLinuxKitYAML       = "linuxkit.yml"
+	markerLinuxKitYAMLAlt    = "linuxkit.yaml"
+	markerTaskfileYML        = "Taskfile.yml"
+	markerTaskfileYAML       = "Taskfile.yaml"
+	markerTaskfileBare       = "Taskfile"
+	markerTaskfileLowerYML   = "taskfile.yml"
+	markerTaskfileLowerYAML  = "taskfile.yaml"
+	markerLinuxKitNestedYML  = ".core/linuxkit/*.yml"
+	markerLinuxKitNestedYAML = ".core/linuxkit/*.yaml"
 )
 
 // projectMarker maps a marker file to its project type.
@@ -247,7 +249,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	allMarkers := []string{
 		markerGoMod, markerWails, markerNodePackage, markerComposer,
 		markerMkDocs, markerMkDocsYAML, markerPyProject, markerRequirements, markerCargo,
-		"CMakeLists.txt", markerDockerfile, markerLinuxKitYAML,
+		"CMakeLists.txt", markerDockerfile, markerLinuxKitYAML, markerLinuxKitYAMLAlt,
 		markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,
 		markerTaskfileLowerYML, markerTaskfileLowerYAML,
 	}
@@ -255,8 +257,9 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 		result.Markers[m] = fileExists(fs, ax.Join(dir, m))
 	}
 
-	// Pattern-based marker: LinuxKit configs may live in .core/linuxkit/*.yml.
-	result.Markers[markerLinuxKitNested] = hasYAMLInDir(fs, ax.Join(dir, ".core", "linuxkit"))
+	// Pattern-based marker: LinuxKit configs may live in .core/linuxkit/*.yml or *.yaml.
+	result.Markers[markerLinuxKitNestedYML] = hasYAMLInDir(fs, ax.Join(dir, ".core", "linuxkit"))
+	result.Markers[markerLinuxKitNestedYAML] = result.Markers[markerLinuxKitNestedYML]
 
 	// Subtree npm detection
 	result.HasSubtreeNpm = HasSubtreeNpm(fs, dir)
@@ -293,7 +296,8 @@ func IsDockerProject(fs io.Medium, dir string) bool {
 //
 //	ok := build.IsLinuxKitProject(io.Local, ".")
 func IsLinuxKitProject(fs io.Medium, dir string) bool {
-	if fileExists(fs, ax.Join(dir, markerLinuxKitYAML)) {
+	if fileExists(fs, ax.Join(dir, markerLinuxKitYAML)) ||
+		fileExists(fs, ax.Join(dir, markerLinuxKitYAMLAlt)) {
 		return true
 	}
 	return hasYAMLInDir(fs, ax.Join(dir, ".core", "linuxkit"))
@@ -317,7 +321,7 @@ func IsTaskfileProject(fs io.Medium, dir string) bool {
 	return false
 }
 
-// hasYAMLInDir reports whether a directory contains at least one .yml file.
+// hasYAMLInDir reports whether a directory contains at least one YAML file.
 func hasYAMLInDir(fs io.Medium, dir string) bool {
 	if !fs.IsDir(dir) {
 		return false
@@ -332,7 +336,8 @@ func hasYAMLInDir(fs io.Medium, dir string) bool {
 		if entry.IsDir() {
 			continue
 		}
-		if strings.HasSuffix(strings.ToLower(entry.Name()), ".yml") {
+		name := strings.ToLower(entry.Name())
+		if strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml") {
 			return true
 		}
 	}

@@ -30,11 +30,35 @@ func TestLinuxKit_LinuxKitBuilderDetect_Good(t *testing.T) {
 		assert.True(t, detected)
 	})
 
+	t.Run("detects linuxkit.yaml in root", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.WriteFile(ax.Join(dir, "linuxkit.yaml"), []byte("kernel:\n  image: test\n"), 0644)
+		require.NoError(t, err)
+
+		builder := NewLinuxKitBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.True(t, detected)
+	})
+
 	t.Run("detects .core/linuxkit/*.yml", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
 		require.NoError(t, ax.MkdirAll(lkDir, 0755))
 		err := ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0644)
+		require.NoError(t, err)
+
+		builder := NewLinuxKitBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.True(t, detected)
+	})
+
+	t.Run("detects .core/linuxkit/*.yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
+		err := ax.WriteFile(ax.Join(lkDir, "server.yaml"), []byte("kernel:\n  image: test\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewLinuxKitBuilder()
@@ -90,6 +114,19 @@ func TestLinuxKit_LinuxKitBuilderDetect_Good(t *testing.T) {
 	})
 
 	t.Run("returns false when .core/linuxkit has only non-yml files", func(t *testing.T) {
+		dir := t.TempDir()
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
+		err := ax.WriteFile(ax.Join(lkDir, "README.md"), []byte("# LinuxKit\n"), 0644)
+		require.NoError(t, err)
+
+		builder := NewLinuxKitBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.False(t, detected)
+	})
+
+	t.Run("returns false when .core/linuxkit has only non-yaml files", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
 		require.NoError(t, ax.MkdirAll(lkDir, 0755))
