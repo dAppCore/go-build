@@ -32,6 +32,10 @@ func WriteReleaseWorkflow(medium io_interface.Medium, outputPath string) error {
 		outputPath = DefaultReleaseWorkflowPath
 	}
 
+	if medium != nil && (isDirectoryLikePath(outputPath) || medium.IsDir(outputPath)) {
+		outputPath = ax.Join(outputPath, DefaultReleaseWorkflowFileName)
+	}
+
 	content, err := releaseWorkflowTemplate.ReadFile("templates/release.yml")
 	if err != nil {
 		return coreerr.E("build.WriteReleaseWorkflow", "failed to read embedded workflow template", err)

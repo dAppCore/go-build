@@ -43,6 +43,34 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		assert.NotEmpty(t, content)
 	})
 
+	t.Run("writes release.yml inside an existing directory", func(t *testing.T) {
+		projectDir := t.TempDir()
+		outputDir := ax.Join(projectDir, "ci")
+		require.NoError(t, ax.MkdirAll(outputDir, 0o755))
+
+		err := WriteReleaseWorkflow(io.Local, outputDir)
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(outputDir, DefaultReleaseWorkflowFileName))
+		require.NoError(t, err)
+
+		template, err := releaseWorkflowTemplate.ReadFile("templates/release.yml")
+		require.NoError(t, err)
+
+		assert.Equal(t, string(template), content)
+	})
+
+	t.Run("writes release.yml for directory-style output paths", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		err := WriteReleaseWorkflow(fs, "ci/")
+		require.NoError(t, err)
+
+		content, err := fs.Read("ci/release.yml")
+		require.NoError(t, err)
+		assert.NotEmpty(t, content)
+	})
+
 	t.Run("creates parent directories on a real filesystem", func(t *testing.T) {
 		projectDir := t.TempDir()
 		path := ax.Join(projectDir, ".github", "workflows", "release.yml")
