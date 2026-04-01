@@ -68,6 +68,20 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		assert.Len(t, artifacts, 1)
 	})
 
+	t.Run("finds asc signature files", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt.asc"), []byte("signature"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		assert.Len(t, artifacts, 1)
+		assert.Contains(t, artifacts[0].Path, "CHECKSUMS.txt.asc")
+	})
+
 	t.Run("finds mixed artifact types", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")

@@ -138,6 +138,7 @@ func findArtifacts(filesystem io.Medium, distDir string) ([]build.Artifact, erro
 		if core.HasSuffix(name, ".tar.gz") ||
 			core.HasSuffix(name, ".zip") ||
 			core.HasSuffix(name, ".txt") ||
+			core.HasSuffix(name, ".asc") ||
 			core.HasSuffix(name, ".sig") {
 			artifacts = append(artifacts, build.Artifact{Path: path})
 		}
