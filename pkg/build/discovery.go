@@ -239,7 +239,8 @@ type DiscoveryResult struct {
 	Types []ProjectType
 	// PrimaryStack is the best stack suggestion based on detected types.
 	PrimaryStack string
-	// HasFrontend is true when frontend/package.json or subtree npm is found.
+	// HasFrontend is true when a root or frontend/ package.json/deno manifest is found,
+	// or when a nested frontend tree is detected.
 	HasFrontend bool
 	// HasSubtreeNpm is true when a nested package.json exists within depth 2.
 	HasSubtreeNpm bool
@@ -285,8 +286,9 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	// Subtree npm detection
 	result.HasSubtreeNpm = HasSubtreeNpm(fs, dir)
 
-	// Frontend detection: frontend package managers or nested frontend manifests.
-	result.HasFrontend = hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
+	// Frontend detection: root manifests, frontend/ manifests, or nested frontend trees.
+	result.HasFrontend = hasFrontendManifest(fs, dir) ||
+		hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
 		hasSubtreeFrontendManifest(fs, dir) ||
 		result.HasSubtreeNpm
 
