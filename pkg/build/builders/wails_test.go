@@ -345,6 +345,37 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 		assert.Equal(t, "build", lines[2])
 	})
 
+	t.Run("discovers nested package.json in a monorepo", func(t *testing.T) {
+		binDir := t.TempDir()
+		setupFakeFrontendCommand(t, binDir, "npm")
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		projectDir := setupWailsTestProject(t)
+		frontendDir := ax.Join(projectDir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
+
+		logPath := ax.Join(t.TempDir(), "frontend.log")
+		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
+
+		builder := NewWailsBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+		}
+
+		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.Len(t, lines, 3)
+		assert.Equal(t, "npm", lines[0])
+		assert.Equal(t, "run", lines[1])
+		assert.Equal(t, "build", lines[2])
+	})
+
 	t.Run("uses bun when bun.lockb exists", func(t *testing.T) {
 		binDir := t.TempDir()
 		setupFakeFrontendCommand(t, binDir, "bun")

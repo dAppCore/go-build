@@ -201,12 +201,54 @@ func (b *WailsBuilder) resolveFrontendDir(fs io.Medium, projectDir string) strin
 		return projectDir
 	}
 
+	if nestedFrontendDir := b.resolveSubtreeFrontendDir(fs, projectDir); nestedFrontendDir != "" {
+		return nestedFrontendDir
+	}
+
 	return ""
 }
 
 // hasDenoConfig reports whether the frontend directory contains a Deno manifest.
 func (b *WailsBuilder) hasDenoConfig(fs io.Medium, dir string) bool {
 	return fs.IsFile(ax.Join(dir, "deno.json")) || fs.IsFile(ax.Join(dir, "deno.jsonc"))
+}
+
+// resolveSubtreeFrontendDir finds a nested package.json within two directory levels.
+// This supports monorepo layouts such as apps/web/package.json when frontend/ is absent.
+func (b *WailsBuilder) resolveSubtreeFrontendDir(fs io.Medium, projectDir string) string {
+	entries, err := fs.List(projectDir)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "node_modules" {
+			continue
+		}
+
+		firstLevel := ax.Join(projectDir, entry.Name())
+		if fs.IsFile(ax.Join(firstLevel, "package.json")) {
+			return firstLevel
+		}
+
+		subEntries, err := fs.List(firstLevel)
+		if err != nil {
+			continue
+		}
+
+		for _, subEntry := range subEntries {
+			if !subEntry.IsDir() || subEntry.Name() == "node_modules" {
+				continue
+			}
+
+			nested := ax.Join(firstLevel, subEntry.Name())
+			if fs.IsFile(ax.Join(nested, "package.json")) {
+				return nested
+			}
+		}
+	}
+
+	return ""
 }
 
 // buildV2Target compiles for a single target platform using wails (v2).
