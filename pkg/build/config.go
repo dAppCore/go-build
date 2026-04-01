@@ -74,7 +74,7 @@ type Build struct {
 	// BuildTags are Go build tags passed through to `go build`.
 	BuildTags []string `yaml:"build_tags,omitempty"`
 	// ArchiveFormat selects the archive compression format for build outputs.
-	// Supported values are "gz" and "xz"; empty uses gzip.
+	// Supported values are "gz", "xz", and "zip"; empty uses gzip.
 	ArchiveFormat string `yaml:"archive_format,omitempty"`
 	// Env are additional environment variables.
 	Env []string `yaml:"env"`

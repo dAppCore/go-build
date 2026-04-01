@@ -58,7 +58,7 @@ type BuildConfig struct {
 	// Targets defines the build targets.
 	Targets []TargetConfig `yaml:"targets"`
 	// ArchiveFormat selects the archive compression format for build outputs.
-	// Supported values are "gz" and "xz"; empty uses gzip.
+	// Supported values are "gz", "xz", and "zip"; empty uses gzip.
 	ArchiveFormat string `yaml:"archive_format,omitempty"`
 }
 

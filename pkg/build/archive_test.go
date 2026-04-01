@@ -176,6 +176,25 @@ func TestArchive_Archive_Good(t *testing.T) {
 
 		verifyZipContent(t, result.Path, "myapp.exe")
 	})
+
+	t.Run("creates zip for linux when explicitly requested", func(t *testing.T) {
+		binaryPath, outputDir := setupArchiveTestFile(t, "myapp", "linux", "amd64")
+
+		artifact := Artifact{
+			Path: binaryPath,
+			OS:   "linux",
+			Arch: "amd64",
+		}
+
+		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatZip)
+		require.NoError(t, err)
+
+		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.zip")
+		assert.Equal(t, expectedPath, result.Path)
+		assert.FileExists(t, result.Path)
+
+		verifyZipContent(t, result.Path, "myapp")
+	})
 }
 
 func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
@@ -191,6 +210,12 @@ func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, ArchiveFormatXZ, format)
 		}
+	})
+
+	t.Run("accepts zip", func(t *testing.T) {
+		format, err := ParseArchiveFormat("zip")
+		require.NoError(t, err)
+		assert.Equal(t, ArchiveFormatZip, format)
 	})
 
 	t.Run("rejects unsupported formats", func(t *testing.T) {

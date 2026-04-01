@@ -26,19 +26,22 @@ const (
 	ArchiveFormatGzip ArchiveFormat = "gz"
 	// ArchiveFormatXZ uses tar.xz (xz/LZMA2 compression) - better compression ratio.
 	ArchiveFormatXZ ArchiveFormat = "xz"
-	// ArchiveFormatZip uses zip - for Windows.
+	// ArchiveFormatZip uses zip archives on any platform.
 	ArchiveFormatZip ArchiveFormat = "zip"
 )
 
 // ParseArchiveFormat converts a user-facing archive format string into an ArchiveFormat.
 //
-//	format, err := build.ParseArchiveFormat("xz") // → build.ArchiveFormatXZ
+//	format, err := build.ParseArchiveFormat("xz")  // → build.ArchiveFormatXZ
+//	format, err := build.ParseArchiveFormat("zip") // → build.ArchiveFormatZip
 func ParseArchiveFormat(value string) (ArchiveFormat, error) {
 	switch core.Trim(strings.ToLower(value)) {
 	case "", "gz", "gzip", "tar.gz":
 		return ArchiveFormatGzip, nil
 	case "xz", "tar.xz":
 		return ArchiveFormatXZ, nil
+	case "zip":
+		return ArchiveFormatZip, nil
 	default:
 		return "", coreerr.E("build.ParseArchiveFormat", "unsupported archive format: "+value, nil)
 	}
@@ -64,7 +67,8 @@ func ArchiveXZ(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 }
 
 // ArchiveWithFormat creates an archive for a single artifact with the specified format.
-// Uses tar.gz or tar.xz for linux/darwin and zip for windows.
+// Uses tar.gz, tar.xz, or zip depending on the requested format.
+// Windows artifacts always use zip unless zip is requested explicitly.
 // The archive is created alongside the binary (e.g., dist/myapp_linux_amd64.tar.xz).
 // Returns a new Artifact with Path pointing to the archive.
 //
@@ -83,22 +87,20 @@ func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format Archive
 		return Artifact{}, coreerr.E("build.Archive", "source path is a directory, expected file", nil)
 	}
 
-	// Determine archive type based on OS and format
+	// Determine archive type based on OS and format.
 	var archivePath string
 	var archiveFunc func(fs io_interface.Medium, src, dst string) error
 
-	if artifact.OS == "windows" {
+	switch {
+	case format == ArchiveFormatZip || artifact.OS == "windows":
 		archivePath = archiveFilename(artifact, ".zip")
 		archiveFunc = createZipArchive
-	} else {
-		switch format {
-		case ArchiveFormatXZ:
-			archivePath = archiveFilename(artifact, ".tar.xz")
-			archiveFunc = createTarXzArchive
-		default:
-			archivePath = archiveFilename(artifact, ".tar.gz")
-			archiveFunc = createTarGzArchive
-		}
+	case format == ArchiveFormatXZ:
+		archivePath = archiveFilename(artifact, ".tar.xz")
+		archiveFunc = createTarXzArchive
+	default:
+		archivePath = archiveFilename(artifact, ".tar.gz")
+		archiveFunc = createTarGzArchive
 	}
 
 	// Create the archive
