@@ -342,6 +342,43 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		assert.Contains(t, envLines, "CGO_ENABLED=0")
 	})
 
+	t.Run("applies configured cache paths to go cache env vars", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logDir := t.TempDir()
+		envLogPath := ax.Join(logDir, "go-cache-env.log")
+
+		t.Setenv("GO_BUILD_ENV_LOG_FILE", envLogPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "cachetest",
+			Cache: build.CacheConfig{
+				Enabled: true,
+				Paths: []string{
+					ax.Join(outputDir, "cache", "go-build"),
+					ax.Join(outputDir, "cache", "go-mod"),
+				},
+			},
+		}
+		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		envContent, err := ax.ReadFile(envLogPath)
+		require.NoError(t, err)
+
+		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
+		assert.Contains(t, envLines, "GOCACHE="+ax.Join(outputDir, "cache", "go-build"))
+		assert.Contains(t, envLines, "GOMODCACHE="+ax.Join(outputDir, "cache", "go-mod"))
+	})
+
 	t.Run("passes build tags through to go build", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
 		outputDir := t.TempDir()

@@ -121,6 +121,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, target b
 
 	// Set up environment.
 	env := append([]string{}, cfg.Env...)
+	env = append(env, build.CacheEnvironment(&cfg.Cache)...)
 	env = append(env,
 		core.Sprintf("GOOS=%s", target.OS),
 		core.Sprintf("GOARCH=%s", target.Arch),

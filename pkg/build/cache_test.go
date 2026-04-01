@@ -120,3 +120,25 @@ func TestCache_CacheKey_Good(t *testing.T) {
 	assert.NotEqual(t, first, third)
 	assert.Contains(t, first, "main-linux-amd64-")
 }
+
+func TestCache_CacheEnvironment_Good(t *testing.T) {
+	t.Run("maps cache directory and Go cache paths to env vars", func(t *testing.T) {
+		env := CacheEnvironment(&CacheConfig{
+			Enabled: true,
+			Paths: []string{
+				"/workspace/project/cache/go-build",
+				"/workspace/project/cache/go-mod",
+				"/workspace/project/cache/go-build",
+			},
+		})
+
+		assert.Equal(t, []string{
+			"GOCACHE=/workspace/project/cache/go-build",
+			"GOMODCACHE=/workspace/project/cache/go-mod",
+		}, env)
+	})
+
+	t.Run("disabled cache returns no env vars", func(t *testing.T) {
+		assert.Nil(t, CacheEnvironment(&CacheConfig{Enabled: false}))
+	})
+}

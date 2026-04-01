@@ -89,6 +89,8 @@ type Config struct {
 	BuildTags []string
 	// Env are additional environment variables.
 	Env []string
+	// Cache holds build cache configuration for builders that can use it.
+	Cache CacheConfig
 	// CGO enables CGO for the build (required for Wails, FrankenPHP, etc).
 	CGO bool
 	// Obfuscate uses garble instead of go build for binary obfuscation.

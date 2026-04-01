@@ -292,6 +292,7 @@ func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName 
 		LDFlags:        append([]string{}, buildDefaults.LDFlags...),
 		Flags:          append([]string{}, buildDefaults.Flags...),
 		Env:            append([]string{}, buildDefaults.Env...),
+		Cache:          buildDefaults.Cache,
 		CGO:            buildDefaults.CGO,
 		Obfuscate:      buildDefaults.Obfuscate,
 		NSIS:           buildDefaults.NSIS,

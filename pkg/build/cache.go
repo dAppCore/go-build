@@ -133,6 +133,28 @@ func CacheKey(buildName string, target Target, cfg *CacheConfig) string {
 	return core.Join("-", keyPrefix, target.OS, target.Arch, suffix)
 }
 
+// CacheEnvironment returns environment variables derived from the cache config.
+//
+//	env := build.CacheEnvironment(&build.CacheConfig{Enabled: true, Paths: []string{"/tmp/go-build"}})
+func CacheEnvironment(cfg *CacheConfig) []string {
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+
+	var env []string
+
+	for _, path := range cfg.Paths {
+		switch cacheEnvironmentName(path) {
+		case "GOCACHE":
+			env = appendIfMissing(env, "GOCACHE="+path)
+		case "GOMODCACHE":
+			env = appendIfMissing(env, "GOMODCACHE="+path)
+		}
+	}
+
+	return deduplicateStrings(env)
+}
+
 func cacheKeySnapshot(buildName string, target Target, cfg *CacheConfig) string {
 	parts := []string{
 		"build",
@@ -160,6 +182,28 @@ func cacheKeySnapshot(buildName string, target Target, cfg *CacheConfig) string 
 	parts = append(parts, "restore:"+core.Join(",", restoreKeys...))
 
 	return core.Join("\n", parts...)
+}
+
+func cacheEnvironmentName(path string) string {
+	base := strings.ToLower(ax.Base(path))
+
+	switch base {
+	case "go-build", "gocache":
+		return "GOCACHE"
+	case "go-mod", "gomodcache":
+		return "GOMODCACHE"
+	default:
+		return ""
+	}
+}
+
+func appendIfMissing(values []string, value string) []string {
+	for _, current := range values {
+		if current == value {
+			return values
+		}
+	}
+	return append(values, value)
 }
 
 func normaliseCachePath(baseDir, path string) string {
