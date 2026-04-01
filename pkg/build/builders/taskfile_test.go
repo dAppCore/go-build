@@ -3,6 +3,7 @@ package builders
 import (
 	"context"
 	"os"
+	"runtime"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -333,4 +334,48 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	assert.Contains(t, string(content), "OUTPUT_DIR="+ax.Join(projectDir, "dist"))
 	assert.Contains(t, string(content), "GOOS=linux")
 	assert.Contains(t, string(content), "GOARCH=amd64")
+}
+
+func TestTaskfile_TaskfileBuilderBuild_DefaultTarget_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Taskfile.yml"), []byte("version: '3'\n"), 0o644))
+
+	binDir := t.TempDir()
+	taskPath := ax.Join(binDir, "task")
+	logPath := ax.Join(t.TempDir(), "task.default.env")
+
+	script := `#!/bin/sh
+set -eu
+
+mkdir -p "${OUTPUT_DIR}/${GOOS}_${GOARCH}"
+printf '%s\n' "${GOOS}/${GOARCH}" > "${OUTPUT_DIR}/${GOOS}_${GOARCH}/artifact"
+env | sort > "${TASK_BUILD_LOG_FILE}"
+`
+	require.NoError(t, ax.WriteFile(taskPath, []byte(script), 0o755))
+
+	t.Setenv("TASK_BUILD_LOG_FILE", logPath)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	builder := NewTaskfileBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		Name:       "sample",
+		Version:    "v1.2.3",
+		Env:        []string{"FOO=bar"},
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, nil)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.Equal(t, ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "artifact"), artifacts[0].Path)
+	assert.Equal(t, runtime.GOOS, artifacts[0].OS)
+	assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "FOO=bar")
+	assert.Contains(t, string(content), "OUTPUT_DIR="+ax.Join(projectDir, "dist"))
+	assert.Contains(t, string(content), "GOOS="+runtime.GOOS)
+	assert.Contains(t, string(content), "GOARCH="+runtime.GOARCH)
 }

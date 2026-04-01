@@ -4,6 +4,7 @@ package builders
 import (
 	"context"
 	"path"
+	"runtime"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -74,26 +75,21 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 
 	var artifacts []build.Artifact
 
-	// If no targets specified, just run the build task once
+	// If no targets are specified, build the host target so Taskfile builds
+	// still receive the standard GOOS/GOARCH surface.
 	if len(targets) == 0 {
-		if err := b.runTask(ctx, cfg, taskCommand, "", ""); err != nil {
+		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+	}
+
+	// Run build task for each target
+	for _, target := range targets {
+		if err := b.runTask(ctx, cfg, taskCommand, target.OS, target.Arch); err != nil {
 			return nil, err
 		}
 
-		// Try to find artifacts in output directory
-		found := b.findArtifacts(cfg.FS, outputDir)
+		// Try to find artifacts for this target
+		found := b.findArtifactsForTarget(cfg.FS, outputDir, target)
 		artifacts = append(artifacts, found...)
-	} else {
-		// Run build task for each target
-		for _, target := range targets {
-			if err := b.runTask(ctx, cfg, taskCommand, target.OS, target.Arch); err != nil {
-				return nil, err
-			}
-
-			// Try to find artifacts for this target
-			found := b.findArtifactsForTarget(cfg.FS, outputDir, target)
-			artifacts = append(artifacts, found...)
-		}
 	}
 
 	return artifacts, nil
