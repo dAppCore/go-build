@@ -11,6 +11,7 @@ import (
 	"dappco.re/go/core/build/internal/projectdetect"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
+	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/build/pkg/release/publishers"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -323,11 +324,24 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		return nil, coreerr.E("release.buildArtifacts", "failed to write checksums file", err)
 	}
 
+	// Sign CHECKSUMS.txt when signing is configured.
+	if err := signing.SignChecksums(ctx, filesystem, buildConfig.Sign, checksumPath); err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "failed to sign checksums file", err)
+	}
+
 	// Add CHECKSUMS.txt as an artifact
 	checksumArtifact := build.Artifact{
 		Path: checksumPath,
 	}
 	checksummedArtifacts = append(checksummedArtifacts, checksumArtifact)
+
+	// Add the detached signature when one was created.
+	signaturePath := checksumPath + ".asc"
+	if filesystem.Exists(signaturePath) {
+		checksummedArtifacts = append(checksummedArtifacts, build.Artifact{
+			Path: signaturePath,
+		})
+	}
 
 	return checksummedArtifacts, nil
 }

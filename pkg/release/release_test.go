@@ -2,6 +2,8 @@ package release
 
 import (
 	"context"
+	"os"
+	"runtime"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -753,6 +755,64 @@ func TestRelease_PublishDefaultProjectDir_Good(t *testing.T) {
 
 		assert.NotEmpty(t, release.ProjectDir)
 	})
+}
+
+func TestRelease_BuildArtifacts_SignsChecksums_Good(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake gpg script uses POSIX shell")
+	}
+
+	dir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	gpgDir := t.TempDir()
+	gpgPath := ax.Join(gpgDir, "gpg")
+	gpgScript := `#!/bin/sh
+out=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --output)
+      out="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$out" ]; then
+  exit 2
+fi
+
+: > "$out"
+`
+	require.NoError(t, ax.WriteFile(gpgPath, []byte(gpgScript), 0o755))
+
+	oldPath := os.Getenv("PATH")
+	require.NotEmpty(t, oldPath)
+	t.Setenv("PATH", gpgDir+string(os.PathListSeparator)+oldPath)
+	t.Setenv("GPG_KEY_ID", "TESTKEY")
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.Project.Name = "signedapp"
+	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+	cfg.Publishers = nil
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	require.NoError(t, err)
+
+	var sawChecksumSignature bool
+	for _, artifact := range artifacts {
+		if artifact.Path == ax.Join(dir, "dist", "CHECKSUMS.txt.asc") {
+			sawChecksumSignature = true
+		}
+	}
+
+	assert.True(t, sawChecksumSignature)
+	assert.FileExists(t, ax.Join(dir, "dist", "CHECKSUMS.txt.asc"))
 }
 
 // Helper functions for publish tests
