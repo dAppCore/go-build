@@ -35,7 +35,8 @@ func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPath, "output", "", i18n.T("cmd.build.workflow.flag.output"))
 }
 
-// AddWorkflowCommand registers the release workflow generation subcommand.
+// buildCmd := &cli.Command{Use: "build"}
+// buildcmd.AddWorkflowCommand(buildCmd)
 func AddWorkflowCommand(buildCmd *cli.Command) {
 	setWorkflowI18n()
 	initWorkflowFlags()
