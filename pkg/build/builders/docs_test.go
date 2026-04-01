@@ -104,6 +104,13 @@ func TestDocs_DocsBuilderBuild_Good(t *testing.T) {
 	content, err := ax.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "FOO=bar")
+	assert.Contains(t, string(content), "GOOS=linux")
+	assert.Contains(t, string(content), "GOARCH=amd64")
+	assert.Contains(t, string(content), "TARGET_OS=linux")
+	assert.Contains(t, string(content), "TARGET_ARCH=amd64")
+	assert.Contains(t, string(content), "OUTPUT_DIR="+ax.Join(dir, "dist"))
+	assert.Contains(t, string(content), "TARGET_DIR="+ax.Join(dir, "dist", "linux_amd64"))
+	assert.Contains(t, string(content), "NAME=demo-site")
 }
 
 func TestDocs_DocsBuilderBuild_Good_NestedConfig(t *testing.T) {
@@ -117,7 +124,7 @@ func TestDocs_DocsBuilderBuild_Good_NestedConfig(t *testing.T) {
 
 	binDir := t.TempDir()
 	mkdocsPath := ax.Join(binDir, "mkdocs")
-	script := "#!/bin/sh\nset -eu\nif [ -n \"${DOCS_BUILD_LOG_FILE:-}\" ]; then\n  printf '%s\\n' \"$@\" >> \"${DOCS_BUILD_LOG_FILE}\"\nfi\nsite_dir=\"\"\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = \"--site-dir\" ]; then\n    shift\n    site_dir=\"$1\"\n  fi\n  shift\ndone\nmkdir -p \"$site_dir\"\nprintf '%s' 'demo docs' > \"$site_dir/index.html\"\n"
+	script := "#!/bin/sh\nset -eu\nif [ -n \"${DOCS_BUILD_LOG_FILE:-}\" ]; then\n  env | sort >> \"${DOCS_BUILD_LOG_FILE}\"\n  printf '%s\\n' \"$@\" >> \"${DOCS_BUILD_LOG_FILE}\"\nfi\nsite_dir=\"\"\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = \"--site-dir\" ]; then\n    shift\n    site_dir=\"$1\"\n  fi\n  shift\ndone\nmkdir -p \"$site_dir\"\nprintf '%s' 'demo docs' > \"$site_dir/index.html\"\n"
 	require.NoError(t, ax.WriteFile(mkdocsPath, []byte(script), 0o755))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	logPath := ax.Join(t.TempDir(), "docs.args")
@@ -139,6 +146,7 @@ func TestDocs_DocsBuilderBuild_Good_NestedConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "--config-file")
 	assert.Contains(t, string(content), "docs/mkdocs.yaml")
+	assert.Contains(t, string(content), "TARGET_DIR="+ax.Join(dir, "dist", "linux_amd64"))
 }
 
 func TestDocs_DocsBuilderBuild_Bad(t *testing.T) {

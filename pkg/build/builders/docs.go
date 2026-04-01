@@ -84,8 +84,23 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 			return artifacts, coreerr.E("DocsBuilder.Build", "failed to create site directory", err)
 		}
 
+		env := appendConfiguredEnv(cfg.Env,
+			core.Sprintf("GOOS=%s", target.OS),
+			core.Sprintf("GOARCH=%s", target.Arch),
+			core.Sprintf("TARGET_OS=%s", target.OS),
+			core.Sprintf("TARGET_ARCH=%s", target.Arch),
+			core.Sprintf("OUTPUT_DIR=%s", outputDir),
+			core.Sprintf("TARGET_DIR=%s", platformDir),
+		)
+		if cfg.Name != "" {
+			env = append(env, core.Sprintf("NAME=%s", cfg.Name))
+		}
+		if cfg.Version != "" {
+			env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
+		}
+
 		args := []string{"build", "--clean", "--site-dir", siteDir, "--config-file", configPath}
-		output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, cfg.Env, mkdocsCommand, args...)
+		output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, mkdocsCommand, args...)
 		if err != nil {
 			return artifacts, coreerr.E("DocsBuilder.Build", "mkdocs build failed: "+output, err)
 		}
