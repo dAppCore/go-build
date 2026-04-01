@@ -128,20 +128,7 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	// Create build config for the builder
-	cfg := &build.Config{
-		FS:         filesystem,
-		Project:    buildConfig.Project,
-		ProjectDir: projectDir,
-		OutputDir:  outputDir,
-		Name:       binaryName,
-		Version:    buildConfig.Project.Name, // Could be enhanced with git describe
-		LDFlags:    buildConfig.Build.LDFlags,
-		Flags:      buildConfig.Build.Flags,
-		Env:        buildConfig.Build.Env,
-		CGO:        buildConfig.Build.CGO,
-		Push:       push,
-		Image:      imageName,
-	}
+	cfg := buildRuntimeConfig(filesystem, projectDir, outputDir, binaryName, buildConfig, push, imageName)
 	discovery, err := build.DiscoverFull(filesystem, projectDir)
 	if err != nil {
 		return coreerr.E("build.Run", "failed to inspect project for build options", err)
@@ -290,6 +277,40 @@ func runProjectBuild(ctx context.Context, buildType string, ciMode bool, targets
 	}
 
 	return nil
+}
+
+// buildRuntimeConfig maps persisted build configuration onto the runtime builder config.
+func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName string, buildConfig *build.BuildConfig, push bool, imageName string) *build.Config {
+	buildDefaults := buildConfig.Build
+	cfg := &build.Config{
+		FS:             filesystem,
+		Project:        buildConfig.Project,
+		ProjectDir:     projectDir,
+		OutputDir:      outputDir,
+		Name:           binaryName,
+		Version:        buildConfig.Project.Name, // Could be enhanced with git describe
+		LDFlags:        append([]string{}, buildDefaults.LDFlags...),
+		Flags:          append([]string{}, buildDefaults.Flags...),
+		Env:            append([]string{}, buildDefaults.Env...),
+		CGO:            buildDefaults.CGO,
+		Obfuscate:      buildDefaults.Obfuscate,
+		NSIS:           buildDefaults.NSIS,
+		WebView2:       buildDefaults.WebView2,
+		Dockerfile:     buildDefaults.Dockerfile,
+		Registry:       buildDefaults.Registry,
+		Image:          buildDefaults.Image,
+		Tags:           append([]string{}, buildDefaults.Tags...),
+		BuildArgs:      buildDefaults.BuildArgs,
+		Push:           buildDefaults.Push || push,
+		LinuxKitConfig: buildDefaults.LinuxKitConfig,
+		Formats:        append([]string{}, buildDefaults.Formats...),
+	}
+
+	if imageName != "" {
+		cfg.Image = imageName
+	}
+
+	return cfg
 }
 
 // computeAndWriteChecksums computes checksums for artifacts and writes CHECKSUMS.txt.

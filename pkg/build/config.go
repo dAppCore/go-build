@@ -75,6 +75,22 @@ type Build struct {
 	Env []string `yaml:"env"`
 	// Cache controls build cache setup.
 	Cache CacheConfig `yaml:"cache,omitempty"`
+	// Dockerfile is the path to the Dockerfile used by Docker builds.
+	Dockerfile string `yaml:"dockerfile,omitempty"`
+	// Registry is the container registry used for Docker image references.
+	Registry string `yaml:"registry,omitempty"`
+	// Image is the image name used for Docker builds.
+	Image string `yaml:"image,omitempty"`
+	// Tags are Docker image tags to apply.
+	Tags []string `yaml:"tags,omitempty"`
+	// BuildArgs are Docker build arguments.
+	BuildArgs map[string]string `yaml:"build_args,omitempty"`
+	// Push enables pushing Docker images after build.
+	Push bool `yaml:"push,omitempty"`
+	// LinuxKitConfig is the path to the LinuxKit config file.
+	LinuxKitConfig string `yaml:"linuxkit_config,omitempty"`
+	// Formats is the list of LinuxKit output formats.
+	Formats []string `yaml:"formats,omitempty"`
 }
 
 // TargetConfig defines a build target in the config file.
