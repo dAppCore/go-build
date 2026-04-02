@@ -116,6 +116,11 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	assert.Equal(t, "string", outputPathSchema["type"])
 	assert.Equal(t, "Preferred explicit workflow output path, relative to the project directory or absolute.", outputPathSchema["description"])
 
+	outputPathHyphenSchema, ok := properties["output-path"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "string", outputPathHyphenSchema["type"])
+	assert.Equal(t, "Hyphenated alias for outputPath.", outputPathHyphenSchema["description"])
+
 	workflowOutputPathSchema, ok := properties["workflowOutputPath"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "string", workflowOutputPathSchema["type"])
@@ -415,6 +420,30 @@ func TestProvider_GenerateReleaseWorkflow_OutputPath_Good(t *testing.T) {
 	assert.Contains(t, content, "workflow_dispatch:")
 }
 
+func TestProvider_GenerateReleaseWorkflow_OutputPathHyphen_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"output-path":"ci/output-path.yml"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	path := ax.Join(projectDir, "ci", "output-path.yml")
+	content, err := io.Local.Read(path)
+	require.NoError(t, err)
+	assert.Contains(t, content, "workflow_call:")
+	assert.Contains(t, content, "workflow_dispatch:")
+}
+
 func TestProvider_GenerateReleaseWorkflow_OutputPathSnake_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -541,6 +570,28 @@ func TestProvider_GenerateReleaseWorkflow_ConflictingOutputAliases_Bad(t *testin
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"outputPath":"ci/output-path.yml","output_path":"ops/output-path.yml"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+
+	path := build.ReleaseWorkflowPath(projectDir)
+	_, err := io.Local.Read(path)
+	assert.Error(t, err)
+}
+
+func TestProvider_GenerateReleaseWorkflow_ConflictingOutputPathHyphenAliases_Bad(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"outputPath":"ci/output-path.yml","output-path":"ops/output-path.yml"}`))
 	request.Header.Set("Content-Type", "application/json")
 
 	ctx, _ := gin.CreateTestContext(recorder)

@@ -211,6 +211,10 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 						"type":        "string",
 						"description": "Preferred explicit workflow output path, relative to the project directory or absolute.",
 					},
+					"output-path": map[string]any{
+						"type":        "string",
+						"description": "Hyphenated alias for outputPath.",
+					},
 					"output_path": map[string]any{
 						"type":        "string",
 						"description": "Snake_case alias for outputPath.",
@@ -575,6 +579,7 @@ type ReleaseWorkflowRequest struct {
 	WorkflowPathSnake        string `json:"workflow_path"`
 	WorkflowPathHyphen       string `json:"workflow-path"`
 	OutputPath               string `json:"outputPath"`
+	OutputPathHyphen         string `json:"output-path"`
 	OutputPathSnake          string `json:"output_path"`
 	LegacyOutputPath         string `json:"output"`
 	WorkflowOutputPath       string `json:"workflowOutputPath"`
@@ -603,8 +608,15 @@ func (r ReleaseWorkflowRequest) resolvedWorkflowPath(dir string, medium io.Mediu
 // resolvedOutputPath resolves the workflow output aliases with the same
 // conflict rules as the CLI.
 func (r ReleaseWorkflowRequest) resolvedOutputPath() (string, error) {
+	outputPath := r.OutputPath
+	if outputPath == "" {
+		outputPath = r.OutputPathHyphen
+	} else if r.OutputPathHyphen != "" && outputPath != r.OutputPathHyphen {
+		return "", coreerr.E("api.ReleaseWorkflowRequest", "workflow output aliases specify different locations", nil)
+	}
+
 	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliases(
-		r.OutputPath,
+		outputPath,
 		r.OutputPathSnake,
 		r.LegacyOutputPath,
 		r.WorkflowOutputPath,
