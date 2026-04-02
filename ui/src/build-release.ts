@@ -320,11 +320,21 @@ export class BuildRelease extends LitElement {
       const request: {
         path?: string;
         outputPath?: string;
+        output_path?: string;
+        output?: string;
+        workflowOutputPath?: string;
+        workflow_output_path?: string;
       } = {};
       const path = this.workflowPath.trim();
       const outputPath = this.workflowOutputPath.trim();
       if (path) request.path = path;
       if (outputPath) request.outputPath = outputPath;
+      if (outputPath) {
+        request.output_path = outputPath;
+        request.output = outputPath;
+        request.workflowOutputPath = outputPath;
+        request.workflow_output_path = outputPath;
+      }
 
       const result = await this.api.releaseWorkflow(request);
       const generatedPath = result.path ?? outputPath ?? path ?? '.github/workflows/release.yml';
