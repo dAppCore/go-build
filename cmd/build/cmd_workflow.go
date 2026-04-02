@@ -14,19 +14,19 @@ import (
 )
 
 var (
-	releaseWorkflowPathInput                      string
-	releaseWorkflowPathAliasInput                 string
-	releaseWorkflowPathHyphenAliasInput           string
-	releaseWorkflowPathSnakeAliasInput            string
-	releaseWorkflowOutputPathHyphenInput          string
-	releaseWorkflowOutputPathSnakeInput           string
-	releaseWorkflowOutputPathInput                string
-	releaseWorkflowOutputLegacyInput              string
-	releaseWorkflowOutputPathAliasInput           string
-	releaseWorkflowOutputPathHyphenAliasInput     string
-	releaseWorkflowOutputPathSnakeAliasInput      string
-	releaseWorkflowWorkflowOutputHyphenAliasInput string
-	releaseWorkflowWorkflowOutputSnakeAliasInput  string
+	releaseWorkflowPathInput                  string
+	releaseWorkflowPathAliasInput             string
+	releaseWorkflowPathHyphenAliasInput       string
+	releaseWorkflowPathSnakeAliasInput        string
+	releaseWorkflowOutputPathHyphenInput      string
+	releaseWorkflowOutputPathSnakeInput       string
+	releaseWorkflowOutputPathInput            string
+	releaseWorkflowOutputLegacyInput          string
+	releaseWorkflowOutputPathAliasInput       string
+	releaseWorkflowOutputPathHyphenAliasInput string
+	releaseWorkflowOutputPathSnakeAliasInput  string
+	releaseWorkflowOutputHyphenAliasInput     string
+	releaseWorkflowOutputSnakeAliasInput      string
 )
 
 // releaseWorkflowInputs keeps the workflow alias inputs grouped by meaning
@@ -96,8 +96,8 @@ var releaseWorkflowCmd = &cli.Command{
 			outputPathSnakeInput:          releaseWorkflowOutputPathSnakeInput,
 			legacyOutputInput:             releaseWorkflowOutputLegacyInput,
 			workflowOutputPathInput:       releaseWorkflowOutputPathAliasInput,
-			workflowOutputHyphenInput:     releaseWorkflowWorkflowOutputHyphenAliasInput,
-			workflowOutputSnakeInput:      releaseWorkflowWorkflowOutputSnakeAliasInput,
+			workflowOutputHyphenInput:     releaseWorkflowOutputHyphenAliasInput,
+			workflowOutputSnakeInput:      releaseWorkflowOutputSnakeAliasInput,
 			workflowOutputPathHyphenInput: releaseWorkflowOutputPathHyphenAliasInput,
 			workflowOutputPathSnakeInput:  releaseWorkflowOutputPathSnakeAliasInput,
 		})
@@ -121,8 +121,8 @@ func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasInput, "workflowOutputPath", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathHyphenAliasInput, "workflow-output-path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathSnakeAliasInput, "workflow_output_path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowOutputHyphenAliasInput, "workflow-output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowOutputSnakeAliasInput, "workflow_output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputHyphenAliasInput, "workflow-output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputSnakeAliasInput, "workflow_output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 }
 
 // buildCmd := &cli.Command{Use: "build"}
