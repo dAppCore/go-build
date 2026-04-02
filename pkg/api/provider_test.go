@@ -101,6 +101,16 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	assert.Equal(t, "string", outputPathSchema["type"])
 	assert.Equal(t, "Preferred explicit workflow output path, relative to the project directory or absolute.", outputPathSchema["description"])
 
+	workflowOutputPathSchema, ok := properties["workflowOutputPath"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "string", workflowOutputPathSchema["type"])
+	assert.Equal(t, "Predictable alias for outputPath, relative to the project directory or absolute.", workflowOutputPathSchema["description"])
+
+	workflowOutputPathSnakeSchema, ok := properties["workflow_output_path"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "string", workflowOutputPathSnakeSchema["type"])
+	assert.Equal(t, "Snake_case alias for workflowOutputPath.", workflowOutputPathSnakeSchema["description"])
+
 	outputPathSnakeSchema, ok := properties["output_path"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "string", outputPathSnakeSchema["type"])
@@ -313,6 +323,76 @@ func TestProvider_GenerateReleaseWorkflow_OutputPathSnake_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, content, "workflow_call:")
 	assert.Contains(t, content, "workflow_dispatch:")
+}
+
+func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPath_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflowOutputPath":"ci/workflow-output-path.yml"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
+	content, err := io.Local.Read(path)
+	require.NoError(t, err)
+	assert.Contains(t, content, "workflow_call:")
+	assert.Contains(t, content, "workflow_dispatch:")
+}
+
+func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathSnake_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflow_output_path":"ci/workflow-output-path.yml"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
+	content, err := io.Local.Read(path)
+	require.NoError(t, err)
+	assert.Contains(t, content, "workflow_call:")
+	assert.Contains(t, content, "workflow_dispatch:")
+}
+
+func TestProvider_GenerateReleaseWorkflow_ConflictingWorkflowOutputAliases_Bad(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"outputPath":"ci/output-path.yml","workflowOutputPath":"ops/output-path.yml"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+
+	path := build.ReleaseWorkflowPath(projectDir)
+	_, err := io.Local.Read(path)
+	assert.Error(t, err)
 }
 
 func TestProvider_GenerateReleaseWorkflow_ConflictingOutputAliases_Bad(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	stdio "io"
 	"io/fs"
 	"net/http"
+	"strings"
 
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
@@ -20,6 +21,7 @@ import (
 	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 	"dappco.re/go/core/ws"
 	"github.com/gin-gonic/gin"
 )
@@ -181,6 +183,14 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 					"path": map[string]any{
 						"type":        "string",
 						"description": "Preferred output path for the workflow file, relative to the project directory or absolute.",
+					},
+					"workflowOutputPath": map[string]any{
+						"type":        "string",
+						"description": "Predictable alias for outputPath, relative to the project directory or absolute.",
+					},
+					"workflow_output_path": map[string]any{
+						"type":        "string",
+						"description": "Snake_case alias for workflowOutputPath.",
 					},
 					"outputPath": map[string]any{
 						"type":        "string",
@@ -545,16 +555,22 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 //
 // req := ReleaseWorkflowRequest{Path: "ci/release.yml"}
 type ReleaseWorkflowRequest struct {
-	Path             string `json:"path"`
-	OutputPath       string `json:"outputPath"`
-	OutputPathSnake  string `json:"output_path"`
-	LegacyOutputPath string `json:"output"`
+	Path                    string `json:"path"`
+	OutputPath              string `json:"outputPath"`
+	OutputPathSnake         string `json:"output_path"`
+	LegacyOutputPath        string `json:"output"`
+	WorkflowOutputPath      string `json:"workflowOutputPath"`
+	WorkflowOutputPathSnake string `json:"workflow_output_path"`
 }
 
 // resolvedOutputPath resolves the workflow output aliases with the same
 // conflict rules as the CLI.
 func (r ReleaseWorkflowRequest) resolvedOutputPath() (string, error) {
-	return build.ResolveReleaseWorkflowOutputPath(r.OutputPath, r.OutputPathSnake, r.LegacyOutputPath)
+	resolved, err := build.ResolveReleaseWorkflowOutputPath(r.OutputPath, r.OutputPathSnake, r.LegacyOutputPath)
+	if err != nil {
+		return "", err
+	}
+	return mergeWorkflowOutputAliases(resolved, r.WorkflowOutputPath, r.WorkflowOutputPathSnake, "api.ReleaseWorkflowRequest")
 }
 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
@@ -599,6 +615,30 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		"generated": true,
 		"path":      workflowPath,
 	}))
+}
+
+// mergeWorkflowOutputAliases combines an existing resolved output path with
+// additional alias values and rejects conflicts.
+func mergeWorkflowOutputAliases(primaryInput, workflowOutputPathInput, workflowOutputPathSnakeInput, errorName string) (string, error) {
+	primaryInput = strings.TrimSpace(primaryInput)
+	workflowOutputPathInput = strings.TrimSpace(workflowOutputPathInput)
+	workflowOutputPathSnakeInput = strings.TrimSpace(workflowOutputPathSnakeInput)
+
+	resolved := primaryInput
+	for _, value := range []string{workflowOutputPathInput, workflowOutputPathSnakeInput} {
+		if value == "" {
+			continue
+		}
+		if resolved == "" {
+			resolved = value
+			continue
+		}
+		if resolved != value {
+			return "", coreerr.E(errorName, "workflow output aliases specify different locations", nil)
+		}
+	}
+
+	return resolved, nil
 }
 
 // -- SDK Handlers -------------------------------------------------------------
