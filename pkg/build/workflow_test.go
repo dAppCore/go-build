@@ -350,6 +350,12 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "ci/release.yml", path)
 	})
+
+	t.Run("normalises equivalent path aliases", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowOutputPath("ci/release.yml", "./ci/release.yml", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
 }
 
 func TestWorkflow_ResolveReleaseWorkflowOutputPath_Bad(t *testing.T) {

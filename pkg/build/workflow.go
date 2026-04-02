@@ -178,9 +178,9 @@ func resolveReleaseWorkflowInputPathPair(pathInput, outputPathInput string, reso
 // value when aliases agree.
 func resolveReleaseWorkflowPathPair(primaryInput, secondaryInput, tertiaryInput, errorName string) (string, error) {
 	values := []string{
-		cleanWorkflowInput(primaryInput),
-		cleanWorkflowInput(secondaryInput),
-		cleanWorkflowInput(tertiaryInput),
+		normalizeWorkflowOutputAlias(primaryInput),
+		normalizeWorkflowOutputAlias(secondaryInput),
+		normalizeWorkflowOutputAlias(tertiaryInput),
 	}
 
 	var resolved string
@@ -198,6 +198,16 @@ func resolveReleaseWorkflowPathPair(primaryInput, secondaryInput, tertiaryInput,
 	}
 
 	return resolved, nil
+}
+
+// normalizeWorkflowOutputAlias canonicalises a workflow output alias for comparison.
+func normalizeWorkflowOutputAlias(path string) string {
+	path = cleanWorkflowInput(path)
+	if path == "" {
+		return ""
+	}
+
+	return ax.Clean(path)
 }
 
 // resolveReleaseWorkflowInputPath resolves one workflow input into a file path.

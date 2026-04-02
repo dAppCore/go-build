@@ -44,6 +44,18 @@ func TestBuildCmd_resolveReleaseWorkflowOutputPathInput_Bad(t *testing.T) {
 	assert.Contains(t, err.Error(), "output aliases specify different locations")
 }
 
+func TestBuildCmd_resolveWorkflowOutputAliases_Good(t *testing.T) {
+	path, err := resolveWorkflowOutputAliases("ci/release.yml", "./ci/release.yml", "ci/release.yml", "build.runReleaseWorkflow")
+	require.NoError(t, err)
+	assert.Equal(t, "ci/release.yml", path)
+}
+
+func TestBuildCmd_resolveWorkflowOutputAliases_Bad(t *testing.T) {
+	_, err := resolveWorkflowOutputAliases("ci/release.yml", "ops/release.yml", "", "build.runReleaseWorkflow")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow output aliases specify different locations")
+}
+
 func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 	projectDir := t.TempDir()
 

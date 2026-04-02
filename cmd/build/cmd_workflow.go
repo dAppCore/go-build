@@ -119,9 +119,9 @@ func runReleaseWorkflowInDir(projectDir, workflowPathInput, workflowOutputPathIn
 // resolveWorkflowOutputAliases merges the preferred output path with extra
 // aliases while rejecting conflicting values.
 func resolveWorkflowOutputAliases(primaryInput, workflowOutputPathInput, workflowOutputPathSnakeInput, errorName string) (string, error) {
-	primaryInput = strings.TrimSpace(primaryInput)
-	workflowOutputPathInput = strings.TrimSpace(workflowOutputPathInput)
-	workflowOutputPathSnakeInput = strings.TrimSpace(workflowOutputPathSnakeInput)
+	primaryInput = normalizeWorkflowOutputAlias(primaryInput)
+	workflowOutputPathInput = normalizeWorkflowOutputAlias(workflowOutputPathInput)
+	workflowOutputPathSnakeInput = normalizeWorkflowOutputAlias(workflowOutputPathSnakeInput)
 
 	resolved := primaryInput
 	for _, value := range []string{workflowOutputPathInput, workflowOutputPathSnakeInput} {
@@ -138,4 +138,14 @@ func resolveWorkflowOutputAliases(primaryInput, workflowOutputPathInput, workflo
 	}
 
 	return resolved, nil
+}
+
+// normalizeWorkflowOutputAlias canonicalises workflow output aliases before comparison.
+func normalizeWorkflowOutputAlias(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+
+	return ax.Clean(path)
 }
