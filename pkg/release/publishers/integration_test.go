@@ -371,7 +371,7 @@ func TestIntegration_DockerPublisherIntegrationConfigParsing_Good(t *testing.T) 
 		}
 		relCfg := &mockReleaseConfig{repository: "fallback/repo"}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/myproject")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/myproject")
 
 		assert.Equal(t, "registry.example.com", cfg.Registry)
 		assert.Equal(t, "myteam/myservice", cfg.Image)

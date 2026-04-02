@@ -6,6 +6,8 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -51,7 +53,7 @@ func (p *DockerPublisher) Name() string {
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
 	// Parse Docker-specific config from publisher config
-	dockerCfg := p.parseConfig(pubCfg, relCfg, release.ProjectDir)
+	dockerCfg := p.parseConfig(release.FS, pubCfg, relCfg, release.ProjectDir)
 
 	// Validate Dockerfile exists
 	if !release.FS.Exists(dockerCfg.Dockerfile) {
@@ -72,14 +74,19 @@ func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 }
 
 // parseConfig extracts Docker-specific configuration.
-func (p *DockerPublisher) parseConfig(pubCfg PublisherConfig, relCfg ReleaseConfig, projectDir string) DockerConfig {
+func (p *DockerPublisher) parseConfig(fs io.Medium, pubCfg PublisherConfig, relCfg ReleaseConfig, projectDir string) DockerConfig {
 	cfg := DockerConfig{
-		Registry:   "ghcr.io",
-		Image:      "",
-		Dockerfile: ax.Join(projectDir, "Dockerfile"),
-		Platforms:  []string{"linux/amd64", "linux/arm64"},
-		Tags:       []string{"latest", "{{.Version}}"},
-		BuildArgs:  make(map[string]string),
+		Registry:  "ghcr.io",
+		Image:     "",
+		Platforms: []string{"linux/amd64", "linux/arm64"},
+		Tags:      []string{"latest", "{{.Version}}"},
+		BuildArgs: make(map[string]string),
+	}
+
+	if dockerfile := build.ResolveDockerfilePath(fs, projectDir); dockerfile != "" {
+		cfg.Dockerfile = dockerfile
+	} else {
+		cfg.Dockerfile = ax.Join(projectDir, "Dockerfile")
 	}
 
 	// Try to get image from repository config

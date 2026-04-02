@@ -23,7 +23,7 @@ func TestDocker_DockerPublisherParseConfig_Good(t *testing.T) {
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "ghcr.io", cfg.Registry)
 		assert.Equal(t, "owner/repo", cfg.Image)
@@ -47,7 +47,7 @@ func TestDocker_DockerPublisherParseConfig_Good(t *testing.T) {
 			},
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "docker.io", cfg.Registry)
 		assert.Equal(t, "myorg/myimage", cfg.Image)
@@ -65,9 +65,20 @@ func TestDocker_DockerPublisherParseConfig_Good(t *testing.T) {
 			},
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "/absolute/path/Dockerfile", cfg.Dockerfile)
+	})
+
+	t.Run("detects Containerfile when Dockerfile is absent", func(t *testing.T) {
+		projectDir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine\n"), 0o644))
+
+		pubCfg := PublisherConfig{Type: "docker"}
+		relCfg := &mockReleaseConfig{repository: "owner/repo"}
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, projectDir)
+
+		assert.Equal(t, ax.Join(projectDir, "Containerfile"), cfg.Dockerfile)
 	})
 }
 
@@ -259,7 +270,7 @@ func TestDocker_DockerConfigDefaults_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		// Verify defaults
 		assert.Equal(t, "ghcr.io", cfg.Registry)
@@ -375,7 +386,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 			},
 		}
 
-		cfg := p.parseConfig(pubCfg, nil, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, nil, "/project")
 
 		assert.Equal(t, "custom/image", cfg.Image)
 		assert.Equal(t, "ghcr.io", cfg.Registry)
@@ -390,7 +401,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: ""}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "fallback/image", cfg.Image)
 	})
@@ -404,7 +415,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "original/repo"}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "override/image", cfg.Image)
 	})
@@ -421,7 +432,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "value", cfg.BuildArgs["STRING_ARG"])
 		_, exists := cfg.BuildArgs["INT_ARG"]
