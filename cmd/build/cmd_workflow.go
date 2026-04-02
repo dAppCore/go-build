@@ -29,9 +29,9 @@ var (
 	releaseWorkflowOutputSnakeAliasInput      string
 )
 
-// releaseWorkflowInputs keeps the workflow alias inputs grouped by meaning
-// rather than by call-site position.
-type releaseWorkflowInputs struct {
+// releaseWorkflowRequestInputs keeps the workflow alias inputs grouped by the
+// public request fields they represent, rather than by call-site position.
+type releaseWorkflowRequestInputs struct {
 	pathInput                     string
 	workflowPathInput             string
 	workflowPathHyphenInput       string
@@ -47,12 +47,12 @@ type releaseWorkflowInputs struct {
 	workflowOutputPathSnakeInput  string
 }
 
-// resolvedWorkflowTargetPath resolves both workflow path inputs and workflow
+// resolveWorkflowTargetPath resolves both workflow path inputs and workflow
 // output inputs before merging them into the final target path.
 //
-// inputs := releaseWorkflowInputs{pathInput: "ci/release.yml"}
-// path, err := inputs.resolvedWorkflowTargetPath("/tmp/project")
-func (inputs releaseWorkflowInputs) resolvedWorkflowTargetPath(projectDir string) (string, error) {
+// inputs := releaseWorkflowRequestInputs{pathInput: "ci/release.yml"}
+// path, err := inputs.resolveWorkflowTargetPath("/tmp/project")
+func (inputs releaseWorkflowRequestInputs) resolveWorkflowTargetPath(projectDir string) (string, error) {
 	resolvedWorkflowPath, err := resolveReleaseWorkflowInputPathAliases(
 		projectDir,
 		inputs.pathInput,
@@ -86,7 +86,7 @@ func (inputs releaseWorkflowInputs) resolvedWorkflowTargetPath(projectDir string
 var releaseWorkflowCmd = &cli.Command{
 	Use: "workflow",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runReleaseWorkflow(cmd.Context(), releaseWorkflowInputs{
+		return runReleaseWorkflow(cmd.Context(), releaseWorkflowRequestInputs{
 			pathInput:                     releaseWorkflowPathInput,
 			workflowPathInput:             releaseWorkflowPathAliasInput,
 			workflowPathHyphenInput:       releaseWorkflowPathHyphenAliasInput,
@@ -133,27 +133,28 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 	buildCmd.AddCommand(releaseWorkflowCmd)
 }
 
-// runReleaseWorkflow writes the embedded release workflow into the current project directory.
+// runReleaseWorkflow writes the embedded release workflow into the current
+// project directory.
 //
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{})                                                     // writes .github/workflows/release.yml
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{pathInput: "ci/release.yml"})                         // writes ./ci/release.yml under the project root
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathInput: "ci/release.yml"})                 // uses the workflowPath alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathSnakeInput: "ci/release.yml"})            // uses the workflow_path alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathHyphenInput: "ci/release.yml"})           // uses the workflow-path alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{outputPathInput: "ci/release.yml"})                   // uses the outputPath alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{legacyOutputInput: "ci/release.yml"})                 // uses the legacy output alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathInput: "ci/release.yml"})           // uses the workflowOutputPath alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputHyphenInput: "ci/release.yml"})         // uses the workflow-output alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputSnakeInput: "ci/release.yml"})          // uses the workflow_output alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathSnakeInput: "ci/release.yml"})       // uses the workflow_output_path alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathHyphenInput: "ci/release.yml"})      // uses the workflow-output-path alias
-func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{})                                              // writes .github/workflows/release.yml
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{pathInput: "ci/release.yml"})                  // writes ./ci/release.yml under the project root
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{workflowPathInput: "ci/release.yml"})          // uses the workflowPath alias
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{workflowPathSnakeInput: "ci/release.yml"})     // uses the workflow_path alias
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{workflowPathHyphenInput: "ci/release.yml"})    // uses the workflow-path alias
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{outputPathInput: "ci/release.yml"})            // uses the outputPath alias
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{legacyOutputInput: "ci/release.yml"})          // uses the legacy output alias
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{workflowOutputPathInput: "ci/release.yml"})    // uses the workflowOutputPath alias
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{workflowOutputHyphenInput: "ci/release.yml"})  // uses the workflow-output alias
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{workflowOutputSnakeInput: "ci/release.yml"})   // uses the workflow_output alias
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{workflowOutputPathSnakeInput: "ci/release.yml"}) // uses the workflow_output_path alias
+// runReleaseWorkflow(ctx, releaseWorkflowRequestInputs{workflowOutputPathHyphenInput: "ci/release.yml"}) // uses the workflow-output-path alias
+func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowRequestInputs) error {
 	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("build.runReleaseWorkflow", "failed to get working directory", err)
 	}
 
-	resolvedWorkflowPath, err := inputs.resolvedWorkflowTargetPath(projectDir)
+	resolvedWorkflowPath, err := inputs.resolveWorkflowTargetPath(projectDir)
 	if err != nil {
 		return err
 	}

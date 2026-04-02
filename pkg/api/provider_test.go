@@ -161,7 +161,7 @@ func TestProvider_ReleaseWorkflowRequestResolvedOutputPath_Good(t *testing.T) {
 		WorkflowOutputPath: absoluteDir,
 	}
 
-	path, err := req.resolvedOutputPath(projectDir, io.Local)
+	path, err := req.resolveOutputPath(projectDir, io.Local)
 	require.NoError(t, err)
 	assert.Equal(t, ax.Join(absoluteDir, "release.yml"), path)
 }
@@ -174,7 +174,7 @@ func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliases_Good(t *testin
 		WorkflowOutputHyphen: "ci/workflow-output.yml",
 	}
 
-	path, err := req.resolvedOutputPath(projectDir, io.Local)
+	path, err := req.resolveOutputPath(projectDir, io.Local)
 	require.NoError(t, err)
 	assert.Equal(t, ax.Join(projectDir, "ci", "workflow-output.yml"), path)
 }
