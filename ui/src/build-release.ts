@@ -324,6 +324,7 @@ export class BuildRelease extends LitElement {
         output?: string;
         workflowOutputPath?: string;
         workflow_output_path?: string;
+        'workflow-output-path'?: string;
       } = {};
       const path = this.workflowPath.trim();
       const outputPath = this.workflowOutputPath.trim();
@@ -334,6 +335,7 @@ export class BuildRelease extends LitElement {
         request.output = outputPath;
         request.workflowOutputPath = outputPath;
         request.workflow_output_path = outputPath;
+        request['workflow-output-path'] = outputPath;
       }
 
       const result = await this.api.releaseWorkflow(request);

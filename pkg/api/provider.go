@@ -192,6 +192,10 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 						"type":        "string",
 						"description": "Snake_case alias for workflowOutputPath.",
 					},
+					"workflow-output-path": map[string]any{
+						"type":        "string",
+						"description": "Hyphenated alias for workflowOutputPath.",
+					},
 					"outputPath": map[string]any{
 						"type":        "string",
 						"description": "Preferred explicit workflow output path, relative to the project directory or absolute.",
@@ -555,12 +559,13 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 //
 // req := ReleaseWorkflowRequest{Path: "ci/release.yml"}
 type ReleaseWorkflowRequest struct {
-	Path                    string `json:"path"`
-	OutputPath              string `json:"outputPath"`
-	OutputPathSnake         string `json:"output_path"`
-	LegacyOutputPath        string `json:"output"`
-	WorkflowOutputPath      string `json:"workflowOutputPath"`
-	WorkflowOutputPathSnake string `json:"workflow_output_path"`
+	Path                     string `json:"path"`
+	OutputPath               string `json:"outputPath"`
+	OutputPathSnake          string `json:"output_path"`
+	LegacyOutputPath         string `json:"output"`
+	WorkflowOutputPath       string `json:"workflowOutputPath"`
+	WorkflowOutputPathSnake  string `json:"workflow_output_path"`
+	WorkflowOutputPathHyphen string `json:"workflow-output-path"`
 }
 
 // resolvedOutputPath resolves the workflow output aliases with the same
@@ -570,7 +575,7 @@ func (r ReleaseWorkflowRequest) resolvedOutputPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return mergeWorkflowOutputAliases(resolved, r.WorkflowOutputPath, r.WorkflowOutputPathSnake, "api.ReleaseWorkflowRequest")
+	return mergeWorkflowOutputAliases(resolved, r.WorkflowOutputPath, r.WorkflowOutputPathSnake, r.WorkflowOutputPathHyphen, "api.ReleaseWorkflowRequest")
 }
 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
@@ -619,13 +624,14 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 
 // mergeWorkflowOutputAliases combines an existing resolved output path with
 // additional alias values and rejects conflicts.
-func mergeWorkflowOutputAliases(primaryInput, workflowOutputPathInput, workflowOutputPathSnakeInput, errorName string) (string, error) {
+func mergeWorkflowOutputAliases(primaryInput, workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputPathHyphenInput, errorName string) (string, error) {
 	primaryInput = strings.TrimSpace(primaryInput)
 	workflowOutputPathInput = strings.TrimSpace(workflowOutputPathInput)
 	workflowOutputPathSnakeInput = strings.TrimSpace(workflowOutputPathSnakeInput)
+	workflowOutputPathHyphenInput = strings.TrimSpace(workflowOutputPathHyphenInput)
 
 	resolved := primaryInput
-	for _, value := range []string{workflowOutputPathInput, workflowOutputPathSnakeInput} {
+	for _, value := range []string{workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputPathHyphenInput} {
 		if value == "" {
 			continue
 		}

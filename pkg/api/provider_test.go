@@ -111,6 +111,11 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	assert.Equal(t, "string", workflowOutputPathSnakeSchema["type"])
 	assert.Equal(t, "Snake_case alias for workflowOutputPath.", workflowOutputPathSnakeSchema["description"])
 
+	workflowOutputPathHyphenSchema, ok := properties["workflow-output-path"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "string", workflowOutputPathHyphenSchema["type"])
+	assert.Equal(t, "Hyphenated alias for workflowOutputPath.", workflowOutputPathHyphenSchema["description"])
+
 	outputPathSnakeSchema, ok := properties["output_path"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "string", outputPathSnakeSchema["type"])
@@ -357,6 +362,30 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathSnake_Good(t *testin
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflow_output_path":"ci/workflow-output-path.yml"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
+	content, err := io.Local.Read(path)
+	require.NoError(t, err)
+	assert.Contains(t, content, "workflow_call:")
+	assert.Contains(t, content, "workflow_dispatch:")
+}
+
+func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathHyphen_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflow-output-path":"ci/workflow-output-path.yml"}`))
 	request.Header.Set("Content-Type", "application/json")
 
 	ctx, _ := gin.CreateTestContext(recorder)

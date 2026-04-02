@@ -63,6 +63,7 @@ export class BuildApi {
     output?: string;
     workflowOutputPath?: string;
     workflow_output_path?: string;
+    'workflow-output-path'?: string;
   } = {}) {
     return this.request<any>('/release/workflow', {
       method: 'POST',
