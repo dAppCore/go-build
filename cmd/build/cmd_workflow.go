@@ -162,8 +162,8 @@ func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowRequestInputs) 
 	return build.WriteReleaseWorkflow(io.Local, resolvedWorkflowPath)
 }
 
-// resolveReleaseWorkflowInputPathAliases keeps the CLI error wording stable while
-// delegating the conflict detection to the shared build helper.
+// resolveReleaseWorkflowInputPathAliases("/tmp/project", "ci/release.yml", "", "", "") // "/tmp/project/ci/release.yml"
+// resolveReleaseWorkflowInputPathAliases("/tmp/project", "", "ci/release.yml", "", "") // "/tmp/project/ci/release.yml"
 func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathInput, workflowPathSnakeInput, workflowPathHyphenInput string) (string, error) {
 	resolvedWorkflowPath, err := build.ResolveReleaseWorkflowInputPathAliases(
 		io.Local,
@@ -180,8 +180,8 @@ func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathI
 	return resolvedWorkflowPath, nil
 }
 
-// resolveReleaseWorkflowOutputPathAliases keeps the CLI error wording stable while
-// delegating the conflict detection to the shared build helper.
+// resolveReleaseWorkflowOutputPathAliases("/tmp/project", "ci/release.yml", "", "", "", "", "", "", "", "") // "/tmp/project/ci/release.yml"
+// resolveReleaseWorkflowOutputPathAliases("/tmp/project", "", "", "", "", "ci/release.yml", "", "", "", "") // "/tmp/project/ci/release.yml"
 func resolveReleaseWorkflowOutputPathAliases(projectDir, outputPathInput, outputPathHyphenInput, outputPathSnakeInput, legacyOutputInput, workflowOutputPathInput, workflowOutputSnakeInput, workflowOutputHyphenInput, workflowOutputPathSnakeInput, workflowOutputPathHyphenInput string) (string, error) {
 	resolvedWorkflowOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 		io.Local,

@@ -580,8 +580,8 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 
 // ReleaseWorkflowRequest captures the workflow-generation inputs exposed by the API.
 //
-// req := ReleaseWorkflowRequest{Path: "ci/release.yml"}
-// req := ReleaseWorkflowRequest{WorkflowOutputPath: "ops/release.yml"}
+// request := ReleaseWorkflowRequest{Path: "ci/release.yml"}                 // writes ./ci/release.yml
+// request := ReleaseWorkflowRequest{WorkflowOutputPath: "ops/release.yml"} // writes ./ops/release.yml
 type ReleaseWorkflowRequest struct {
 	Path                     string `json:"path"`
 	WorkflowPath             string `json:"workflowPath"`
@@ -598,11 +598,10 @@ type ReleaseWorkflowRequest struct {
 	WorkflowOutputPathHyphen string `json:"workflow-output-path"`
 }
 
-// resolveWorkflowTargetPath resolves both workflow path inputs and workflow
-// output inputs before merging them into the final target path.
+// resolveWorkflowTargetPath merges the workflow path and workflow output aliases into one final target path.
 //
-// req := ReleaseWorkflowRequest{Path: "ci/release.yml"}
-// path, err := req.resolveWorkflowTargetPath("/tmp/project", io.Local)
+// request := ReleaseWorkflowRequest{Path: "ci/release.yml"}
+// path, err := request.resolveWorkflowTargetPath("/tmp/project", io.Local)
 func (r ReleaseWorkflowRequest) resolveWorkflowTargetPath(dir string, medium io.Medium) (string, error) {
 	outputPath, err := r.resolveOutputPath(dir, medium)
 	if err != nil {
@@ -617,11 +616,10 @@ func (r ReleaseWorkflowRequest) resolveWorkflowTargetPath(dir string, medium io.
 	return build.ResolveReleaseWorkflowInputPathWithMedium(medium, dir, workflowPath, outputPath)
 }
 
-// resolveWorkflowPath resolves the workflow path aliases with the same
-// conflict rules as the CLI.
+// resolveWorkflowPath("ci/release.yml") and resolveWorkflowPath("workflow-path") both resolve to the same file path.
 //
-// req := ReleaseWorkflowRequest{WorkflowPath: "ci/release.yml"}
-// workflowPath, err := req.resolveWorkflowPath("/tmp/project", io.Local)
+// request := ReleaseWorkflowRequest{WorkflowPath: "ci/release.yml"}
+// workflowPath, err := request.resolveWorkflowPath("/tmp/project", io.Local)
 func (r ReleaseWorkflowRequest) resolveWorkflowPath(dir string, medium io.Medium) (string, error) {
 	workflowPath, err := build.ResolveReleaseWorkflowInputPathAliases(
 		medium,
@@ -638,11 +636,10 @@ func (r ReleaseWorkflowRequest) resolveWorkflowPath(dir string, medium io.Medium
 	return workflowPath, nil
 }
 
-// resolveOutputPath resolves the workflow output aliases with the same
-// conflict rules as the CLI.
+// resolveOutputPath("ci/release.yml") and resolveOutputPath("workflow-output-path") both resolve to the same file path.
 //
-// req := ReleaseWorkflowRequest{WorkflowOutputPath: "ci/release.yml"}
-// outputPath, err := req.resolveOutputPath("/tmp/project")
+// request := ReleaseWorkflowRequest{WorkflowOutputPath: "ci/release.yml"}
+// outputPath, err := request.resolveOutputPath("/tmp/project")
 func (r ReleaseWorkflowRequest) resolveOutputPath(dir string, medium io.Medium) (string, error) {
 	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 		medium,
@@ -671,8 +668,8 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		return
 	}
 
-	var req ReleaseWorkflowRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var request ReleaseWorkflowRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
 		// Empty bodies are valid; malformed JSON is not.
 		if !errors.Is(err, stdio.EOF) {
 			c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
@@ -680,7 +677,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		}
 	}
 
-	workflowPath, err := req.resolveWorkflowTargetPath(dir, p.medium)
+	workflowPath, err := request.resolveWorkflowTargetPath(dir, p.medium)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 		return

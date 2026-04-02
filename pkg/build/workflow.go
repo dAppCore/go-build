@@ -171,16 +171,10 @@ func ResolveReleaseWorkflowInputPathAliases(filesystem io_interface.Medium, proj
 	)
 }
 
-// ResolveReleaseWorkflowOutputPath resolves the core workflow output aliases.
-//
-// outputPath, err := build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")
-// outputPath, err := build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")
-// outputPath, err := build.ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")
-//
-// build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")        // "ci/release.yml"
-// build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")        // "ci/release.yml"
-// build.ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")        // "ci/release.yml"
-// build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops.yml", "") // error
+// ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")        // "ci/release.yml"
+// ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")        // "ci/release.yml"
+// ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")        // "ci/release.yml"
+// ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops.yml", "") // error
 func ResolveReleaseWorkflowOutputPath(outputPathInput, outputPathSnakeInput, legacyOutputInput string) (string, error) {
 	return ResolveReleaseWorkflowOutputPathAliases(
 		outputPathInput,
