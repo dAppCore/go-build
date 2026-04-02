@@ -279,7 +279,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 		markerGoMod, markerGoWork, markerWails, markerNodePackage, markerComposer,
 		markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
 		markerPyProject, markerRequirements, markerCargo,
-		"CMakeLists.txt", markerDockerfile,
+		"CMakeLists.txt", markerDockerfile, "Containerfile", "dockerfile", "containerfile",
 		markerFrontendPackage, markerFrontendDenoJSON, markerFrontendDenoJSONC,
 		markerLinuxKitYAML, markerLinuxKitYAMLAlt,
 		markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,

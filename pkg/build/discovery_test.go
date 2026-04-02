@@ -746,6 +746,18 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.True(t, result.Markers["Dockerfile"])
 	})
 
+	t.Run("records alternate Docker manifest markers", func(t *testing.T) {
+		dir := setupTestDir(t, "Containerfile", "dockerfile", "containerfile")
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocker}, result.Types)
+		assert.Equal(t, "docker", result.PrimaryStack)
+		assert.True(t, result.Markers["Containerfile"])
+		assert.True(t, result.Markers["dockerfile"])
+		assert.True(t, result.Markers["containerfile"])
+	})
+
 	t.Run("detects LinuxKit project markers in .core/linuxkit", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
