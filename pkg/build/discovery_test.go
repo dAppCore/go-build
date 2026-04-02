@@ -139,6 +139,13 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeDocker}, types)
 	})
 
+	t.Run("detects Containerfile project", func(t *testing.T) {
+		dir := setupTestDir(t, "Containerfile")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocker}, types)
+	})
+
 	t.Run("detects LinuxKit project", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")

@@ -65,6 +65,17 @@ func TestDocker_DockerBuilderDetect_Good(t *testing.T) {
 		assert.True(t, detected)
 	})
 
+	t.Run("detects Containerfile", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.WriteFile(ax.Join(dir, "Containerfile"), []byte("FROM alpine\n"), 0644)
+		require.NoError(t, err)
+
+		builder := NewDockerBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.True(t, detected)
+	})
+
 	t.Run("returns false for empty directory", func(t *testing.T) {
 		dir := t.TempDir()
 
@@ -148,7 +159,7 @@ func TestDocker_DockerBuilderBuild_Good(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	projectDir := t.TempDir()
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine:latest\n"), 0o644))
 
 	outputDir := t.TempDir()
 	logDir := t.TempDir()
@@ -196,6 +207,33 @@ func TestDocker_DockerBuilderBuild_Good(t *testing.T) {
 	require.Len(t, artifacts, 1)
 	assert.Equal(t, runtime.GOOS, artifacts[0].OS)
 	assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
+}
+
+func TestDocker_DockerBuilderBuild_Containerfile_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeDockerToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine:latest\n"), 0o644))
+
+	outputDir := t.TempDir()
+	builder := NewDockerBuilder()
+	cfg := &build.Config{
+		FS:         coreio.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Image:      "owner/repo",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.FileExists(t, ax.Join(outputDir, "owner_repo.tar"))
 }
 
 func TestDocker_DockerBuilderBuild_Load_Good(t *testing.T) {

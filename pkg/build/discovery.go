@@ -369,11 +369,28 @@ func fileExists(fs io.Medium, path string) bool {
 	return fs.IsFile(path)
 }
 
-// IsDockerProject checks if the directory contains a Dockerfile.
+// ResolveDockerfilePath returns the first Docker manifest path that exists.
+//
+//	dockerfile := build.ResolveDockerfilePath(io.Local, ".")
+func ResolveDockerfilePath(fs io.Medium, dir string) string {
+	for _, path := range []string{
+		ax.Join(dir, "Dockerfile"),
+		ax.Join(dir, "Containerfile"),
+		ax.Join(dir, "dockerfile"),
+		ax.Join(dir, "containerfile"),
+	} {
+		if fileExists(fs, path) {
+			return path
+		}
+	}
+	return ""
+}
+
+// IsDockerProject checks if the directory contains a Dockerfile or Containerfile.
 //
 //	if build.IsDockerProject(io.Local, ".") { ... }
 func IsDockerProject(fs io.Medium, dir string) bool {
-	return fileExists(fs, ax.Join(dir, markerDockerfile))
+	return ResolveDockerfilePath(fs, dir) != ""
 }
 
 // IsLinuxKitProject checks for linuxkit.yml or .core/linuxkit/*.yml.

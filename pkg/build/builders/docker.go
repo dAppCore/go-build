@@ -32,12 +32,11 @@ func (b *DockerBuilder) Name() string {
 	return "docker"
 }
 
-// Detect checks if a Dockerfile exists in the directory.
+// Detect checks if a Dockerfile or Containerfile exists in the directory.
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *DockerBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	dockerfilePath := ax.Join(dir, "Dockerfile")
-	if fs.IsFile(dockerfilePath) {
+	if build.ResolveDockerfilePath(fs, dir) != "" {
 		return true, nil
 	}
 	return false, nil
@@ -57,15 +56,15 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 		return nil, err
 	}
 
-	// Determine Dockerfile path
+	// Determine Docker manifest path
 	dockerfile := cfg.Dockerfile
 	if dockerfile == "" {
-		dockerfile = ax.Join(cfg.ProjectDir, "Dockerfile")
+		dockerfile = build.ResolveDockerfilePath(cfg.FS, cfg.ProjectDir)
 	}
 
 	// Validate Dockerfile exists
-	if !cfg.FS.IsFile(dockerfile) {
-		return nil, coreerr.E("DockerBuilder.Build", "Dockerfile not found: "+dockerfile, nil)
+	if dockerfile == "" || !cfg.FS.IsFile(dockerfile) {
+		return nil, coreerr.E("DockerBuilder.Build", "Dockerfile or Containerfile not found", nil)
 	}
 
 	// Determine image name
