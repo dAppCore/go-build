@@ -51,8 +51,8 @@ type releaseWorkflowRequestInputs struct {
 // workflow output aliases into one final target path.
 //
 // inputs := releaseWorkflowRequestInputs{pathInput: "ci/release.yml", outputPathInput: "ci/release.yml"}
-// path, err := inputs.resolveReleaseWorkflowTargetPath("/tmp/project")
-func (inputs releaseWorkflowRequestInputs) resolveReleaseWorkflowTargetPath(projectDir string) (string, error) {
+// path, err := inputs.resolveReleaseWorkflowTargetPath("/tmp/project", io.Local)
+func (inputs releaseWorkflowRequestInputs) resolveReleaseWorkflowTargetPath(projectDir string, medium io.Medium) (string, error) {
 	resolvedWorkflowPath, err := resolveReleaseWorkflowInputPathAliases(
 		projectDir,
 		inputs.pathInput,
@@ -80,7 +80,7 @@ func (inputs releaseWorkflowRequestInputs) resolveReleaseWorkflowTargetPath(proj
 		return "", err
 	}
 
-	return build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, projectDir, resolvedWorkflowPath, resolvedWorkflowOutputPath)
+	return build.ResolveReleaseWorkflowInputPathWithMedium(medium, projectDir, resolvedWorkflowPath, resolvedWorkflowOutputPath)
 }
 
 var releaseWorkflowCmd = &cli.Command{
@@ -154,7 +154,7 @@ func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowRequestInputs) 
 		return coreerr.E("build.runReleaseWorkflow", "failed to get working directory", err)
 	}
 
-	resolvedWorkflowPath, err := inputs.resolveReleaseWorkflowTargetPath(projectDir)
+	resolvedWorkflowPath, err := inputs.resolveReleaseWorkflowTargetPath(projectDir, io.Local)
 	if err != nil {
 		return err
 	}
