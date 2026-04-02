@@ -4,7 +4,6 @@ package buildcmd
 
 import (
 	"context"
-	"strings"
 
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
@@ -69,22 +68,14 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // runReleaseWorkflow(ctx, "", "", "ci/release.yml", "", "", "") // uses the snake_case alias
 // runReleaseWorkflow(ctx, "", "", "", "ci/release.yml", "", "") // uses the legacy output alias
 // runReleaseWorkflow(ctx, "", "", "", "", "ci/release.yml", "") // uses the workflow-output-path alias
-// runReleaseWorkflow(ctx, "", "", "", "", "ci/release.yml", "ci/release.yml") // uses the snake_case workflow-output-path alias
+// runReleaseWorkflow(ctx, "", "", "", "", "", "ci/release.yml") // uses the workflow_output_path alias
 func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputLegacyInput, workflowOutputPathAliasInput, workflowOutputPathAliasSnakeInput string) error {
-	resolvedOutputPathInput, err := build.ResolveReleaseWorkflowOutputPath(
+	resolvedOutputPathInput, err := resolveWorkflowOutputPathAliases(
 		workflowOutputPathInput,
 		workflowOutputPathSnakeInput,
 		workflowOutputLegacyInput,
-	)
-	if err != nil {
-		return err
-	}
-
-	resolvedOutputPathInput, err = resolveWorkflowOutputPathAliases(
-		resolvedOutputPathInput,
 		workflowOutputPathAliasInput,
 		workflowOutputPathAliasSnakeInput,
-		"build.runReleaseWorkflow",
 	)
 	if err != nil {
 		return err
@@ -96,6 +87,24 @@ func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPath
 	}
 
 	return runReleaseWorkflowInDir(projectDir, workflowPathInput, resolvedOutputPathInput)
+}
+
+// resolveWorkflowOutputPathAliases keeps the CLI error wording stable while
+// delegating the conflict detection to the shared build helper.
+func resolveWorkflowOutputPathAliases(outputPathInput, outputPathSnakeInput, outputLegacyInput, workflowOutputPathInput, workflowOutputPathSnakeInput string) (string, error) {
+	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliases(
+		outputPathInput,
+		outputPathSnakeInput,
+		outputLegacyInput,
+		"",
+		workflowOutputPathSnakeInput,
+		workflowOutputPathInput,
+	)
+	if err != nil {
+		return "", coreerr.E("build.runReleaseWorkflow", "workflow output aliases specify different locations", nil)
+	}
+
+	return resolvedOutputPath, nil
 }
 
 // runReleaseWorkflowInDir writes the embedded release workflow into projectDir.
@@ -114,38 +123,4 @@ func runReleaseWorkflowInDir(projectDir, workflowPathInput, workflowOutputPathIn
 	}
 
 	return build.WriteReleaseWorkflow(io.Local, resolvedPath)
-}
-
-// resolveWorkflowOutputPathAliases merges the preferred output path with extra
-// aliases while rejecting conflicting values.
-func resolveWorkflowOutputPathAliases(primaryInput, workflowOutputPathInput, workflowOutputPathSnakeInput, errorName string) (string, error) {
-	primaryInput = normalizeWorkflowOutputAlias(primaryInput)
-	workflowOutputPathInput = normalizeWorkflowOutputAlias(workflowOutputPathInput)
-	workflowOutputPathSnakeInput = normalizeWorkflowOutputAlias(workflowOutputPathSnakeInput)
-
-	resolved := primaryInput
-	for _, value := range []string{workflowOutputPathInput, workflowOutputPathSnakeInput} {
-		if value == "" {
-			continue
-		}
-		if resolved == "" {
-			resolved = value
-			continue
-		}
-		if resolved != value {
-			return "", coreerr.E(errorName, "workflow output aliases specify different locations", nil)
-		}
-	}
-
-	return resolved, nil
-}
-
-// normalizeWorkflowOutputAlias canonicalises workflow output aliases before comparison.
-func normalizeWorkflowOutputAlias(path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return ""
-	}
-
-	return ax.Clean(path)
 }

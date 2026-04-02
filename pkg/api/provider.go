@@ -10,7 +10,6 @@ import (
 	stdio "io"
 	"io/fs"
 	"net/http"
-	"strings"
 
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
@@ -571,11 +570,19 @@ type ReleaseWorkflowRequest struct {
 // resolvedOutputPath resolves the workflow output aliases with the same
 // conflict rules as the CLI.
 func (r ReleaseWorkflowRequest) resolvedOutputPath() (string, error) {
-	resolved, err := build.ResolveReleaseWorkflowOutputPath(r.OutputPath, r.OutputPathSnake, r.LegacyOutputPath)
+	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliases(
+		r.OutputPath,
+		r.OutputPathSnake,
+		r.LegacyOutputPath,
+		r.WorkflowOutputPath,
+		r.WorkflowOutputPathSnake,
+		r.WorkflowOutputPathHyphen,
+	)
 	if err != nil {
-		return "", err
+		return "", coreerr.E("api.ReleaseWorkflowRequest", "workflow output aliases specify different locations", nil)
 	}
-	return mergeWorkflowOutputAliases(resolved, r.WorkflowOutputPath, r.WorkflowOutputPathSnake, r.WorkflowOutputPathHyphen, "api.ReleaseWorkflowRequest")
+
+	return resolvedOutputPath, nil
 }
 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
@@ -620,31 +627,6 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		"generated": true,
 		"path":      workflowPath,
 	}))
-}
-
-// mergeWorkflowOutputAliases combines an existing resolved output path with
-// additional alias values and rejects conflicts.
-func mergeWorkflowOutputAliases(primaryInput, workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputPathHyphenInput, errorName string) (string, error) {
-	primaryInput = strings.TrimSpace(primaryInput)
-	workflowOutputPathInput = strings.TrimSpace(workflowOutputPathInput)
-	workflowOutputPathSnakeInput = strings.TrimSpace(workflowOutputPathSnakeInput)
-	workflowOutputPathHyphenInput = strings.TrimSpace(workflowOutputPathHyphenInput)
-
-	resolved := primaryInput
-	for _, value := range []string{workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputPathHyphenInput} {
-		if value == "" {
-			continue
-		}
-		if resolved == "" {
-			resolved = value
-			continue
-		}
-		if resolved != value {
-			return "", coreerr.E(errorName, "workflow output aliases specify different locations", nil)
-		}
-	}
-
-	return resolved, nil
 }
 
 // -- SDK Handlers -------------------------------------------------------------

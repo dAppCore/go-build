@@ -130,19 +130,45 @@ func ResolveReleaseWorkflowInputPathWithMedium(filesystem io_interface.Medium, p
 	)
 }
 
-// ResolveReleaseWorkflowOutputPath resolves the workflow output aliases used by
-// the CLI, API, and UI layers.
+// ResolveReleaseWorkflowOutputPath resolves the core workflow output aliases.
 //
 // build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")        // "ci/release.yml"
 // build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")        // "ci/release.yml"
 // build.ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")        // "ci/release.yml"
 // build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops.yml", "") // error
 func ResolveReleaseWorkflowOutputPath(outputPathInput, outputPathSnakeInput, outputLegacyInput string) (string, error) {
-	return resolveReleaseWorkflowPathPair(
+	return ResolveReleaseWorkflowOutputPathAliases(
 		outputPathInput,
 		outputPathSnakeInput,
 		outputLegacyInput,
-		"build.ResolveReleaseWorkflowOutputPath",
+		"",
+		"",
+		"",
+	)
+}
+
+// ResolveReleaseWorkflowOutputPathAliases resolves every public workflow output
+// alias across the CLI, API, and UI layers.
+//
+// build.ResolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "", "", "") // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliases("", "", "", "ci/release.yml", "", "")  // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "ci/release.yml")  // "ci/release.yml"
+func ResolveReleaseWorkflowOutputPathAliases(
+	outputPathInput,
+	outputPathSnakeInput,
+	outputLegacyInput,
+	workflowOutputPathInput,
+	workflowOutputPathSnakeInput,
+	workflowOutputPathHyphenInput string,
+) (string, error) {
+	return resolveReleaseWorkflowOutputAliasSet(
+		outputPathInput,
+		outputPathSnakeInput,
+		outputLegacyInput,
+		workflowOutputPathInput,
+		workflowOutputPathSnakeInput,
+		workflowOutputPathHyphenInput,
+		"build.ResolveReleaseWorkflowOutputPathAliases",
 	)
 }
 
@@ -173,14 +199,17 @@ func resolveReleaseWorkflowInputPathPair(pathInput, outputPathInput string, reso
 	return resolve(""), nil
 }
 
-// resolveReleaseWorkflowPathPair resolves any trio of workflow path aliases by
+// resolveReleaseWorkflowOutputAliasSet resolves a workflow output alias set by
 // trimming whitespace, rejecting conflicts, and returning the first non-empty
 // value when aliases agree.
-func resolveReleaseWorkflowPathPair(primaryInput, secondaryInput, tertiaryInput, errorName string) (string, error) {
+func resolveReleaseWorkflowOutputAliasSet(primaryInput, secondaryInput, tertiaryInput, quaternaryInput, quinaryInput, senaryInput, errorName string) (string, error) {
 	values := []string{
 		normalizeWorkflowOutputAlias(primaryInput),
 		normalizeWorkflowOutputAlias(secondaryInput),
 		normalizeWorkflowOutputAlias(tertiaryInput),
+		normalizeWorkflowOutputAlias(quaternaryInput),
+		normalizeWorkflowOutputAlias(quinaryInput),
+		normalizeWorkflowOutputAlias(senaryInput),
 	}
 
 	var resolved string
