@@ -217,6 +217,8 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 
 		helpText, err := io.Local.Read("/workspace/locales/en.json")
 		require.NoError(t, err)
+		assert.Contains(t, helpText, "--workflowPath/")
+		assert.Contains(t, helpText, "--outputPath/")
 		assert.Contains(t, helpText, "--workflow-output/")
 		assert.Contains(t, helpText, "--workflow_output/")
 	})
