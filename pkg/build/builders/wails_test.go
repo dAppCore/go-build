@@ -299,6 +299,9 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "testapp",
+		Version:    "v1.2.3",
+		BuildTags:  []string{"integration", "webkit2_41"},
+		LDFlags:    []string{"-s", "-w"},
 		NSIS:       true,
 		WebView2:   "embed",
 	}
@@ -316,6 +319,10 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 	args := strings.Split(strings.TrimSpace(string(content)), "\n")
 	require.NotEmpty(t, args)
 	assert.Equal(t, "build", args[0])
+	assert.Contains(t, args, "-tags")
+	assert.Contains(t, args, "integration,webkit2_41")
+	assert.Contains(t, args, "-ldflags")
+	assert.Contains(t, args, "-s -w -X main.version=v1.2.3")
 	assert.Contains(t, args, "-nsis")
 	assert.Contains(t, args, "-webview2")
 	assert.Contains(t, args, "embed")
