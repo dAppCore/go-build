@@ -412,12 +412,17 @@ func copyBuildArtifact(fs io.Medium, sourcePath, destPath string) error {
 		return nil
 	}
 
+	info, err := fs.Stat(sourcePath)
+	if err != nil {
+		return err
+	}
+
 	content, err := fs.Read(sourcePath)
 	if err != nil {
 		return err
 	}
 
-	if err := fs.Write(destPath, content); err != nil {
+	if err := fs.WriteMode(destPath, content, info.Mode().Perm()); err != nil {
 		return err
 	}
 

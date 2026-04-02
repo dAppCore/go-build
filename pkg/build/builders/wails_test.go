@@ -259,6 +259,25 @@ func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 	})
 }
 
+func TestWails_copyBuildArtifact_PreservesMode_Good(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("executable mode bits are not portable on Windows")
+	}
+
+	sourceDir := t.TempDir()
+	sourcePath := ax.Join(sourceDir, "testapp")
+	require.NoError(t, ax.WriteFile(sourcePath, []byte("fake wails binary\n"), 0o755))
+
+	destDir := t.TempDir()
+	destPath := ax.Join(destDir, "testapp")
+
+	require.NoError(t, copyBuildArtifact(io.Local, sourcePath, destPath))
+
+	info, err := ax.Stat(destPath)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&0o111)
+}
+
 func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
