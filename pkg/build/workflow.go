@@ -216,7 +216,38 @@ func ResolveReleaseWorkflowOutputPathAliasesInProject(
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput string,
 ) (string, error) {
+	return ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
+		nil,
+		projectDir,
+		outputPathInput,
+		outputPathHyphenInput,
+		outputPathSnakeInput,
+		legacyOutputInput,
+		workflowOutputPathInput,
+		workflowOutputPathSnakeInput,
+		workflowOutputPathHyphenInput,
+	)
+}
+
+// ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium resolves the
+// workflow output aliases relative to a project directory and uses the
+// provided filesystem medium to treat existing directories as workflow
+// directories even when callers omit a trailing separator.
+//
+// build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.Local, "/tmp/project", "", "", "", "", "/tmp/project/ci", "", "") // "/tmp/project/ci/release.yml"
+func ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
+	filesystem io_interface.Medium,
+	projectDir,
+	outputPathInput,
+	outputPathHyphenInput,
+	outputPathSnakeInput,
+	legacyOutputInput,
+	workflowOutputPathInput,
+	workflowOutputPathSnakeInput,
+	workflowOutputPathHyphenInput string,
+) (string, error) {
 	return resolveReleaseWorkflowOutputAliasSetInProject(
+		filesystem,
 		projectDir,
 		outputPathInput,
 		outputPathHyphenInput,
@@ -299,6 +330,7 @@ func resolveReleaseWorkflowOutputAliasSet(
 // resolveReleaseWorkflowOutputAliasSetInProject resolves workflow output aliases
 // against a project directory so relative and absolute paths can be compared.
 func resolveReleaseWorkflowOutputAliasSetInProject(
+	filesystem io_interface.Medium,
 	projectDir,
 	outputPathInput,
 	outputPathHyphenInput,
@@ -326,6 +358,9 @@ func resolveReleaseWorkflowOutputAliasSetInProject(
 		}
 
 		candidate := ResolveReleaseWorkflowPath(projectDir, value)
+		if filesystem != nil && filesystem.IsDir(candidate) {
+			candidate = ax.Join(candidate, DefaultReleaseWorkflowFileName)
+		}
 		if resolved == "" {
 			resolved = candidate
 			continue

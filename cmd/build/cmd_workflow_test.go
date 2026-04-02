@@ -93,6 +93,16 @@ func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_AbsoluteEquivalent_Goo
 	assert.Equal(t, absolutePath, path)
 }
 
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_AbsoluteDirectory_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	absoluteDir := ax.Join(projectDir, "ops")
+	require.NoError(t, io.Local.EnsureDir(absoluteDir))
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "", "", "", "", absoluteDir, "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(absoluteDir, "release.yml"), path)
+}
+
 func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	projectDir := t.TempDir()
 

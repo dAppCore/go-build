@@ -446,6 +446,8 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Good(t *testing.T) {
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	absolutePath := ax.Join(projectDir, "ci", "release.yml")
+	absoluteDirectory := ax.Join(projectDir, "ops")
+	require.NoError(t, ax.MkdirAll(absoluteDirectory, 0o755))
 
 	t.Run("accepts the preferred output path", func(t *testing.T) {
 		path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", "", "")
@@ -463,6 +465,15 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testi
 		path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", "", absolutePath)
 		require.NoError(t, err)
 		assert.Equal(t, absolutePath, path)
+	})
+
+	t.Run("treats an existing absolute directory as a workflow directory", func(t *testing.T) {
+		fs := io.NewMockMedium()
+		fs.Dirs[absoluteDirectory] = true
+
+		path, err := ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(fs, projectDir, "", "", "", "", absoluteDirectory, "", "")
+		require.NoError(t, err)
+		assert.Equal(t, ax.Join(absoluteDirectory, DefaultReleaseWorkflowFileName), path)
 	})
 }
 

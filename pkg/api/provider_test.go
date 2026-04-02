@@ -142,6 +142,20 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	assert.Equal(t, "Snake_case alias for outputPath.", outputPathSnakeSchema["description"])
 }
 
+func TestProvider_ReleaseWorkflowRequestResolvedOutputPath_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	absoluteDir := ax.Join(projectDir, "ops")
+	require.NoError(t, io.Local.EnsureDir(absoluteDir))
+
+	req := ReleaseWorkflowRequest{
+		WorkflowOutputPath: absoluteDir,
+	}
+
+	path, err := req.resolvedOutputPath(projectDir, io.Local)
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(absoluteDir, "release.yml"), path)
+}
+
 func TestProvider_BuildProviderDefaultProjectDir_Good(t *testing.T) {
 	p := NewProvider("", nil)
 	assert.Equal(t, ".", p.projectDir)

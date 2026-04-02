@@ -614,8 +614,9 @@ func (r ReleaseWorkflowRequest) resolvedWorkflowPath(dir string, medium io.Mediu
 //
 // req := ReleaseWorkflowRequest{WorkflowOutputPath: "ci/release.yml"}
 // outputPath, err := req.resolvedOutputPath("/tmp/project")
-func (r ReleaseWorkflowRequest) resolvedOutputPath(dir string) (string, error) {
-	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProject(
+func (r ReleaseWorkflowRequest) resolvedOutputPath(dir string, medium io.Medium) (string, error) {
+	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
+		medium,
 		dir,
 		r.OutputPath,
 		r.OutputPathHyphen,
@@ -648,7 +649,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		}
 	}
 
-	outputPath, err := req.resolvedOutputPath(dir)
+	outputPath, err := req.resolvedOutputPath(dir, p.medium)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 		return

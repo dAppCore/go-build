@@ -156,7 +156,8 @@ func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathI
 // resolveReleaseWorkflowOutputPathAliases keeps the CLI error wording stable while
 // delegating the conflict detection to the shared build helper.
 func resolveReleaseWorkflowOutputPathAliases(projectDir, outputPathInput, outputPathHyphenInput, outputPathSnakeInput, legacyOutputInput, workflowOutputPathInput, workflowOutputPathHyphenInput, workflowOutputPathSnakeInput string) (string, error) {
-	resolvedWorkflowOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProject(
+	resolvedWorkflowOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
+		io.Local,
 		projectDir,
 		outputPathInput,
 		outputPathHyphenInput,
