@@ -158,10 +158,6 @@ func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
 		return err
 	}
 
-	if err := io.Local.EnsureDir(ax.Dir(resolvedWorkflowPath)); err != nil {
-		return coreerr.E("build.runReleaseWorkflowInDir", "failed to create release workflow directory", err)
-	}
-
 	return build.WriteReleaseWorkflow(io.Local, resolvedWorkflowPath)
 }
 
@@ -215,10 +211,6 @@ func runReleaseWorkflowInDir(projectDir, workflowPathInput, workflowOutputPathIn
 	resolvedPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, projectDir, workflowPathInput, workflowOutputPathInput)
 	if err != nil {
 		return err
-	}
-
-	if err := io.Local.EnsureDir(ax.Dir(resolvedPath)); err != nil {
-		return coreerr.E("build.runReleaseWorkflowInDir", "failed to create release workflow directory", err)
 	}
 
 	return build.WriteReleaseWorkflow(io.Local, resolvedPath)
