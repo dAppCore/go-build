@@ -89,6 +89,7 @@ func runReleaseWorkflow(_ context.Context, pathInput, workflowPathHyphenInput, w
 	}
 
 	resolvedWorkflowOutputPath, err := resolveReleaseWorkflowOutputPathAliases(
+		projectDir,
 		outputPathHyphenInput,
 		outputPathSnakeInput,
 		outputLegacyInput,
@@ -122,8 +123,9 @@ func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathH
 
 // resolveReleaseWorkflowOutputPathAliases keeps the CLI error wording stable while
 // delegating the conflict detection to the shared build helper.
-func resolveReleaseWorkflowOutputPathAliases(outputPathHyphenInput, outputPathSnakeInput, outputLegacyInput, workflowOutputPathHyphenInput, workflowOutputPathSnakeInput string) (string, error) {
-	resolvedWorkflowOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliases(
+func resolveReleaseWorkflowOutputPathAliases(projectDir, outputPathHyphenInput, outputPathSnakeInput, outputLegacyInput, workflowOutputPathHyphenInput, workflowOutputPathSnakeInput string) (string, error) {
+	resolvedWorkflowOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProject(
+		projectDir,
 		outputPathHyphenInput,
 		outputPathSnakeInput,
 		outputLegacyInput,

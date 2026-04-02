@@ -607,7 +607,7 @@ func (r ReleaseWorkflowRequest) resolvedWorkflowPath(dir string, medium io.Mediu
 
 // resolvedOutputPath resolves the workflow output aliases with the same
 // conflict rules as the CLI.
-func (r ReleaseWorkflowRequest) resolvedOutputPath() (string, error) {
+func (r ReleaseWorkflowRequest) resolvedOutputPath(dir string) (string, error) {
 	outputPath := r.OutputPath
 	if outputPath == "" {
 		outputPath = r.OutputPathHyphen
@@ -615,7 +615,8 @@ func (r ReleaseWorkflowRequest) resolvedOutputPath() (string, error) {
 		return "", coreerr.E("api.ReleaseWorkflowRequest", "workflow output aliases specify different locations", nil)
 	}
 
-	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliases(
+	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProject(
+		dir,
 		outputPath,
 		r.OutputPathSnake,
 		r.LegacyOutputPath,
@@ -646,7 +647,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		}
 	}
 
-	outputPath, err := req.resolvedOutputPath()
+	outputPath, err := req.resolvedOutputPath(dir)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 		return

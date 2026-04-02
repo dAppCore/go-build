@@ -194,6 +194,32 @@ func ResolveReleaseWorkflowOutputPathAliases(
 	)
 }
 
+// ResolveReleaseWorkflowOutputPathAliasesInProject resolves the workflow output
+// aliases relative to a project directory before checking for conflicts.
+//
+// build.ResolveReleaseWorkflowOutputPathAliasesInProject("/tmp/project", "ci/release.yml", "", "", "", "", "")               // "/tmp/project/ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliasesInProject("/tmp/project", "", "", "", "/tmp/project/ci/release.yml", "", "") // "/tmp/project/ci/release.yml"
+func ResolveReleaseWorkflowOutputPathAliasesInProject(
+	projectDir,
+	outputPathInput,
+	outputPathSnakeInput,
+	outputLegacyInput,
+	workflowOutputPathInput,
+	workflowOutputPathSnakeInput,
+	workflowOutputPathHyphenInput string,
+) (string, error) {
+	return resolveReleaseWorkflowOutputAliasSetInProject(
+		projectDir,
+		outputPathInput,
+		outputPathSnakeInput,
+		outputLegacyInput,
+		workflowOutputPathInput,
+		workflowOutputPathSnakeInput,
+		workflowOutputPathHyphenInput,
+		"build.ResolveReleaseWorkflowOutputPathAliasesInProject",
+	)
+}
+
 // resolveReleaseWorkflowInputPathPair resolves the workflow path from the path
 // and output aliases, rejecting conflicting values and preferring explicit
 // inputs over the default.
@@ -252,6 +278,47 @@ func resolveReleaseWorkflowOutputAliasSet(
 			continue
 		}
 		if resolved != value {
+			return "", coreerr.E(errorName, "output aliases specify different locations", nil)
+		}
+	}
+
+	return resolved, nil
+}
+
+// resolveReleaseWorkflowOutputAliasSetInProject resolves workflow output aliases
+// against a project directory so relative and absolute paths can be compared.
+func resolveReleaseWorkflowOutputAliasSetInProject(
+	projectDir,
+	outputPathInput,
+	outputPathSnakeInput,
+	outputLegacyInput,
+	workflowOutputPathInput,
+	workflowOutputPathSnakeInput,
+	workflowOutputPathHyphenInput,
+	errorName string,
+) (string, error) {
+	values := []string{
+		cleanWorkflowInput(outputPathInput),
+		cleanWorkflowInput(outputPathSnakeInput),
+		cleanWorkflowInput(outputLegacyInput),
+		cleanWorkflowInput(workflowOutputPathInput),
+		cleanWorkflowInput(workflowOutputPathSnakeInput),
+		cleanWorkflowInput(workflowOutputPathHyphenInput),
+	}
+
+	var resolved string
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+
+		candidate := ResolveReleaseWorkflowPath(projectDir, value)
+		if resolved == "" {
+			resolved = candidate
+			continue
+		}
+
+		if resolved != candidate {
 			return "", coreerr.E(errorName, "output aliases specify different locations", nil)
 		}
 	}

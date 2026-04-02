@@ -437,6 +437,38 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Good(t *testing.T) {
 	})
 }
 
+func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	absolutePath := ax.Join(projectDir, "ci", "release.yml")
+
+	t.Run("accepts the preferred output path", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", "")
+		require.NoError(t, err)
+		assert.Equal(t, absolutePath, path)
+	})
+
+	t.Run("accepts an absolute workflow output alias equivalent to the project path", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "", "", "", absolutePath, "", "")
+		require.NoError(t, err)
+		assert.Equal(t, absolutePath, path)
+	})
+
+	t.Run("accepts matching relative and absolute aliases", func(t *testing.T) {
+		path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", absolutePath)
+		require.NoError(t, err)
+		assert.Equal(t, absolutePath, path)
+	})
+}
+
+func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Bad(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", ax.Join(projectDir, "ops", "release.yml"))
+	assert.Error(t, err)
+	assert.Empty(t, path)
+	assert.Contains(t, err.Error(), "output aliases specify different locations")
+}
+
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Bad(t *testing.T) {
 	path, err := ResolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "ops/release.yml", "", "")
 	assert.Error(t, err)

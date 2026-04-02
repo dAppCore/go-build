@@ -45,21 +45,36 @@ func TestBuildCmd_resolveReleaseWorkflowOutputPathInput_Bad(t *testing.T) {
 }
 
 func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_Good(t *testing.T) {
-	path, err := resolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "./ci/release.yml", "ci/release.yml")
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "ci/release.yml", "", "", "./ci/release.yml", "ci/release.yml")
 	require.NoError(t, err)
-	assert.Equal(t, "ci/release.yml", path)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
 }
 
 func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_Bad(t *testing.T) {
-	_, err := resolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "ops/release.yml", "")
+	projectDir := t.TempDir()
+
+	_, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "ci/release.yml", "", "", "ops/release.yml", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "workflow output aliases specify different locations")
 }
 
 func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_HyphenatedGood(t *testing.T) {
-	path, err := resolveReleaseWorkflowOutputPathAliases("", "", "", "", "ci/release.yml")
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "", "", "", "", "ci/release.yml")
 	require.NoError(t, err)
-	assert.Equal(t, "ci/release.yml", path)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_AbsoluteEquivalent_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	absolutePath := ax.Join(projectDir, "ci", "release.yml")
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "ci/release.yml", "", "", "", absolutePath)
+	require.NoError(t, err)
+	assert.Equal(t, absolutePath, path)
 }
 
 func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
