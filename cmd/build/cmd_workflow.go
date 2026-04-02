@@ -34,31 +34,31 @@ var (
 type releaseWorkflowRequestInputs struct {
 	pathInput                     string
 	workflowPathInput             string
-	workflowPathHyphenInput       string
 	workflowPathSnakeInput        string
+	workflowPathHyphenInput       string
 	outputPathInput               string
 	outputPathHyphenInput         string
 	outputPathSnakeInput          string
 	legacyOutputInput             string
 	workflowOutputPathInput       string
-	workflowOutputHyphenInput     string
 	workflowOutputSnakeInput      string
+	workflowOutputHyphenInput     string
 	workflowOutputPathHyphenInput string
 	workflowOutputPathSnakeInput  string
 }
 
-// resolveWorkflowTargetPath resolves both workflow path inputs and workflow
-// output inputs before merging them into the final target path.
+// resolveReleaseWorkflowTargetPath merges the workflow path aliases and the
+// workflow output aliases into one final target path.
 //
 // inputs := releaseWorkflowRequestInputs{pathInput: "ci/release.yml"}
-// path, err := inputs.resolveWorkflowTargetPath("/tmp/project")
-func (inputs releaseWorkflowRequestInputs) resolveWorkflowTargetPath(projectDir string) (string, error) {
+// path, err := inputs.resolveReleaseWorkflowTargetPath("/tmp/project")
+func (inputs releaseWorkflowRequestInputs) resolveReleaseWorkflowTargetPath(projectDir string) (string, error) {
 	resolvedWorkflowPath, err := resolveReleaseWorkflowInputPathAliases(
 		projectDir,
 		inputs.pathInput,
 		inputs.workflowPathInput,
-		inputs.workflowPathHyphenInput,
 		inputs.workflowPathSnakeInput,
+		inputs.workflowPathHyphenInput,
 	)
 	if err != nil {
 		return "", err
@@ -89,15 +89,15 @@ var releaseWorkflowCmd = &cli.Command{
 		return runReleaseWorkflow(cmd.Context(), releaseWorkflowRequestInputs{
 			pathInput:                     releaseWorkflowPathInput,
 			workflowPathInput:             releaseWorkflowPathAliasInput,
-			workflowPathHyphenInput:       releaseWorkflowPathHyphenAliasInput,
 			workflowPathSnakeInput:        releaseWorkflowPathSnakeAliasInput,
+			workflowPathHyphenInput:       releaseWorkflowPathHyphenAliasInput,
 			outputPathInput:               releaseWorkflowOutputPathInput,
 			outputPathHyphenInput:         releaseWorkflowOutputPathHyphenInput,
 			outputPathSnakeInput:          releaseWorkflowOutputPathSnakeInput,
 			legacyOutputInput:             releaseWorkflowOutputLegacyInput,
 			workflowOutputPathInput:       releaseWorkflowOutputPathAliasInput,
-			workflowOutputHyphenInput:     releaseWorkflowOutputHyphenAliasInput,
 			workflowOutputSnakeInput:      releaseWorkflowOutputSnakeAliasInput,
+			workflowOutputHyphenInput:     releaseWorkflowOutputHyphenAliasInput,
 			workflowOutputPathHyphenInput: releaseWorkflowOutputPathHyphenAliasInput,
 			workflowOutputPathSnakeInput:  releaseWorkflowOutputPathSnakeAliasInput,
 		})
@@ -154,7 +154,7 @@ func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowRequestInputs) 
 		return coreerr.E("build.runReleaseWorkflow", "failed to get working directory", err)
 	}
 
-	resolvedWorkflowPath, err := inputs.resolveWorkflowTargetPath(projectDir)
+	resolvedWorkflowPath, err := inputs.resolveReleaseWorkflowTargetPath(projectDir)
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowRequestInputs) 
 
 // resolveReleaseWorkflowInputPathAliases keeps the CLI error wording stable while
 // delegating the conflict detection to the shared build helper.
-func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathInput, workflowPathHyphenInput, workflowPathSnakeInput string) (string, error) {
+func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathInput, workflowPathSnakeInput, workflowPathHyphenInput string) (string, error) {
 	resolvedWorkflowPath, err := build.ResolveReleaseWorkflowInputPathAliases(
 		io.Local,
 		projectDir,
