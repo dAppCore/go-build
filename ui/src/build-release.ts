@@ -93,6 +93,26 @@ export class BuildRelease extends LitElement {
       margin-bottom: 1rem;
     }
 
+    .workflow-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .workflow-field {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .workflow-field-label {
+      min-width: 9rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #374151;
+    }
+
     .workflow-row {
       display: flex;
       gap: 0.5rem;
@@ -248,6 +268,7 @@ export class BuildRelease extends LitElement {
   @state() private confirmRelease = false;
   @state() private releaseSuccess = '';
   @state() private workflowPath = '.github/workflows/release.yml';
+  @state() private workflowOutputPath = '';
   @state() private generatingWorkflow = false;
   @state() private workflowSuccess = '';
 
@@ -286,13 +307,27 @@ export class BuildRelease extends LitElement {
     this.workflowPath = target?.value ?? '';
   }
 
+  private handleWorkflowOutputPathInput(event: InputEvent) {
+    const target = event.target as HTMLInputElement | null;
+    this.workflowOutputPath = target?.value ?? '';
+  }
+
   private async handleGenerateWorkflow() {
     this.generatingWorkflow = true;
     this.error = '';
     this.workflowSuccess = '';
     try {
-      const result = await this.api.releaseWorkflow({ path: this.workflowPath.trim() });
-      const generatedPath = result.path ?? (this.workflowPath.trim() || '.github/workflows/release.yml');
+      const request: {
+        path?: string;
+        outputPath?: string;
+      } = {};
+      const path = this.workflowPath.trim();
+      const outputPath = this.workflowOutputPath.trim();
+      if (path) request.path = path;
+      if (outputPath) request.outputPath = outputPath;
+
+      const result = await this.api.releaseWorkflow(request);
+      const generatedPath = result.path ?? outputPath ?? path ?? '.github/workflows/release.yml';
       this.workflowSuccess = `Workflow generated at ${generatedPath}`;
     } catch (e: any) {
       this.error = e.message ?? 'Failed to generate release workflow';
@@ -365,15 +400,31 @@ export class BuildRelease extends LitElement {
 
       <div class="workflow-section">
         <div class="workflow-label">Release Workflow</div>
+        <div class="workflow-fields">
+          <div class="workflow-field">
+            <div class="workflow-field-label">Workflow Path</div>
+            <input
+              class="workflow-input"
+              type="text"
+              .value=${this.workflowPath}
+              @input=${this.handleWorkflowPathInput}
+              placeholder=".github/workflows/release.yml"
+              aria-label="Workflow path"
+            />
+          </div>
+          <div class="workflow-field">
+            <div class="workflow-field-label">Workflow Output Path</div>
+            <input
+              class="workflow-input"
+              type="text"
+              .value=${this.workflowOutputPath}
+              @input=${this.handleWorkflowOutputPathInput}
+              placeholder="ci/release.yml"
+              aria-label="Workflow output path"
+            />
+          </div>
+        </div>
         <div class="workflow-row">
-          <input
-            class="workflow-input"
-            type="text"
-            .value=${this.workflowPath}
-            @input=${this.handleWorkflowPathInput}
-            placeholder=".github/workflows/release.yml"
-            aria-label="Release workflow path"
-          />
           <button
             class="workflow"
             ?disabled=${this.generatingWorkflow}

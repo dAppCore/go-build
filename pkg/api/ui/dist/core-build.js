@@ -29,7 +29,7 @@ const Se = (s) => new we(typeof s == "string" ? s : s + "", void 0, oe), F = (s,
     throw Error("Value passed to 'css' function must be a 'css' function result: " + a + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
   })(i) + s[o + 1], s[0]);
   return new we(t, s, oe);
-}, Ee = (s, e) => {
+}, Pe = (s, e) => {
   if (re) s.adoptedStyleSheets = e.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
   else for (const t of e) {
     const r = document.createElement("style"), i = J.litNonce;
@@ -45,7 +45,7 @@ const Se = (s) => new we(typeof s == "string" ? s : s + "", void 0, oe), F = (s,
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: Pe, defineProperty: Ce, getOwnPropertyDescriptor: Re, getOwnPropertyNames: Ue, getOwnPropertySymbols: Oe, getPrototypeOf: ze } = Object, S = globalThis, fe = S.trustedTypes, De = fe ? fe.emptyScript : "", ee = S.reactiveElementPolyfillSupport, W = (s, e) => s, Z = { toAttribute(s, e) {
+const { is: Ee, defineProperty: Ce, getOwnPropertyDescriptor: Oe, getOwnPropertyNames: Re, getOwnPropertySymbols: Ue, getPrototypeOf: ze } = Object, S = globalThis, fe = S.trustedTypes, De = fe ? fe.emptyScript : "", ee = S.reactiveElementPolyfillSupport, W = (s, e) => s, Z = { toAttribute(s, e) {
   switch (e) {
     case Boolean:
       s = s ? De : null;
@@ -73,7 +73,7 @@ const { is: Pe, defineProperty: Ce, getOwnPropertyDescriptor: Re, getOwnProperty
       }
   }
   return t;
-} }, ae = (s, e) => !Pe(s, e), he = { attribute: !0, type: String, converter: Z, reflect: !1, useDefault: !1, hasChanged: ae };
+} }, ae = (s, e) => !Ee(s, e), he = { attribute: !0, type: String, converter: Z, reflect: !1, useDefault: !1, hasChanged: ae };
 Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), S.litPropertyMetadata ?? (S.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
 let T = class extends HTMLElement {
   static addInitializer(e) {
@@ -89,7 +89,7 @@ let T = class extends HTMLElement {
     }
   }
   static getPropertyDescriptor(e, t, r) {
-    const { get: i, set: o } = Re(this.prototype, e) ?? { get() {
+    const { get: i, set: o } = Oe(this.prototype, e) ?? { get() {
       return this[t];
     }, set(a) {
       this[t] = a;
@@ -110,7 +110,7 @@ let T = class extends HTMLElement {
   static finalize() {
     if (this.hasOwnProperty(W("finalized"))) return;
     if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(W("properties"))) {
-      const t = this.properties, r = [...Ue(t), ...Oe(t)];
+      const t = this.properties, r = [...Re(t), ...Ue(t)];
       for (const i of r) this.createProperty(i, t[i]);
     }
     const e = this[Symbol.metadata];
@@ -159,7 +159,7 @@ let T = class extends HTMLElement {
   }
   createRenderRoot() {
     const e = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return Ee(e, this.constructor.elementStyles), e;
+    return Pe(e, this.constructor.elementStyles), e;
   }
   connectedCallback() {
     var e;
@@ -285,8 +285,8 @@ T.elementStyles = [], T.shadowRootOptions = { mode: "open" }, T[W("elementProper
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const L = globalThis, ue = (s) => s, Q = L.trustedTypes, pe = Q ? Q.createPolicy("lit-html", { createHTML: (s) => s }) : void 0, _e = "$lit$", A = `lit$${Math.random().toFixed(9).slice(2)}$`, ke = "?" + A, Te = `<${ke}>`, z = document, q = () => z.createComment(""), I = (s) => s === null || typeof s != "object" && typeof s != "function", ne = Array.isArray, je = (s) => ne(s) || typeof (s == null ? void 0 : s[Symbol.iterator]) == "function", te = `[ 	
-\f\r]`, M = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, ge = /-->/g, be = />/g, R = RegExp(`>|${te}(?:([^\\s"'>=/]+)(${te}*=${te}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), me = /'/g, ve = /"/g, xe = /^(?:script|style|textarea|title)$/i, Be = (s) => (e, ...t) => ({ _$litType$: s, strings: e, values: t }), l = Be(1), j = Symbol.for("lit-noChange"), c = Symbol.for("lit-nothing"), $e = /* @__PURE__ */ new WeakMap(), U = z.createTreeWalker(z, 129);
+\f\r]`, M = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, ge = /-->/g, me = />/g, O = RegExp(`>|${te}(?:([^\\s"'>=/]+)(${te}*=${te}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), be = /'/g, ve = /"/g, xe = /^(?:script|style|textarea|title)$/i, Be = (s) => (e, ...t) => ({ _$litType$: s, strings: e, values: t }), l = Be(1), j = Symbol.for("lit-noChange"), c = Symbol.for("lit-nothing"), $e = /* @__PURE__ */ new WeakMap(), R = z.createTreeWalker(z, 129);
 function Ae(s, e) {
   if (!ne(s) || !s.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return pe !== void 0 ? pe.createHTML(e) : e;
@@ -296,9 +296,9 @@ const Ne = (s, e) => {
   let i, o = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", a = M;
   for (let d = 0; d < t; d++) {
     const n = s[d];
-    let u, p, h = -1, g = 0;
-    for (; g < n.length && (a.lastIndex = g, p = a.exec(n), p !== null); ) g = a.lastIndex, a === M ? p[1] === "!--" ? a = ge : p[1] !== void 0 ? a = be : p[2] !== void 0 ? (xe.test(p[2]) && (i = RegExp("</" + p[2], "g")), a = R) : p[3] !== void 0 && (a = R) : a === R ? p[0] === ">" ? (a = i ?? M, h = -1) : p[1] === void 0 ? h = -2 : (h = a.lastIndex - p[2].length, u = p[1], a = p[3] === void 0 ? R : p[3] === '"' ? ve : me) : a === ve || a === me ? a = R : a === ge || a === be ? a = M : (a = R, i = void 0);
-    const $ = a === R && s[d + 1].startsWith("/>") ? " " : "";
+    let u, p, h = -1, m = 0;
+    for (; m < n.length && (a.lastIndex = m, p = a.exec(n), p !== null); ) m = a.lastIndex, a === M ? p[1] === "!--" ? a = ge : p[1] !== void 0 ? a = me : p[2] !== void 0 ? (xe.test(p[2]) && (i = RegExp("</" + p[2], "g")), a = O) : p[3] !== void 0 && (a = O) : a === O ? p[0] === ">" ? (a = i ?? M, h = -1) : p[1] === void 0 ? h = -2 : (h = a.lastIndex - p[2].length, u = p[1], a = p[3] === void 0 ? O : p[3] === '"' ? ve : be) : a === ve || a === be ? a = O : a === ge || a === me ? a = M : (a = O, i = void 0);
+    const $ = a === O && s[d + 1].startsWith("/>") ? " " : "";
     o += a === M ? n + Te : h >= 0 ? (r.push(u), n.slice(0, h) + _e + n.slice(h) + A + $) : n + A + (h === -2 ? d : $);
   }
   return [Ae(s, o + (s[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), r];
@@ -309,22 +309,22 @@ class G {
     this.parts = [];
     let o = 0, a = 0;
     const d = e.length - 1, n = this.parts, [u, p] = Ne(e, t);
-    if (this.el = G.createElement(u, r), U.currentNode = this.el.content, t === 2 || t === 3) {
+    if (this.el = G.createElement(u, r), R.currentNode = this.el.content, t === 2 || t === 3) {
       const h = this.el.content.firstChild;
       h.replaceWith(...h.childNodes);
     }
-    for (; (i = U.nextNode()) !== null && n.length < d; ) {
+    for (; (i = R.nextNode()) !== null && n.length < d; ) {
       if (i.nodeType === 1) {
         if (i.hasAttributes()) for (const h of i.getAttributeNames()) if (h.endsWith(_e)) {
-          const g = p[a++], $ = i.getAttribute(h).split(A), _ = /([.?@])?(.*)/.exec(g);
+          const m = p[a++], $ = i.getAttribute(h).split(A), _ = /([.?@])?(.*)/.exec(m);
           n.push({ type: 1, index: o, name: _[2], strings: $, ctor: _[1] === "." ? Me : _[1] === "?" ? We : _[1] === "@" ? Le : X }), i.removeAttribute(h);
         } else h.startsWith(A) && (n.push({ type: 6, index: o }), i.removeAttribute(h));
         if (xe.test(i.tagName)) {
-          const h = i.textContent.split(A), g = h.length - 1;
-          if (g > 0) {
+          const h = i.textContent.split(A), m = h.length - 1;
+          if (m > 0) {
             i.textContent = Q ? Q.emptyScript : "";
-            for (let $ = 0; $ < g; $++) i.append(h[$], q()), U.nextNode(), n.push({ type: 2, index: ++o });
-            i.append(h[g], q());
+            for (let $ = 0; $ < m; $++) i.append(h[$], q()), R.nextNode(), n.push({ type: 2, index: ++o });
+            i.append(h[m], q());
           }
         }
       } else if (i.nodeType === 8) if (i.data === ke) n.push({ type: 2, index: o });
@@ -359,16 +359,16 @@ class He {
   }
   u(e) {
     const { el: { content: t }, parts: r } = this._$AD, i = ((e == null ? void 0 : e.creationScope) ?? z).importNode(t, !0);
-    U.currentNode = i;
-    let o = U.nextNode(), a = 0, d = 0, n = r[0];
+    R.currentNode = i;
+    let o = R.nextNode(), a = 0, d = 0, n = r[0];
     for (; n !== void 0; ) {
       if (a === n.index) {
         let u;
         n.type === 2 ? u = new V(o, o.nextSibling, this, e) : n.type === 1 ? u = new n.ctor(o, n.name, n.strings, this, e) : n.type === 6 && (u = new qe(o, this, e)), this._$AV.push(u), n = r[++d];
       }
-      a !== (n == null ? void 0 : n.index) && (o = U.nextNode(), a++);
+      a !== (n == null ? void 0 : n.index) && (o = R.nextNode(), a++);
     }
-    return U.currentNode = z, i;
+    return R.currentNode = z, i;
   }
   p(e) {
     let t = 0;
@@ -520,7 +520,7 @@ const Ie = (s, e, t) => {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const O = globalThis;
+const U = globalThis;
 class k extends T {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
@@ -547,10 +547,10 @@ class k extends T {
   }
 }
 var ye;
-k._$litElement$ = !0, k.finalized = !0, (ye = O.litElementHydrateSupport) == null || ye.call(O, { LitElement: k });
-const ie = O.litElementPolyfillSupport;
+k._$litElement$ = !0, k.finalized = !0, (ye = U.litElementHydrateSupport) == null || ye.call(U, { LitElement: k });
+const ie = U.litElementPolyfillSupport;
 ie == null || ie({ LitElement: k });
-(O.litElementVersions ?? (O.litElementVersions = [])).push("4.2.2");
+(U.litElementVersions ?? (U.litElementVersions = [])).push("4.2.2");
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -604,10 +604,10 @@ function f(s) {
 function Ve(s, e) {
   const t = new WebSocket(s);
   return t.onmessage = (r) => {
-    var i, o, a, d, n, u, p, h, g, $, _, le;
+    var i, o, a, d, n, u, p, h, m, $, _, le;
     try {
       const C = JSON.parse(r.data);
-      ((o = (i = C.type) == null ? void 0 : i.startsWith) != null && o.call(i, "build.") || (d = (a = C.type) == null ? void 0 : a.startsWith) != null && d.call(a, "release.") || (u = (n = C.type) == null ? void 0 : n.startsWith) != null && u.call(n, "sdk.") || (h = (p = C.channel) == null ? void 0 : p.startsWith) != null && h.call(p, "build.") || ($ = (g = C.channel) == null ? void 0 : g.startsWith) != null && $.call(g, "release.") || (le = (_ = C.channel) == null ? void 0 : _.startsWith) != null && le.call(_, "sdk.")) && e(C);
+      ((o = (i = C.type) == null ? void 0 : i.startsWith) != null && o.call(i, "build.") || (d = (a = C.type) == null ? void 0 : a.startsWith) != null && d.call(a, "release.") || (u = (n = C.type) == null ? void 0 : n.startsWith) != null && u.call(n, "sdk.") || (h = (p = C.channel) == null ? void 0 : p.startsWith) != null && h.call(p, "build.") || ($ = (m = C.channel) == null ? void 0 : m.startsWith) != null && $.call(m, "release.") || (le = (_ = C.channel) == null ? void 0 : _.startsWith) != null && le.call(_, "sdk.")) && e(C);
     } catch {
     }
   }, t;
@@ -679,7 +679,7 @@ var Ke = Object.defineProperty, Je = Object.getOwnPropertyDescriptor, N = (s, e,
     (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
   return r && i && Ke(e, t, i), i;
 };
-let E = class extends k {
+let P = class extends k {
   constructor() {
     super(...arguments), this.apiUrl = "", this.configData = null, this.discoverData = null, this.loading = !0, this.error = "";
   }
@@ -800,7 +800,7 @@ let E = class extends k {
     `;
   }
 };
-E.styles = F`
+P.styles = F`
     :host {
       display: block;
       font-family: system-ui, -apple-system, sans-serif;
@@ -945,22 +945,22 @@ E.styles = F`
   `;
 N([
   D({ attribute: "api-url" })
-], E.prototype, "apiUrl", 2);
+], P.prototype, "apiUrl", 2);
 N([
   f()
-], E.prototype, "configData", 2);
+], P.prototype, "configData", 2);
 N([
   f()
-], E.prototype, "discoverData", 2);
+], P.prototype, "discoverData", 2);
 N([
   f()
-], E.prototype, "loading", 2);
+], P.prototype, "loading", 2);
 N([
   f()
-], E.prototype, "error", 2);
-E = N([
+], P.prototype, "error", 2);
+P = N([
   K("core-build-config")
-], E);
+], P);
 var Ze = Object.defineProperty, Qe = Object.getOwnPropertyDescriptor, x = (s, e, t, r) => {
   for (var i = r > 1 ? void 0 : r ? Qe(e, t) : e, o = s.length - 1, a; o >= 0; o--)
     (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
@@ -1217,9 +1217,9 @@ var Xe = Object.defineProperty, Ye = Object.getOwnPropertyDescriptor, v = (s, e,
     (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
   return r && i && Xe(e, t, i), i;
 };
-let b = class extends k {
+let g = class extends k {
   constructor() {
-    super(...arguments), this.apiUrl = "", this.version = "", this.changelog = "", this.loading = !0, this.error = "", this.releasing = !1, this.confirmRelease = !1, this.releaseSuccess = "", this.workflowPath = ".github/workflows/release.yml", this.generatingWorkflow = !1, this.workflowSuccess = "";
+    super(...arguments), this.apiUrl = "", this.version = "", this.changelog = "", this.loading = !0, this.error = "", this.releasing = !1, this.confirmRelease = !1, this.releaseSuccess = "", this.workflowPath = ".github/workflows/release.yml", this.workflowOutputPath = "", this.generatingWorkflow = !1, this.workflowSuccess = "";
   }
   connectedCallback() {
     super.connectedCallback(), this.api = new Y(this.apiUrl), this.reload();
@@ -1245,11 +1245,17 @@ let b = class extends k {
     const e = s.target;
     this.workflowPath = (e == null ? void 0 : e.value) ?? "";
   }
+  handleWorkflowOutputPathInput(s) {
+    const e = s.target;
+    this.workflowOutputPath = (e == null ? void 0 : e.value) ?? "";
+  }
   async handleGenerateWorkflow() {
     this.generatingWorkflow = !0, this.error = "", this.workflowSuccess = "";
     try {
-      const e = (await this.api.releaseWorkflow({ path: this.workflowPath.trim() })).path ?? (this.workflowPath.trim() || ".github/workflows/release.yml");
-      this.workflowSuccess = `Workflow generated at ${e}`;
+      const s = {}, e = this.workflowPath.trim(), t = this.workflowOutputPath.trim();
+      e && (s.path = e), t && (s.outputPath = t);
+      const i = (await this.api.releaseWorkflow(s)).path ?? t ?? e ?? ".github/workflows/release.yml";
+      this.workflowSuccess = `Workflow generated at ${i}`;
     } catch (s) {
       this.error = s.message ?? "Failed to generate release workflow";
     } finally {
@@ -1308,15 +1314,31 @@ let b = class extends k {
 
       <div class="workflow-section">
         <div class="workflow-label">Release Workflow</div>
+        <div class="workflow-fields">
+          <div class="workflow-field">
+            <div class="workflow-field-label">Workflow Path</div>
+            <input
+              class="workflow-input"
+              type="text"
+              .value=${this.workflowPath}
+              @input=${this.handleWorkflowPathInput}
+              placeholder=".github/workflows/release.yml"
+              aria-label="Workflow path"
+            />
+          </div>
+          <div class="workflow-field">
+            <div class="workflow-field-label">Workflow Output Path</div>
+            <input
+              class="workflow-input"
+              type="text"
+              .value=${this.workflowOutputPath}
+              @input=${this.handleWorkflowOutputPathInput}
+              placeholder="ci/release.yml"
+              aria-label="Workflow output path"
+            />
+          </div>
+        </div>
         <div class="workflow-row">
-          <input
-            class="workflow-input"
-            type="text"
-            .value=${this.workflowPath}
-            @input=${this.handleWorkflowPathInput}
-            placeholder=".github/workflows/release.yml"
-            aria-label="Release workflow path"
-          />
           <button
             class="workflow"
             ?disabled=${this.generatingWorkflow}
@@ -1344,7 +1366,7 @@ let b = class extends k {
     `;
   }
 };
-b.styles = F`
+g.styles = F`
     :host {
       display: block;
       font-family: system-ui, -apple-system, sans-serif;
@@ -1425,6 +1447,26 @@ b.styles = F`
       border: 1px solid #e5e7eb;
       border-radius: 0.5rem;
       margin-bottom: 1rem;
+    }
+
+    .workflow-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .workflow-field {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .workflow-field-label {
+      min-width: 9rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #374151;
     }
 
     .workflow-row {
@@ -1573,46 +1615,49 @@ b.styles = F`
   `;
 v([
   D({ attribute: "api-url" })
-], b.prototype, "apiUrl", 2);
+], g.prototype, "apiUrl", 2);
 v([
   f()
-], b.prototype, "version", 2);
+], g.prototype, "version", 2);
 v([
   f()
-], b.prototype, "changelog", 2);
+], g.prototype, "changelog", 2);
 v([
   f()
-], b.prototype, "loading", 2);
+], g.prototype, "loading", 2);
 v([
   f()
-], b.prototype, "error", 2);
+], g.prototype, "error", 2);
 v([
   f()
-], b.prototype, "releasing", 2);
+], g.prototype, "releasing", 2);
 v([
   f()
-], b.prototype, "confirmRelease", 2);
+], g.prototype, "confirmRelease", 2);
 v([
   f()
-], b.prototype, "releaseSuccess", 2);
+], g.prototype, "releaseSuccess", 2);
 v([
   f()
-], b.prototype, "workflowPath", 2);
+], g.prototype, "workflowPath", 2);
 v([
   f()
-], b.prototype, "generatingWorkflow", 2);
+], g.prototype, "workflowOutputPath", 2);
 v([
   f()
-], b.prototype, "workflowSuccess", 2);
-b = v([
+], g.prototype, "generatingWorkflow", 2);
+v([
+  f()
+], g.prototype, "workflowSuccess", 2);
+g = v([
   K("core-build-release")
-], b);
+], g);
 var et = Object.defineProperty, tt = Object.getOwnPropertyDescriptor, w = (s, e, t, r) => {
   for (var i = r > 1 ? void 0 : r ? tt(e, t) : e, o = s.length - 1, a; o >= 0; o--)
     (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
   return r && i && et(e, t, i), i;
 };
-let m = class extends k {
+let b = class extends k {
   constructor() {
     super(...arguments), this.apiUrl = "", this.basePath = "", this.revisionPath = "", this.diffResult = null, this.diffing = !1, this.diffError = "", this.selectedLanguage = "", this.generating = !1, this.generateError = "", this.generateSuccess = "";
   }
@@ -1726,7 +1771,7 @@ let m = class extends k {
     `;
   }
 };
-m.styles = F`
+b.styles = F`
     :host {
       display: block;
       font-family: system-ui, -apple-system, sans-serif;
@@ -1901,43 +1946,43 @@ m.styles = F`
   `;
 w([
   D({ attribute: "api-url" })
-], m.prototype, "apiUrl", 2);
+], b.prototype, "apiUrl", 2);
 w([
   f()
-], m.prototype, "basePath", 2);
+], b.prototype, "basePath", 2);
 w([
   f()
-], m.prototype, "revisionPath", 2);
+], b.prototype, "revisionPath", 2);
 w([
   f()
-], m.prototype, "diffResult", 2);
+], b.prototype, "diffResult", 2);
 w([
   f()
-], m.prototype, "diffing", 2);
+], b.prototype, "diffing", 2);
 w([
   f()
-], m.prototype, "diffError", 2);
+], b.prototype, "diffError", 2);
 w([
   f()
-], m.prototype, "selectedLanguage", 2);
+], b.prototype, "selectedLanguage", 2);
 w([
   f()
-], m.prototype, "generating", 2);
+], b.prototype, "generating", 2);
 w([
   f()
-], m.prototype, "generateError", 2);
+], b.prototype, "generateError", 2);
 w([
   f()
-], m.prototype, "generateSuccess", 2);
-m = w([
+], b.prototype, "generateSuccess", 2);
+b = w([
   K("core-build-sdk")
-], m);
+], b);
 var st = Object.defineProperty, it = Object.getOwnPropertyDescriptor, H = (s, e, t, r) => {
   for (var i = r > 1 ? void 0 : r ? it(e, t) : e, o = s.length - 1, a; o >= 0; o--)
     (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
   return r && i && st(e, t, i), i;
 };
-let P = class extends k {
+let E = class extends k {
   constructor() {
     super(...arguments), this.apiUrl = "", this.wsUrl = "", this.activeTab = "config", this.wsConnected = !1, this.lastEvent = "", this.ws = null, this.tabs = [
       { id: "config", label: "Config" },
@@ -2019,7 +2064,7 @@ let P = class extends k {
     `;
   }
 };
-P.styles = F`
+E.styles = F`
     :host {
       display: flex;
       flex-direction: column;
@@ -2135,28 +2180,28 @@ P.styles = F`
   `;
 H([
   D({ attribute: "api-url" })
-], P.prototype, "apiUrl", 2);
+], E.prototype, "apiUrl", 2);
 H([
   D({ attribute: "ws-url" })
-], P.prototype, "wsUrl", 2);
+], E.prototype, "wsUrl", 2);
 H([
   f()
-], P.prototype, "activeTab", 2);
+], E.prototype, "activeTab", 2);
 H([
   f()
-], P.prototype, "wsConnected", 2);
+], E.prototype, "wsConnected", 2);
 H([
   f()
-], P.prototype, "lastEvent", 2);
-P = H([
+], E.prototype, "lastEvent", 2);
+E = H([
   K("core-build-panel")
-], P);
+], E);
 export {
   Y as BuildApi,
   y as BuildArtifacts,
-  E as BuildConfig,
-  P as BuildPanel,
-  b as BuildRelease,
-  m as BuildSdk,
+  P as BuildConfig,
+  E as BuildPanel,
+  g as BuildRelease,
+  b as BuildSdk,
   Ve as connectBuildEvents
 };
