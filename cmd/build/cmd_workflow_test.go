@@ -88,7 +88,15 @@ func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_AbsoluteEquivalent_Goo
 func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
-	path, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "", "")
+	path, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_WorkflowPathGood(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowInputPathAliases(projectDir, "", "ci/release.yml", "", "")
 	require.NoError(t, err)
 	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
 }
@@ -96,7 +104,7 @@ func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Bad(t *testing.T) {
 	projectDir := t.TempDir()
 
-	_, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "ops/release.yml", "")
+	_, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "ops/release.yml", "", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "workflow path aliases specify different locations")
 }
@@ -123,6 +131,7 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		AddWorkflowCommand(buildCmd)
 
 		pathFlag := releaseWorkflowCmd.Flags().Lookup("path")
+		workflowPathCamelFlag := releaseWorkflowCmd.Flags().Lookup("workflowPath")
 		workflowPathFlag := releaseWorkflowCmd.Flags().Lookup("workflow-path")
 		workflowPathSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_path")
 		outputPathFlag := releaseWorkflowCmd.Flags().Lookup("output-path")
@@ -133,6 +142,7 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		workflowOutputPathSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_output_path")
 
 		assert.NotNil(t, pathFlag)
+		assert.NotNil(t, workflowPathCamelFlag)
 		assert.NotNil(t, workflowPathFlag)
 		assert.NotNil(t, workflowPathSnakeFlag)
 		assert.NotNil(t, outputPathFlag)
@@ -141,6 +151,7 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.NotNil(t, workflowOutputPathFlag)
 		assert.NotNil(t, workflowOutputPathSnakeFlag)
 		assert.NotEmpty(t, pathFlag.Usage)
+		assert.NotEmpty(t, workflowPathCamelFlag.Usage)
 		assert.NotEmpty(t, workflowPathFlag.Usage)
 		assert.NotEmpty(t, workflowPathSnakeFlag.Usage)
 		assert.NotEmpty(t, outputPathFlag.Usage)
@@ -150,6 +161,7 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.NotEmpty(t, workflowOutputPathFlag.Usage)
 		assert.NotEmpty(t, workflowOutputPathSnakeFlag.Usage)
 		assert.NotEqual(t, pathFlag.Usage, outputFlag.Usage)
+		assert.Equal(t, pathFlag.Usage, workflowPathCamelFlag.Usage)
 		assert.Equal(t, pathFlag.Usage, workflowPathFlag.Usage)
 		assert.Equal(t, workflowPathFlag.Usage, workflowPathSnakeFlag.Usage)
 		assert.NotEqual(t, outputPathFlag.Usage, outputFlag.Usage)

@@ -15,6 +15,7 @@ import (
 
 var (
 	releaseWorkflowPathInput                     string
+	releaseWorkflowWorkflowPathInput             string
 	releaseWorkflowWorkflowPathHyphenInput       string
 	releaseWorkflowWorkflowPathSnakeInput        string
 	releaseWorkflowOutputPathHyphenInput         string
@@ -29,6 +30,7 @@ var (
 // rather than by call-site position.
 type releaseWorkflowInputs struct {
 	pathInput                     string
+	workflowPathInput             string
 	workflowPathHyphenInput       string
 	workflowPathSnakeInput        string
 	outputPathHyphenInput         string
@@ -44,6 +46,7 @@ var releaseWorkflowCmd = &cli.Command{
 	RunE: func(cmd *cli.Command, args []string) error {
 		return runReleaseWorkflow(cmd.Context(), releaseWorkflowInputs{
 			pathInput:                     releaseWorkflowPathInput,
+			workflowPathInput:             releaseWorkflowWorkflowPathInput,
 			workflowPathHyphenInput:       releaseWorkflowWorkflowPathHyphenInput,
 			workflowPathSnakeInput:        releaseWorkflowWorkflowPathSnakeInput,
 			outputPathHyphenInput:         releaseWorkflowOutputPathHyphenInput,
@@ -63,6 +66,7 @@ func setWorkflowI18n() {
 
 func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathInput, "path", "", i18n.T("cmd.build.workflow.flag.path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowPathInput, "workflowPath", "", i18n.T("cmd.build.workflow.flag.path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowPathHyphenInput, "workflow-path", "", i18n.T("cmd.build.workflow.flag.path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowPathSnakeInput, "workflow_path", "", i18n.T("cmd.build.workflow.flag.path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathHyphenInput, "output-path", "", i18n.T("cmd.build.workflow.flag.output_path"))
@@ -86,6 +90,7 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // buildcmd.AddWorkflowCommand(buildCmd)
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{})                                         // writes to .github/workflows/release.yml
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{pathInput: "ci/release.yml"})              // writes to ./ci/release.yml under the project root
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathInput: "ci/release.yml"})      // uses the workflowPath alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathHyphenInput: "ci/release.yml"}) // uses the workflow-path alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathSnakeInput: "ci/release.yml"})  // uses the workflow_path alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathInput: "ci/release.yml"}) // uses the workflowOutputPath alias
@@ -98,6 +103,7 @@ func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
 	resolvedWorkflowPath, err := resolveReleaseWorkflowInputPathAliases(
 		projectDir,
 		inputs.pathInput,
+		inputs.workflowPathInput,
 		inputs.workflowPathHyphenInput,
 		inputs.workflowPathSnakeInput,
 	)
@@ -123,12 +129,12 @@ func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
 
 // resolveReleaseWorkflowInputPathAliases keeps the CLI error wording stable while
 // delegating the conflict detection to the shared build helper.
-func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathHyphenInput, workflowPathSnakeInput string) (string, error) {
+func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathInput, workflowPathHyphenInput, workflowPathSnakeInput string) (string, error) {
 	resolvedWorkflowPath, err := build.ResolveReleaseWorkflowInputPathAliases(
 		io.Local,
 		projectDir,
 		pathInput,
-		"",
+		workflowPathInput,
 		workflowPathSnakeInput,
 		workflowPathHyphenInput,
 	)
