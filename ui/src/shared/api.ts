@@ -58,6 +58,9 @@ export class BuildApi {
 
   releaseWorkflow(request: {
     path?: string;
+    workflowPath?: string;
+    workflow_path?: string;
+    'workflow-path'?: string;
     outputPath?: string;
     output_path?: string;
     output?: string;

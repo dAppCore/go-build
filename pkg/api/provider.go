@@ -181,7 +181,19 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 				"properties": map[string]any{
 					"path": map[string]any{
 						"type":        "string",
-						"description": "Preferred output path for the workflow file, relative to the project directory or absolute.",
+						"description": "Preferred workflow path input, relative to the project directory or absolute.",
+					},
+					"workflowPath": map[string]any{
+						"type":        "string",
+						"description": "Predictable alias for path, relative to the project directory or absolute.",
+					},
+					"workflow_path": map[string]any{
+						"type":        "string",
+						"description": "Snake_case alias for workflowPath.",
+					},
+					"workflow-path": map[string]any{
+						"type":        "string",
+						"description": "Hyphenated alias for workflowPath.",
 					},
 					"workflowOutputPath": map[string]any{
 						"type":        "string",
@@ -559,12 +571,33 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 // req := ReleaseWorkflowRequest{Path: "ci/release.yml"}
 type ReleaseWorkflowRequest struct {
 	Path                     string `json:"path"`
+	WorkflowPath             string `json:"workflowPath"`
+	WorkflowPathSnake        string `json:"workflow_path"`
+	WorkflowPathHyphen       string `json:"workflow-path"`
 	OutputPath               string `json:"outputPath"`
 	OutputPathSnake          string `json:"output_path"`
 	LegacyOutputPath         string `json:"output"`
 	WorkflowOutputPath       string `json:"workflowOutputPath"`
 	WorkflowOutputPathSnake  string `json:"workflow_output_path"`
 	WorkflowOutputPathHyphen string `json:"workflow-output-path"`
+}
+
+// resolvedOutputPath resolves the workflow output aliases with the same
+// conflict rules as the CLI.
+func (r ReleaseWorkflowRequest) resolvedWorkflowPath(dir string, medium io.Medium) (string, error) {
+	workflowPath, err := build.ResolveReleaseWorkflowInputPathAliases(
+		medium,
+		dir,
+		r.Path,
+		r.WorkflowPath,
+		r.WorkflowPathSnake,
+		r.WorkflowPathHyphen,
+	)
+	if err != nil {
+		return "", coreerr.E("api.ReleaseWorkflowRequest", "workflow path aliases specify different locations", nil)
+	}
+
+	return workflowPath, nil
 }
 
 // resolvedOutputPath resolves the workflow output aliases with the same
@@ -607,7 +640,13 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		return
 	}
 
-	workflowPath, err := build.ResolveReleaseWorkflowInputPathWithMedium(p.medium, dir, req.Path, outputPath)
+	workflowPath, err := req.resolvedWorkflowPath(dir, p.medium)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+		return
+	}
+
+	workflowPath, err = build.ResolveReleaseWorkflowInputPathWithMedium(p.medium, dir, workflowPath, outputPath)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 		return

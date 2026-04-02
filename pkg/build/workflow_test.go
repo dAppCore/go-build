@@ -320,6 +320,58 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 }
 
+func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
+	t.Run("accepts the preferred path input", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci", "", "", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("accepts the workflowPath alias", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "ci", "", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("accepts the workflow_path alias", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "ci", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("accepts the workflow-path alias", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "", "ci")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("normalises matching aliases", func(t *testing.T) {
+		fs := io.NewMockMedium()
+		fs.Dirs["/tmp/project/ci"] = true
+
+		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/", "./ci", "ci", "")
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+}
+
+func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Bad(t *testing.T) {
+	fs := io.NewMockMedium()
+
+	path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/release.yml", "ops/release.yml", "", "")
+	assert.Error(t, err)
+	assert.Empty(t, path)
+	assert.Contains(t, err.Error(), "path aliases specify different locations")
+}
+
 func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 	t.Run("accepts the preferred output path", func(t *testing.T) {
 		path, err := ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")

@@ -130,6 +130,27 @@ func ResolveReleaseWorkflowInputPathWithMedium(filesystem io_interface.Medium, p
 	)
 }
 
+// ResolveReleaseWorkflowInputPathAliases resolves the workflow path across the
+// public path aliases and treats an existing directory as a directory even
+// when the caller omits a trailing slash.
+//
+// build.ResolveReleaseWorkflowInputPathAliases(io.Local, "/tmp/project", "ci", "", "", "") // /tmp/project/ci/release.yml
+// build.ResolveReleaseWorkflowInputPathAliases(io.Local, "/tmp/project", "", "ci", "", "")  // /tmp/project/ci/release.yml
+// build.ResolveReleaseWorkflowInputPathAliases(io.Local, "/tmp/project", "", "", "ci", "")  // /tmp/project/ci/release.yml
+// build.ResolveReleaseWorkflowInputPathAliases(io.Local, "/tmp/project", "", "", "", "ci")  // /tmp/project/ci/release.yml
+func ResolveReleaseWorkflowInputPathAliases(filesystem io_interface.Medium, projectDir, pathInput, workflowPathInput, workflowPathSnakeInput, workflowPathHyphenInput string) (string, error) {
+	return resolveReleaseWorkflowInputPathAliasSet(
+		filesystem,
+		projectDir,
+		"path",
+		pathInput,
+		workflowPathInput,
+		workflowPathSnakeInput,
+		workflowPathHyphenInput,
+		"build.ResolveReleaseWorkflowInputPathAliases",
+	)
+}
+
 // ResolveReleaseWorkflowOutputPath resolves the core workflow output aliases.
 //
 // build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")        // "ci/release.yml"
@@ -269,6 +290,36 @@ func resolveReleaseWorkflowInputPath(projectDir, input string, medium io_interfa
 		return ax.Join(resolved, DefaultReleaseWorkflowFileName)
 	}
 	return resolved
+}
+
+// resolveReleaseWorkflowInputPathAliasSet resolves a workflow path from a set
+// of aliases and rejects conflicting values.
+func resolveReleaseWorkflowInputPathAliasSet(filesystem io_interface.Medium, projectDir, primaryLabel, primaryInput, secondaryInput, tertiaryInput, quaternaryInput, errorName string) (string, error) {
+	values := []string{
+		cleanWorkflowInput(primaryInput),
+		cleanWorkflowInput(secondaryInput),
+		cleanWorkflowInput(tertiaryInput),
+		cleanWorkflowInput(quaternaryInput),
+	}
+
+	var resolved string
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+
+		candidate := resolveReleaseWorkflowInputPath(projectDir, value, filesystem)
+		if resolved == "" {
+			resolved = candidate
+			continue
+		}
+
+		if resolved != candidate {
+			return "", coreerr.E(errorName, primaryLabel+" aliases specify different locations", nil)
+		}
+	}
+
+	return resolved, nil
 }
 
 // isWorkflowDirectoryPath reports whether a workflow path is explicitly marked

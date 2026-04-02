@@ -15,6 +15,8 @@ import (
 
 var (
 	releaseWorkflowPathInput                 string
+	releaseWorkflowWorkflowPathInput         string
+	releaseWorkflowWorkflowPathSnakeInput    string
 	releaseWorkflowOutputPathInput           string
 	releaseWorkflowOutputPathSnakeInput      string
 	releaseWorkflowOutputLegacyInput         string
@@ -28,6 +30,8 @@ var releaseWorkflowCmd = &cli.Command{
 		return runReleaseWorkflow(
 			cmd.Context(),
 			releaseWorkflowPathInput,
+			releaseWorkflowWorkflowPathInput,
+			releaseWorkflowWorkflowPathSnakeInput,
 			releaseWorkflowOutputPathInput,
 			releaseWorkflowOutputPathSnakeInput,
 			releaseWorkflowOutputLegacyInput,
@@ -44,6 +48,8 @@ func setWorkflowI18n() {
 
 func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathInput, "path", "", i18n.T("cmd.build.workflow.flag.path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowPathInput, "workflow-path", "", i18n.T("cmd.build.workflow.flag.path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowPathSnakeInput, "workflow_path", "", i18n.T("cmd.build.workflow.flag.path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathInput, "output-path", "", i18n.T("cmd.build.workflow.flag.output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathSnakeInput, "output_path", "", i18n.T("cmd.build.workflow.flag.output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputLegacyInput, "output", "", i18n.T("cmd.build.workflow.flag.output"))
@@ -62,14 +68,27 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // runReleaseWorkflow writes the embedded release workflow into the current project directory.
 //
 // buildcmd.AddWorkflowCommand(buildCmd)
-// runReleaseWorkflow(ctx, "", "", "", "", "", "")               // writes to .github/workflows/release.yml
-// runReleaseWorkflow(ctx, "ci/release.yml", "", "", "", "", "") // writes to ./ci/release.yml under the project root
-// runReleaseWorkflow(ctx, "", "ci/release.yml", "", "", "", "") // uses the preferred explicit output path
-// runReleaseWorkflow(ctx, "", "", "ci/release.yml", "", "", "") // uses the snake_case alias
-// runReleaseWorkflow(ctx, "", "", "", "ci/release.yml", "", "") // uses the legacy output alias
-// runReleaseWorkflow(ctx, "", "", "", "", "ci/release.yml", "") // uses the workflow-output-path alias
-// runReleaseWorkflow(ctx, "", "", "", "", "", "ci/release.yml") // uses the workflow_output_path alias
-func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputLegacyInput, workflowOutputPathAliasInput, workflowOutputPathAliasSnakeInput string) error {
+// runReleaseWorkflow(ctx, "", "", "", "", "", "", "", "")               // writes to .github/workflows/release.yml
+// runReleaseWorkflow(ctx, "ci/release.yml", "", "", "", "", "", "", "") // writes to ./ci/release.yml under the project root
+// runReleaseWorkflow(ctx, "", "ci/release.yml", "", "", "", "", "", "") // uses the workflow-path alias
+// runReleaseWorkflow(ctx, "", "", "ci/release.yml", "", "", "", "", "") // uses the workflow_path alias
+func runReleaseWorkflow(_ context.Context, pathInput, workflowPathInput, workflowPathSnakeInput, workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputLegacyInput, workflowOutputPathAliasInput, workflowOutputPathAliasSnakeInput string) error {
+	projectDir, err := ax.Getwd()
+	if err != nil {
+		return coreerr.E("build.runReleaseWorkflow", "failed to get working directory", err)
+	}
+
+	resolvedWorkflowPath, err := resolveReleaseWorkflowInputPathAliases(
+		projectDir,
+		pathInput,
+		workflowPathInput,
+		workflowPathSnakeInput,
+		"",
+	)
+	if err != nil {
+		return err
+	}
+
 	resolvedWorkflowOutputPath, err := resolveReleaseWorkflowOutputPathAliases(
 		workflowOutputPathInput,
 		workflowOutputPathSnakeInput,
@@ -81,12 +100,25 @@ func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPath
 		return err
 	}
 
-	projectDir, err := ax.Getwd()
+	return runReleaseWorkflowInDir(projectDir, resolvedWorkflowPath, resolvedWorkflowOutputPath)
+}
+
+// resolveReleaseWorkflowInputPathAliases keeps the CLI error wording stable while
+// delegating the conflict detection to the shared build helper.
+func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathInput, workflowPathSnakeInput, workflowPathHyphenInput string) (string, error) {
+	resolvedWorkflowPath, err := build.ResolveReleaseWorkflowInputPathAliases(
+		io.Local,
+		projectDir,
+		pathInput,
+		workflowPathInput,
+		workflowPathSnakeInput,
+		workflowPathHyphenInput,
+	)
 	if err != nil {
-		return coreerr.E("build.runReleaseWorkflow", "failed to get working directory", err)
+		return "", coreerr.E("build.runReleaseWorkflow", "workflow path aliases specify different locations", nil)
 	}
 
-	return runReleaseWorkflowInDir(projectDir, workflowPathInput, resolvedWorkflowOutputPath)
+	return resolvedWorkflowPath, nil
 }
 
 // resolveReleaseWorkflowOutputPathAliases keeps the CLI error wording stable while

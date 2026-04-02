@@ -319,6 +319,9 @@ export class BuildRelease extends LitElement {
     try {
       const request: {
         path?: string;
+        workflowPath?: string;
+        workflow_path?: string;
+        'workflow-path'?: string;
         outputPath?: string;
         output_path?: string;
         output?: string;
@@ -329,6 +332,11 @@ export class BuildRelease extends LitElement {
       const path = this.workflowPath.trim();
       const outputPath = this.workflowOutputPath.trim();
       if (path) request.path = path;
+      if (path) {
+        request.workflowPath = path;
+        request.workflow_path = path;
+        request['workflow-path'] = path;
+      }
       if (outputPath) request.outputPath = outputPath;
       if (outputPath) {
         request.output_path = outputPath;

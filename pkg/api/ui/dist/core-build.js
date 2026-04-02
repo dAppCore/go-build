@@ -1253,7 +1253,7 @@ let g = class extends k {
     this.generatingWorkflow = !0, this.error = "", this.workflowSuccess = "";
     try {
       const s = {}, e = this.workflowPath.trim(), t = this.workflowOutputPath.trim();
-      e && (s.path = e), t && (s.outputPath = t), t && (s.output_path = t, s.output = t, s.workflowOutputPath = t, s.workflow_output_path = t, s["workflow-output-path"] = t);
+      e && (s.path = e), e && (s.workflowPath = e, s.workflow_path = e, s["workflow-path"] = e), t && (s.outputPath = t), t && (s.output_path = t, s.output = t, s.workflowOutputPath = t, s.workflow_output_path = t, s["workflow-output-path"] = t);
       const i = (await this.api.releaseWorkflow(s)).path ?? t ?? e ?? ".github/workflows/release.yml";
       this.workflowSuccess = `Workflow generated at ${i}`;
     } catch (s) {
