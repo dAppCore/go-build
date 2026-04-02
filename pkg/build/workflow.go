@@ -153,6 +153,7 @@ func ResolveReleaseWorkflowOutputPath(outputPathInput, outputPathSnakeInput, out
 // build.ResolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "", "", "") // "ci/release.yml"
 // build.ResolveReleaseWorkflowOutputPathAliases("", "", "", "ci/release.yml", "", "")  // "ci/release.yml"
 // build.ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "ci/release.yml")  // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "ci/release.yml", "")  // "ci/release.yml"
 func ResolveReleaseWorkflowOutputPathAliases(
 	outputPathInput,
 	outputPathSnakeInput,
@@ -202,14 +203,22 @@ func resolveReleaseWorkflowInputPathPair(pathInput, outputPathInput string, reso
 // resolveReleaseWorkflowOutputAliasSet resolves a workflow output alias set by
 // trimming whitespace, rejecting conflicts, and returning the first non-empty
 // value when aliases agree.
-func resolveReleaseWorkflowOutputAliasSet(primaryInput, secondaryInput, tertiaryInput, quaternaryInput, quinaryInput, senaryInput, errorName string) (string, error) {
+func resolveReleaseWorkflowOutputAliasSet(
+	outputPathInput,
+	outputPathSnakeInput,
+	outputLegacyInput,
+	workflowOutputPathInput,
+	workflowOutputPathSnakeInput,
+	workflowOutputPathHyphenInput,
+	errorName string,
+) (string, error) {
 	values := []string{
-		normalizeWorkflowOutputAlias(primaryInput),
-		normalizeWorkflowOutputAlias(secondaryInput),
-		normalizeWorkflowOutputAlias(tertiaryInput),
-		normalizeWorkflowOutputAlias(quaternaryInput),
-		normalizeWorkflowOutputAlias(quinaryInput),
-		normalizeWorkflowOutputAlias(senaryInput),
+		normalizeWorkflowOutputAlias(outputPathInput),
+		normalizeWorkflowOutputAlias(outputPathSnakeInput),
+		normalizeWorkflowOutputAlias(outputLegacyInput),
+		normalizeWorkflowOutputAlias(workflowOutputPathInput),
+		normalizeWorkflowOutputAlias(workflowOutputPathSnakeInput),
+		normalizeWorkflowOutputAlias(workflowOutputPathHyphenInput),
 	}
 
 	var resolved string

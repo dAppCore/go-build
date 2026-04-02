@@ -70,7 +70,7 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // runReleaseWorkflow(ctx, "", "", "", "", "ci/release.yml", "") // uses the workflow-output-path alias
 // runReleaseWorkflow(ctx, "", "", "", "", "", "ci/release.yml") // uses the workflow_output_path alias
 func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputLegacyInput, workflowOutputPathAliasInput, workflowOutputPathAliasSnakeInput string) error {
-	resolvedOutputPathInput, err := resolveWorkflowOutputPathAliases(
+	resolvedWorkflowOutputPath, err := resolveReleaseWorkflowOutputPathAliases(
 		workflowOutputPathInput,
 		workflowOutputPathSnakeInput,
 		workflowOutputLegacyInput,
@@ -86,13 +86,13 @@ func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPath
 		return coreerr.E("build.runReleaseWorkflow", "failed to get working directory", err)
 	}
 
-	return runReleaseWorkflowInDir(projectDir, workflowPathInput, resolvedOutputPathInput)
+	return runReleaseWorkflowInDir(projectDir, workflowPathInput, resolvedWorkflowOutputPath)
 }
 
-// resolveWorkflowOutputPathAliases keeps the CLI error wording stable while
+// resolveReleaseWorkflowOutputPathAliases keeps the CLI error wording stable while
 // delegating the conflict detection to the shared build helper.
-func resolveWorkflowOutputPathAliases(outputPathInput, outputPathSnakeInput, outputLegacyInput, workflowOutputPathInput, workflowOutputPathSnakeInput string) (string, error) {
-	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliases(
+func resolveReleaseWorkflowOutputPathAliases(outputPathInput, outputPathSnakeInput, outputLegacyInput, workflowOutputPathInput, workflowOutputPathSnakeInput string) (string, error) {
+	resolvedWorkflowOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliases(
 		outputPathInput,
 		outputPathSnakeInput,
 		outputLegacyInput,
@@ -104,7 +104,7 @@ func resolveWorkflowOutputPathAliases(outputPathInput, outputPathSnakeInput, out
 		return "", coreerr.E("build.runReleaseWorkflow", "workflow output aliases specify different locations", nil)
 	}
 
-	return resolvedOutputPath, nil
+	return resolvedWorkflowOutputPath, nil
 }
 
 // runReleaseWorkflowInDir writes the embedded release workflow into projectDir.
