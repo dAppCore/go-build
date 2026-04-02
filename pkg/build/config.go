@@ -133,13 +133,13 @@ func LoadConfigAtPath(fs io.Medium, configPath string) (*BuildConfig, error) {
 		if !fs.Exists(configPath) {
 			return DefaultConfig(), nil
 		}
-		return nil, coreerr.E("build.LoadConfig", "failed to read config file", err)
+		return nil, coreerr.E("build.LoadConfigAtPath", "failed to read config file", err)
 	}
 
 	cfg := DefaultConfig()
 	data := []byte(content)
 	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, coreerr.E("build.LoadConfig", "failed to parse config file", err)
+		return nil, coreerr.E("build.LoadConfigAtPath", "failed to parse config file", err)
 	}
 
 	// Apply defaults for any missing fields
