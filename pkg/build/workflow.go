@@ -114,7 +114,7 @@ func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
 	return outputPath
 }
 
-// ResolveReleaseWorkflowInputPath resolves the workflow path from the CLI/API
+// ResolveReleaseWorkflowInputPath resolves a workflow target from the CLI/API
 // `path` field and its `output` alias.
 //
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "", "")                      // /tmp/project/.github/workflows/release.yml
@@ -173,9 +173,9 @@ func ResolveReleaseWorkflowInputPathAliases(filesystem io_interface.Medium, proj
 
 // ResolveReleaseWorkflowOutputPath resolves the core workflow output aliases.
 //
-// path, err := build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")
-// path, err := build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")
-// path, err := build.ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")
+// outputPath, err := build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")
+// outputPath, err := build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")
+// outputPath, err := build.ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")
 //
 // build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")        // "ci/release.yml"
 // build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")        // "ci/release.yml"
@@ -448,7 +448,7 @@ func resolveReleaseWorkflowInputPath(projectDir, input string, medium io_interfa
 
 // resolveReleaseWorkflowInputPathAliasSet resolves a workflow path from a set
 // of aliases and rejects conflicting values.
-func resolveReleaseWorkflowInputPathAliasSet(filesystem io_interface.Medium, projectDir, primaryLabel, primaryInput, secondaryInput, tertiaryInput, quaternaryInput, errorName string) (string, error) {
+func resolveReleaseWorkflowInputPathAliasSet(filesystem io_interface.Medium, projectDir, fieldLabel, primaryInput, secondaryInput, tertiaryInput, quaternaryInput, errorName string) (string, error) {
 	values := []string{
 		cleanWorkflowInput(primaryInput),
 		cleanWorkflowInput(secondaryInput),
@@ -469,7 +469,7 @@ func resolveReleaseWorkflowInputPathAliasSet(filesystem io_interface.Medium, pro
 		}
 
 		if resolved != candidate {
-			return "", coreerr.E(errorName, primaryLabel+" aliases specify different locations", nil)
+			return "", coreerr.E(errorName, fieldLabel+" aliases specify different locations", nil)
 		}
 	}
 

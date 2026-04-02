@@ -50,7 +50,7 @@ type releaseWorkflowRequestInputs struct {
 // resolveReleaseWorkflowTargetPath merges the workflow path aliases and the
 // workflow output aliases into one final target path.
 //
-// inputs := releaseWorkflowRequestInputs{pathInput: "ci/release.yml"}
+// inputs := releaseWorkflowRequestInputs{pathInput: "ci/release.yml", outputPathInput: "ci/release.yml"}
 // path, err := inputs.resolveReleaseWorkflowTargetPath("/tmp/project")
 func (inputs releaseWorkflowRequestInputs) resolveReleaseWorkflowTargetPath(projectDir string) (string, error) {
 	resolvedWorkflowPath, err := resolveReleaseWorkflowInputPathAliases(
