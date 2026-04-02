@@ -214,6 +214,11 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputPathSnakeFlag.Usage)
 		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputFlag.Usage)
 		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputSnakeFlag.Usage)
+
+		helpText, err := io.Local.Read("/workspace/locales/en.json")
+		require.NoError(t, err)
+		assert.Contains(t, helpText, "--workflow-output/")
+		assert.Contains(t, helpText, "--workflow_output/")
 	})
 
 	t.Run("writes to a custom relative path", func(t *testing.T) {
