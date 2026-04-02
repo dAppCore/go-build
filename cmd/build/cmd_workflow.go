@@ -15,12 +15,12 @@ import (
 )
 
 var (
-	releaseWorkflowPathInput                    string
-	releaseWorkflowOutputPathInput              string
-	releaseWorkflowOutputPathSnakeInput         string
-	releaseWorkflowOutputLegacyInput            string
-	releaseWorkflowWorkflowOutputPathInput      string
-	releaseWorkflowWorkflowOutputPathSnakeInput string
+	releaseWorkflowPathInput                 string
+	releaseWorkflowOutputPathInput           string
+	releaseWorkflowOutputPathSnakeInput      string
+	releaseWorkflowOutputLegacyInput         string
+	releaseWorkflowOutputPathAliasInput      string
+	releaseWorkflowOutputPathAliasSnakeInput string
 )
 
 var releaseWorkflowCmd = &cli.Command{
@@ -32,8 +32,8 @@ var releaseWorkflowCmd = &cli.Command{
 			releaseWorkflowOutputPathInput,
 			releaseWorkflowOutputPathSnakeInput,
 			releaseWorkflowOutputLegacyInput,
-			releaseWorkflowWorkflowOutputPathInput,
-			releaseWorkflowWorkflowOutputPathSnakeInput,
+			releaseWorkflowOutputPathAliasInput,
+			releaseWorkflowOutputPathAliasSnakeInput,
 		)
 	},
 }
@@ -48,8 +48,8 @@ func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathInput, "output-path", "", i18n.T("cmd.build.workflow.flag.output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathSnakeInput, "output_path", "", i18n.T("cmd.build.workflow.flag.output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputLegacyInput, "output", "", i18n.T("cmd.build.workflow.flag.output"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowOutputPathInput, "workflow-output-path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowOutputPathSnakeInput, "workflow_output_path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasInput, "workflow-output-path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasSnakeInput, "workflow_output_path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 }
 
 // buildCmd := &cli.Command{Use: "build"}
@@ -70,7 +70,7 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // runReleaseWorkflow(ctx, "", "", "", "ci/release.yml", "", "") // uses the legacy output alias
 // runReleaseWorkflow(ctx, "", "", "", "", "ci/release.yml", "") // uses the workflow-output-path alias
 // runReleaseWorkflow(ctx, "", "", "", "", "ci/release.yml", "ci/release.yml") // uses the snake_case workflow-output-path alias
-func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputLegacyInput, workflowWorkflowOutputPathInput, workflowWorkflowOutputPathSnakeInput string) error {
+func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPathInput, workflowOutputPathSnakeInput, workflowOutputLegacyInput, workflowOutputPathAliasInput, workflowOutputPathAliasSnakeInput string) error {
 	resolvedOutputPathInput, err := build.ResolveReleaseWorkflowOutputPath(
 		workflowOutputPathInput,
 		workflowOutputPathSnakeInput,
@@ -80,10 +80,10 @@ func runReleaseWorkflow(_ context.Context, workflowPathInput, workflowOutputPath
 		return err
 	}
 
-	resolvedOutputPathInput, err = resolveWorkflowOutputAliases(
+	resolvedOutputPathInput, err = resolveWorkflowOutputPathAliases(
 		resolvedOutputPathInput,
-		workflowWorkflowOutputPathInput,
-		workflowWorkflowOutputPathSnakeInput,
+		workflowOutputPathAliasInput,
+		workflowOutputPathAliasSnakeInput,
 		"build.runReleaseWorkflow",
 	)
 	if err != nil {
@@ -116,9 +116,9 @@ func runReleaseWorkflowInDir(projectDir, workflowPathInput, workflowOutputPathIn
 	return build.WriteReleaseWorkflow(io.Local, resolvedPath)
 }
 
-// resolveWorkflowOutputAliases merges the preferred output path with extra
+// resolveWorkflowOutputPathAliases merges the preferred output path with extra
 // aliases while rejecting conflicting values.
-func resolveWorkflowOutputAliases(primaryInput, workflowOutputPathInput, workflowOutputPathSnakeInput, errorName string) (string, error) {
+func resolveWorkflowOutputPathAliases(primaryInput, workflowOutputPathInput, workflowOutputPathSnakeInput, errorName string) (string, error) {
 	primaryInput = normalizeWorkflowOutputAlias(primaryInput)
 	workflowOutputPathInput = normalizeWorkflowOutputAlias(workflowOutputPathInput)
 	workflowOutputPathSnakeInput = normalizeWorkflowOutputAlias(workflowOutputPathSnakeInput)
