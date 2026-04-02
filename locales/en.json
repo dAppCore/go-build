@@ -113,7 +113,7 @@
       },
       "workflow": {
         "short": "Generate the release workflow",
-        "long": "Write the embedded GitHub Actions release workflow into .github/workflows/release.yml, or pass --path/--workflow-path/--workflow_path/--output-path/--output_path/--output/--workflow-output-path/--workflow_output_path for a custom location.",
+        "long": "Write the embedded GitHub Actions release workflow into .github/workflows/release.yml, or pass --path/--workflow-path/--workflow_path/--output-path/--output_path/--output/--workflowOutputPath/--workflow-output-path/--workflow_output_path for a custom location.",
         "flag": {
           "path": "Preferred workflow path input.",
           "workflow_path": "Predictable workflow path alias.",
