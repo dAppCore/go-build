@@ -65,7 +65,7 @@ func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_HyphenatedGood(t *test
 func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
-	path, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "", "", "")
+	path, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "", "")
 	require.NoError(t, err)
 	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
 }
@@ -73,7 +73,7 @@ func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Bad(t *testing.T) {
 	projectDir := t.TempDir()
 
-	_, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "ops/release.yml", "", "")
+	_, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "ops/release.yml", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "workflow path aliases specify different locations")
 }
