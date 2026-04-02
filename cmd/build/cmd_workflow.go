@@ -24,20 +24,32 @@ var (
 	releaseWorkflowWorkflowOutputPathSnakeInput  string
 )
 
+// releaseWorkflowInputs keeps the workflow alias inputs grouped by meaning
+// rather than by call-site position.
+type releaseWorkflowInputs struct {
+	pathInput                     string
+	workflowPathHyphenInput       string
+	workflowPathSnakeInput        string
+	outputPathHyphenInput         string
+	outputPathSnakeInput          string
+	outputLegacyInput             string
+	workflowOutputPathHyphenInput string
+	workflowOutputPathSnakeInput  string
+}
+
 var releaseWorkflowCmd = &cli.Command{
 	Use: "workflow",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runReleaseWorkflow(
-			cmd.Context(),
-			releaseWorkflowPathInput,
-			releaseWorkflowWorkflowPathHyphenInput,
-			releaseWorkflowWorkflowPathSnakeInput,
-			releaseWorkflowOutputPathHyphenInput,
-			releaseWorkflowOutputPathSnakeInput,
-			releaseWorkflowOutputLegacyInput,
-			releaseWorkflowWorkflowOutputPathHyphenInput,
-			releaseWorkflowWorkflowOutputPathSnakeInput,
-		)
+		return runReleaseWorkflow(cmd.Context(), releaseWorkflowInputs{
+			pathInput:                     releaseWorkflowPathInput,
+			workflowPathHyphenInput:       releaseWorkflowWorkflowPathHyphenInput,
+			workflowPathSnakeInput:        releaseWorkflowWorkflowPathSnakeInput,
+			outputPathHyphenInput:         releaseWorkflowOutputPathHyphenInput,
+			outputPathSnakeInput:          releaseWorkflowOutputPathSnakeInput,
+			outputLegacyInput:             releaseWorkflowOutputLegacyInput,
+			workflowOutputPathHyphenInput: releaseWorkflowWorkflowOutputPathHyphenInput,
+			workflowOutputPathSnakeInput:  releaseWorkflowWorkflowOutputPathSnakeInput,
+		})
 	},
 }
 
@@ -68,11 +80,11 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // runReleaseWorkflow writes the embedded release workflow into the current project directory.
 //
 // buildcmd.AddWorkflowCommand(buildCmd)
-// runReleaseWorkflow(ctx, "", "", "", "", "", "", "", "")                 // writes to .github/workflows/release.yml
-// runReleaseWorkflow(ctx, "ci/release.yml", "", "", "", "", "", "", "")   // writes to ./ci/release.yml under the project root
-// runReleaseWorkflow(ctx, "", "ci/release.yml", "", "", "", "", "", "")   // uses the workflow-path alias
-// runReleaseWorkflow(ctx, "", "", "ci/release.yml", "", "", "", "", "")   // uses the workflow_path alias
-func runReleaseWorkflow(_ context.Context, pathInput, workflowPathHyphenInput, workflowPathSnakeInput, outputPathHyphenInput, outputPathSnakeInput, outputLegacyInput, workflowOutputPathHyphenInput, workflowOutputPathSnakeInput string) error {
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{})                                         // writes to .github/workflows/release.yml
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{pathInput: "ci/release.yml"})              // writes to ./ci/release.yml under the project root
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathHyphenInput: "ci/release.yml"}) // uses the workflow-path alias
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathSnakeInput: "ci/release.yml"})  // uses the workflow_path alias
+func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
 	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("build.runReleaseWorkflow", "failed to get working directory", err)
@@ -80,9 +92,9 @@ func runReleaseWorkflow(_ context.Context, pathInput, workflowPathHyphenInput, w
 
 	resolvedWorkflowPath, err := resolveReleaseWorkflowInputPathAliases(
 		projectDir,
-		pathInput,
-		workflowPathHyphenInput,
-		workflowPathSnakeInput,
+		inputs.pathInput,
+		inputs.workflowPathHyphenInput,
+		inputs.workflowPathSnakeInput,
 	)
 	if err != nil {
 		return err
@@ -90,11 +102,11 @@ func runReleaseWorkflow(_ context.Context, pathInput, workflowPathHyphenInput, w
 
 	resolvedWorkflowOutputPath, err := resolveReleaseWorkflowOutputPathAliases(
 		projectDir,
-		outputPathHyphenInput,
-		outputPathSnakeInput,
-		outputLegacyInput,
-		workflowOutputPathHyphenInput,
-		workflowOutputPathSnakeInput,
+		inputs.outputPathHyphenInput,
+		inputs.outputPathSnakeInput,
+		inputs.outputLegacyInput,
+		inputs.workflowOutputPathHyphenInput,
+		inputs.workflowOutputPathSnakeInput,
 	)
 	if err != nil {
 		return err
