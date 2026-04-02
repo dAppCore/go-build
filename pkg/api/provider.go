@@ -573,6 +573,7 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 // ReleaseWorkflowRequest captures the workflow-generation inputs exposed by the API.
 //
 // req := ReleaseWorkflowRequest{Path: "ci/release.yml"}
+// req := ReleaseWorkflowRequest{WorkflowOutputPath: "ops/release.yml"}
 type ReleaseWorkflowRequest struct {
 	Path                     string `json:"path"`
 	WorkflowPath             string `json:"workflowPath"`
@@ -587,8 +588,11 @@ type ReleaseWorkflowRequest struct {
 	WorkflowOutputPathHyphen string `json:"workflow-output-path"`
 }
 
-// resolvedOutputPath resolves the workflow output aliases with the same
+// resolvedWorkflowPath resolves the workflow path aliases with the same
 // conflict rules as the CLI.
+//
+// req := ReleaseWorkflowRequest{WorkflowPath: "ci/release.yml"}
+// workflowPath, err := req.resolvedWorkflowPath("/tmp/project", io.Local)
 func (r ReleaseWorkflowRequest) resolvedWorkflowPath(dir string, medium io.Medium) (string, error) {
 	workflowPath, err := build.ResolveReleaseWorkflowInputPathAliases(
 		medium,
@@ -607,6 +611,9 @@ func (r ReleaseWorkflowRequest) resolvedWorkflowPath(dir string, medium io.Mediu
 
 // resolvedOutputPath resolves the workflow output aliases with the same
 // conflict rules as the CLI.
+//
+// req := ReleaseWorkflowRequest{WorkflowOutputPath: "ci/release.yml"}
+// outputPath, err := req.resolvedOutputPath("/tmp/project")
 func (r ReleaseWorkflowRequest) resolvedOutputPath(dir string) (string, error) {
 	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProject(
 		dir,

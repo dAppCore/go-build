@@ -153,16 +153,20 @@ func ResolveReleaseWorkflowInputPathAliases(filesystem io_interface.Medium, proj
 
 // ResolveReleaseWorkflowOutputPath resolves the core workflow output aliases.
 //
+// path, err := build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")
+// path, err := build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")
+// path, err := build.ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")
+//
 // build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")        // "ci/release.yml"
 // build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")        // "ci/release.yml"
 // build.ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")        // "ci/release.yml"
 // build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops.yml", "") // error
-func ResolveReleaseWorkflowOutputPath(outputPathInput, outputPathSnakeInput, outputLegacyInput string) (string, error) {
+func ResolveReleaseWorkflowOutputPath(outputPathInput, outputPathSnakeInput, legacyOutputInput string) (string, error) {
 	return ResolveReleaseWorkflowOutputPathAliases(
 		outputPathInput,
 		"",
 		outputPathSnakeInput,
-		outputLegacyInput,
+		legacyOutputInput,
 		"",
 		"",
 		"",
@@ -180,7 +184,7 @@ func ResolveReleaseWorkflowOutputPathAliases(
 	outputPathInput,
 	outputPathHyphenInput,
 	outputPathSnakeInput,
-	outputLegacyInput,
+	legacyOutputInput,
 	workflowOutputPathInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput string,
@@ -189,7 +193,7 @@ func ResolveReleaseWorkflowOutputPathAliases(
 		outputPathInput,
 		outputPathHyphenInput,
 		outputPathSnakeInput,
-		outputLegacyInput,
+		legacyOutputInput,
 		workflowOutputPathInput,
 		workflowOutputPathSnakeInput,
 		workflowOutputPathHyphenInput,
@@ -207,7 +211,7 @@ func ResolveReleaseWorkflowOutputPathAliasesInProject(
 	outputPathInput,
 	outputPathHyphenInput,
 	outputPathSnakeInput,
-	outputLegacyInput,
+	legacyOutputInput,
 	workflowOutputPathInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput string,
@@ -217,7 +221,7 @@ func ResolveReleaseWorkflowOutputPathAliasesInProject(
 		outputPathInput,
 		outputPathHyphenInput,
 		outputPathSnakeInput,
-		outputLegacyInput,
+		legacyOutputInput,
 		workflowOutputPathInput,
 		workflowOutputPathSnakeInput,
 		workflowOutputPathHyphenInput,
@@ -259,7 +263,7 @@ func resolveReleaseWorkflowOutputAliasSet(
 	outputPathInput,
 	outputPathHyphenInput,
 	outputPathSnakeInput,
-	outputLegacyInput,
+	legacyOutputInput,
 	workflowOutputPathInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput,
@@ -269,7 +273,7 @@ func resolveReleaseWorkflowOutputAliasSet(
 		normalizeWorkflowOutputAlias(outputPathInput),
 		normalizeWorkflowOutputAlias(outputPathHyphenInput),
 		normalizeWorkflowOutputAlias(outputPathSnakeInput),
-		normalizeWorkflowOutputAlias(outputLegacyInput),
+		normalizeWorkflowOutputAlias(legacyOutputInput),
 		normalizeWorkflowOutputAlias(workflowOutputPathInput),
 		normalizeWorkflowOutputAlias(workflowOutputPathSnakeInput),
 		normalizeWorkflowOutputAlias(workflowOutputPathHyphenInput),
@@ -299,7 +303,7 @@ func resolveReleaseWorkflowOutputAliasSetInProject(
 	outputPathInput,
 	outputPathHyphenInput,
 	outputPathSnakeInput,
-	outputLegacyInput,
+	legacyOutputInput,
 	workflowOutputPathInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput,
@@ -309,7 +313,7 @@ func resolveReleaseWorkflowOutputAliasSetInProject(
 		cleanWorkflowInput(outputPathInput),
 		cleanWorkflowInput(outputPathHyphenInput),
 		cleanWorkflowInput(outputPathSnakeInput),
-		cleanWorkflowInput(outputLegacyInput),
+		cleanWorkflowInput(legacyOutputInput),
 		cleanWorkflowInput(workflowOutputPathInput),
 		cleanWorkflowInput(workflowOutputPathSnakeInput),
 		cleanWorkflowInput(workflowOutputPathHyphenInput),
