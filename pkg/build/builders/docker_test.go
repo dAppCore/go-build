@@ -209,6 +209,47 @@ func TestDocker_DockerBuilderBuild_Good(t *testing.T) {
 	assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
 }
 
+func TestDocker_DockerBuilderBuild_ResolvesRelativeDockerfile_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeDockerToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	dockerfilePath := ax.Join(projectDir, "dockerfiles", "Dockerfile.app")
+	require.NoError(t, ax.MkdirAll(ax.Dir(dockerfilePath), 0o755))
+	require.NoError(t, ax.WriteFile(dockerfilePath, []byte("FROM alpine:latest\n"), 0o644))
+
+	outputDir := t.TempDir()
+	logDir := t.TempDir()
+	logPath := ax.Join(logDir, "docker.log")
+	t.Setenv("DOCKER_BUILD_LOG_FILE", logPath)
+
+	builder := NewDockerBuilder()
+	cfg := &build.Config{
+		FS:         coreio.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Dockerfile: "dockerfiles/Dockerfile.app",
+		Image:      "owner/repo",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.FileExists(t, ax.Join(outputDir, "owner_repo.tar"))
+
+	logContent, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	log := string(logContent)
+
+	assert.Contains(t, log, "-f")
+	assert.Contains(t, log, dockerfilePath)
+}
+
 func TestDocker_DockerBuilderBuild_Containerfile_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

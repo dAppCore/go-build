@@ -60,6 +60,8 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	dockerfile := cfg.Dockerfile
 	if dockerfile == "" {
 		dockerfile = build.ResolveDockerfilePath(cfg.FS, cfg.ProjectDir)
+	} else if !ax.IsAbs(dockerfile) {
+		dockerfile = ax.Join(cfg.ProjectDir, dockerfile)
 	}
 
 	// Validate Dockerfile exists
