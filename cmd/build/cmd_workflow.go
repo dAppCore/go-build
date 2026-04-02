@@ -14,17 +14,19 @@ import (
 )
 
 var (
-	releaseWorkflowPathInput                  string
-	releaseWorkflowPathAliasInput             string
-	releaseWorkflowPathHyphenAliasInput       string
-	releaseWorkflowPathSnakeAliasInput        string
-	releaseWorkflowOutputPathHyphenInput      string
-	releaseWorkflowOutputPathSnakeInput       string
-	releaseWorkflowOutputPathInput            string
-	releaseWorkflowOutputLegacyInput          string
-	releaseWorkflowOutputPathAliasInput       string
-	releaseWorkflowOutputPathHyphenAliasInput string
-	releaseWorkflowOutputPathSnakeAliasInput  string
+	releaseWorkflowPathInput                      string
+	releaseWorkflowPathAliasInput                 string
+	releaseWorkflowPathHyphenAliasInput           string
+	releaseWorkflowPathSnakeAliasInput            string
+	releaseWorkflowOutputPathHyphenInput          string
+	releaseWorkflowOutputPathSnakeInput           string
+	releaseWorkflowOutputPathInput                string
+	releaseWorkflowOutputLegacyInput              string
+	releaseWorkflowOutputPathAliasInput           string
+	releaseWorkflowOutputPathHyphenAliasInput     string
+	releaseWorkflowOutputPathSnakeAliasInput      string
+	releaseWorkflowWorkflowOutputHyphenAliasInput string
+	releaseWorkflowWorkflowOutputSnakeAliasInput  string
 )
 
 // releaseWorkflowInputs keeps the workflow alias inputs grouped by meaning
@@ -39,6 +41,8 @@ type releaseWorkflowInputs struct {
 	outputPathSnakeInput          string
 	legacyOutputInput             string
 	workflowOutputPathInput       string
+	workflowOutputHyphenInput     string
+	workflowOutputSnakeInput      string
 	workflowOutputPathHyphenInput string
 	workflowOutputPathSnakeInput  string
 }
@@ -67,8 +71,10 @@ func (inputs releaseWorkflowInputs) resolvedWorkflowTargetPath(projectDir string
 		inputs.outputPathSnakeInput,
 		inputs.legacyOutputInput,
 		inputs.workflowOutputPathInput,
-		inputs.workflowOutputPathHyphenInput,
+		inputs.workflowOutputSnakeInput,
+		inputs.workflowOutputHyphenInput,
 		inputs.workflowOutputPathSnakeInput,
+		inputs.workflowOutputPathHyphenInput,
 	)
 	if err != nil {
 		return "", err
@@ -90,6 +96,8 @@ var releaseWorkflowCmd = &cli.Command{
 			outputPathSnakeInput:          releaseWorkflowOutputPathSnakeInput,
 			legacyOutputInput:             releaseWorkflowOutputLegacyInput,
 			workflowOutputPathInput:       releaseWorkflowOutputPathAliasInput,
+			workflowOutputHyphenInput:     releaseWorkflowWorkflowOutputHyphenAliasInput,
+			workflowOutputSnakeInput:      releaseWorkflowWorkflowOutputSnakeAliasInput,
 			workflowOutputPathHyphenInput: releaseWorkflowOutputPathHyphenAliasInput,
 			workflowOutputPathSnakeInput:  releaseWorkflowOutputPathSnakeAliasInput,
 		})
@@ -113,8 +121,8 @@ func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasInput, "workflowOutputPath", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathHyphenAliasInput, "workflow-output-path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathSnakeAliasInput, "workflow_output_path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasInput, "workflow-output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasInput, "workflow_output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowOutputHyphenAliasInput, "workflow-output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowOutputSnakeAliasInput, "workflow_output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 }
 
 // buildCmd := &cli.Command{Use: "build"}
@@ -135,8 +143,8 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{outputPathInput: "ci/release.yml"})                   // uses the outputPath alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{legacyOutputInput: "ci/release.yml"})                 // uses the legacy output alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathInput: "ci/release.yml"})           // uses the workflowOutputPath alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathInput: "ci/release.yml"})           // uses the workflow-output alias
-// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathInput: "ci/release.yml"})           // uses the workflow_output alias
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputHyphenInput: "ci/release.yml"})         // uses the workflow-output alias
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputSnakeInput: "ci/release.yml"})          // uses the workflow_output alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathSnakeInput: "ci/release.yml"})       // uses the workflow_output_path alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathHyphenInput: "ci/release.yml"})      // uses the workflow-output-path alias
 func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
@@ -177,7 +185,7 @@ func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathI
 
 // resolveReleaseWorkflowOutputPathAliases keeps the CLI error wording stable while
 // delegating the conflict detection to the shared build helper.
-func resolveReleaseWorkflowOutputPathAliases(projectDir, outputPathInput, outputPathHyphenInput, outputPathSnakeInput, legacyOutputInput, workflowOutputPathInput, workflowOutputPathHyphenInput, workflowOutputPathSnakeInput string) (string, error) {
+func resolveReleaseWorkflowOutputPathAliases(projectDir, outputPathInput, outputPathHyphenInput, outputPathSnakeInput, legacyOutputInput, workflowOutputPathInput, workflowOutputSnakeInput, workflowOutputHyphenInput, workflowOutputPathSnakeInput, workflowOutputPathHyphenInput string) (string, error) {
 	resolvedWorkflowOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 		io.Local,
 		projectDir,
@@ -186,6 +194,8 @@ func resolveReleaseWorkflowOutputPathAliases(projectDir, outputPathInput, output
 		outputPathSnakeInput,
 		legacyOutputInput,
 		workflowOutputPathInput,
+		workflowOutputSnakeInput,
+		workflowOutputHyphenInput,
 		workflowOutputPathSnakeInput,
 		workflowOutputPathHyphenInput,
 	)

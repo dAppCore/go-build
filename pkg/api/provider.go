@@ -199,6 +199,14 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 						"type":        "string",
 						"description": "Predictable alias for outputPath, relative to the project directory or absolute.",
 					},
+					"workflow_output": map[string]any{
+						"type":        "string",
+						"description": "Snake_case alias for workflowOutputPath.",
+					},
+					"workflow-output": map[string]any{
+						"type":        "string",
+						"description": "Hyphenated alias for workflowOutputPath.",
+					},
 					"workflow_output_path": map[string]any{
 						"type":        "string",
 						"description": "Snake_case alias for workflowOutputPath.",
@@ -584,6 +592,8 @@ type ReleaseWorkflowRequest struct {
 	OutputPathSnake          string `json:"output_path"`
 	LegacyOutputPath         string `json:"output"`
 	WorkflowOutputPath       string `json:"workflowOutputPath"`
+	WorkflowOutputSnake      string `json:"workflow_output"`
+	WorkflowOutputHyphen     string `json:"workflow-output"`
 	WorkflowOutputPathSnake  string `json:"workflow_output_path"`
 	WorkflowOutputPathHyphen string `json:"workflow-output-path"`
 }
@@ -642,6 +652,8 @@ func (r ReleaseWorkflowRequest) resolvedOutputPath(dir string, medium io.Medium)
 		r.OutputPathSnake,
 		r.LegacyOutputPath,
 		r.WorkflowOutputPath,
+		r.WorkflowOutputSnake,
+		r.WorkflowOutputHyphen,
 		r.WorkflowOutputPathSnake,
 		r.WorkflowOutputPathHyphen,
 	)

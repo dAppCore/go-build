@@ -66,6 +66,8 @@ export class BuildApi {
     output_path?: string;
     output?: string;
     workflowOutputPath?: string;
+    workflow_output?: string;
+    'workflow-output'?: string;
     workflow_output_path?: string;
     'workflow-output-path'?: string;
   } = {}) {

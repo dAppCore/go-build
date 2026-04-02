@@ -327,6 +327,8 @@ export class BuildRelease extends LitElement {
         output_path?: string;
         output?: string;
         workflowOutputPath?: string;
+        workflow_output?: string;
+        'workflow-output'?: string;
         workflow_output_path?: string;
         'workflow-output-path'?: string;
       } = {};
@@ -344,6 +346,8 @@ export class BuildRelease extends LitElement {
         request.output_path = outputPath;
         request.output = outputPath;
         request.workflowOutputPath = outputPath;
+        request.workflow_output = outputPath;
+        request['workflow-output'] = outputPath;
         request.workflow_output_path = outputPath;
         request['workflow-output-path'] = outputPath;
       }

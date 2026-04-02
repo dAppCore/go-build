@@ -190,22 +190,26 @@ func ResolveReleaseWorkflowOutputPath(outputPathInput, outputPathSnakeInput, leg
 		"",
 		"",
 		"",
+		"",
+		"",
 	)
 }
 
 // ResolveReleaseWorkflowOutputPathAliases resolves every public workflow output
 // alias across the CLI, API, and UI layers.
 //
-// build.ResolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "", "", "", "") // "ci/release.yml"
-// build.ResolveReleaseWorkflowOutputPathAliases("", "ci/release.yml", "", "", "", "", "")  // "ci/release.yml"
-// build.ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "ci/release.yml", "", "")  // "ci/release.yml"
-// build.ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "", "ci/release.yml")  // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "", "", "", "", "", "") // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliases("", "ci/release.yml", "", "", "", "", "", "", "")  // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "ci/release.yml", "", "", "", "")  // "ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "ci/release.yml", "", "", "")  // "ci/release.yml"
 func ResolveReleaseWorkflowOutputPathAliases(
 	outputPathInput,
 	outputPathHyphenInput,
 	outputPathSnakeInput,
 	legacyOutputInput,
 	workflowOutputPathInput,
+	workflowOutputSnakeInput,
+	workflowOutputHyphenInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput string,
 ) (string, error) {
@@ -215,6 +219,8 @@ func ResolveReleaseWorkflowOutputPathAliases(
 		outputPathSnakeInput,
 		legacyOutputInput,
 		workflowOutputPathInput,
+		workflowOutputSnakeInput,
+		workflowOutputHyphenInput,
 		workflowOutputPathSnakeInput,
 		workflowOutputPathHyphenInput,
 		"build.ResolveReleaseWorkflowOutputPathAliases",
@@ -224,8 +230,8 @@ func ResolveReleaseWorkflowOutputPathAliases(
 // ResolveReleaseWorkflowOutputPathAliasesInProject resolves the workflow output
 // aliases relative to a project directory before checking for conflicts.
 //
-// build.ResolveReleaseWorkflowOutputPathAliasesInProject("/tmp/project", "ci/release.yml", "", "", "", "", "", "")               // "/tmp/project/ci/release.yml"
-// build.ResolveReleaseWorkflowOutputPathAliasesInProject("/tmp/project", "", "", "", "", "/tmp/project/ci/release.yml", "", "") // "/tmp/project/ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliasesInProject("/tmp/project", "ci/release.yml", "", "", "", "", "", "", "")               // "/tmp/project/ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliasesInProject("/tmp/project", "", "", "", "", "/tmp/project/ci/release.yml", "", "", "") // "/tmp/project/ci/release.yml"
 func ResolveReleaseWorkflowOutputPathAliasesInProject(
 	projectDir,
 	outputPathInput,
@@ -233,6 +239,8 @@ func ResolveReleaseWorkflowOutputPathAliasesInProject(
 	outputPathSnakeInput,
 	legacyOutputInput,
 	workflowOutputPathInput,
+	workflowOutputSnakeInput,
+	workflowOutputHyphenInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput string,
 ) (string, error) {
@@ -244,6 +252,8 @@ func ResolveReleaseWorkflowOutputPathAliasesInProject(
 		outputPathSnakeInput,
 		legacyOutputInput,
 		workflowOutputPathInput,
+		workflowOutputSnakeInput,
+		workflowOutputHyphenInput,
 		workflowOutputPathSnakeInput,
 		workflowOutputPathHyphenInput,
 	)
@@ -254,7 +264,7 @@ func ResolveReleaseWorkflowOutputPathAliasesInProject(
 // provided filesystem medium to treat existing directories as workflow
 // directories even when callers omit a trailing separator.
 //
-// build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.Local, "/tmp/project", "", "", "", "", "/tmp/project/ci", "", "") // "/tmp/project/ci/release.yml"
+// build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.Local, "/tmp/project", "", "", "", "", "/tmp/project/ci", "", "", "") // "/tmp/project/ci/release.yml"
 func ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 	filesystem io_interface.Medium,
 	projectDir,
@@ -263,6 +273,8 @@ func ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 	outputPathSnakeInput,
 	legacyOutputInput,
 	workflowOutputPathInput,
+	workflowOutputSnakeInput,
+	workflowOutputHyphenInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput string,
 ) (string, error) {
@@ -274,6 +286,8 @@ func ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 		outputPathSnakeInput,
 		legacyOutputInput,
 		workflowOutputPathInput,
+		workflowOutputSnakeInput,
+		workflowOutputHyphenInput,
 		workflowOutputPathSnakeInput,
 		workflowOutputPathHyphenInput,
 		"build.ResolveReleaseWorkflowOutputPathAliasesInProject",
@@ -316,6 +330,8 @@ func resolveReleaseWorkflowOutputAliasSet(
 	outputPathSnakeInput,
 	legacyOutputInput,
 	workflowOutputPathInput,
+	workflowOutputSnakeInput,
+	workflowOutputHyphenInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput,
 	errorName string,
@@ -326,6 +342,8 @@ func resolveReleaseWorkflowOutputAliasSet(
 		normalizeWorkflowOutputAlias(outputPathSnakeInput),
 		normalizeWorkflowOutputAlias(legacyOutputInput),
 		normalizeWorkflowOutputAlias(workflowOutputPathInput),
+		normalizeWorkflowOutputAlias(workflowOutputSnakeInput),
+		normalizeWorkflowOutputAlias(workflowOutputHyphenInput),
 		normalizeWorkflowOutputAlias(workflowOutputPathSnakeInput),
 		normalizeWorkflowOutputAlias(workflowOutputPathHyphenInput),
 	}
@@ -357,6 +375,8 @@ func resolveReleaseWorkflowOutputAliasSetInProject(
 	outputPathSnakeInput,
 	legacyOutputInput,
 	workflowOutputPathInput,
+	workflowOutputSnakeInput,
+	workflowOutputHyphenInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput,
 	errorName string,
@@ -367,6 +387,8 @@ func resolveReleaseWorkflowOutputAliasSetInProject(
 		cleanWorkflowInput(outputPathSnakeInput),
 		cleanWorkflowInput(legacyOutputInput),
 		cleanWorkflowInput(workflowOutputPathInput),
+		cleanWorkflowInput(workflowOutputSnakeInput),
+		cleanWorkflowInput(workflowOutputHyphenInput),
 		cleanWorkflowInput(workflowOutputPathSnakeInput),
 		cleanWorkflowInput(workflowOutputPathHyphenInput),
 	}
