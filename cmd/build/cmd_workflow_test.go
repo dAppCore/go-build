@@ -159,6 +159,8 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		workflowOutputPathCamelFlag := releaseWorkflowCmd.Flags().Lookup("workflowOutputPath")
 		workflowOutputPathFlag := releaseWorkflowCmd.Flags().Lookup("workflow-output-path")
 		workflowOutputPathSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_output_path")
+		workflowOutputFlag := releaseWorkflowCmd.Flags().Lookup("workflow-output")
+		workflowOutputSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_output")
 
 		assert.NotNil(t, pathFlag)
 		assert.NotNil(t, workflowPathCamelFlag)
@@ -181,6 +183,10 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.NotNil(t, workflowOutputPathCamelFlag)
 		assert.NotEmpty(t, workflowOutputPathFlag.Usage)
 		assert.NotEmpty(t, workflowOutputPathSnakeFlag.Usage)
+		assert.NotNil(t, workflowOutputFlag)
+		assert.NotNil(t, workflowOutputSnakeFlag)
+		assert.NotEmpty(t, workflowOutputFlag.Usage)
+		assert.NotEmpty(t, workflowOutputSnakeFlag.Usage)
 		assert.NotEqual(t, pathFlag.Usage, outputFlag.Usage)
 		assert.Equal(t, pathFlag.Usage, workflowPathCamelFlag.Usage)
 		assert.Equal(t, pathFlag.Usage, workflowPathFlag.Usage)
@@ -190,6 +196,8 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.Equal(t, outputPathFlag.Usage, outputPathSnakeFlag.Usage)
 		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputPathCamelFlag.Usage)
 		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputPathSnakeFlag.Usage)
+		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputFlag.Usage)
+		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputSnakeFlag.Usage)
 	})
 
 	t.Run("writes to a custom relative path", func(t *testing.T) {
@@ -293,6 +301,28 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 
 	t.Run("writes to the output_path alias", func(t *testing.T) {
 		customPath := "ci/output_path-release.yml"
+		err := runReleaseWorkflowInDir(projectDir, "", customPath)
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, customPath))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes to the workflow-output alias", func(t *testing.T) {
+		customPath := "ci/workflow-output-release.yml"
+		err := runReleaseWorkflowInDir(projectDir, "", customPath)
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, customPath))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes to the workflow_output alias", func(t *testing.T) {
+		customPath := "ci/workflow_output-release.yml"
 		err := runReleaseWorkflowInDir(projectDir, "", customPath)
 		require.NoError(t, err)
 

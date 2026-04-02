@@ -113,6 +113,8 @@ func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasInput, "workflowOutputPath", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathHyphenAliasInput, "workflow-output-path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathSnakeAliasInput, "workflow_output_path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasInput, "workflow-output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasInput, "workflow_output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
 }
 
 // buildCmd := &cli.Command{Use: "build"}
@@ -133,6 +135,8 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{outputPathInput: "ci/release.yml"})                   // uses the outputPath alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{legacyOutputInput: "ci/release.yml"})                 // uses the legacy output alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathInput: "ci/release.yml"})           // uses the workflowOutputPath alias
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathInput: "ci/release.yml"})           // uses the workflow-output alias
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathInput: "ci/release.yml"})           // uses the workflow_output alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathSnakeInput: "ci/release.yml"})       // uses the workflow_output_path alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathHyphenInput: "ci/release.yml"})      // uses the workflow-output-path alias
 func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
