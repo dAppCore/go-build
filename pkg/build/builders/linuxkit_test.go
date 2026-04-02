@@ -1,6 +1,8 @@
 package builders
 
 import (
+	"context"
+	"os"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -10,6 +12,39 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func setupFakeLinuxKitToolchain(t *testing.T, binDir string) {
+	t.Helper()
+
+	script := `#!/bin/sh
+set -eu
+
+if [ "${1:-}" != "build" ]; then
+	exit 1
+fi
+
+config=""
+dir=""
+name=""
+while [ $# -gt 0 ]; do
+	if [ "$1" = "--dir" ]; then
+		shift
+		dir="${1:-}"
+	elif [ "$1" = "--name" ]; then
+		shift
+		name="${1:-}"
+	fi
+	shift
+done
+
+if [ -n "$dir" ] && [ -n "$name" ]; then
+	mkdir -p "$dir"
+	printf 'linuxkit image\n' > "$dir/$name.iso"
+fi
+`
+
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755))
+}
 
 func TestLinuxKit_LinuxKitBuilderName_Good(t *testing.T) {
 	builder := NewLinuxKitBuilder()
@@ -234,6 +269,40 @@ func TestLinuxKit_LinuxKitBuilderBuildLinuxKitArgs_Good(t *testing.T) {
 		assert.Contains(t, args, "--arch")
 		assert.Contains(t, args, "arm64")
 	})
+}
+
+func TestLinuxKit_LinuxKitBuilderBuild_ResolvesRelativeConfigPath_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeLinuxKitToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	configPath := ax.Join(projectDir, "deploy", "linuxkit.yml")
+	require.NoError(t, ax.MkdirAll(ax.Dir(configPath), 0o755))
+	require.NoError(t, ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644))
+
+	outputDir := t.TempDir()
+	builder := NewLinuxKitBuilder()
+	cfg := &build.Config{
+		FS:             io.Local,
+		ProjectDir:     projectDir,
+		OutputDir:      outputDir,
+		Name:           "sample",
+		LinuxKitConfig: "deploy/linuxkit.yml",
+		Formats:        []string{"iso"},
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	expectedPath := ax.Join(outputDir, "sample-amd64.iso")
+	assert.Equal(t, expectedPath, artifacts[0].Path)
+	assert.FileExists(t, expectedPath)
 }
 
 func TestLinuxKit_LinuxKitBuilderFindArtifact_Good(t *testing.T) {

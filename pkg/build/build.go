@@ -110,7 +110,7 @@ type Config struct {
 	Load       bool              // Whether to load a single-platform image into the local daemon after build
 
 	// LinuxKit-specific config
-	LinuxKitConfig string   // Path to LinuxKit YAML config
+	LinuxKitConfig string   // Path to LinuxKit YAML config, relative to ProjectDir or absolute.
 	Formats        []string // Output formats (iso, qcow2, raw, vmdk)
 }
 

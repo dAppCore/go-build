@@ -93,6 +93,8 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 				}
 			}
 		}
+	} else if !ax.IsAbs(configPath) {
+		configPath = ax.Join(cfg.ProjectDir, configPath)
 	}
 
 	if configPath == "" {
