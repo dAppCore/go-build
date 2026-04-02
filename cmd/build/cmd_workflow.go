@@ -43,6 +43,40 @@ type releaseWorkflowInputs struct {
 	workflowOutputPathSnakeInput  string
 }
 
+// resolvedWorkflowTargetPath resolves both workflow path inputs and workflow
+// output inputs before merging them into the final target path.
+//
+// inputs := releaseWorkflowInputs{pathInput: "ci/release.yml"}
+// path, err := inputs.resolvedWorkflowTargetPath("/tmp/project")
+func (inputs releaseWorkflowInputs) resolvedWorkflowTargetPath(projectDir string) (string, error) {
+	resolvedWorkflowPath, err := resolveReleaseWorkflowInputPathAliases(
+		projectDir,
+		inputs.pathInput,
+		inputs.workflowPathInput,
+		inputs.workflowPathHyphenInput,
+		inputs.workflowPathSnakeInput,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	resolvedWorkflowOutputPath, err := resolveReleaseWorkflowOutputPathAliases(
+		projectDir,
+		inputs.outputPathInput,
+		inputs.outputPathHyphenInput,
+		inputs.outputPathSnakeInput,
+		inputs.legacyOutputInput,
+		inputs.workflowOutputPathInput,
+		inputs.workflowOutputPathHyphenInput,
+		inputs.workflowOutputPathSnakeInput,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, projectDir, resolvedWorkflowPath, resolvedWorkflowOutputPath)
+}
+
 var releaseWorkflowCmd = &cli.Command{
 	Use: "workflow",
 	RunE: func(cmd *cli.Command, args []string) error {
@@ -107,32 +141,16 @@ func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
 		return coreerr.E("build.runReleaseWorkflow", "failed to get working directory", err)
 	}
 
-	resolvedWorkflowPath, err := resolveReleaseWorkflowInputPathAliases(
-		projectDir,
-		inputs.pathInput,
-		inputs.workflowPathInput,
-		inputs.workflowPathHyphenInput,
-		inputs.workflowPathSnakeInput,
-	)
+	resolvedWorkflowPath, err := inputs.resolvedWorkflowTargetPath(projectDir)
 	if err != nil {
 		return err
 	}
 
-	resolvedWorkflowOutputPath, err := resolveReleaseWorkflowOutputPathAliases(
-		projectDir,
-		inputs.outputPathInput,
-		inputs.outputPathHyphenInput,
-		inputs.outputPathSnakeInput,
-		inputs.legacyOutputInput,
-		inputs.workflowOutputPathInput,
-		inputs.workflowOutputPathHyphenInput,
-		inputs.workflowOutputPathSnakeInput,
-	)
-	if err != nil {
-		return err
+	if err := io.Local.EnsureDir(ax.Dir(resolvedWorkflowPath)); err != nil {
+		return coreerr.E("build.runReleaseWorkflowInDir", "failed to create release workflow directory", err)
 	}
 
-	return runReleaseWorkflowInDir(projectDir, resolvedWorkflowPath, resolvedWorkflowOutputPath)
+	return build.WriteReleaseWorkflow(io.Local, resolvedWorkflowPath)
 }
 
 // resolveReleaseWorkflowInputPathAliases keeps the CLI error wording stable while
