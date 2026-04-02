@@ -20,6 +20,7 @@ var (
 	releaseWorkflowWorkflowPathSnakeInput        string
 	releaseWorkflowOutputPathHyphenInput         string
 	releaseWorkflowOutputPathSnakeInput          string
+	releaseWorkflowOutputPathInput               string
 	releaseWorkflowOutputLegacyInput             string
 	releaseWorkflowWorkflowOutputPathInput       string
 	releaseWorkflowWorkflowOutputPathHyphenInput string
@@ -33,6 +34,7 @@ type releaseWorkflowInputs struct {
 	workflowPathInput             string
 	workflowPathHyphenInput       string
 	workflowPathSnakeInput        string
+	outputPathInput               string
 	outputPathHyphenInput         string
 	outputPathSnakeInput          string
 	outputLegacyInput             string
@@ -49,6 +51,7 @@ var releaseWorkflowCmd = &cli.Command{
 			workflowPathInput:             releaseWorkflowWorkflowPathInput,
 			workflowPathHyphenInput:       releaseWorkflowWorkflowPathHyphenInput,
 			workflowPathSnakeInput:        releaseWorkflowWorkflowPathSnakeInput,
+			outputPathInput:               releaseWorkflowOutputPathInput,
 			outputPathHyphenInput:         releaseWorkflowOutputPathHyphenInput,
 			outputPathSnakeInput:          releaseWorkflowOutputPathSnakeInput,
 			outputLegacyInput:             releaseWorkflowOutputLegacyInput,
@@ -69,6 +72,7 @@ func initWorkflowFlags() {
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowPathInput, "workflowPath", "", i18n.T("cmd.build.workflow.flag.path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowPathHyphenInput, "workflow-path", "", i18n.T("cmd.build.workflow.flag.path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowWorkflowPathSnakeInput, "workflow_path", "", i18n.T("cmd.build.workflow.flag.path"))
+	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathInput, "outputPath", "", i18n.T("cmd.build.workflow.flag.output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathHyphenInput, "output-path", "", i18n.T("cmd.build.workflow.flag.output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathSnakeInput, "output_path", "", i18n.T("cmd.build.workflow.flag.output_path"))
 	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputLegacyInput, "output", "", i18n.T("cmd.build.workflow.flag.output"))
@@ -93,6 +97,7 @@ func AddWorkflowCommand(buildCmd *cli.Command) {
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathInput: "ci/release.yml"})      // uses the workflowPath alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathHyphenInput: "ci/release.yml"}) // uses the workflow-path alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowPathSnakeInput: "ci/release.yml"})  // uses the workflow_path alias
+// runReleaseWorkflow(ctx, releaseWorkflowInputs{outputPathInput: "ci/release.yml"})        // uses the outputPath alias
 // runReleaseWorkflow(ctx, releaseWorkflowInputs{workflowOutputPathInput: "ci/release.yml"}) // uses the workflowOutputPath alias
 func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
 	projectDir, err := ax.Getwd()
@@ -113,6 +118,7 @@ func runReleaseWorkflow(_ context.Context, inputs releaseWorkflowInputs) error {
 
 	resolvedWorkflowOutputPath, err := resolveReleaseWorkflowOutputPathAliases(
 		projectDir,
+		inputs.outputPathInput,
 		inputs.outputPathHyphenInput,
 		inputs.outputPathSnakeInput,
 		inputs.outputLegacyInput,
@@ -147,9 +153,10 @@ func resolveReleaseWorkflowInputPathAliases(projectDir, pathInput, workflowPathI
 
 // resolveReleaseWorkflowOutputPathAliases keeps the CLI error wording stable while
 // delegating the conflict detection to the shared build helper.
-func resolveReleaseWorkflowOutputPathAliases(projectDir, outputPathHyphenInput, outputPathSnakeInput, outputLegacyInput, workflowOutputPathInput, workflowOutputPathHyphenInput, workflowOutputPathSnakeInput string) (string, error) {
+func resolveReleaseWorkflowOutputPathAliases(projectDir, outputPathInput, outputPathHyphenInput, outputPathSnakeInput, outputLegacyInput, workflowOutputPathInput, workflowOutputPathHyphenInput, workflowOutputPathSnakeInput string) (string, error) {
 	resolvedWorkflowOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProject(
 		projectDir,
+		outputPathInput,
 		outputPathHyphenInput,
 		outputPathSnakeInput,
 		outputLegacyInput,

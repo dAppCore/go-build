@@ -608,16 +608,10 @@ func (r ReleaseWorkflowRequest) resolvedWorkflowPath(dir string, medium io.Mediu
 // resolvedOutputPath resolves the workflow output aliases with the same
 // conflict rules as the CLI.
 func (r ReleaseWorkflowRequest) resolvedOutputPath(dir string) (string, error) {
-	outputPath := r.OutputPath
-	if outputPath == "" {
-		outputPath = r.OutputPathHyphen
-	} else if r.OutputPathHyphen != "" && outputPath != r.OutputPathHyphen {
-		return "", coreerr.E("api.ReleaseWorkflowRequest", "workflow output aliases specify different locations", nil)
-	}
-
 	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProject(
 		dir,
-		outputPath,
+		r.OutputPath,
+		r.OutputPathHyphen,
 		r.OutputPathSnake,
 		r.LegacyOutputPath,
 		r.WorkflowOutputPath,
