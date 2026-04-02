@@ -122,6 +122,23 @@ func TestWorkflow_ReleaseWorkflowPath_Good(t *testing.T) {
 	assert.Equal(t, "/tmp/project/.github/workflows/release.yml", ReleaseWorkflowPath("/tmp/project"))
 }
 
+func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Good(t *testing.T) {
+	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
+		fs := io.NewMockMedium()
+		fs.Dirs["/tmp/project/ci"] = true
+
+		path := ResolveReleaseWorkflowOutputPathWithMedium(fs, "/tmp/project", "ci")
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+
+	t.Run("keeps explicit file paths unchanged", func(t *testing.T) {
+		fs := io.NewMockMedium()
+
+		path := ResolveReleaseWorkflowOutputPathWithMedium(fs, "/tmp/project", "ci/release.yml")
+		assert.Equal(t, "/tmp/project/ci/release.yml", path)
+	})
+}
+
 func TestWorkflow_ResolveReleaseWorkflowPath_Good(t *testing.T) {
 	t.Run("uses the conventional path when empty", func(t *testing.T) {
 		assert.Equal(t, "/tmp/project/.github/workflows/release.yml", ResolveReleaseWorkflowPath("/tmp/project", ""))

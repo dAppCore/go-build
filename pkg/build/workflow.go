@@ -68,6 +68,26 @@ func ReleaseWorkflowPath(projectDir string) string {
 	return ax.Join(projectDir, DefaultReleaseWorkflowPath)
 }
 
+// ResolveReleaseWorkflowOutputPathWithMedium resolves the workflow output path
+// relative to the project directory and treats an existing directory as a
+// workflow directory even when the caller omits a trailing slash.
+//
+// build.ResolveReleaseWorkflowOutputPathWithMedium(io.Local, "/tmp/project", "ci")            // /tmp/project/ci/release.yml when /tmp/project/ci exists
+// build.ResolveReleaseWorkflowOutputPathWithMedium(io.Local, "/tmp/project", ".github/workflows") // /tmp/project/.github/workflows/release.yml
+func ResolveReleaseWorkflowOutputPathWithMedium(filesystem io_interface.Medium, projectDir, outputPath string) string {
+	outputPath = cleanWorkflowInput(outputPath)
+	if outputPath == "" {
+		return ReleaseWorkflowPath(projectDir)
+	}
+
+	resolved := ResolveReleaseWorkflowPath(projectDir, outputPath)
+	if filesystem != nil && filesystem.IsDir(resolved) {
+		return ax.Join(resolved, DefaultReleaseWorkflowFileName)
+	}
+
+	return resolved
+}
+
 // ResolveReleaseWorkflowPath resolves the workflow output path relative to the
 // project directory when the caller supplies a relative path.
 //
@@ -357,10 +377,7 @@ func resolveReleaseWorkflowOutputAliasSetInProject(
 			continue
 		}
 
-		candidate := ResolveReleaseWorkflowPath(projectDir, value)
-		if filesystem != nil && filesystem.IsDir(candidate) {
-			candidate = ax.Join(candidate, DefaultReleaseWorkflowFileName)
-		}
+		candidate := ResolveReleaseWorkflowOutputPathWithMedium(filesystem, projectDir, value)
 		if resolved == "" {
 			resolved = candidate
 			continue
