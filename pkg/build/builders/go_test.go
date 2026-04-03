@@ -3,9 +3,11 @@ package builders
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
@@ -23,7 +25,7 @@ func setupGoTestProject(t *testing.T) string {
 
 go 1.21
 `
-	err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0644)
+	err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
 
 	// Create a minimal main.go
@@ -33,22 +35,144 @@ func main() {
 	println("hello")
 }
 `
-	err = os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0644)
+	err = ax.WriteFile(ax.Join(dir, "main.go"), []byte(mainGo), 0644)
 	require.NoError(t, err)
 
 	return dir
 }
 
-func TestGoBuilder_Name_Good(t *testing.T) {
+func setupFakeBuildToolchain(t *testing.T, binDir string) {
+	t.Helper()
+
+	goScript := `#!/bin/sh
+set -eu
+
+log_file="${GO_BUILD_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+env_log_file="${GO_BUILD_ENV_LOG_FILE:-}"
+if [ -n "$env_log_file" ]; then
+	env | sort > "$env_log_file"
+fi
+
+if [ "${GOARCH:-}" = "invalid_arch" ]; then
+	exit 1
+fi
+
+if [ -f main.go ] && grep -q "not valid go code" main.go; then
+	exit 1
+fi
+
+output=""
+previous=""
+for argument in "$@"; do
+	if [ "$previous" = "-o" ]; then
+		output="$argument"
+		break
+	fi
+	previous="$argument"
+done
+
+if [ -n "$output" ]; then
+	mkdir -p "$(dirname "$output")"
+	printf 'fake binary\n' > "$output"
+	chmod +x "$output"
+fi
+`
+
+	err := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755)
+	require.NoError(t, err)
+
+	garbleScript := `#!/bin/sh
+set -eu
+
+log_file="${GARBLE_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+exec go "$@"
+`
+
+	err = ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755)
+	require.NoError(t, err)
+}
+
+func setupFakeGoBinary(t *testing.T, binDir string) {
+	t.Helper()
+
+	goScript := `#!/bin/sh
+set -eu
+
+log_file="${GO_BUILD_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+env_log_file="${GO_BUILD_ENV_LOG_FILE:-}"
+if [ -n "$env_log_file" ]; then
+	env | sort > "$env_log_file"
+fi
+
+if [ "${GOARCH:-}" = "invalid_arch" ]; then
+	exit 1
+fi
+
+if [ -f main.go ] && grep -q "not valid go code" main.go; then
+	exit 1
+fi
+
+output=""
+previous=""
+for argument in "$@"; do
+	if [ "$previous" = "-o" ]; then
+		output="$argument"
+		break
+	fi
+	previous="$argument"
+done
+
+if [ -n "$output" ]; then
+	mkdir -p "$(dirname "$output")"
+	printf 'fake binary\n' > "$output"
+	chmod +x "$output"
+fi
+`
+
+	err := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755)
+	require.NoError(t, err)
+}
+
+func setupFakeGarbleBinary(t *testing.T, binDir string) {
+	t.Helper()
+
+	garbleScript := `#!/bin/sh
+set -eu
+
+log_file="${GARBLE_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+exec go "$@"
+`
+
+	err := ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755)
+	require.NoError(t, err)
+}
+
+func TestGo_GoBuilderName_Good(t *testing.T) {
 	builder := NewGoBuilder()
 	assert.Equal(t, "go", builder.Name())
 }
 
-func TestGoBuilder_Detect_Good(t *testing.T) {
+func TestGo_GoBuilderDetect_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("detects Go project with go.mod", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644)
 		require.NoError(t, err)
 
 		builder := NewGoBuilder()
@@ -59,7 +183,7 @@ func TestGoBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("detects Wails project", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "wails.json"), []byte("{}"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0644)
 		require.NoError(t, err)
 
 		builder := NewGoBuilder()
@@ -71,7 +195,7 @@ func TestGoBuilder_Detect_Good(t *testing.T) {
 	t.Run("returns false for non-Go project", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create a Node.js project instead
-		err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0644)
 		require.NoError(t, err)
 
 		builder := NewGoBuilder()
@@ -90,10 +214,14 @@ func TestGoBuilder_Detect_Good(t *testing.T) {
 	})
 }
 
-func TestGoBuilder_Build_Good(t *testing.T) {
+func TestGo_GoBuilderBuild_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+
+	binDir := t.TempDir()
+	setupFakeBuildToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	t.Run("builds for current platform", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
@@ -128,6 +256,43 @@ func TestGoBuilder_Build_Good(t *testing.T) {
 			expectedName += ".exe"
 		}
 		assert.Contains(t, artifact.Path, expectedName)
+	})
+
+	t.Run("defaults to current platform when targets are empty", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "fallback",
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, nil)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, runtime.GOOS, artifacts[0].OS)
+		assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
+		assert.FileExists(t, artifacts[0].Path)
+	})
+
+	t.Run("does not mutate the caller output directory when using defaults", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			Name:       "mutability",
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.Empty(t, cfg.OutputDir)
+		assert.Equal(t, ax.Join(projectDir, "dist"), ax.Dir(ax.Dir(artifacts[0].Path)))
 	})
 
 	t.Run("builds multiple targets", func(t *testing.T) {
@@ -178,7 +343,7 @@ func TestGoBuilder_Build_Good(t *testing.T) {
 		require.Len(t, artifacts, 1)
 
 		// Verify .exe extension
-		assert.True(t, filepath.Ext(artifacts[0].Path) == ".exe")
+		assert.True(t, ax.Ext(artifacts[0].Path) == ".exe")
 		assert.FileExists(t, artifacts[0].Path)
 	})
 
@@ -202,11 +367,63 @@ func TestGoBuilder_Build_Good(t *testing.T) {
 		require.Len(t, artifacts, 1)
 
 		// Binary should use the project directory base name
-		baseName := filepath.Base(projectDir)
+		baseName := ax.Base(projectDir)
 		if runtime.GOOS == "windows" {
 			baseName += ".exe"
 		}
 		assert.Contains(t, artifacts[0].Path, baseName)
+	})
+
+	t.Run("uses configured project binary when Name not specified", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+		}
+		cfg.Project.Binary = "example-binary"
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+
+		expectedName := "example-binary"
+		if runtime.GOOS == "windows" {
+			expectedName += ".exe"
+		}
+		assert.Contains(t, artifacts[0].Path, expectedName)
+	})
+
+	t.Run("uses configured project name when Binary not specified", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+		}
+		cfg.Project.Name = "example-name"
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+
+		expectedName := "example-name"
+		if runtime.GOOS == "windows" {
+			expectedName += ".exe"
+		}
+		assert.Contains(t, artifacts[0].Path, expectedName)
 	})
 
 	t.Run("applies ldflags", func(t *testing.T) {
@@ -231,9 +448,289 @@ func TestGoBuilder_Build_Good(t *testing.T) {
 		assert.FileExists(t, artifacts[0].Path)
 	})
 
+	t.Run("applies config flags and env", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logDir := t.TempDir()
+		argsLogPath := ax.Join(logDir, "go-args.log")
+		envLogPath := ax.Join(logDir, "go-env.log")
+
+		t.Setenv("GO_BUILD_LOG_FILE", argsLogPath)
+		t.Setenv("GO_BUILD_ENV_LOG_FILE", envLogPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "envflags",
+			Version:    "v1.2.3",
+			Flags:      []string{"-race"},
+			Env:        []string{"FOO=bar", "BAR=baz"},
+		}
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		argsContent, err := ax.ReadFile(argsLogPath)
+		require.NoError(t, err)
+		args := strings.Split(strings.TrimSpace(string(argsContent)), "\n")
+		require.NotEmpty(t, args)
+		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-trimpath")
+		assert.Contains(t, args, "-race")
+
+		envContent, err := ax.ReadFile(envLogPath)
+		require.NoError(t, err)
+		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
+		assert.Contains(t, envLines, "BAR=baz")
+		assert.Contains(t, envLines, "FOO=bar")
+		assert.Contains(t, envLines, "TARGET_OS="+runtime.GOOS)
+		assert.Contains(t, envLines, "TARGET_ARCH="+runtime.GOARCH)
+		assert.Contains(t, envLines, "OUTPUT_DIR="+outputDir)
+		assert.Contains(t, envLines, "TARGET_DIR="+ax.Join(outputDir, runtime.GOOS+"_"+runtime.GOARCH))
+		assert.Contains(t, envLines, "GOOS="+runtime.GOOS)
+		assert.Contains(t, envLines, "GOARCH="+runtime.GOARCH)
+		assert.Contains(t, envLines, "NAME=envflags")
+		assert.Contains(t, envLines, "VERSION=v1.2.3")
+		assert.Contains(t, envLines, "CGO_ENABLED=0")
+	})
+
+	t.Run("applies configured cache paths to go cache env vars", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logDir := t.TempDir()
+		envLogPath := ax.Join(logDir, "go-cache-env.log")
+
+		t.Setenv("GO_BUILD_ENV_LOG_FILE", envLogPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "cachetest",
+			Cache: build.CacheConfig{
+				Enabled: true,
+				Paths: []string{
+					ax.Join(outputDir, "cache", "go-build"),
+					ax.Join(outputDir, "cache", "go-mod"),
+				},
+			},
+		}
+		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		envContent, err := ax.ReadFile(envLogPath)
+		require.NoError(t, err)
+
+		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
+		assert.Contains(t, envLines, "GOCACHE="+ax.Join(outputDir, "cache", "go-build"))
+		assert.Contains(t, envLines, "GOMODCACHE="+ax.Join(outputDir, "cache", "go-mod"))
+	})
+
+	t.Run("passes build tags through to go build", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logPath := ax.Join(t.TempDir(), "go-tags.log")
+		t.Setenv("GO_BUILD_LOG_FILE", logPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "tagged",
+			BuildTags:  []string{"webkit2_41", "integration"},
+		}
+		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-tags")
+		assert.Contains(t, args, "webkit2_41,integration")
+	})
+
+	t.Run("injects version into ldflags and environment", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		argsLogPath := ax.Join(t.TempDir(), "go-version-args.log")
+		envLogPath := ax.Join(t.TempDir(), "go-version-env.log")
+
+		t.Setenv("GO_BUILD_LOG_FILE", argsLogPath)
+		t.Setenv("GO_BUILD_ENV_LOG_FILE", envLogPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "versioned",
+			Version:    "v1.2.3",
+		}
+		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		argsContent, err := ax.ReadFile(argsLogPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(argsContent)), "\n")
+		require.NotEmpty(t, args)
+		assert.Contains(t, args, "-ldflags")
+		assert.Contains(t, args, "-X main.version=v1.2.3")
+
+		envContent, err := ax.ReadFile(envLogPath)
+		require.NoError(t, err)
+
+		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
+		assert.Contains(t, envLines, "VERSION=v1.2.3")
+	})
+
+	t.Run("uses garble when obfuscation is enabled", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("garble test helper uses a shell script")
+		}
+
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logDir := t.TempDir()
+		logPath := ax.Join(logDir, "garble.log")
+
+		t.Setenv("GARBLE_LOG_FILE", logPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "obfuscated",
+			Obfuscate:  true,
+		}
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-trimpath")
+		assert.Contains(t, args, "-o")
+		assert.Contains(t, args, ".")
+	})
+
+	t.Run("finds garble in GOBIN when it is not on PATH", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("garble test helper uses a shell script")
+		}
+
+		goDir := t.TempDir()
+		setupFakeGoBinary(t, goDir)
+		t.Setenv("PATH", goDir+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
+
+		garbleDir := t.TempDir()
+		setupFakeGarbleBinary(t, garbleDir)
+		t.Setenv("GOBIN", garbleDir)
+
+		projectDir := setupGoTestProject(t)
+		outputDir := t.TempDir()
+		logDir := t.TempDir()
+		logPath := ax.Join(logDir, "garble-gobin.log")
+
+		t.Setenv("GARBLE_LOG_FILE", logPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "obfuscated-gobin",
+			Obfuscate:  true,
+		}
+		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-trimpath")
+	})
+
+	t.Run("builds the configured main package path", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+		err := ax.MkdirAll(ax.Join(projectDir, "cmd", "myapp"), 0755)
+		require.NoError(t, err)
+		err = ax.WriteFile(ax.Join(projectDir, "cmd", "myapp", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
+		require.NoError(t, err)
+
+		outputDir := t.TempDir()
+		logPath := ax.Join(t.TempDir(), "go-build-args.log")
+		t.Setenv("GO_BUILD_LOG_FILE", logPath)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "mainpackage",
+		}
+		cfg.Project.Main = "./cmd/myapp"
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.Contains(t, args, "./cmd/myapp")
+		assert.NotContains(t, args, ".")
+	})
+
 	t.Run("creates output directory if missing", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
-		outputDir := filepath.Join(t.TempDir(), "nested", "output")
+		outputDir := ax.Join(t.TempDir(), "nested", "output")
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
@@ -252,9 +749,36 @@ func TestGoBuilder_Build_Good(t *testing.T) {
 		assert.FileExists(t, artifacts[0].Path)
 		assert.DirExists(t, outputDir)
 	})
+
+	t.Run("defaults output directory to project dist when not specified", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			Name:       "defaultoutput",
+		}
+		targets := []build.Target{
+			{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, targets)
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+
+		expectedDir := ax.Join(projectDir, "dist")
+		assert.DirExists(t, expectedDir)
+		assert.Contains(t, artifacts[0].Path, expectedDir)
+		assert.FileExists(t, artifacts[0].Path)
+	})
 }
 
-func TestGoBuilder_Build_Bad(t *testing.T) {
+func TestGo_GoBuilderBuild_Bad(t *testing.T) {
+	binDir := t.TempDir()
+	setupFakeBuildToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 	t.Run("returns error for nil config", func(t *testing.T) {
 		builder := NewGoBuilder()
 
@@ -264,7 +788,7 @@ func TestGoBuilder_Build_Bad(t *testing.T) {
 		assert.Contains(t, err.Error(), "config is nil")
 	})
 
-	t.Run("returns error for empty targets", func(t *testing.T) {
+	t.Run("defaults to current platform when targets are empty", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
 
 		builder := NewGoBuilder()
@@ -276,9 +800,11 @@ func TestGoBuilder_Build_Bad(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{})
-		assert.Error(t, err)
-		assert.Nil(t, artifacts)
-		assert.Contains(t, err.Error(), "no targets specified")
+		assert.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, runtime.GOOS, artifacts[0].OS)
+		assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
+		assert.FileExists(t, artifacts[0].Path)
 	})
 
 	t.Run("returns error for invalid project directory", func(t *testing.T) {
@@ -310,11 +836,11 @@ func TestGoBuilder_Build_Bad(t *testing.T) {
 		dir := t.TempDir()
 
 		// Create go.mod
-		err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n\ngo 1.21"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test\n\ngo 1.21"), 0644)
 		require.NoError(t, err)
 
 		// Create invalid Go code
-		err = os.WriteFile(filepath.Join(dir, "main.go"), []byte("this is not valid go code"), 0644)
+		err = ax.WriteFile(ax.Join(dir, "main.go"), []byte("this is not valid go code"), 0644)
 		require.NoError(t, err)
 
 		builder := NewGoBuilder()
@@ -391,7 +917,7 @@ func TestGoBuilder_Build_Bad(t *testing.T) {
 	})
 }
 
-func TestGoBuilder_Interface_Good(t *testing.T) {
+func TestGo_GoBuilderInterface_Good(t *testing.T) {
 	// Verify GoBuilder implements Builder interface
 	var _ build.Builder = (*GoBuilder)(nil)
 	var _ build.Builder = NewGoBuilder()

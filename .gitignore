@@ -2,3 +2,4 @@
 .vscode/
 *.log
 .core/
+.gocache-build/

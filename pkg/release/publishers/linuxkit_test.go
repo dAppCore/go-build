@@ -1,26 +1,23 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLinuxKitPublisher_Name_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherName_Good(t *testing.T) {
 	t.Run("returns linuxkit", func(t *testing.T) {
 		p := NewLinuxKitPublisher()
 		assert.Equal(t, "linuxkit", p.Name())
 	})
 }
 
-func TestLinuxKitPublisher_ParseConfig_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherParseConfig_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -61,7 +58,7 @@ func TestLinuxKitPublisher_ParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestLinuxKitPublisher_BuildLinuxKitArgs_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherBuildLinuxKitArgs_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("builds basic args for amd64", func(t *testing.T) {
@@ -88,7 +85,7 @@ func TestLinuxKitPublisher_BuildLinuxKitArgs_Good(t *testing.T) {
 	})
 }
 
-func TestLinuxKitPublisher_BuildBaseName_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherBuildBaseName_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("strips v prefix", func(t *testing.T) {
@@ -102,7 +99,7 @@ func TestLinuxKitPublisher_BuildBaseName_Good(t *testing.T) {
 	})
 }
 
-func TestLinuxKitPublisher_GetArtifactPath_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherGetArtifactPath_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	tests := []struct {
@@ -157,7 +154,7 @@ func TestLinuxKitPublisher_GetArtifactPath_Good(t *testing.T) {
 	}
 }
 
-func TestLinuxKitPublisher_GetFormatExtension_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherGetFormatExtension_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	tests := []struct {
@@ -182,7 +179,7 @@ func TestLinuxKitPublisher_GetFormatExtension_Good(t *testing.T) {
 	}
 }
 
-func TestLinuxKitPublisher_Publish_Bad(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherPublish_Bad(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("fails when config file not found with linuxkit installed", func(t *testing.T) {
@@ -232,13 +229,11 @@ func TestLinuxKitPublisher_Publish_Bad(t *testing.T) {
 		}
 
 		// Create temp directory that is NOT a git repo
-		tmpDir, err := os.MkdirTemp("", "linuxkit-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
 		// Create a config file
-		configPath := filepath.Join(tmpDir, "config.yml")
-		err = os.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0644)
+		configPath := ax.Join(tmpDir, "config.yml")
+		err := ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
 		require.NoError(t, err)
 
 		release := &Release{
@@ -260,7 +255,7 @@ func TestLinuxKitPublisher_Publish_Bad(t *testing.T) {
 	})
 }
 
-func TestValidateLinuxKitCli_Good(t *testing.T) {
+func TestLinuxKit_ValidateLinuxKitCli_Good(t *testing.T) {
 	t.Run("returns expected error when linuxkit not installed", func(t *testing.T) {
 		err := validateLinuxKitCli()
 		if err != nil {
@@ -271,7 +266,25 @@ func TestValidateLinuxKitCli_Good(t *testing.T) {
 	})
 }
 
-func TestLinuxKitPublisher_Publish_WithCLI_Good(t *testing.T) {
+func TestLinuxKit_ResolveLinuxKitCli_Good(t *testing.T) {
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "linuxkit")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
+
+	command, err := resolveLinuxKitCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestLinuxKit_ResolveLinuxKitCli_Bad(t *testing.T) {
+	t.Setenv("PATH", "")
+	_, err := resolveLinuxKitCli(ax.Join(t.TempDir(), "missing-linuxkit"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "linuxkit CLI not found")
+}
+
+func TestLinuxKit_LinuxKitPublisherPublishWithCLI_Good(t *testing.T) {
 	// These tests run only when linuxkit CLI is available
 	if err := validateLinuxKitCli(); err != nil {
 		t.Skip("skipping test: linuxkit CLI not available")
@@ -280,22 +293,16 @@ func TestLinuxKitPublisher_Publish_WithCLI_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("succeeds with dry run and valid config", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "linuxkit-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
 		// Create config directory and file
-		configDir := filepath.Join(tmpDir, ".core", "linuxkit")
-		err = os.MkdirAll(configDir, 0755)
+		configDir := ax.Join(tmpDir, ".core", "linuxkit")
+		err := ax.MkdirAll(configDir, 0o755)
 		require.NoError(t, err)
 
-		configPath := filepath.Join(configDir, "server.yml")
-		err = os.WriteFile(configPath, []byte("kernel:\n  image: linuxkit/kernel:5.10\n"), 0644)
+		configPath := ax.Join(configDir, "server.yml")
+		err = ax.WriteFile(configPath, []byte("kernel:\n  image: linuxkit/kernel:5.10\n"), 0o644)
 		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -305,22 +312,15 @@ func TestLinuxKitPublisher_Publish_WithCLI_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "DRY RUN: LinuxKit Build & Publish")
 	})
 
 	t.Run("fails with missing config file", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "linuxkit-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -330,27 +330,21 @@ func TestLinuxKitPublisher_Publish_WithCLI_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, false)
+		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "config file not found")
 	})
 
 	t.Run("uses relCfg repository", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "linuxkit-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
-		configDir := filepath.Join(tmpDir, ".core", "linuxkit")
-		err = os.MkdirAll(configDir, 0755)
+		configDir := ax.Join(tmpDir, ".core", "linuxkit")
+		err := ax.MkdirAll(configDir, 0o755)
 		require.NoError(t, err)
 
-		configPath := filepath.Join(configDir, "server.yml")
-		err = os.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0644)
+		configPath := ax.Join(configDir, "server.yml")
+		err = ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
 		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -360,44 +354,28 @@ func TestLinuxKitPublisher_Publish_WithCLI_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "custom-owner/custom-repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "custom-owner/custom-repo")
 	})
 
 	t.Run("detects repository when not provided", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "linuxkit-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
 		// Create config file
-		configDir := filepath.Join(tmpDir, ".core", "linuxkit")
-		err = os.MkdirAll(configDir, 0755)
+		configDir := ax.Join(tmpDir, ".core", "linuxkit")
+		err := ax.MkdirAll(configDir, 0o755)
 		require.NoError(t, err)
 
-		configPath := filepath.Join(configDir, "server.yml")
-		err = os.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0644)
+		configPath := ax.Join(configDir, "server.yml")
+		err = ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
 		require.NoError(t, err)
 
 		// Initialize git repo
-		cmd := exec.Command("git", "init")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		cmd = exec.Command("git", "remote", "add", "origin", "git@github.com:detected-owner/detected-repo.git")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+		runPublisherCommand(t, tmpDir, "git", "init")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@github.com:detected-owner/detected-repo.git")
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -407,20 +385,15 @@ func TestLinuxKitPublisher_Publish_WithCLI_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: ""} // Empty to trigger detection
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "detected-owner/detected-repo")
 	})
 }
 
-func TestLinuxKitPublisher_Publish_NilRelCfg_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherPublishNilRelCfg_Good(t *testing.T) {
 	if err := validateLinuxKitCli(); err != nil {
 		t.Skip("skipping test: linuxkit CLI not available")
 	}
@@ -428,31 +401,20 @@ func TestLinuxKitPublisher_Publish_NilRelCfg_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("handles nil relCfg by detecting repo", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "linuxkit-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
 		// Create config file
-		configDir := filepath.Join(tmpDir, ".core", "linuxkit")
-		err = os.MkdirAll(configDir, 0755)
+		configDir := ax.Join(tmpDir, ".core", "linuxkit")
+		err := ax.MkdirAll(configDir, 0o755)
 		require.NoError(t, err)
 
-		configPath := filepath.Join(configDir, "server.yml")
-		err = os.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0644)
+		configPath := ax.Join(configDir, "server.yml")
+		err = ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
 		require.NoError(t, err)
 
 		// Initialize git repo
-		cmd := exec.Command("git", "init")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		cmd = exec.Command("git", "remote", "add", "origin", "git@github.com:nil-owner/nil-repo.git")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+		runPublisherCommand(t, tmpDir, "git", "init")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@github.com:nil-owner/nil-repo.git")
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -461,15 +423,10 @@ func TestLinuxKitPublisher_Publish_NilRelCfg_Good(t *testing.T) {
 		}
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, nil, true) // nil relCfg
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, nil, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "nil-owner/nil-repo")
 	})
 }
@@ -488,14 +445,10 @@ func (m *mockReleaseConfig) GetProjectName() string {
 	return m.projectName
 }
 
-func TestLinuxKitPublisher_DryRunPublish_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherDryRunPublish_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
@@ -507,15 +460,11 @@ func TestLinuxKitPublisher_DryRunPublish_Good(t *testing.T) {
 			Platforms: []string{"linux/amd64", "linux/arm64"},
 		}
 
-		err := p.dryRunPublish(release, cfg, "owner/repo")
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg, "owner/repo")
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: LinuxKit Build & Publish")
 		assert.Contains(t, output, "Repository:    owner/repo")
@@ -534,10 +483,6 @@ func TestLinuxKitPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 
 	t.Run("shows docker format usage hint", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
@@ -549,25 +494,17 @@ func TestLinuxKitPublisher_DryRunPublish_Good(t *testing.T) {
 			Platforms: []string{"linux/amd64"},
 		}
 
-		err := p.dryRunPublish(release, cfg, "owner/repo")
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg, "owner/repo")
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "linuxkit-1.0.0-amd64.docker.tar")
 		assert.Contains(t, output, "Usage: docker load <")
 	})
 
 	t.Run("handles single platform and format", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v2.0.0",
 			ProjectDir: "/project",
@@ -579,22 +516,18 @@ func TestLinuxKitPublisher_DryRunPublish_Good(t *testing.T) {
 			Platforms: []string{"linux/amd64"},
 		}
 
-		err := p.dryRunPublish(release, cfg, "owner/repo")
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg, "owner/repo")
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "linuxkit-2.0.0-amd64.iso")
 		assert.NotContains(t, output, "arm64")
 	})
 }
 
-func TestLinuxKitPublisher_GetFormatExtension_AllFormats_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherGetFormatExtensionAllFormats_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	tests := []struct {
@@ -628,7 +561,7 @@ func TestLinuxKitPublisher_GetFormatExtension_AllFormats_Good(t *testing.T) {
 	}
 }
 
-func TestLinuxKitPublisher_BuildLinuxKitArgs_AllArchitectures_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherBuildLinuxKitArgsAllArchitectures_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("amd64 does not include arch flag", func(t *testing.T) {
@@ -660,7 +593,7 @@ func TestLinuxKitPublisher_BuildLinuxKitArgs_AllArchitectures_Good(t *testing.T)
 	})
 }
 
-func TestLinuxKitPublisher_ParseConfig_EdgeCases_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherParseConfigEdgeCases_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("handles nil extended config", func(t *testing.T) {
@@ -716,7 +649,7 @@ func TestLinuxKitPublisher_ParseConfig_EdgeCases_Good(t *testing.T) {
 	})
 }
 
-func TestLinuxKitPublisher_BuildBaseName_EdgeCases_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherBuildBaseNameEdgeCases_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	tests := []struct {
@@ -740,7 +673,7 @@ func TestLinuxKitPublisher_BuildBaseName_EdgeCases_Good(t *testing.T) {
 	}
 }
 
-func TestLinuxKitPublisher_GetArtifactPath_AllFormats_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherGetArtifactPathAllFormats_Good(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	tests := []struct {
@@ -802,7 +735,7 @@ func TestLinuxKitPublisher_GetArtifactPath_AllFormats_Good(t *testing.T) {
 	}
 }
 
-func TestLinuxKitPublisher_Publish_NilFS_Bad(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherPublishNilFS_Bad(t *testing.T) {
 	if err := validateLinuxKitCli(); err != nil {
 		t.Skip("skipping test: linuxkit CLI not available")
 	}
@@ -824,7 +757,7 @@ func TestLinuxKitPublisher_Publish_NilFS_Bad(t *testing.T) {
 	})
 }
 
-func TestLinuxKitPublisher_Publish_DryRun_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitPublisherPublishDryRun_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -838,21 +771,14 @@ func TestLinuxKitPublisher_Publish_DryRun_Good(t *testing.T) {
 
 	t.Run("dry run succeeds with valid config file", func(t *testing.T) {
 		// Create temp directory with config file
-		tmpDir, err := os.MkdirTemp("", "linuxkit-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
-
-		configDir := filepath.Join(tmpDir, ".core", "linuxkit")
-		err = os.MkdirAll(configDir, 0755)
+		tmpDir := t.TempDir()
+		configDir := ax.Join(tmpDir, ".core", "linuxkit")
+		err := ax.MkdirAll(configDir, 0o755)
 		require.NoError(t, err)
 
-		configPath := filepath.Join(configDir, "server.yml")
-		err = os.WriteFile(configPath, []byte("kernel:\n  image: linuxkit/kernel:5.10\n"), 0644)
+		configPath := ax.Join(configDir, "server.yml")
+		err = ax.WriteFile(configPath, []byte("kernel:\n  image: linuxkit/kernel:5.10\n"), 0o644)
 		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -862,30 +788,19 @@ func TestLinuxKitPublisher_Publish_DryRun_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "DRY RUN: LinuxKit Build & Publish")
 	})
 
 	t.Run("dry run uses custom config path", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "linuxkit-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
-		customConfigPath := filepath.Join(tmpDir, "custom-config.yml")
-		err = os.WriteFile(customConfigPath, []byte("kernel:\n  image: custom\n"), 0644)
+		customConfigPath := ax.Join(tmpDir, "custom-config.yml")
+		err := ax.WriteFile(customConfigPath, []byte("kernel:\n  image: custom\n"), 0o644)
 		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -900,30 +815,19 @@ func TestLinuxKitPublisher_Publish_DryRun_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "custom-config.yml")
 	})
 
 	t.Run("dry run with multiple formats and platforms", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "linuxkit-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
-		configPath := filepath.Join(tmpDir, "config.yml")
-		err = os.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0644)
+		configPath := ax.Join(tmpDir, "config.yml")
+		err := ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
 		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v2.0.0",
@@ -940,15 +844,10 @@ func TestLinuxKitPublisher_Publish_DryRun_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		// Check all format/platform combinations are listed
 		assert.Contains(t, output, "linuxkit-2.0.0-amd64.iso")

@@ -3,16 +3,15 @@ package publishers
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
 )
 
 // LinuxKitConfig holds configuration for the LinuxKit publisher.
+//
+// cfg := publishers.LinuxKitConfig{Config: ".core/node.yaml", Formats: []string{"iso", "qcow2"}}
 type LinuxKitConfig struct {
 	// Config is the path to the LinuxKit YAML configuration file.
 	Config string `yaml:"config"`
@@ -26,22 +25,30 @@ type LinuxKitConfig struct {
 }
 
 // LinuxKitPublisher builds and publishes LinuxKit images.
+//
+// pub := publishers.NewLinuxKitPublisher()
 type LinuxKitPublisher struct{}
 
 // NewLinuxKitPublisher creates a new LinuxKit publisher.
+//
+// pub := publishers.NewLinuxKitPublisher()
 func NewLinuxKitPublisher() *LinuxKitPublisher {
 	return &LinuxKitPublisher{}
 }
 
 // Name returns the publisher's identifier.
+//
+// name := pub.Name() // → "linuxkit"
 func (p *LinuxKitPublisher) Name() string {
 	return "linuxkit"
 }
 
 // Publish builds LinuxKit images and uploads them to the GitHub release.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	// Validate linuxkit CLI is available
-	if err := validateLinuxKitCli(); err != nil {
+	linuxkitCommand, err := resolveLinuxKitCli()
+	if err != nil {
 		return err
 	}
 
@@ -62,7 +69,7 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 		repo = relCfg.GetRepository()
 	}
 	if repo == "" {
-		detectedRepo, err := detectRepository(release.ProjectDir)
+		detectedRepo, err := detectRepository(ctx, release.ProjectDir)
 		if err != nil {
 			return coreerr.E("linuxkit.Publish", "could not determine repository", err)
 		}
@@ -73,13 +80,13 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 		return p.dryRunPublish(release, lkCfg, repo)
 	}
 
-	return p.executePublish(ctx, release, lkCfg, repo)
+	return p.executePublish(ctx, release, lkCfg, repo, linuxkitCommand)
 }
 
 // parseConfig extracts LinuxKit-specific configuration.
 func (p *LinuxKitPublisher) parseConfig(pubCfg PublisherConfig, projectDir string) LinuxKitConfig {
 	cfg := LinuxKitConfig{
-		Config:    filepath.Join(projectDir, ".core", "linuxkit", "server.yml"),
+		Config:    ax.Join(projectDir, ".core", "linuxkit", "server.yml"),
 		Formats:   []string{"iso"},
 		Platforms: []string{"linux/amd64"},
 	}
@@ -87,10 +94,10 @@ func (p *LinuxKitPublisher) parseConfig(pubCfg PublisherConfig, projectDir strin
 	// Override from extended config if present
 	if ext, ok := pubCfg.Extended.(map[string]any); ok {
 		if configPath, ok := ext["config"].(string); ok && configPath != "" {
-			if filepath.IsAbs(configPath) {
+			if ax.IsAbs(configPath) {
 				cfg.Config = configPath
 			} else {
-				cfg.Config = filepath.Join(projectDir, configPath)
+				cfg.Config = ax.Join(projectDir, configPath)
 			}
 		}
 		if formats, ok := ext["formats"].([]any); ok && len(formats) > 0 {
@@ -116,62 +123,62 @@ func (p *LinuxKitPublisher) parseConfig(pubCfg PublisherConfig, projectDir strin
 
 // dryRunPublish shows what would be done without actually building.
 func (p *LinuxKitPublisher) dryRunPublish(release *Release, cfg LinuxKitConfig, repo string) error {
-	fmt.Println()
-	fmt.Println("=== DRY RUN: LinuxKit Build & Publish ===")
-	fmt.Println()
-	fmt.Printf("Repository:    %s\n", repo)
-	fmt.Printf("Version:       %s\n", release.Version)
-	fmt.Printf("Config:        %s\n", cfg.Config)
-	fmt.Printf("Formats:       %s\n", strings.Join(cfg.Formats, ", "))
-	fmt.Printf("Platforms:     %s\n", strings.Join(cfg.Platforms, ", "))
-	fmt.Println()
+	publisherPrintln()
+	publisherPrintln("=== DRY RUN: LinuxKit Build & Publish ===")
+	publisherPrintln()
+	publisherPrint("Repository:    %s", repo)
+	publisherPrint("Version:       %s", release.Version)
+	publisherPrint("Config:        %s", cfg.Config)
+	publisherPrint("Formats:       %s", core.Join(", ", cfg.Formats...))
+	publisherPrint("Platforms:     %s", core.Join(", ", cfg.Platforms...))
+	publisherPrintln()
 
-	outputDir := filepath.Join(release.ProjectDir, "dist", "linuxkit")
+	outputDir := ax.Join(release.ProjectDir, "dist", "linuxkit")
 	baseName := p.buildBaseName(release.Version)
 
-	fmt.Println("Would execute commands:")
+	publisherPrintln("Would execute commands:")
 	for _, platform := range cfg.Platforms {
-		parts := strings.Split(platform, "/")
+		parts := core.Split(platform, "/")
 		arch := "amd64"
 		if len(parts) == 2 {
 			arch = parts[1]
 		}
 
 		for _, format := range cfg.Formats {
-			outputName := fmt.Sprintf("%s-%s", baseName, arch)
+			outputName := core.Sprintf("%s-%s", baseName, arch)
 			args := p.buildLinuxKitArgs(cfg.Config, format, outputName, outputDir, arch)
-			fmt.Printf("  linuxkit %s\n", strings.Join(args, " "))
+			publisherPrint("  linuxkit %s", core.Join(" ", args...))
 		}
 	}
-	fmt.Println()
+	publisherPrintln()
 
-	fmt.Println("Would upload artifacts to release:")
+	publisherPrintln("Would upload artifacts to release:")
 	for _, platform := range cfg.Platforms {
-		parts := strings.Split(platform, "/")
+		parts := core.Split(platform, "/")
 		arch := "amd64"
 		if len(parts) == 2 {
 			arch = parts[1]
 		}
 
 		for _, format := range cfg.Formats {
-			outputName := fmt.Sprintf("%s-%s", baseName, arch)
+			outputName := core.Sprintf("%s-%s", baseName, arch)
 			artifactPath := p.getArtifactPath(outputDir, outputName, format)
-			fmt.Printf("  - %s\n", filepath.Base(artifactPath))
+			publisherPrint("  - %s", ax.Base(artifactPath))
 			if format == "docker" {
-				fmt.Printf("    Usage: docker load < %s\n", filepath.Base(artifactPath))
+				publisherPrint("    Usage: docker load < %s", ax.Base(artifactPath))
 			}
 		}
 	}
 
-	fmt.Println()
-	fmt.Println("=== END DRY RUN ===")
+	publisherPrintln()
+	publisherPrintln("=== END DRY RUN ===")
 
 	return nil
 }
 
 // executePublish builds LinuxKit images and uploads them.
-func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release, cfg LinuxKitConfig, repo string) error {
-	outputDir := filepath.Join(release.ProjectDir, "dist", "linuxkit")
+func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release, cfg LinuxKitConfig, repo, linuxkitCommand string) error {
+	outputDir := ax.Join(release.ProjectDir, "dist", "linuxkit")
 
 	// Create output directory
 	if err := release.FS.EnsureDir(outputDir); err != nil {
@@ -183,24 +190,19 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 
 	// Build for each platform and format
 	for _, platform := range cfg.Platforms {
-		parts := strings.Split(platform, "/")
+		parts := core.Split(platform, "/")
 		arch := "amd64"
 		if len(parts) == 2 {
 			arch = parts[1]
 		}
 
 		for _, format := range cfg.Formats {
-			outputName := fmt.Sprintf("%s-%s", baseName, arch)
+			outputName := core.Sprintf("%s-%s", baseName, arch)
 
 			// Build the image
 			args := p.buildLinuxKitArgs(cfg.Config, format, outputName, outputDir, arch)
-			cmd := exec.CommandContext(ctx, "linuxkit", args...)
-			cmd.Dir = release.ProjectDir
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-
-			fmt.Printf("Building LinuxKit image: %s (%s)\n", outputName, format)
-			if err := cmd.Run(); err != nil {
+			publisherPrint("Building LinuxKit image: %s (%s)", outputName, format)
+			if err := publisherRun(ctx, release.ProjectDir, nil, linuxkitCommand, args...); err != nil {
 				return coreerr.E("linuxkit.Publish", "build failed for "+platform+"/"+format, err)
 			}
 
@@ -217,12 +219,12 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 		}
 
 		if err := UploadArtifact(ctx, repo, release.Version, artifactPath); err != nil {
-			return coreerr.E("linuxkit.Publish", "failed to upload "+filepath.Base(artifactPath), err)
+			return coreerr.E("linuxkit.Publish", "failed to upload "+ax.Base(artifactPath), err)
 		}
 
 		// Print helpful usage info for docker format
-		if strings.HasSuffix(artifactPath, ".docker.tar") {
-			fmt.Printf("  Load with: docker load < %s\n", filepath.Base(artifactPath))
+		if core.HasSuffix(artifactPath, ".docker.tar") {
+			publisherPrint("  Load with: docker load < %s", ax.Base(artifactPath))
 		}
 	}
 
@@ -232,8 +234,8 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 // buildBaseName creates the base name for output files.
 func (p *LinuxKitPublisher) buildBaseName(version string) string {
 	// Strip leading 'v' if present for cleaner filenames
-	name := strings.TrimPrefix(version, "v")
-	return fmt.Sprintf("linuxkit-%s", name)
+	name := core.TrimPrefix(version, "v")
+	return core.Sprintf("linuxkit-%s", name)
 }
 
 // buildLinuxKitArgs builds the arguments for linuxkit build command.
@@ -263,7 +265,7 @@ func (p *LinuxKitPublisher) buildLinuxKitArgs(configPath, format, outputName, ou
 // getArtifactPath returns the expected path of the built artifact.
 func (p *LinuxKitPublisher) getArtifactPath(outputDir, outputName, format string) string {
 	ext := p.getFormatExtension(format)
-	return filepath.Join(outputDir, outputName+ext)
+	return ax.Join(outputDir, outputName+ext)
 }
 
 // getFormatExtension returns the file extension for a LinuxKit output format.
@@ -295,11 +297,27 @@ func (p *LinuxKitPublisher) getFormatExtension(format string) string {
 	}
 }
 
+// resolveLinuxKitCli returns the executable path for the linuxkit CLI.
+func resolveLinuxKitCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/linuxkit",
+			"/opt/homebrew/bin/linuxkit",
+		}
+	}
+
+	command, err := ax.ResolveCommand("linuxkit", paths...)
+	if err != nil {
+		return "", coreerr.E("linuxkit.resolveLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", err)
+	}
+
+	return command, nil
+}
+
 // validateLinuxKitCli checks if the linuxkit CLI is available.
 func validateLinuxKitCli() error {
-	cmd := exec.Command("linuxkit", "version")
-	if err := cmd.Run(); err != nil {
-		return coreerr.E("linuxkit.validateLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", nil)
+	if _, err := resolveLinuxKitCli(); err != nil {
+		return coreerr.E("linuxkit.validateLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", err)
 	}
 	return nil
 }

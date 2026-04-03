@@ -4,17 +4,18 @@ import (
 	"context"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunSDK_Bad_NilConfig(t *testing.T) {
+func TestSDK_RunSDKNilConfig_Bad(t *testing.T) {
 	_, err := RunSDK(context.Background(), nil, true)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "config is nil")
 }
 
-func TestRunSDK_Bad_NoSDKConfig(t *testing.T) {
+func TestSDK_RunSDKNoSDKConfig_Bad(t *testing.T) {
 	cfg := &Config{
 		SDK: nil,
 	}
@@ -25,7 +26,7 @@ func TestRunSDK_Bad_NoSDKConfig(t *testing.T) {
 	assert.Contains(t, err.Error(), "sdk not configured")
 }
 
-func TestRunSDK_Good_DryRun(t *testing.T) {
+func TestSDK_RunSDKDryRun_Good(t *testing.T) {
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"typescript", "python"},
@@ -45,7 +46,7 @@ func TestRunSDK_Good_DryRun(t *testing.T) {
 	assert.Equal(t, "sdk", result.Output)
 }
 
-func TestRunSDK_Good_DryRunDefaultOutput(t *testing.T) {
+func TestSDK_RunSDKDryRunDefaultOutput_Good(t *testing.T) {
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"go"},
@@ -61,7 +62,7 @@ func TestRunSDK_Good_DryRunDefaultOutput(t *testing.T) {
 	assert.Equal(t, "sdk", result.Output)
 }
 
-func TestRunSDK_Good_DryRunDefaultProjectDir(t *testing.T) {
+func TestSDK_RunSDKDryRunDefaultProjectDir_Good(t *testing.T) {
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"typescript"},
@@ -77,7 +78,7 @@ func TestRunSDK_Good_DryRunDefaultProjectDir(t *testing.T) {
 	assert.Equal(t, "v1.0.0", result.Version)
 }
 
-func TestRunSDK_Bad_BreakingChangesFailOnBreaking(t *testing.T) {
+func TestSDK_RunSDKBreakingChangesFailOnBreaking_Bad(t *testing.T) {
 	// This test verifies that when diff.FailOnBreaking is true and breaking changes
 	// are detected, RunSDK returns an error. However, since we can't easily mock
 	// the diff check, this test verifies the config is correctly processed.
@@ -102,7 +103,7 @@ func TestRunSDK_Bad_BreakingChangesFailOnBreaking(t *testing.T) {
 	assert.Equal(t, "v1.0.0", result.Version)
 }
 
-func TestToSDKConfig_Good(t *testing.T) {
+func TestSDK_ToSDKConfig_Good(t *testing.T) {
 	sdkCfg := &SDKConfig{
 		Spec:      "api/openapi.yaml",
 		Languages: []string{"typescript", "go"},
@@ -115,6 +116,10 @@ func TestToSDKConfig_Good(t *testing.T) {
 			Enabled:        true,
 			FailOnBreaking: true,
 		},
+		Publish: SDKPublishConfig{
+			Repo: "owner/sdk-monorepo",
+			Path: "packages/api-client",
+		},
 	}
 
 	result := toSDKConfig(sdkCfg)
@@ -126,14 +131,16 @@ func TestToSDKConfig_Good(t *testing.T) {
 	assert.Equal(t, "v1.0.0", result.Package.Version)
 	assert.True(t, result.Diff.Enabled)
 	assert.True(t, result.Diff.FailOnBreaking)
+	assert.Equal(t, "owner/sdk-monorepo", result.Publish.Repo)
+	assert.Equal(t, "packages/api-client", result.Publish.Path)
 }
 
-func TestToSDKConfig_Good_NilInput(t *testing.T) {
+func TestSDK_ToSDKConfigNilInput_Good(t *testing.T) {
 	result := toSDKConfig(nil)
 	assert.Nil(t, result)
 }
 
-func TestRunSDK_Good_WithDiffEnabledNoFailOnBreaking(t *testing.T) {
+func TestSDK_RunSDKWithDiffEnabledNoFailOnBreaking_Good(t *testing.T) {
 	// Tests diff enabled but FailOnBreaking=false (should warn but not fail)
 	cfg := &Config{
 		SDK: &SDKConfig{
@@ -155,7 +162,7 @@ func TestRunSDK_Good_WithDiffEnabledNoFailOnBreaking(t *testing.T) {
 	assert.Contains(t, result.Languages, "typescript")
 }
 
-func TestRunSDK_Good_MultipleLanguages(t *testing.T) {
+func TestSDK_RunSDKMultipleLanguages_Good(t *testing.T) {
 	// Tests multiple language support
 	cfg := &Config{
 		SDK: &SDKConfig{
@@ -174,7 +181,7 @@ func TestRunSDK_Good_MultipleLanguages(t *testing.T) {
 	assert.Equal(t, "multi-sdk", result.Output)
 }
 
-func TestRunSDK_Good_WithPackageConfig(t *testing.T) {
+func TestSDK_RunSDKWithPackageConfig_Good(t *testing.T) {
 	// Tests that package config is properly handled
 	cfg := &Config{
 		SDK: &SDKConfig{
@@ -195,7 +202,7 @@ func TestRunSDK_Good_WithPackageConfig(t *testing.T) {
 	assert.Equal(t, "v1.0.0", result.Version)
 }
 
-func TestToSDKConfig_Good_EmptyPackageConfig(t *testing.T) {
+func TestSDK_ToSDKConfigEmptyPackageConfig_Good(t *testing.T) {
 	// Tests conversion with empty package config
 	sdkCfg := &SDKConfig{
 		Languages: []string{"go"},
@@ -211,7 +218,7 @@ func TestToSDKConfig_Good_EmptyPackageConfig(t *testing.T) {
 	assert.Empty(t, result.Package.Version)
 }
 
-func TestToSDKConfig_Good_DiffDisabled(t *testing.T) {
+func TestSDK_ToSDKConfigDiffDisabled_Good(t *testing.T) {
 	// Tests conversion with diff disabled
 	sdkCfg := &SDKConfig{
 		Languages: []string{"typescript"},
@@ -226,4 +233,21 @@ func TestToSDKConfig_Good_DiffDisabled(t *testing.T) {
 
 	assert.False(t, result.Diff.Enabled)
 	assert.False(t, result.Diff.FailOnBreaking)
+}
+
+func TestSDK_ResolveSDKOutputRoot_Good(t *testing.T) {
+	t.Run("uses the default sdk root when no publish path is configured", func(t *testing.T) {
+		assert.Equal(t, "sdk", resolveSDKOutputRoot(&SDKConfig{}))
+	})
+
+	t.Run("prefixes the configured publish path", func(t *testing.T) {
+		cfg := &SDKConfig{
+			Output: "generated",
+			Publish: SDKPublishConfig{
+				Path: "packages/api-client",
+			},
+		}
+
+		assert.Equal(t, ax.Join("packages/api-client", "generated"), resolveSDKOutputRoot(cfg))
+	})
 }

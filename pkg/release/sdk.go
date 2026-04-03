@@ -3,13 +3,16 @@ package release
 
 import (
 	"context"
-	"fmt"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/sdk"
 	coreerr "dappco.re/go/core/log"
 )
 
 // SDKRelease holds the result of an SDK release.
+//
+// rel, err := release.RunSDK(ctx, cfg, false)
 type SDKRelease struct {
 	// Version is the SDK version.
 	Version string
@@ -20,7 +23,8 @@ type SDKRelease struct {
 }
 
 // RunSDK executes SDK-only release: diff check + generate.
-// If dryRun is true, it shows what would be done without generating.
+//
+// rel, err := release.RunSDK(ctx, cfg, false) // dryRun=true to preview
 func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) {
 	if cfg == nil {
 		return nil, coreerr.E("release.RunSDK", "config is nil", nil)
@@ -38,7 +42,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	version := cfg.version
 	if version == "" {
 		var err error
-		version, err = DetermineVersion(projectDir)
+		version, err = DetermineVersionWithContext(ctx, projectDir)
 		if err != nil {
 			return nil, coreerr.E("release.RunSDK", "failed to determine version", err)
 		}
@@ -46,23 +50,23 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 
 	// Run diff check if enabled
 	if cfg.SDK.Diff.Enabled {
-		breaking, err := checkBreakingChanges(projectDir, cfg.SDK)
+		breaking, err := checkBreakingChanges(ctx, projectDir, cfg.SDK)
 		if err != nil {
+			if ctx.Err() != nil {
+				return nil, coreerr.E("release.RunSDK", "diff check cancelled", ctx.Err())
+			}
 			// Non-fatal: warn and continue
-			fmt.Printf("Warning: diff check failed: %v\n", err)
+			core.Print(nil, "Warning: diff check failed: %v", err)
 		} else if breaking {
 			if cfg.SDK.Diff.FailOnBreaking {
 				return nil, coreerr.E("release.RunSDK", "breaking API changes detected", nil)
 			}
-			fmt.Printf("Warning: breaking API changes detected\n")
+			core.Print(nil, "Warning: breaking API changes detected")
 		}
 	}
 
 	// Prepare result
-	output := cfg.SDK.Output
-	if output == "" {
-		output = "sdk"
-	}
+	output := resolveSDKOutputRoot(cfg.SDK)
 
 	result := &SDKRelease{
 		Version:   version,
@@ -86,10 +90,31 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	return result, nil
 }
 
+// resolveSDKOutputRoot returns the configured SDK output directory, including
+// any monorepo publish path prefix.
+//
+// output := resolveSDKOutputRoot(cfg.SDK) // "sdk" or "packages/api-client/sdk"
+func resolveSDKOutputRoot(cfg *SDKConfig) string {
+	if cfg == nil {
+		return "sdk"
+	}
+
+	output := cfg.Output
+	if output == "" {
+		output = "sdk"
+	}
+
+	if cfg.Publish.Path != "" {
+		output = ax.Join(cfg.Publish.Path, output)
+	}
+
+	return output
+}
+
 // checkBreakingChanges runs oasdiff to detect breaking changes.
-func checkBreakingChanges(projectDir string, cfg *SDKConfig) (bool, error) {
+func checkBreakingChanges(ctx context.Context, projectDir string, cfg *SDKConfig) (bool, error) {
 	// Get previous tag for comparison (uses getPreviousTag from changelog.go)
-	prevTag, err := getPreviousTag(projectDir, "HEAD")
+	prevTag, err := getPreviousTagWithContext(ctx, projectDir, "HEAD")
 	if err != nil {
 		return false, coreerr.E("release.checkBreakingChanges", "no previous tag found", err)
 	}
@@ -129,6 +154,10 @@ func toSDKConfig(cfg *SDKConfig) *sdk.Config {
 		Diff: sdk.DiffConfig{
 			Enabled:        cfg.Diff.Enabled,
 			FailOnBreaking: cfg.Diff.FailOnBreaking,
+		},
+		Publish: sdk.PublishConfig{
+			Repo: cfg.Publish.Repo,
+			Path: cfg.Publish.Path,
 		},
 	}
 }

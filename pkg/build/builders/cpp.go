@@ -3,13 +3,10 @@ package builders
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"runtime"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -17,26 +14,35 @@ import (
 
 // CPPBuilder implements the Builder interface for C++ projects using CMake + Conan.
 // It wraps the Makefile-based build system from the .core/build submodule.
+//
+// b := builders.NewCPPBuilder()
 type CPPBuilder struct{}
 
 // NewCPPBuilder creates a new CPPBuilder instance.
+//
+// b := builders.NewCPPBuilder()
 func NewCPPBuilder() *CPPBuilder {
 	return &CPPBuilder{}
 }
 
 // Name returns the builder's identifier.
+//
+// name := b.Name() // → "cpp"
 func (b *CPPBuilder) Name() string {
 	return "cpp"
 }
 
-// Detect checks if this builder can handle the project in the given directory.
+// Detect checks if this builder can handle the project (checks for CMakeLists.txt).
+//
+// ok, err := b.Detect(io.Local, ".")
 func (b *CPPBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 	return build.IsCPPProject(fs, dir), nil
 }
 
 // Build compiles the C++ project using Make targets.
 // The build flow is: make configure → make build → make package.
-// Cross-compilation is handled via Conan profiles specified in .core/build.yaml.
+//
+// artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *CPPBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	if cfg == nil {
 		return nil, coreerr.E("CPPBuilder.Build", "config is nil", nil)
@@ -83,20 +89,20 @@ func (b *CPPBuilder) buildTarget(ctx context.Context, cfg *build.Config, target 
 
 // buildHost runs the standard make configure → make build → make package flow.
 func (b *CPPBuilder) buildHost(ctx context.Context, cfg *build.Config, target build.Target) ([]build.Artifact, error) {
-	fmt.Printf("Building C++ project for %s/%s (host)\n", target.OS, target.Arch)
+	core.Print(nil, "Building C++ project for %s/%s (host)", target.OS, target.Arch)
 
 	// Step 1: Configure (runs conan install + cmake configure)
-	if err := b.runMake(ctx, cfg.ProjectDir, "configure"); err != nil {
+	if err := b.runMake(ctx, cfg, "configure"); err != nil {
 		return nil, coreerr.E("CPPBuilder.buildHost", "configure failed", err)
 	}
 
 	// Step 2: Build
-	if err := b.runMake(ctx, cfg.ProjectDir, "build"); err != nil {
+	if err := b.runMake(ctx, cfg, "build"); err != nil {
 		return nil, coreerr.E("CPPBuilder.buildHost", "build failed", err)
 	}
 
 	// Step 3: Package
-	if err := b.runMake(ctx, cfg.ProjectDir, "package"); err != nil {
+	if err := b.runMake(ctx, cfg, "package"); err != nil {
 		return nil, coreerr.E("CPPBuilder.buildHost", "package failed", err)
 	}
 
@@ -113,10 +119,10 @@ func (b *CPPBuilder) buildCross(ctx context.Context, cfg *build.Config, target b
 		return nil, coreerr.E("CPPBuilder.buildCross", "no Conan profile mapped for target "+target.OS+"/"+target.Arch, nil)
 	}
 
-	fmt.Printf("Building C++ project for %s/%s (cross: %s)\n", target.OS, target.Arch, profile)
+	core.Print(nil, "Building C++ project for %s/%s (cross: %s)", target.OS, target.Arch, profile)
 
 	// The Makefile exposes each profile as a top-level target
-	if err := b.runMake(ctx, cfg.ProjectDir, profile); err != nil {
+	if err := b.runMake(ctx, cfg, profile); err != nil {
 		return nil, coreerr.E("CPPBuilder.buildCross", "cross-compile for "+profile+" failed", err)
 	}
 
@@ -124,14 +130,13 @@ func (b *CPPBuilder) buildCross(ctx context.Context, cfg *build.Config, target b
 }
 
 // runMake executes a make target in the project directory.
-func (b *CPPBuilder) runMake(ctx context.Context, projectDir string, target string) error {
-	cmd := exec.CommandContext(ctx, "make", target)
-	cmd.Dir = projectDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
+func (b *CPPBuilder) runMake(ctx context.Context, cfg *build.Config, target string) error {
+	makeCommand, err := b.resolveMakeCli()
+	if err != nil {
+		return err
+	}
 
-	if err := cmd.Run(); err != nil {
+	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, cfg.Env, makeCommand, target); err != nil {
 		return coreerr.E("CPPBuilder.runMake", "make "+target+" failed", err)
 	}
 	return nil
@@ -139,7 +144,7 @@ func (b *CPPBuilder) runMake(ctx context.Context, projectDir string, target stri
 
 // findArtifacts searches for built packages in build/packages/.
 func (b *CPPBuilder) findArtifacts(fs io.Medium, projectDir string, target build.Target) ([]build.Artifact, error) {
-	packagesDir := filepath.Join(projectDir, "build", "packages")
+	packagesDir := ax.Join(projectDir, "build", "packages")
 
 	if !fs.IsDir(packagesDir) {
 		// Fall back to searching build/release/src/ for raw binaries
@@ -159,12 +164,12 @@ func (b *CPPBuilder) findArtifacts(fs io.Medium, projectDir string, target build
 
 		name := entry.Name()
 		// Skip checksum files and hidden files
-		if strings.HasSuffix(name, ".sha256") || strings.HasPrefix(name, ".") {
+		if core.HasSuffix(name, ".sha256") || core.HasPrefix(name, ".") {
 			continue
 		}
 
 		artifacts = append(artifacts, build.Artifact{
-			Path: filepath.Join(packagesDir, name),
+			Path: ax.Join(packagesDir, name),
 			OS:   target.OS,
 			Arch: target.Arch,
 		})
@@ -175,7 +180,7 @@ func (b *CPPBuilder) findArtifacts(fs io.Medium, projectDir string, target build
 
 // findBinaries searches for compiled binaries in build/release/src/.
 func (b *CPPBuilder) findBinaries(fs io.Medium, projectDir string, target build.Target) ([]build.Artifact, error) {
-	binDir := filepath.Join(projectDir, "build", "release", "src")
+	binDir := ax.Join(projectDir, "build", "release", "src")
 
 	if !fs.IsDir(binDir) {
 		return nil, coreerr.E("CPPBuilder.findBinaries", "no build output found in "+binDir, nil)
@@ -194,16 +199,16 @@ func (b *CPPBuilder) findBinaries(fs io.Medium, projectDir string, target build.
 
 		name := entry.Name()
 		// Skip non-executable files (libraries, cmake files, etc.)
-		if strings.HasSuffix(name, ".a") || strings.HasSuffix(name, ".o") ||
-			strings.HasSuffix(name, ".cmake") || strings.HasPrefix(name, ".") {
+		if core.HasSuffix(name, ".a") || core.HasSuffix(name, ".o") ||
+			core.HasSuffix(name, ".cmake") || core.HasPrefix(name, ".") {
 			continue
 		}
 
-		fullPath := filepath.Join(binDir, name)
+		fullPath := ax.Join(binDir, name)
 
 		// On Unix, check if file is executable
 		if target.OS != "windows" {
-			info, err := os.Stat(fullPath)
+			info, err := fs.Stat(fullPath)
 			if err != nil {
 				continue
 			}
@@ -244,10 +249,28 @@ func (b *CPPBuilder) targetToProfile(target build.Target) string {
 
 // validateMake checks if make is available.
 func (b *CPPBuilder) validateMake() error {
-	if _, err := exec.LookPath("make"); err != nil {
-		return coreerr.E("CPPBuilder.validateMake", "make not found. Install build-essential (Linux) or Xcode Command Line Tools (macOS)", nil)
+	_, err := b.resolveMakeCli()
+	return err
+}
+
+// resolveMakeCli returns the executable path for make or gmake.
+func (b *CPPBuilder) resolveMakeCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/bin/make",
+			"/usr/local/bin/make",
+			"/opt/homebrew/bin/make",
+			"/usr/local/bin/gmake",
+			"/opt/homebrew/bin/gmake",
+		}
 	}
-	return nil
+
+	command, err := ax.ResolveCommand("make", paths...)
+	if err != nil {
+		return "", coreerr.E("CPPBuilder.resolveMakeCli", "make not found. Install build-essential (Linux) or Xcode Command Line Tools (macOS)", err)
+	}
+
+	return command, nil
 }
 
 // Ensure CPPBuilder implements the Builder interface.

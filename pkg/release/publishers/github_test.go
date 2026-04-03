@@ -1,20 +1,18 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
-	"os"
-	"os/exec"
-	"strings"
 	"testing"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseGitHubRepo_Good(t *testing.T) {
+func TestGitHub_ParseGitHubRepo_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -51,7 +49,7 @@ func TestParseGitHubRepo_Good(t *testing.T) {
 	}
 }
 
-func TestParseGitHubRepo_Bad(t *testing.T) {
+func TestGitHub_ParseGitHubRepo_Bad(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -82,14 +80,14 @@ func TestParseGitHubRepo_Bad(t *testing.T) {
 	}
 }
 
-func TestGitHubPublisher_Name_Good(t *testing.T) {
+func TestGitHub_GitHubPublisherName_Good(t *testing.T) {
 	t.Run("returns github", func(t *testing.T) {
 		p := NewGitHubPublisher()
 		assert.Equal(t, "github", p.Name())
 	})
 }
 
-func TestNewRelease_Good(t *testing.T) {
+func TestGitHub_NewRelease_Good(t *testing.T) {
 	t.Run("creates release struct", func(t *testing.T) {
 		r := NewRelease("v1.0.0", nil, "changelog", "/project", io.Local)
 		assert.Equal(t, "v1.0.0", r.Version)
@@ -99,7 +97,7 @@ func TestNewRelease_Good(t *testing.T) {
 	})
 }
 
-func TestNewPublisherConfig_Good(t *testing.T) {
+func TestGitHub_NewPublisherConfig_Good(t *testing.T) {
 	t.Run("creates config struct", func(t *testing.T) {
 		cfg := NewPublisherConfig("github", true, false, nil)
 		assert.Equal(t, "github", cfg.Type)
@@ -116,7 +114,7 @@ func TestNewPublisherConfig_Good(t *testing.T) {
 	})
 }
 
-func TestBuildCreateArgs_Good(t *testing.T) {
+func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("basic args", func(t *testing.T) {
@@ -221,14 +219,10 @@ func TestBuildCreateArgs_Good(t *testing.T) {
 	})
 }
 
-func TestGitHubPublisher_DryRunPublish_Good(t *testing.T) {
+func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			Changelog:  "## Changes\n\n- Feature A\n- Bug fix B",
@@ -241,15 +235,11 @@ func TestGitHubPublisher_DryRunPublish_Good(t *testing.T) {
 			Prerelease: false,
 		}
 
-		err := p.dryRunPublish(release, cfg, "owner/repo")
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg, "owner/repo")
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: GitHub Release")
 		assert.Contains(t, output, "Repository: owner/repo")
@@ -264,10 +254,6 @@ func TestGitHubPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 
 	t.Run("shows artifacts when present", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
@@ -280,15 +266,11 @@ func TestGitHubPublisher_DryRunPublish_Good(t *testing.T) {
 		}
 		cfg := PublisherConfig{Type: "github"}
 
-		err := p.dryRunPublish(release, cfg, "owner/repo")
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg, "owner/repo")
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "Would upload artifacts:")
 		assert.Contains(t, output, "myapp-darwin-amd64.tar.gz")
@@ -296,10 +278,6 @@ func TestGitHubPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 
 	t.Run("shows draft and prerelease flags", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0-beta",
 			Changelog:  "Beta release",
@@ -312,15 +290,11 @@ func TestGitHubPublisher_DryRunPublish_Good(t *testing.T) {
 			Prerelease: true,
 		}
 
-		err := p.dryRunPublish(release, cfg, "owner/repo")
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg, "owner/repo")
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "Draft:      true")
 		assert.Contains(t, output, "Prerelease: true")
@@ -329,14 +303,10 @@ func TestGitHubPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 }
 
-func TestGitHubPublisher_Publish_Good(t *testing.T) {
+func TestGitHub_GitHubPublisherPublish_Good(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("dry run uses repository from config", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
@@ -347,20 +317,16 @@ func TestGitHubPublisher_Publish_Good(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "custom/repo"}
 
 		// Dry run should succeed without needing gh CLI
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "Repository: custom/repo")
 	})
 }
 
-func TestGitHubPublisher_Publish_Bad(t *testing.T) {
+func TestGitHub_GitHubPublisherPublish_Bad(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -387,9 +353,7 @@ func TestGitHubPublisher_Publish_Bad(t *testing.T) {
 
 	t.Run("fails when repository cannot be detected", func(t *testing.T) {
 		// Create a temp directory that is NOT a git repo
-		tmpDir, err := os.MkdirTemp("", "github-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -400,7 +364,7 @@ func TestGitHubPublisher_Publish_Bad(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: ""} // Empty repository
 
-		err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
 
 		// Should fail because detectRepository will fail on non-git dir
 		assert.Error(t, err)
@@ -408,103 +372,124 @@ func TestGitHubPublisher_Publish_Bad(t *testing.T) {
 	})
 }
 
-func TestDetectRepository_Good(t *testing.T) {
+func TestGitHub_DetectRepository_Good(t *testing.T) {
 	t.Run("detects repository from git remote", func(t *testing.T) {
 		// Create a temp git repo
-		tmpDir, err := os.MkdirTemp("", "git-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
 		// Initialize git repo and set remote
-		cmd := exec.Command("git", "init")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
+		runPublisherCommand(t, tmpDir, "git", "init")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@github.com:test-owner/test-repo.git")
 
-		cmd = exec.Command("git", "remote", "add", "origin", "git@github.com:test-owner/test-repo.git")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		repo, err := detectRepository(tmpDir)
+		repo, err := detectRepository(context.Background(), tmpDir)
 		require.NoError(t, err)
 		assert.Equal(t, "test-owner/test-repo", repo)
 	})
 
 	t.Run("detects repository from HTTPS remote", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "git-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
+		runPublisherCommand(t, tmpDir, "git", "init")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "https://github.com/another-owner/another-repo.git")
 
-		cmd := exec.Command("git", "init")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		cmd = exec.Command("git", "remote", "add", "origin", "https://github.com/another-owner/another-repo.git")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		repo, err := detectRepository(tmpDir)
+		repo, err := detectRepository(context.Background(), tmpDir)
 		require.NoError(t, err)
 		assert.Equal(t, "another-owner/another-repo", repo)
 	})
 }
 
-func TestDetectRepository_Bad(t *testing.T) {
+func TestGitHub_DetectRepository_Bad(t *testing.T) {
 	t.Run("fails when not a git repository", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "no-git-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
-		_, err = detectRepository(tmpDir)
+		_, err := detectRepository(context.Background(), tmpDir)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get git remote")
 	})
 
 	t.Run("fails when directory does not exist", func(t *testing.T) {
-		_, err := detectRepository("/nonexistent/directory/that/does/not/exist")
+		_, err := detectRepository(context.Background(), "/nonexistent/directory/that/does/not/exist")
 		assert.Error(t, err)
 	})
 
 	t.Run("fails when remote is not GitHub", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "git-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
+		runPublisherCommand(t, tmpDir, "git", "init")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@gitlab.com:owner/repo.git")
 
-		cmd := exec.Command("git", "init")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		cmd = exec.Command("git", "remote", "add", "origin", "git@gitlab.com:owner/repo.git")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		_, err = detectRepository(tmpDir)
+		_, err := detectRepository(context.Background(), tmpDir)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not a GitHub URL")
 	})
+
+	t.Run("respects cancelled context", func(t *testing.T) {
+		commandDir := t.TempDir()
+		commandPath := ax.Join(commandDir, "git")
+		require.NoError(t, ax.WriteFile(commandPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+		t.Setenv("PATH", commandDir)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := detectRepository(ctx, t.TempDir())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
 }
 
-func TestValidateGhCli_Bad(t *testing.T) {
+func TestGitHub_ValidateGhCli_Bad(t *testing.T) {
 	// This test verifies the error messages from validateGhCli
 	// We can't easily mock exec.Command, but we can at least
 	// verify the function exists and returns expected error types
 	t.Run("returns error when gh not installed", func(t *testing.T) {
 		// We can't force gh to not be installed, but we can verify
 		// the function signature works correctly
-		err := validateGhCli()
+		err := validateGhCli(context.Background())
 		if err != nil {
 			// Either gh is not installed or not authenticated
 			assert.True(t,
-				strings.Contains(err.Error(), "gh CLI not found") ||
-					strings.Contains(err.Error(), "not authenticated"),
+				core.Contains(err.Error(), "gh CLI not found") ||
+					core.Contains(err.Error(), "not authenticated"),
 				"unexpected error: %s", err.Error())
 		}
 		// If err is nil, gh is installed and authenticated - that's OK too
 	})
+
+	t.Run("respects cancelled context during auth check", func(t *testing.T) {
+		commandDir := t.TempDir()
+		commandPath := ax.Join(commandDir, "gh")
+		require.NoError(t, ax.WriteFile(commandPath, []byte("#!/bin/sh\necho 'Logged in'\n"), 0o755))
+		t.Setenv("PATH", commandDir)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := validateGhCli(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
 }
 
-func TestGitHubPublisher_ExecutePublish_Good(t *testing.T) {
+func TestGitHub_ResolveGhCli_Good(t *testing.T) {
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "gh")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
+
+	command, err := resolveGhCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestGitHub_ResolveGhCli_Bad(t *testing.T) {
+	t.Setenv("PATH", "")
+	_, err := resolveGhCli(ax.Join(t.TempDir(), "missing-gh"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gh CLI not found")
+}
+
+func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
 	// These tests run only when gh CLI is available and authenticated
-	if err := validateGhCli(); err != nil {
+	if err := validateGhCli(context.Background()); err != nil {
 		t.Skip("skipping test: gh CLI not available or not authenticated")
 	}
 
@@ -530,14 +515,17 @@ func TestGitHubPublisher_ExecutePublish_Good(t *testing.T) {
 
 		// This will fail because the artifact doesn't exist, but it proves
 		// the code path runs
-		err := p.executePublish(context.Background(), release, cfg, "test-owner/test-repo-nonexistent")
+		command, err := resolveGhCli()
+		require.NoError(t, err)
+
+		err = p.executePublish(context.Background(), release, cfg, "test-owner/test-repo-nonexistent", command)
 		assert.Error(t, err) // Expected to fail
 	})
 }
 
-func TestReleaseExists_Good(t *testing.T) {
+func TestGitHub_ReleaseExists_Good(t *testing.T) {
 	// These tests run only when gh CLI is available
-	if err := validateGhCli(); err != nil {
+	if err := validateGhCli(context.Background()); err != nil {
 		t.Skip("skipping test: gh CLI not available or not authenticated")
 	}
 

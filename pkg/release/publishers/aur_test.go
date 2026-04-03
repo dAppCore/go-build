@@ -1,9 +1,7 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
-	"os"
 	"testing"
 
 	"dappco.re/go/core/io"
@@ -11,14 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAURPublisher_Name_Good(t *testing.T) {
+func TestAUR_AURPublisherName_Good(t *testing.T) {
 	t.Run("returns aur", func(t *testing.T) {
 		p := NewAURPublisher()
 		assert.Equal(t, "aur", p.Name())
 	})
 }
 
-func TestAURPublisher_ParseConfig_Good(t *testing.T) {
+func TestAUR_AURPublisherParseConfig_Good(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -80,7 +78,7 @@ func TestAURPublisher_ParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestAURPublisher_RenderTemplate_Good(t *testing.T) {
+func TestAUR_AURPublisherRenderTemplate_Good(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("renders PKGBUILD template with data", func(t *testing.T) {
@@ -140,7 +138,7 @@ func TestAURPublisher_RenderTemplate_Good(t *testing.T) {
 	})
 }
 
-func TestAURPublisher_RenderTemplate_Bad(t *testing.T) {
+func TestAUR_AURPublisherRenderTemplate_Bad(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
@@ -151,14 +149,10 @@ func TestAURPublisher_RenderTemplate_Bad(t *testing.T) {
 	})
 }
 
-func TestAURPublisher_DryRunPublish_Good(t *testing.T) {
+func TestAUR_AURPublisherDryRunPublish_Good(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := aurTemplateData{
 			PackageName: "myapp",
 			Version:     "1.0.0",
@@ -171,15 +165,11 @@ func TestAURPublisher_DryRunPublish_Good(t *testing.T) {
 			Maintainer: "John Doe <john@example.com>",
 		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: AUR Publish")
 		assert.Contains(t, output, "Package:    myapp-bin")
@@ -193,7 +183,7 @@ func TestAURPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 }
 
-func TestAURPublisher_Publish_Bad(t *testing.T) {
+func TestAUR_AURPublisherPublish_Bad(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("fails when maintainer not configured", func(t *testing.T) {
@@ -211,7 +201,7 @@ func TestAURPublisher_Publish_Bad(t *testing.T) {
 	})
 }
 
-func TestAURConfig_Defaults_Good(t *testing.T) {
+func TestAUR_AURConfigDefaults_Good(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewAURPublisher()
 		pubCfg := PublisherConfig{Type: "aur"}

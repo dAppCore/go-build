@@ -7,6 +7,8 @@ import (
 	"dappco.re/go/core/i18n"
 )
 
+// Usage example: use locales.FS from package consumers as needed.
+//
 //go:embed *.json
 var FS embed.FS
 

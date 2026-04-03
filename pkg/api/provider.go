@@ -6,17 +6,21 @@
 package api
 
 import (
+	"errors"
+	stdio "io"
+	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
+	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/projectdetect"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 	"dappco.re/go/core/ws"
 	"github.com/gin-gonic/gin"
 )
@@ -24,6 +28,8 @@ import (
 // BuildProvider wraps go-build's build, release, and SDK operations as a
 // service provider. It implements Provider, Streamable, Describable, and
 // Renderable.
+//
+// p := api.NewProvider(".", hub)
 type BuildProvider struct {
 	hub        *ws.Hub
 	projectDir string
@@ -41,6 +47,8 @@ var (
 // NewProvider creates a BuildProvider for the given project directory.
 // If projectDir is empty, the current working directory is used.
 // The WS hub is used to emit real-time build events; pass nil if not available.
+//
+// p := api.NewProvider(".", hub)
 func NewProvider(projectDir string, hub *ws.Hub) *BuildProvider {
 	if projectDir == "" {
 		projectDir = "."
@@ -53,12 +61,18 @@ func NewProvider(projectDir string, hub *ws.Hub) *BuildProvider {
 }
 
 // Name implements api.RouteGroup.
+//
+// name := p.Name() // → "build"
 func (p *BuildProvider) Name() string { return "build" }
 
 // BasePath implements api.RouteGroup.
+//
+// path := p.BasePath() // → "/api/v1/build"
 func (p *BuildProvider) BasePath() string { return "/api/v1/build" }
 
 // Element implements provider.Renderable.
+//
+// spec := p.Element() // → {Tag: "core-build-panel", Source: "/assets/core-build.js"}
 func (p *BuildProvider) Element() provider.ElementSpec {
 	return provider.ElementSpec{
 		Tag:    "core-build-panel",
@@ -67,6 +81,8 @@ func (p *BuildProvider) Element() provider.ElementSpec {
 }
 
 // Channels implements provider.Streamable.
+//
+// channels := p.Channels() // → ["build.started", "build.complete", ...]
 func (p *BuildProvider) Channels() []string {
 	return []string{
 		"build.started",
@@ -74,11 +90,14 @@ func (p *BuildProvider) Channels() []string {
 		"build.failed",
 		"release.started",
 		"release.complete",
+		"workflow.generated",
 		"sdk.generated",
 	}
 }
 
 // RegisterRoutes implements api.RouteGroup.
+//
+// p.RegisterRoutes(rg)
 func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	// Build
 	rg.GET("/config", p.getConfig)
@@ -90,6 +109,7 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/release/version", p.getVersion)
 	rg.GET("/release/changelog", p.getChangelog)
 	rg.POST("/release", p.triggerRelease)
+	rg.POST("/release/workflow", p.generateReleaseWorkflow)
 
 	// SDK
 	rg.GET("/sdk/diff", p.getSdkDiff)
@@ -97,6 +117,8 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 // Describe implements api.DescribableGroup.
+//
+// routes := p.Describe() // → [{Method: "GET", Path: "/config", ...}, ...]
 func (p *BuildProvider) Describe() []api.RouteDescription {
 	return []api.RouteDescription{
 		{
@@ -110,7 +132,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Method:      "GET",
 			Path:        "/discover",
 			Summary:     "Detect project type",
-			Description: "Scans the project directory for marker files and returns detected project types.",
+			Description: "Scans the project directory for marker files and returns detected project types plus frontend and distro metadata.",
 			Tags:        []string{"build", "discovery"},
 		},
 		{
@@ -149,6 +171,70 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Tags:        []string{"release"},
 		},
 		{
+			Method:      "POST",
+			Path:        "/release/workflow",
+			Summary:     "Generate release workflow",
+			Description: "Writes the embedded GitHub Actions release workflow into .github/workflows/release.yml or a custom path.",
+			Tags:        []string{"release", "workflow"},
+			RequestBody: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{
+						"type":        "string",
+						"description": "Preferred workflow path input, relative to the project directory or absolute.",
+					},
+					"workflowPath": map[string]any{
+						"type":        "string",
+						"description": "Predictable alias for path, relative to the project directory or absolute.",
+					},
+					"workflow_path": map[string]any{
+						"type":        "string",
+						"description": "Snake_case alias for workflowPath.",
+					},
+					"workflow-path": map[string]any{
+						"type":        "string",
+						"description": "Hyphenated alias for workflowPath.",
+					},
+					"workflowOutputPath": map[string]any{
+						"type":        "string",
+						"description": "Predictable alias for outputPath, relative to the project directory or absolute.",
+					},
+					"workflow_output": map[string]any{
+						"type":        "string",
+						"description": "Snake_case alias for workflowOutputPath.",
+					},
+					"workflow-output": map[string]any{
+						"type":        "string",
+						"description": "Hyphenated alias for workflowOutputPath.",
+					},
+					"workflow_output_path": map[string]any{
+						"type":        "string",
+						"description": "Snake_case alias for workflowOutputPath.",
+					},
+					"workflow-output-path": map[string]any{
+						"type":        "string",
+						"description": "Hyphenated alias for workflowOutputPath.",
+					},
+					"outputPath": map[string]any{
+						"type":        "string",
+						"description": "Preferred explicit workflow output path, relative to the project directory or absolute.",
+					},
+					"output-path": map[string]any{
+						"type":        "string",
+						"description": "Hyphenated alias for outputPath.",
+					},
+					"output_path": map[string]any{
+						"type":        "string",
+						"description": "Snake_case alias for outputPath.",
+					},
+					"output": map[string]any{
+						"type":        "string",
+						"description": "Legacy alias for outputPath.",
+					},
+				},
+			},
+		},
+		{
 			Method:      "GET",
 			Path:        "/sdk/diff",
 			Summary:     "OpenAPI breaking change diff",
@@ -180,7 +266,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 
 // resolveDir returns the absolute project directory.
 func (p *BuildProvider) resolveDir() (string, error) {
-	return filepath.Abs(p.projectDir)
+	return ax.Abs(p.projectDir)
 }
 
 // -- Build Handlers -----------------------------------------------------------
@@ -214,27 +300,32 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		return
 	}
 
-	types, err := build.Discover(p.medium, dir)
+	discovery, err := build.DiscoverFull(p.medium, dir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
 		return
 	}
 
 	// Convert to string slice for JSON
-	typeStrings := make([]string, len(types))
-	for i, t := range types {
+	typeStrings := make([]string, len(discovery.Types))
+	for i, t := range discovery.Types {
 		typeStrings[i] = string(t)
 	}
 
 	primary := ""
-	if len(types) > 0 {
-		primary = string(types[0])
+	if len(discovery.Types) > 0 {
+		primary = string(discovery.Types[0])
 	}
 
 	c.JSON(http.StatusOK, api.OK(map[string]any{
-		"types":   typeStrings,
-		"primary": primary,
-		"dir":     dir,
+		"types":           typeStrings,
+		"primary":         primary,
+		"primary_stack":   discovery.PrimaryStack,
+		"dir":             dir,
+		"has_frontend":    discovery.HasFrontend,
+		"has_subtree_npm": discovery.HasSubtreeNpm,
+		"markers":         discovery.Markers,
+		"distro":          discovery.Distro,
 	}))
 }
 
@@ -252,8 +343,14 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		return
 	}
 
-	// Detect project type
-	projectType, err := build.PrimaryType(p.medium, dir)
+	discovery, err := build.DiscoverFull(p.medium, dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
+		return
+	}
+
+	// Detect project type, honouring an explicit build.type override.
+	projectType, err := resolveProjectType(p.medium, dir, cfg.Build.Type)
 	if err != nil || projectType == "" {
 		c.JSON(http.StatusBadRequest, api.Fail("no_project", "no buildable project detected"))
 		return
@@ -267,7 +364,7 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	}
 
 	// Determine version
-	version, verr := release.DetermineVersion(dir)
+	version, verr := release.DetermineVersionWithContext(c.Request.Context(), dir)
 	if verr != nil {
 		version = "dev"
 	}
@@ -278,10 +375,10 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		binaryName = cfg.Project.Name
 	}
 	if binaryName == "" {
-		binaryName = filepath.Base(dir)
+		binaryName = ax.Base(dir)
 	}
 
-	outputDir := filepath.Join(dir, "dist")
+	outputDir := ax.Join(dir, "dist")
 
 	buildConfig := &build.Config{
 		FS:         p.medium,
@@ -292,6 +389,7 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		LDFlags:    cfg.Build.LDFlags,
 		CGO:        cfg.Build.CGO,
 	}
+	build.ApplyOptions(buildConfig, build.ComputeOptions(cfg, discovery))
 
 	targets := cfg.ToTargets()
 
@@ -334,6 +432,15 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	}))
 }
 
+// resolveProjectType returns the configured build type when present, otherwise it falls back to detection.
+func resolveProjectType(filesystem io.Medium, projectDir, buildType string) (build.ProjectType, error) {
+	if buildType != "" {
+		return build.ProjectType(buildType), nil
+	}
+
+	return projectdetect.DetectProjectType(filesystem, projectDir)
+}
+
 // artifactInfo holds JSON-friendly metadata about a dist/ file.
 type artifactInfo struct {
 	Name string `json:"name"`
@@ -348,7 +455,7 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 		return
 	}
 
-	distDir := filepath.Join(dir, "dist")
+	distDir := ax.Join(dir, "dist")
 	if !p.medium.IsDir(distDir) {
 		c.JSON(http.StatusOK, api.OK(map[string]any{
 			"artifacts": []artifactInfo{},
@@ -374,7 +481,7 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 		}
 		artifacts = append(artifacts, artifactInfo{
 			Name: entry.Name(),
-			Path: filepath.Join(distDir, entry.Name()),
+			Path: ax.Join(distDir, entry.Name()),
 			Size: info.Size(),
 		})
 	}
@@ -398,7 +505,7 @@ func (p *BuildProvider) getVersion(c *gin.Context) {
 		return
 	}
 
-	version, err := release.DetermineVersion(dir)
+	version, err := release.DetermineVersionWithContext(c.Request.Context(), dir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("version_failed", err.Error()))
 		return
@@ -420,7 +527,7 @@ func (p *BuildProvider) getChangelog(c *gin.Context) {
 	fromRef := c.Query("from")
 	toRef := c.Query("to")
 
-	changelog, err := release.Generate(dir, fromRef, toRef)
+	changelog, err := release.GenerateWithContext(c.Request.Context(), dir, fromRef, toRef)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("changelog_failed", err.Error()))
 		return
@@ -468,6 +575,127 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 		"artifacts": rel.Artifacts,
 		"changelog": rel.Changelog,
 		"dry_run":   dryRun,
+	}))
+}
+
+// ReleaseWorkflowRequest captures the workflow-generation inputs exposed by the API.
+//
+// request := ReleaseWorkflowRequest{Path: "ci/release.yml"}                 // writes ./ci/release.yml
+// request := ReleaseWorkflowRequest{WorkflowOutputPath: "ops/release.yml"} // writes ./ops/release.yml
+type ReleaseWorkflowRequest struct {
+	Path                     string `json:"path"`
+	WorkflowPath             string `json:"workflowPath"`
+	WorkflowPathSnake        string `json:"workflow_path"`
+	WorkflowPathHyphen       string `json:"workflow-path"`
+	OutputPath               string `json:"outputPath"`
+	OutputPathHyphen         string `json:"output-path"`
+	OutputPathSnake          string `json:"output_path"`
+	LegacyOutputPath         string `json:"output"`
+	WorkflowOutputPath       string `json:"workflowOutputPath"`
+	WorkflowOutputSnake      string `json:"workflow_output"`
+	WorkflowOutputHyphen     string `json:"workflow-output"`
+	WorkflowOutputPathSnake  string `json:"workflow_output_path"`
+	WorkflowOutputPathHyphen string `json:"workflow-output-path"`
+}
+
+// resolveWorkflowTargetPath merges the workflow path and workflow output aliases into one final target path.
+//
+// request := ReleaseWorkflowRequest{Path: "ci/release.yml"}
+// path, err := request.resolveWorkflowTargetPath("/tmp/project", io.Local)
+func (r ReleaseWorkflowRequest) resolveWorkflowTargetPath(dir string, medium io.Medium) (string, error) {
+	outputPath, err := r.resolveOutputPath(dir, medium)
+	if err != nil {
+		return "", err
+	}
+
+	workflowPath, err := r.resolveWorkflowPath(dir, medium)
+	if err != nil {
+		return "", err
+	}
+
+	return build.ResolveReleaseWorkflowInputPathWithMedium(medium, dir, workflowPath, outputPath)
+}
+
+// resolveWorkflowPath("ci/release.yml") and resolveWorkflowPath("workflow-path") both resolve to the same file path.
+//
+// request := ReleaseWorkflowRequest{WorkflowPath: "ci/release.yml"}
+// workflowPath, err := request.resolveWorkflowPath("/tmp/project", io.Local)
+func (r ReleaseWorkflowRequest) resolveWorkflowPath(dir string, medium io.Medium) (string, error) {
+	workflowPath, err := build.ResolveReleaseWorkflowInputPathAliases(
+		medium,
+		dir,
+		r.Path,
+		r.WorkflowPath,
+		r.WorkflowPathSnake,
+		r.WorkflowPathHyphen,
+	)
+	if err != nil {
+		return "", coreerr.E("api.ReleaseWorkflowRequest", "workflow path aliases specify different locations", nil)
+	}
+
+	return workflowPath, nil
+}
+
+// resolveOutputPath("ci/release.yml") and resolveOutputPath("workflow-output-path") both resolve to the same file path.
+//
+// request := ReleaseWorkflowRequest{WorkflowOutputPath: "ci/release.yml"}
+// outputPath, err := request.resolveOutputPath("/tmp/project")
+func (r ReleaseWorkflowRequest) resolveOutputPath(dir string, medium io.Medium) (string, error) {
+	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
+		medium,
+		dir,
+		r.OutputPath,
+		r.OutputPathHyphen,
+		r.OutputPathSnake,
+		r.LegacyOutputPath,
+		r.WorkflowOutputPath,
+		r.WorkflowOutputSnake,
+		r.WorkflowOutputHyphen,
+		r.WorkflowOutputPathSnake,
+		r.WorkflowOutputPathHyphen,
+	)
+	if err != nil {
+		return "", coreerr.E("api.ReleaseWorkflowRequest", "workflow output aliases specify different locations", nil)
+	}
+
+	return resolvedOutputPath, nil
+}
+
+func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
+	dir, err := p.resolveDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	var request ReleaseWorkflowRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		// Empty bodies are valid; malformed JSON is not.
+		if !errors.Is(err, stdio.EOF) {
+			c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+			return
+		}
+	}
+
+	workflowPath, err := request.resolveWorkflowTargetPath(dir, p.medium)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+		return
+	}
+
+	if err := build.WriteReleaseWorkflow(p.medium, workflowPath); err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
+		return
+	}
+
+	p.emitEvent("workflow.generated", map[string]any{
+		"path":      workflowPath,
+		"generated": true,
+	})
+
+	c.JSON(http.StatusOK, api.OK(map[string]any{
+		"generated": true,
+		"path":      workflowPath,
 	}))
 }
 
@@ -529,6 +757,10 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 				Enabled:        relCfg.SDK.Diff.Enabled,
 				FailOnBreaking: relCfg.SDK.Diff.FailOnBreaking,
 			},
+			Publish: sdk.PublishConfig{
+				Repo: relCfg.SDK.Publish.Repo,
+				Path: relCfg.SDK.Publish.Path,
+			},
 		}
 	}
 
@@ -565,8 +797,26 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 		return builders.NewWailsBuilder(), nil
 	case build.ProjectTypeGo:
 		return builders.NewGoBuilder(), nil
+	case build.ProjectTypeNode:
+		return builders.NewNodeBuilder(), nil
+	case build.ProjectTypePHP:
+		return builders.NewPHPBuilder(), nil
+	case build.ProjectTypePython:
+		return builders.NewPythonBuilder(), nil
+	case build.ProjectTypeRust:
+		return builders.NewRustBuilder(), nil
+	case build.ProjectTypeDocs:
+		return builders.NewDocsBuilder(), nil
+	case build.ProjectTypeCPP:
+		return builders.NewCPPBuilder(), nil
+	case build.ProjectTypeDocker:
+		return builders.NewDockerBuilder(), nil
+	case build.ProjectTypeLinuxKit:
+		return builders.NewLinuxKitBuilder(), nil
+	case build.ProjectTypeTaskfile:
+		return builders.NewTaskfileBuilder(), nil
 	default:
-		return nil, os.ErrNotExist
+		return nil, fs.ErrNotExist
 	}
 }
 

@@ -7,9 +7,9 @@ description: Build system, release pipeline, and SDK generation for the Core eco
 
 `forge.lthn.ai/core/go-build` is the build, release, and SDK generation toolkit for Core projects. It provides:
 
-- **Auto-detecting builders** for Go, Wails, Docker, LinuxKit, C++, and Taskfile projects
+- **Auto-detecting builders** for Go, Wails, Node, PHP, Python, Rust, Docs, Docker, LinuxKit, C++, and Taskfile projects
 - **Cross-compilation** with per-target archiving (tar.gz, tar.xz, zip) and SHA-256 checksums
-- **Code signing** -- macOS codesign with notarisation, GPG detached signatures, Windows signtool (placeholder)
+- **Code signing** -- macOS codesign with notarisation, GPG detached signatures, Windows signtool
 - **Release automation** -- semantic versioning from git tags, conventional-commit changelogs, multi-target publishing
 - **SDK generation** -- OpenAPI spec diffing for breaking-change detection, code generation for TypeScript, Python, Go, and PHP
 - **CLI integration** -- registers `core build`, `core ci`, and `core sdk` commands via the Core CLI framework
@@ -41,8 +41,11 @@ The builder is chosen by marker-file priority:
 |-------------------|------------|
 | `wails.json`      | Wails      |
 | `go.mod`          | Go         |
-| `package.json`    | Node (stub)|
-| `composer.json`   | PHP (stub) |
+| `package.json`    | Node       |
+| `composer.json`   | PHP        |
+| `pyproject.toml`  | Python     |
+| `Cargo.toml`      | Rust       |
+| `mkdocs.yml`      | Docs       |
 | `CMakeLists.txt`  | C++        |
 | `Dockerfile`      | Docker     |
 | `linuxkit.yml`    | LinuxKit   |
@@ -96,7 +99,7 @@ forge.lthn.ai/core/go-build/
 |
 +-- pkg/
     |-- build/              Core build types, config loading, discovery, archiving, checksums
-    |   |-- builders/       Builder implementations (Go, Wails, Docker, LinuxKit, C++, Taskfile)
+|   |-- builders/       Builder implementations (Go, Wails, Node, PHP, Python, Docs, Docker, LinuxKit, C++, Taskfile)
     |   +-- signing/        Code-signing implementations (macOS codesign, GPG, Windows stub)
     |
     |-- release/            Release orchestration, versioning, changelog, config

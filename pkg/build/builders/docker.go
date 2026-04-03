@@ -3,60 +3,70 @@ package builders
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"runtime"
 	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // DockerBuilder builds Docker images.
+//
+// b := builders.NewDockerBuilder()
 type DockerBuilder struct{}
 
 // NewDockerBuilder creates a new Docker builder.
+//
+// b := builders.NewDockerBuilder()
 func NewDockerBuilder() *DockerBuilder {
 	return &DockerBuilder{}
 }
 
 // Name returns the builder's identifier.
+//
+// name := b.Name() // → "docker"
 func (b *DockerBuilder) Name() string {
 	return "docker"
 }
 
-// Detect checks if a Dockerfile exists in the directory.
+// Detect checks if a Dockerfile or Containerfile exists in the directory.
+//
+// ok, err := b.Detect(io.Local, ".")
 func (b *DockerBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	dockerfilePath := filepath.Join(dir, "Dockerfile")
-	if fs.IsFile(dockerfilePath) {
+	if build.ResolveDockerfilePath(fs, dir) != "" {
 		return true, nil
 	}
 	return false, nil
 }
 
 // Build builds Docker images for the specified targets.
+//
+// artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
-	// Validate docker CLI is available
-	if err := b.validateDockerCli(); err != nil {
+	dockerCommand, err := b.resolveDockerCli()
+	if err != nil {
 		return nil, err
 	}
 
 	// Ensure buildx is available
-	if err := b.ensureBuildx(ctx); err != nil {
+	if err := b.ensureBuildx(ctx, dockerCommand); err != nil {
 		return nil, err
 	}
 
-	// Determine Dockerfile path
+	// Determine Docker manifest path
 	dockerfile := cfg.Dockerfile
 	if dockerfile == "" {
-		dockerfile = filepath.Join(cfg.ProjectDir, "Dockerfile")
+		dockerfile = build.ResolveDockerfilePath(cfg.FS, cfg.ProjectDir)
+	} else if !ax.IsAbs(dockerfile) {
+		dockerfile = ax.Join(cfg.ProjectDir, dockerfile)
 	}
 
 	// Validate Dockerfile exists
-	if !cfg.FS.IsFile(dockerfile) {
-		return nil, coreerr.E("DockerBuilder.Build", "Dockerfile not found: "+dockerfile, nil)
+	if dockerfile == "" || !cfg.FS.IsFile(dockerfile) {
+		return nil, coreerr.E("DockerBuilder.Build", "Dockerfile or Containerfile not found", nil)
 	}
 
 	// Determine image name
@@ -65,18 +75,18 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 		imageName = cfg.Name
 	}
 	if imageName == "" {
-		imageName = filepath.Base(cfg.ProjectDir)
+		imageName = ax.Base(cfg.ProjectDir)
 	}
 
 	// Build platform string from targets
-	var platforms []string
-	for _, t := range targets {
-		platforms = append(platforms, fmt.Sprintf("%s/%s", t.OS, t.Arch))
+	buildTargets := targets
+	if len(buildTargets) == 0 {
+		buildTargets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	}
 
-	// If no targets specified, use current platform
-	if len(platforms) == 0 {
-		platforms = []string{"linux/amd64"}
+	var platforms []string
+	for _, t := range buildTargets {
+		platforms = append(platforms, core.Sprintf("%s/%s", t.OS, t.Arch))
 	}
 
 	// Determine registry
@@ -98,13 +108,13 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	var imageRefs []string
 	for _, tag := range tags {
 		// Expand version template
-		expandedTag := strings.ReplaceAll(tag, "{{.Version}}", cfg.Version)
-		expandedTag = strings.ReplaceAll(expandedTag, "{{Version}}", cfg.Version)
+		expandedTag := core.Replace(tag, "{{.Version}}", cfg.Version)
+		expandedTag = core.Replace(expandedTag, "{{Version}}", cfg.Version)
 
 		if registry != "" {
-			imageRefs = append(imageRefs, fmt.Sprintf("%s/%s:%s", registry, imageName, expandedTag))
+			imageRefs = append(imageRefs, core.Sprintf("%s/%s:%s", registry, imageName, expandedTag))
 		} else {
-			imageRefs = append(imageRefs, fmt.Sprintf("%s:%s", imageName, expandedTag))
+			imageRefs = append(imageRefs, core.Sprintf("%s:%s", imageName, expandedTag))
 		}
 	}
 
@@ -112,7 +122,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	args := []string{"buildx", "build"}
 
 	// Multi-platform support
-	args = append(args, "--platform", strings.Join(platforms, ","))
+	args = append(args, "--platform", core.Join(",", platforms...))
 
 	// Add all tags
 	for _, ref := range imageRefs {
@@ -124,28 +134,30 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Build arguments
 	for k, v := range cfg.BuildArgs {
-		expandedValue := strings.ReplaceAll(v, "{{.Version}}", cfg.Version)
-		expandedValue = strings.ReplaceAll(expandedValue, "{{Version}}", cfg.Version)
-		args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, expandedValue))
+		expandedValue := core.Replace(v, "{{.Version}}", cfg.Version)
+		expandedValue = core.Replace(expandedValue, "{{Version}}", cfg.Version)
+		args = append(args, "--build-arg", core.Sprintf("%s=%s", k, expandedValue))
 	}
 
 	// Always add VERSION build arg if version is set
 	if cfg.Version != "" {
-		args = append(args, "--build-arg", fmt.Sprintf("VERSION=%s", cfg.Version))
+		args = append(args, "--build-arg", core.Sprintf("VERSION=%s", cfg.Version))
 	}
 
-	// Output to local docker images or push
+	safeImageName := strings.ReplaceAll(imageName, "/", "_")
+
+	// Output to local docker images or push.
+	// `--load` only works for a single target, so multi-platform local builds
+	// fall back to an OCI archive on disk.
+	useLoad := cfg.Load && !cfg.Push && len(buildTargets) == 1
 	if cfg.Push {
 		args = append(args, "--push")
+	} else if useLoad {
+		args = append(args, "--load")
 	} else {
-		// For multi-platform builds without push, we need to load or output somewhere
-		if len(platforms) == 1 {
-			args = append(args, "--load")
-		} else {
-			// Multi-platform builds can't use --load, output to tarball
-			outputPath := filepath.Join(cfg.OutputDir, fmt.Sprintf("%s.tar", imageName))
-			args = append(args, "--output", fmt.Sprintf("type=oci,dest=%s", outputPath))
-		}
+		// Local Docker builds emit an OCI archive so the build output is a file.
+		outputPath := ax.Join(cfg.OutputDir, core.Sprintf("%s.tar", safeImageName))
+		args = append(args, "--output", core.Sprintf("type=oci,dest=%s", outputPath))
 	}
 
 	// Build context (project directory)
@@ -156,58 +168,58 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 		return nil, coreerr.E("DockerBuilder.Build", "failed to create output directory", err)
 	}
 
-	// Execute build
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Dir = cfg.ProjectDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	core.Print(nil, "Building Docker image: %s", imageName)
+	core.Print(nil, "  Platforms: %s", core.Join(", ", platforms...))
+	core.Print(nil, "  Tags: %s", core.Join(", ", imageRefs...))
 
-	fmt.Printf("Building Docker image: %s\n", imageName)
-	fmt.Printf("  Platforms: %s\n", strings.Join(platforms, ", "))
-	fmt.Printf("  Tags: %s\n", strings.Join(imageRefs, ", "))
-
-	if err := cmd.Run(); err != nil {
+	// Build once for the full platform set. Docker buildx produces a single
+	// multi-arch image or OCI archive from the combined platform list.
+	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, cfg.Env, dockerCommand, args...); err != nil {
 		return nil, coreerr.E("DockerBuilder.Build", "buildx build failed", err)
 	}
 
-	// Create artifacts for each platform
-	var artifacts []build.Artifact
-	for _, t := range targets {
-		artifacts = append(artifacts, build.Artifact{
-			Path: imageRefs[0], // Primary image reference
-			OS:   t.OS,
-			Arch: t.Arch,
-		})
+	artifactPath := imageRefs[0]
+	if !cfg.Push && !useLoad {
+		artifactPath = ax.Join(cfg.OutputDir, core.Sprintf("%s.tar", safeImageName))
 	}
 
-	return artifacts, nil
+	primaryTarget := buildTargets[0]
+	return []build.Artifact{{
+		Path: artifactPath,
+		OS:   primaryTarget.OS,
+		Arch: primaryTarget.Arch,
+	}}, nil
 }
 
-// validateDockerCli checks if the docker CLI is available.
-func (b *DockerBuilder) validateDockerCli() error {
-	cmd := exec.Command("docker", "--version")
-	if err := cmd.Run(); err != nil {
-		return coreerr.E("DockerBuilder.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
+// resolveDockerCli returns the executable path for the docker CLI.
+func (b *DockerBuilder) resolveDockerCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/docker",
+			"/opt/homebrew/bin/docker",
+			"/Applications/Docker.app/Contents/Resources/bin/docker",
+		}
 	}
-	return nil
+
+	command, err := ax.ResolveCommand("docker", paths...)
+	if err != nil {
+		return "", coreerr.E("DockerBuilder.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
+	}
+
+	return command, nil
 }
 
 // ensureBuildx ensures docker buildx is available and has a builder.
-func (b *DockerBuilder) ensureBuildx(ctx context.Context) error {
+func (b *DockerBuilder) ensureBuildx(ctx context.Context, dockerCommand string) error {
 	// Check if buildx is available
-	cmd := exec.CommandContext(ctx, "docker", "buildx", "version")
-	if err := cmd.Run(); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, "buildx", "version"); err != nil {
 		return coreerr.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", err)
 	}
 
 	// Check if we have a builder, create one if not
-	cmd = exec.CommandContext(ctx, "docker", "buildx", "inspect", "--bootstrap")
-	if err := cmd.Run(); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, "buildx", "inspect", "--bootstrap"); err != nil {
 		// Try to create a builder
-		cmd = exec.CommandContext(ctx, "docker", "buildx", "create", "--use", "--bootstrap")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		if err := ax.Exec(ctx, dockerCommand, "buildx", "create", "--use", "--bootstrap"); err != nil {
 			return coreerr.E("DockerBuilder.ensureBuildx", "failed to create buildx builder", err)
 		}
 	}

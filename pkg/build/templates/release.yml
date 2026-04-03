@@ -1,0 +1,146 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory that contains the Core project.
+        required: false
+        type: string
+        default: .
+      core-version:
+        description: Core CLI version to install.
+        required: false
+        type: string
+        default: latest
+      version:
+        description: Release version override.
+        required: false
+        type: string
+        default: ""
+      draft:
+        description: Mark the release as a draft.
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: Mark the release as a pre-release.
+        required: false
+        type: boolean
+        default: false
+      archive-format:
+        description: Archive compression format for release artefacts.
+        required: false
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      working-directory:
+        description: Directory that contains the Core project.
+        required: false
+        type: string
+        default: .
+      core-version:
+        description: Core CLI version to install.
+        required: false
+        type: string
+        default: latest
+      version:
+        description: Release version override.
+        required: false
+        type: string
+        default: ""
+      draft:
+        description: Mark the release as a draft.
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: Mark the release as a pre-release.
+        required: false
+        type: boolean
+        default: false
+      archive-format:
+        description: Archive compression format for release artefacts.
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux/amd64
+            artifact_name: linux-amd64
+            runner: ubuntu-latest
+          - target: linux/arm64
+            artifact_name: linux-arm64
+            runner: ubuntu-latest
+          - target: darwin/amd64
+            artifact_name: darwin-amd64
+            runner: macos-13
+          - target: darwin/arm64
+            artifact_name: darwin-arm64
+            runner: macos-14
+          - target: windows/amd64
+            artifact_name: windows-amd64
+            runner: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Core CLI
+        uses: dAppCore/build@v4
+        with:
+          command: build
+          working-directory: ${{ inputs.working-directory }}
+          core-version: ${{ inputs.core-version }}
+
+      - name: Build release artefacts
+        working-directory: ${{ inputs.working-directory }}
+        shell: bash
+        run: core build --targets "${{ matrix.target }}" --archive --checksum --archive-format "${{ inputs.archive-format }}"
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.artifact_name }}
+          path: ${{ inputs.working-directory }}/dist/**
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artefacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: ${{ inputs.working-directory }}/dist
+          merge-multiple: true
+
+      - name: Install Core CLI
+        uses: dAppCore/build@v4
+        with:
+          command: ci
+          working-directory: ${{ inputs.working-directory }}
+          core-version: ${{ inputs.core-version }}
+          version: ${{ inputs.version }}
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          we-are-go-for-launch: true

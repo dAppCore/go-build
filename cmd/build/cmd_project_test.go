@@ -1,0 +1,218 @@
+package buildcmd
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/io"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	require.NoError(t, ax.ExecDir(context.Background(), dir, "git", args...))
+}
+
+func TestBuildCmd_GetBuilder_Good(t *testing.T) {
+	t.Run("returns Python builder for python project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypePython)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "python", builder.Name())
+	})
+}
+
+func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
+	buildConfig := &build.BuildConfig{
+		Project: build.Project{
+			Name: "sample",
+		},
+		Build: build.Build{
+			LDFlags:        []string{"-s", "-w"},
+			Flags:          []string{"-trimpath"},
+			BuildTags:      []string{"integration"},
+			Env:            []string{"FOO=bar"},
+			CGO:            true,
+			Obfuscate:      true,
+			NSIS:           true,
+			WebView2:       "embed",
+			Dockerfile:     "Dockerfile.custom",
+			Registry:       "ghcr.io",
+			Image:          "owner/repo",
+			Tags:           []string{"latest", "{{.Version}}"},
+			BuildArgs:      map[string]string{"VERSION": "{{.Version}}"},
+			Push:           true,
+			Load:           true,
+			LinuxKitConfig: ".core/linuxkit/server.yml",
+			Formats:        []string{"iso", "qcow2"},
+		},
+	}
+
+	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, false, "", "v1.2.3")
+
+	assert.Equal(t, []string{"-s", "-w"}, cfg.LDFlags)
+	assert.Equal(t, []string{"-trimpath"}, cfg.Flags)
+	assert.Equal(t, []string{"integration"}, cfg.BuildTags)
+	assert.Equal(t, []string{"FOO=bar"}, cfg.Env)
+	assert.True(t, cfg.CGO)
+	assert.True(t, cfg.Obfuscate)
+	assert.True(t, cfg.NSIS)
+	assert.Equal(t, "embed", cfg.WebView2)
+	assert.Equal(t, "Dockerfile.custom", cfg.Dockerfile)
+	assert.Equal(t, "ghcr.io", cfg.Registry)
+	assert.Equal(t, "owner/repo", cfg.Image)
+	assert.Equal(t, []string{"latest", "{{.Version}}"}, cfg.Tags)
+	assert.Equal(t, map[string]string{"VERSION": "{{.Version}}"}, cfg.BuildArgs)
+	assert.True(t, cfg.Push)
+	assert.True(t, cfg.Load)
+	assert.Equal(t, ".core/linuxkit/server.yml", cfg.LinuxKitConfig)
+	assert.Equal(t, []string{"iso", "qcow2"}, cfg.Formats)
+	assert.Equal(t, "v1.2.3", cfg.Version)
+}
+
+func TestBuildCmd_buildRuntimeConfig_ImageOverride_Good(t *testing.T) {
+	buildConfig := &build.BuildConfig{
+		Build: build.Build{
+			Image: "owner/repo",
+		},
+	}
+
+	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, true, "cli/image", "v2.0.0")
+
+	assert.Equal(t, "cli/image", cfg.Image)
+	assert.True(t, cfg.Push)
+	assert.Equal(t, "v2.0.0", cfg.Version)
+}
+
+func TestBuildCmd_buildRuntimeConfig_ClonesBuildArgs_Good(t *testing.T) {
+	buildConfig := &build.BuildConfig{
+		Build: build.Build{
+			BuildArgs: map[string]string{"VERSION": "v1.2.3"},
+		},
+	}
+
+	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, false, "", "v1.2.3")
+	require.NotNil(t, cfg.BuildArgs)
+
+	cfg.BuildArgs["VERSION"] = "mutated"
+	assert.Equal(t, "v1.2.3", buildConfig.Build.BuildArgs["VERSION"])
+}
+
+func TestBuildCmd_resolveArchiveFormat_Good(t *testing.T) {
+	t.Run("uses cli override when present", func(t *testing.T) {
+		format, err := resolveArchiveFormat("gz", "xz")
+		require.NoError(t, err)
+		assert.Equal(t, build.ArchiveFormatXZ, format)
+	})
+
+	t.Run("falls back to config when cli override is empty", func(t *testing.T) {
+		format, err := resolveArchiveFormat("zip", "")
+		require.NoError(t, err)
+		assert.Equal(t, build.ArchiveFormatZip, format)
+	})
+}
+
+func TestBuildCmd_resolveBuildVersion_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	runGit(t, dir, "init")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test User")
+
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0644))
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "feat: initial commit")
+	runGit(t, dir, "tag", "v1.4.2")
+
+	version, err := resolveBuildVersion(context.Background(), dir)
+	require.NoError(t, err)
+	assert.Equal(t, "v1.4.2", version)
+}
+
+func TestBuildCmd_writeArtifactMetadata_Good(t *testing.T) {
+	t.Setenv("GITHUB_SHA", "abc1234def5678")
+	t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
+	t.Setenv("GITHUB_REPOSITORY", "owner/repo")
+
+	fs := io.Local
+	dir := t.TempDir()
+
+	linuxDir := ax.Join(dir, "linux_amd64")
+	windowsDir := ax.Join(dir, "windows_amd64")
+	require.NoError(t, ax.MkdirAll(linuxDir, 0755))
+	require.NoError(t, ax.MkdirAll(windowsDir, 0755))
+
+	artifacts := []build.Artifact{
+		{Path: ax.Join(linuxDir, "sample"), OS: "linux", Arch: "amd64"},
+		{Path: ax.Join(windowsDir, "sample.exe"), OS: "windows", Arch: "amd64"},
+	}
+
+	err := writeArtifactMetadata(fs, "sample", artifacts)
+	require.NoError(t, err)
+
+	verifyArtifactMeta := func(path string, expectedOS string, expectedArch string) {
+		content, readErr := ax.ReadFile(path)
+		require.NoError(t, readErr)
+
+		var meta map[string]any
+		require.NoError(t, json.Unmarshal(content, &meta))
+
+		assert.Equal(t, "sample", meta["name"])
+		assert.Equal(t, expectedOS, meta["os"])
+		assert.Equal(t, expectedArch, meta["arch"])
+		assert.Equal(t, "v1.2.3", meta["tag"])
+		assert.Equal(t, "owner/repo", meta["repo"])
+	}
+
+	verifyArtifactMeta(ax.Join(linuxDir, "artifact_meta.json"), "linux", "amd64")
+	verifyArtifactMeta(ax.Join(windowsDir, "artifact_meta.json"), "windows", "amd64")
+}
+
+func TestBuildCmd_selectOutputArtifacts_Good(t *testing.T) {
+	rawArtifacts := []build.Artifact{{Path: "dist/raw"}}
+	archivedArtifacts := []build.Artifact{{Path: "dist/raw.tar.gz"}}
+	checksummedArtifacts := []build.Artifact{{Path: "dist/raw.tar.gz", Checksum: "abc123"}}
+
+	t.Run("prefers checksummed artifacts", func(t *testing.T) {
+		selected := selectOutputArtifacts(rawArtifacts, archivedArtifacts, checksummedArtifacts)
+		assert.Equal(t, checksummedArtifacts, selected)
+	})
+
+	t.Run("falls back to archived artifacts", func(t *testing.T) {
+		selected := selectOutputArtifacts(rawArtifacts, archivedArtifacts, nil)
+		assert.Equal(t, archivedArtifacts, selected)
+	})
+
+	t.Run("falls back to raw artifacts", func(t *testing.T) {
+		selected := selectOutputArtifacts(rawArtifacts, nil, nil)
+		assert.Equal(t, rawArtifacts, selected)
+	})
+}
+
+func TestBuildCmd_runProjectBuild_PwaOverride_Good(t *testing.T) {
+	expectedWD, err := ax.Getwd()
+	require.NoError(t, err)
+
+	original := runLocalPwaBuild
+	t.Cleanup(func() {
+		runLocalPwaBuild = original
+	})
+
+	called := false
+	runLocalPwaBuild = func(ctx context.Context, projectDir string) error {
+		called = true
+		assert.Equal(t, expectedWD, projectDir)
+		return nil
+	}
+
+	err = runProjectBuild(ProjectBuildRequest{
+		Context:   context.Background(),
+		BuildType: "pwa",
+	})
+	require.NoError(t, err)
+	assert.True(t, called)
+}

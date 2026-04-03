@@ -1,9 +1,9 @@
 package sdk
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,7 +11,7 @@ import (
 
 // --- Breaking Change Detection Tests (oasdiff integration) ---
 
-func TestDiff_Good_AddEndpoint_NonBreaking(t *testing.T) {
+func TestBreaking_DiffAddEndpointNonBreaking_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -50,10 +50,10 @@ paths:
         "200":
           description: OK
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(revision), 0644))
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)
@@ -62,7 +62,7 @@ paths:
 	assert.Equal(t, "No breaking changes", result.Summary)
 }
 
-func TestDiff_Good_RemoveEndpoint_Breaking(t *testing.T) {
+func TestBreaking_DiffRemoveEndpointBreaking_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -101,10 +101,10 @@ paths:
         "200":
           description: OK
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(revision), 0644))
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ paths:
 	assert.Contains(t, result.Summary, "breaking change")
 }
 
-func TestDiff_Good_AddRequiredParam_Breaking(t *testing.T) {
+func TestBreaking_DiffAddRequiredParamBreaking_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -146,10 +146,10 @@ paths:
         "200":
           description: OK
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(revision), 0644))
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)
@@ -157,7 +157,7 @@ paths:
 	assert.NotEmpty(t, result.Changes)
 }
 
-func TestDiff_Good_AddOptionalParam_NonBreaking(t *testing.T) {
+func TestBreaking_DiffAddOptionalParamNonBreaking_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -190,17 +190,17 @@ paths:
         "200":
           description: OK
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(revision), 0644))
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)
 	assert.False(t, result.Breaking, "adding optional parameter should not be breaking")
 }
 
-func TestDiff_Good_ChangeResponseType_Breaking(t *testing.T) {
+func TestBreaking_DiffChangeResponseTypeBreaking_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -252,17 +252,17 @@ paths:
                         name:
                           type: string
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(revision), 0644))
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)
 	assert.True(t, result.Breaking, "changing response schema type should be breaking")
 }
 
-func TestDiff_Good_RemoveHTTPMethod_Breaking(t *testing.T) {
+func TestBreaking_DiffRemoveHTTPMethodBreaking_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -294,10 +294,10 @@ paths:
         "200":
           description: OK
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(revision), 0644))
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)
@@ -305,7 +305,7 @@ paths:
 	assert.NotEmpty(t, result.Changes)
 }
 
-func TestDiff_Good_IdenticalSpecs_NonBreaking(t *testing.T) {
+func TestBreaking_DiffIdenticalSpecsNonBreaking_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	spec := `openapi: "3.0.0"
@@ -331,10 +331,10 @@ paths:
         "201":
           description: Created
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(spec), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(spec), 0644))
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(spec), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(spec), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)
@@ -345,45 +345,45 @@ paths:
 
 // --- Error Handling Tests ---
 
-func TestDiff_Bad_NonExistentBase(t *testing.T) {
+func TestBreaking_DiffNonExistentBase_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(revPath, []byte(`openapi: "3.0.0"
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
 info:
   title: Test API
   version: "1.0.0"
 paths: {}
 `), 0644))
 
-	_, err := Diff(filepath.Join(tmpDir, "nonexistent.yaml"), revPath)
+	_, err := Diff(ax.Join(tmpDir, "nonexistent.yaml"), revPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load base spec")
 }
 
-func TestDiff_Bad_NonExistentRevision(t *testing.T) {
+func TestBreaking_DiffNonExistentRevision_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(`openapi: "3.0.0"
+	basePath := ax.Join(tmpDir, "base.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(`openapi: "3.0.0"
 info:
   title: Test API
   version: "1.0.0"
 paths: {}
 `), 0644))
 
-	_, err := Diff(basePath, filepath.Join(tmpDir, "nonexistent.yaml"))
+	_, err := Diff(basePath, ax.Join(tmpDir, "nonexistent.yaml"))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load revision spec")
 }
 
-func TestDiff_Bad_InvalidYAML(t *testing.T) {
+func TestBreaking_DiffInvalidYAML_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte("not: valid: openapi: spec: {{{{"), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(`openapi: "3.0.0"
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte("not: valid: openapi: spec: {{{{"), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
 info:
   title: Test API
   version: "1.0.0"
@@ -396,7 +396,7 @@ paths: {}
 
 // --- DiffExitCode Tests ---
 
-func TestDiffExitCode_Good(t *testing.T) {
+func TestBreaking_DiffExitCode_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		result   *DiffResult
@@ -433,7 +433,7 @@ func TestDiffExitCode_Good(t *testing.T) {
 
 // --- DiffResult Structure Tests ---
 
-func TestDiffResult_Good_Summary(t *testing.T) {
+func TestBreaking_DiffResultSummary_Good(t *testing.T) {
 	t.Run("breaking result has count in summary", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
@@ -474,10 +474,10 @@ paths:
         "200":
           description: OK
 `
-		basePath := filepath.Join(tmpDir, "base.yaml")
-		revPath := filepath.Join(tmpDir, "rev.yaml")
-		require.NoError(t, os.WriteFile(basePath, []byte(base), 0644))
-		require.NoError(t, os.WriteFile(revPath, []byte(revision), 0644))
+		basePath := ax.Join(tmpDir, "base.yaml")
+		revPath := ax.Join(tmpDir, "rev.yaml")
+		require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
+		require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
 
 		result, err := Diff(basePath, revPath)
 		require.NoError(t, err)
@@ -489,7 +489,7 @@ paths:
 	})
 }
 
-func TestDiffResult_Good_ChangesAreHumanReadable(t *testing.T) {
+func TestBreaking_DiffResultChangesAreHumanReadable_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -510,10 +510,10 @@ info:
   version: "2.0.0"
 paths: {}
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(revision), 0644))
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)
@@ -527,7 +527,7 @@ paths: {}
 
 // --- Multiple Changes Detection Tests ---
 
-func TestDiff_Good_MultipleBreakingChanges(t *testing.T) {
+func TestBreaking_DiffMultipleBreakingChanges_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -570,10 +570,10 @@ paths:
         "200":
           description: OK
 `
-	basePath := filepath.Join(tmpDir, "base.yaml")
-	revPath := filepath.Join(tmpDir, "rev.yaml")
-	require.NoError(t, os.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(revision), 0644))
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)
@@ -586,7 +586,7 @@ paths:
 
 // --- JSON Spec Support Tests ---
 
-func TestDiff_Good_JSONSpecs(t *testing.T) {
+func TestBreaking_DiffJSONSpecs_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	baseJSON := `{
@@ -619,10 +619,10 @@ func TestDiff_Good_JSONSpecs(t *testing.T) {
     }
   }
 }`
-	basePath := filepath.Join(tmpDir, "base.json")
-	revPath := filepath.Join(tmpDir, "rev.json")
-	require.NoError(t, os.WriteFile(basePath, []byte(baseJSON), 0644))
-	require.NoError(t, os.WriteFile(revPath, []byte(revJSON), 0644))
+	basePath := ax.Join(tmpDir, "base.json")
+	revPath := ax.Join(tmpDir, "rev.json")
+	require.NoError(t, ax.WriteFile(basePath, []byte(baseJSON), 0644))
+	require.NoError(t, ax.WriteFile(revPath, []byte(revJSON), 0644))
 
 	result, err := Diff(basePath, revPath)
 	require.NoError(t, err)

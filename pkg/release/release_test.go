@@ -3,25 +3,26 @@ package release
 import (
 	"context"
 	"os"
-	"os/exec"
-	"path/filepath"
+	"runtime"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestFindArtifacts_Good(t *testing.T) {
+func TestRelease_FindArtifacts_Good(t *testing.T) {
 	t.Run("finds tar.gz artifacts", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
 		// Create test artifact files
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app-linux-amd64.tar.gz"), []byte("test"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app-darwin-arm64.tar.gz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.gz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-darwin-arm64.tar.gz"), []byte("test"), 0644))
 
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
@@ -29,12 +30,26 @@ func TestFindArtifacts_Good(t *testing.T) {
 		assert.Len(t, artifacts, 2)
 	})
 
+	t.Run("finds tar.xz artifacts", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.xz"), []byte("test"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		assert.Len(t, artifacts, 1)
+		assert.Contains(t, artifacts[0].Path, "app-linux-amd64.tar.xz")
+	})
+
 	t.Run("finds zip artifacts", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app-windows-amd64.zip"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-windows-amd64.zip"), []byte("test"), 0644))
 
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
@@ -45,10 +60,10 @@ func TestFindArtifacts_Good(t *testing.T) {
 
 	t.Run("finds checksum files", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644))
 
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
@@ -57,59 +72,91 @@ func TestFindArtifacts_Good(t *testing.T) {
 		assert.Contains(t, artifacts[0].Path, "CHECKSUMS.txt")
 	})
 
+	t.Run("ignores unrelated text files", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "release-notes.txt"), []byte("notes"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		assert.Empty(t, artifacts)
+	})
+
 	t.Run("finds signature files", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz.sig"), []byte("signature"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz.sig"), []byte("signature"), 0644))
 
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
 
 		assert.Len(t, artifacts, 1)
+	})
+
+	t.Run("finds asc signature files", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt.asc"), []byte("signature"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		assert.Len(t, artifacts, 1)
+		assert.Contains(t, artifacts[0].Path, "CHECKSUMS.txt.asc")
 	})
 
 	t.Run("finds mixed artifact types", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app-windows.zip"), []byte("test"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.sig"), []byte("sig"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux-arm64.tar.xz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-windows.zip"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.sig"), []byte("sig"), 0644))
 
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
 
-		assert.Len(t, artifacts, 4)
+		assert.Len(t, artifacts, 5)
 	})
 
 	t.Run("ignores non-artifact files", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "README.md"), []byte("readme"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.exe"), []byte("binary"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz"), []byte("artifact"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "README.md"), []byte("readme"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.exe"), []byte("binary"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.xz"), []byte("artifact"), 0644))
 
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
 
-		assert.Len(t, artifacts, 1)
-		assert.Contains(t, artifacts[0].Path, "app.tar.gz")
+		assert.Len(t, artifacts, 2)
+		assert.ElementsMatch(t, []string{
+			ax.Join(distDir, "app.tar.gz"),
+			ax.Join(distDir, "app.tar.xz"),
+		}, []string{artifacts[0].Path, artifacts[1].Path})
 	})
 
 	t.Run("ignores subdirectories", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
-		require.NoError(t, os.MkdirAll(filepath.Join(distDir, "subdir"), 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+		require.NoError(t, ax.MkdirAll(ax.Join(distDir, "subdir"), 0755))
 
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz"), []byte("artifact"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "subdir", "nested.tar.gz"), []byte("nested"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "subdir", "nested.tar.gz"), []byte("nested"), 0644))
 
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
@@ -118,10 +165,49 @@ func TestFindArtifacts_Good(t *testing.T) {
 		assert.Len(t, artifacts, 1)
 	})
 
+	t.Run("falls back to raw platform artifacts when no archives exist", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0755))
+		require.NoError(t, ax.MkdirAll(ax.Join(distDir, "windows_amd64"), 0755))
+
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "linux_amd64", "myapp"), []byte("binary"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "windows_amd64", "myapp.exe"), []byte("binary"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "linux_amd64", "artifact_meta.json"), []byte("{}"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		require.Len(t, artifacts, 2)
+		assert.Equal(t, ax.Join(distDir, "linux_amd64", "myapp"), artifacts[0].Path)
+		assert.Equal(t, "linux", artifacts[0].OS)
+		assert.Equal(t, "amd64", artifacts[0].Arch)
+		assert.Equal(t, ax.Join(distDir, "windows_amd64", "myapp.exe"), artifacts[1].Path)
+		assert.Equal(t, "windows", artifacts[1].OS)
+		assert.Equal(t, "amd64", artifacts[1].Arch)
+	})
+
+	t.Run("includes macOS app bundles from platform directories", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		platformDir := ax.Join(distDir, "darwin_arm64")
+		require.NoError(t, ax.MkdirAll(ax.Join(platformDir, "TestApp.app"), 0755))
+		require.NoError(t, ax.MkdirAll(ax.Join(platformDir, "TestApp.app", "Contents"), 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(platformDir, "TestApp.app", "Contents", "Info.plist"), []byte("<plist/>"), 0644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, ax.Join(platformDir, "TestApp.app"), artifacts[0].Path)
+		assert.Equal(t, "darwin", artifacts[0].OS)
+		assert.Equal(t, "arm64", artifacts[0].Arch)
+	})
+
 	t.Run("returns empty slice for empty dist directory", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
@@ -130,10 +216,10 @@ func TestFindArtifacts_Good(t *testing.T) {
 	})
 }
 
-func TestFindArtifacts_Bad(t *testing.T) {
+func TestRelease_FindArtifacts_Bad(t *testing.T) {
 	t.Run("returns error when dist directory does not exist", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
+		distDir := ax.Join(dir, "dist")
 
 		_, err := findArtifacts(io.Local, distDir)
 		assert.Error(t, err)
@@ -141,17 +227,17 @@ func TestFindArtifacts_Bad(t *testing.T) {
 	})
 
 	t.Run("returns error when dist directory is unreadable", func(t *testing.T) {
-		if os.Geteuid() == 0 {
+		if ax.Geteuid() == 0 {
 			t.Skip("root can read any directory")
 		}
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
 		// Create a file that looks like dist but will cause ReadDir to fail
 		// by making the directory unreadable
-		require.NoError(t, os.Chmod(distDir, 0000))
-		defer func() { _ = os.Chmod(distDir, 0755) }()
+		require.NoError(t, ax.Chmod(distDir, 0000))
+		defer func() { _ = ax.Chmod(distDir, 0755) }()
 
 		_, err := findArtifacts(io.Local, distDir)
 		assert.Error(t, err)
@@ -159,7 +245,7 @@ func TestFindArtifacts_Bad(t *testing.T) {
 	})
 }
 
-func TestGetBuilder_Good(t *testing.T) {
+func TestRelease_GetBuilder_Good(t *testing.T) {
 	t.Run("returns Go builder for go project type", func(t *testing.T) {
 		builder, err := getBuilder(build.ProjectTypeGo)
 		require.NoError(t, err)
@@ -173,21 +259,65 @@ func TestGetBuilder_Good(t *testing.T) {
 		assert.NotNil(t, builder)
 		assert.Equal(t, "wails", builder.Name())
 	})
+
+	t.Run("returns Node builder for node project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeNode)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "node", builder.Name())
+	})
+
+	t.Run("returns PHP builder for php project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypePHP)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "php", builder.Name())
+	})
+
+	t.Run("returns Python builder for python project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypePython)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "python", builder.Name())
+	})
+
+	t.Run("returns Rust builder for rust project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeRust)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "rust", builder.Name())
+	})
+
+	t.Run("returns C++ builder for cpp project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeCPP)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "cpp", builder.Name())
+	})
+
+	t.Run("returns Docker builder for docker project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeDocker)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "docker", builder.Name())
+	})
+
+	t.Run("returns LinuxKit builder for linuxkit project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeLinuxKit)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "linuxkit", builder.Name())
+	})
+
+	t.Run("returns Taskfile builder for taskfile project type", func(t *testing.T) {
+		builder, err := getBuilder(build.ProjectTypeTaskfile)
+		require.NoError(t, err)
+		assert.NotNil(t, builder)
+		assert.Equal(t, "taskfile", builder.Name())
+	})
 }
 
-func TestGetBuilder_Bad(t *testing.T) {
-	t.Run("returns error for Node project type", func(t *testing.T) {
-		_, err := getBuilder(build.ProjectTypeNode)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "node.js builder not yet implemented")
-	})
-
-	t.Run("returns error for PHP project type", func(t *testing.T) {
-		_, err := getBuilder(build.ProjectTypePHP)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "PHP builder not yet implemented")
-	})
-
+func TestRelease_GetBuilder_Bad(t *testing.T) {
 	t.Run("returns error for unsupported project type", func(t *testing.T) {
 		_, err := getBuilder(build.ProjectType("unknown"))
 		assert.Error(t, err)
@@ -195,7 +325,7 @@ func TestGetBuilder_Bad(t *testing.T) {
 	})
 }
 
-func TestGetPublisher_Good(t *testing.T) {
+func TestRelease_GetPublisher_Good(t *testing.T) {
 	tests := []struct {
 		pubType      string
 		expectedName string
@@ -220,7 +350,7 @@ func TestGetPublisher_Good(t *testing.T) {
 	}
 }
 
-func TestGetPublisher_Bad(t *testing.T) {
+func TestRelease_GetPublisher_Bad(t *testing.T) {
 	t.Run("returns error for unsupported publisher type", func(t *testing.T) {
 		_, err := getPublisher("unsupported")
 		assert.Error(t, err)
@@ -234,7 +364,26 @@ func TestGetPublisher_Bad(t *testing.T) {
 	})
 }
 
-func TestBuildExtendedConfig_Good(t *testing.T) {
+func TestRelease_ResolveProjectType_Good(t *testing.T) {
+	t.Run("honours explicit build type override", func(t *testing.T) {
+		dir := t.TempDir()
+
+		projectType, err := resolveProjectType(io.Local, dir, "docker")
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeDocker, projectType)
+	})
+
+	t.Run("falls back to marker detection when build type is empty", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/test"), 0644))
+
+		projectType, err := resolveProjectType(io.Local, dir, "")
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeGo, projectType)
+	})
+}
+
+func TestRelease_BuildExtendedConfig_Good(t *testing.T) {
 	t.Run("returns empty map for minimal config", func(t *testing.T) {
 		cfg := PublisherConfig{
 			Type: "github",
@@ -371,7 +520,7 @@ func TestBuildExtendedConfig_Good(t *testing.T) {
 	})
 }
 
-func TestToAnySlice_Good(t *testing.T) {
+func TestRelease_ToAnySlice_Good(t *testing.T) {
 	t.Run("converts string slice to any slice", func(t *testing.T) {
 		input := []string{"a", "b", "c"}
 
@@ -401,12 +550,13 @@ func TestToAnySlice_Good(t *testing.T) {
 	})
 }
 
-func TestPublish_Good(t *testing.T) {
+func TestRelease_Publish_Good(t *testing.T) {
 	t.Run("returns release with version from config", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.xz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -417,16 +567,17 @@ func TestPublish_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "v1.0.0", release.Version)
-		assert.Len(t, release.Artifacts, 1)
+		assert.Len(t, release.Artifacts, 2)
 	})
 
 	t.Run("finds artifacts in dist directory", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app-darwin.tar.gz"), []byte("test"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux.tar.xz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-darwin.tar.gz"), []byte("test"), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -436,11 +587,11 @@ func TestPublish_Good(t *testing.T) {
 		release, err := Publish(context.Background(), cfg, true)
 		require.NoError(t, err)
 
-		assert.Len(t, release.Artifacts, 3)
+		assert.Len(t, release.Artifacts, 4)
 	})
 }
 
-func TestPublish_Bad(t *testing.T) {
+func TestRelease_Publish_Bad(t *testing.T) {
 	t.Run("returns error when config is nil", func(t *testing.T) {
 		_, err := Publish(context.Background(), nil, true)
 		assert.Error(t, err)
@@ -461,8 +612,8 @@ func TestPublish_Bad(t *testing.T) {
 
 	t.Run("returns error when no artifacts found", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -475,9 +626,9 @@ func TestPublish_Bad(t *testing.T) {
 
 	t.Run("returns error for unsupported publisher", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -493,9 +644,9 @@ func TestPublish_Bad(t *testing.T) {
 
 	t.Run("returns error when version determination fails in non-git dir", func(t *testing.T) {
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -510,7 +661,7 @@ func TestPublish_Bad(t *testing.T) {
 	})
 }
 
-func TestRun_Good(t *testing.T) {
+func TestRelease_Run_Good(t *testing.T) {
 	t.Run("returns release with version from config", func(t *testing.T) {
 		// Create a minimal Go project for testing
 		dir := t.TempDir()
@@ -520,14 +671,14 @@ func TestRun_Good(t *testing.T) {
 
 go 1.21
 `
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0644))
 
 		// Create main.go
 		mainGo := `package main
 
 func main() {}
 `
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte(mainGo), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -548,7 +699,7 @@ func main() {}
 	})
 }
 
-func TestRun_Bad(t *testing.T) {
+func TestRelease_Run_Bad(t *testing.T) {
 	t.Run("returns error when config is nil", func(t *testing.T) {
 		_, err := Run(context.Background(), nil, true)
 		assert.Error(t, err)
@@ -556,7 +707,7 @@ func TestRun_Bad(t *testing.T) {
 	})
 }
 
-func TestRelease_Structure(t *testing.T) {
+func TestRelease_Structure_Good(t *testing.T) {
 	t.Run("Release struct holds expected fields", func(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
@@ -572,16 +723,16 @@ func TestRelease_Structure(t *testing.T) {
 	})
 }
 
-func TestPublish_VersionFromGit(t *testing.T) {
+func TestRelease_PublishVersionFromGit_Good(t *testing.T) {
 	t.Run("determines version from git when not set", func(t *testing.T) {
 		dir := setupPublishGitRepo(t)
 		createPublishCommit(t, dir, "feat: initial commit")
 		createPublishTag(t, dir, "v1.2.3")
 
 		// Create dist directory with artifact
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -595,7 +746,7 @@ func TestPublish_VersionFromGit(t *testing.T) {
 	})
 }
 
-func TestPublish_ChangelogGeneration(t *testing.T) {
+func TestRelease_PublishChangelogGeneration_Good(t *testing.T) {
 	t.Run("generates changelog from git commits when available", func(t *testing.T) {
 		dir := setupPublishGitRepo(t)
 		createPublishCommit(t, dir, "feat: add feature")
@@ -604,9 +755,9 @@ func TestPublish_ChangelogGeneration(t *testing.T) {
 		createPublishTag(t, dir, "v1.0.1")
 
 		// Create dist directory with artifact
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -622,9 +773,9 @@ func TestPublish_ChangelogGeneration(t *testing.T) {
 
 	t.Run("uses fallback changelog on error", func(t *testing.T) {
 		dir := t.TempDir() // Not a git repo
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -639,13 +790,13 @@ func TestPublish_ChangelogGeneration(t *testing.T) {
 	})
 }
 
-func TestPublish_DefaultProjectDir(t *testing.T) {
+func TestRelease_PublishDefaultProjectDir_Good(t *testing.T) {
 	t.Run("uses current directory when projectDir is empty", func(t *testing.T) {
 		// Create artifacts in current directory's dist folder
 		dir := t.TempDir()
-		distDir := filepath.Join(dir, "dist")
-		require.NoError(t, os.MkdirAll(distDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(distDir, 0755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -659,22 +810,253 @@ func TestPublish_DefaultProjectDir(t *testing.T) {
 	})
 }
 
+func TestRelease_BuildArtifacts_SignsChecksums_Good(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake gpg script uses POSIX shell")
+	}
+
+	dir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	gpgDir := t.TempDir()
+	gpgPath := ax.Join(gpgDir, "gpg")
+	gpgScript := `#!/bin/sh
+out=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --output)
+      out="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$out" ]; then
+  exit 2
+fi
+
+: > "$out"
+`
+	require.NoError(t, ax.WriteFile(gpgPath, []byte(gpgScript), 0o755))
+
+	oldPath := os.Getenv("PATH")
+	require.NotEmpty(t, oldPath)
+	t.Setenv("PATH", gpgDir+string(os.PathListSeparator)+oldPath)
+	t.Setenv("GPG_KEY_ID", "TESTKEY")
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.Project.Name = "signedapp"
+	cfg.Build.ArchiveFormat = "xz"
+	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+	cfg.Publishers = nil
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	require.NoError(t, err)
+
+	var sawChecksumSignature bool
+	var sawXzArchive bool
+	for _, artifact := range artifacts {
+		if artifact.Path == ax.Join(dir, "dist", "CHECKSUMS.txt.asc") {
+			sawChecksumSignature = true
+		}
+		if artifact.Path == ax.Join(dir, "dist", "signedapp_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz") {
+			sawXzArchive = true
+		}
+	}
+
+	assert.True(t, sawChecksumSignature)
+	assert.True(t, sawXzArchive)
+	assert.FileExists(t, ax.Join(dir, "dist", "CHECKSUMS.txt.asc"))
+}
+
+func TestRelease_BuildArtifacts_SignsBinariesBeforeArchiving_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(`
+version: 1
+project:
+  name: signedapp
+  binary: signedapp
+  main: .
+build:
+  archive_format: gz
+  build_tags:
+    - integration
+  env:
+    - FOO=bar
+  cgo: false
+  flags:
+    - -trimpath
+sign:
+  enabled: true
+targets:
+  - os: `+runtime.GOOS+`
+    arch: `+runtime.GOARCH+`
+`), 0o644))
+
+	oldSignBinaries := signReleaseBinaries
+	oldNotarizeBinaries := notarizeReleaseBinaries
+	oldSignChecksums := signReleaseChecksums
+	defer func() {
+		signReleaseBinaries = oldSignBinaries
+		notarizeReleaseBinaries = oldNotarizeBinaries
+		signReleaseChecksums = oldSignChecksums
+	}()
+
+	var signedPaths []string
+	var notarizedPaths []string
+	var checksumPaths []string
+
+	signReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) error {
+		require.True(t, cfg.Enabled)
+		require.Len(t, artifacts, 1)
+		signedPaths = append(signedPaths, artifacts[0].Path)
+		return nil
+	}
+	notarizeReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) error {
+		require.True(t, cfg.Enabled)
+		require.Len(t, artifacts, 1)
+		notarizedPaths = append(notarizedPaths, artifacts[0].Path)
+		return nil
+	}
+	signReleaseChecksums = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, checksumFile string) error {
+		require.True(t, cfg.Enabled)
+		checksumPaths = append(checksumPaths, checksumFile)
+		return nil
+	}
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.Project.Name = "signedapp"
+	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+	cfg.Publishers = nil
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "signedapp")}, signedPaths)
+	assert.Equal(t, signedPaths, notarizedPaths)
+	assert.Equal(t, []string{ax.Join(dir, "dist", "CHECKSUMS.txt")}, checksumPaths)
+
+	var sawArchive bool
+	for _, artifact := range artifacts {
+		if artifact.Path == ax.Join(dir, "dist", "signedapp_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz") {
+			sawArchive = true
+			break
+		}
+	}
+
+	assert.True(t, sawArchive)
+}
+
+func TestRelease_BuildArtifacts_WritesArtifactMetadata_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(`
+version: 1
+project:
+  name: signedapp
+  binary: signedapp
+  main: .
+build:
+  archive_format: gz
+  cgo: false
+  flags:
+    - -trimpath
+targets:
+  - os: `+runtime.GOOS+`
+    arch: `+runtime.GOARCH+`
+`), 0o644))
+
+	t.Setenv("GITHUB_SHA", "abc1234def5678901234567890123456789012345")
+	t.Setenv("GITHUB_REF", "refs/tags/v1.0.0")
+	t.Setenv("GITHUB_REPOSITORY", "owner/repo")
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.Project.Name = "signedapp"
+	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+	cfg.Publishers = nil
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	require.NoError(t, err)
+	require.NotEmpty(t, artifacts)
+
+	metaPath := ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "artifact_meta.json")
+	content, err := ax.ReadFile(metaPath)
+	require.NoError(t, err)
+
+	var meta map[string]any
+	require.NoError(t, ax.JSONUnmarshal([]byte(content), &meta))
+	assert.Equal(t, "signedapp", meta["name"])
+	assert.Equal(t, runtime.GOOS, meta["os"])
+	assert.Equal(t, runtime.GOARCH, meta["arch"])
+	assert.Equal(t, "refs/tags/v1.0.0", meta["ref"])
+	assert.Equal(t, "v1.0.0", meta["tag"])
+	assert.Equal(t, "owner/repo", meta["repo"])
+}
+
+func TestRelease_BuildArtifacts_HonoursBuildProjectMain_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, "cmd", "app"), 0o755))
+
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/releaseapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "cmd", "app", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	buildConfig := `version: 1
+project:
+  name: releaseapp
+  binary: releaseapp
+  main: ./cmd/app
+build:
+  flags: ["-trimpath"]
+targets:
+  - os: ` + runtime.GOOS + `
+    arch: ` + runtime.GOARCH + `
+`
+	require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(buildConfig), 0o644))
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.Project.Name = "releaseapp"
+	cfg.Publishers = nil
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	require.NoError(t, err)
+
+	var sawArchive bool
+	for _, artifact := range artifacts {
+		if artifact.Path == ax.Join(dir, "dist", "releaseapp_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz") {
+			sawArchive = true
+			break
+		}
+	}
+
+	assert.True(t, sawArchive)
+}
+
 // Helper functions for publish tests
 func setupPublishGitRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 
-	cmd := exec.Command("git", "init")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
-
-	cmd = exec.Command("git", "config", "user.email", "test@example.com")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
-
-	cmd = exec.Command("git", "config", "user.name", "Test User")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "init")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test User")
 
 	return dir
 }
@@ -682,23 +1064,16 @@ func setupPublishGitRepo(t *testing.T) string {
 func createPublishCommit(t *testing.T, dir, message string) {
 	t.Helper()
 
-	filePath := filepath.Join(dir, "publish_test.txt")
-	content, _ := os.ReadFile(filePath)
+	filePath := ax.Join(dir, "publish_test.txt")
+	content, _ := ax.ReadFile(filePath)
 	content = append(content, []byte(message+"\n")...)
-	require.NoError(t, os.WriteFile(filePath, content, 0644))
+	require.NoError(t, ax.WriteFile(filePath, content, 0644))
 
-	cmd := exec.Command("git", "add", ".")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
-
-	cmd = exec.Command("git", "commit", "-m", message)
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", message)
 }
 
 func createPublishTag(t *testing.T, dir, tag string) {
 	t.Helper()
-	cmd := exec.Command("git", "tag", tag)
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "tag", tag)
 }

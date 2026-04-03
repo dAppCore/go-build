@@ -1,9 +1,7 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
-	"os"
 	"testing"
 
 	"dappco.re/go/core/build/pkg/build"
@@ -12,14 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHomebrewPublisher_Name_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherName_Good(t *testing.T) {
 	t.Run("returns homebrew", func(t *testing.T) {
 		p := NewHomebrewPublisher()
 		assert.Equal(t, "homebrew", p.Name())
 	})
 }
 
-func TestHomebrewPublisher_ParseConfig_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherParseConfig_Good(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -81,7 +79,7 @@ func TestHomebrewPublisher_ParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestHomebrewPublisher_ToFormulaClass_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherToFormulaClass_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -122,7 +120,7 @@ func TestHomebrewPublisher_ToFormulaClass_Good(t *testing.T) {
 	}
 }
 
-func TestHomebrewPublisher_BuildChecksumMap_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherBuildChecksumMap_Good(t *testing.T) {
 	t.Run("maps artifacts to checksums by platform", func(t *testing.T) {
 		artifacts := []build.Artifact{
 			{Path: "/dist/myapp-darwin-amd64.tar.gz", OS: "darwin", Arch: "amd64", Checksum: "abc123"},
@@ -167,7 +165,7 @@ func TestHomebrewPublisher_BuildChecksumMap_Good(t *testing.T) {
 	})
 }
 
-func TestHomebrewPublisher_RenderTemplate_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherRenderTemplate_Good(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("renders formula template with data", func(t *testing.T) {
@@ -202,7 +200,7 @@ func TestHomebrewPublisher_RenderTemplate_Good(t *testing.T) {
 	})
 }
 
-func TestHomebrewPublisher_RenderTemplate_Bad(t *testing.T) {
+func TestHomebrew_HomebrewPublisherRenderTemplate_Bad(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
@@ -213,15 +211,10 @@ func TestHomebrewPublisher_RenderTemplate_Bad(t *testing.T) {
 	})
 }
 
-func TestHomebrewPublisher_DryRunPublish_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
-		// Capture stdout
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := homebrewTemplateData{
 			FormulaClass: "MyApp",
 			Description:  "My CLI",
@@ -235,15 +228,11 @@ func TestHomebrewPublisher_DryRunPublish_Good(t *testing.T) {
 			Tap: "owner/homebrew-tap",
 		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: Homebrew Publish")
 		assert.Contains(t, output, "Formula:    MyApp")
@@ -255,10 +244,6 @@ func TestHomebrewPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 
 	t.Run("shows official output path when enabled", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := homebrewTemplateData{
 			FormulaClass: "MyApp",
 			Version:      "1.0.0",
@@ -272,23 +257,15 @@ func TestHomebrewPublisher_DryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "Would write files for official PR to: custom/path")
 	})
 
 	t.Run("uses default official output path when not specified", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := homebrewTemplateData{
 			FormulaClass: "MyApp",
 			Version:      "1.0.0",
@@ -301,20 +278,16 @@ func TestHomebrewPublisher_DryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "Would write files for official PR to: dist/homebrew")
 	})
 }
 
-func TestHomebrewPublisher_Publish_Bad(t *testing.T) {
+func TestHomebrew_HomebrewPublisherPublish_Bad(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("fails when tap not configured and not official mode", func(t *testing.T) {
@@ -332,7 +305,7 @@ func TestHomebrewPublisher_Publish_Bad(t *testing.T) {
 	})
 }
 
-func TestHomebrewConfig_Defaults_Good(t *testing.T) {
+func TestHomebrew_HomebrewConfigDefaults_Good(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewHomebrewPublisher()
 		pubCfg := PublisherConfig{Type: "homebrew"}

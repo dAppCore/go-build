@@ -7,9 +7,10 @@ import (
 
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestSignBinaries_Good_SkipsNonDarwin(t *testing.T) {
+func TestSigning_SignBinariesSkipsNonDarwin_Good(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -31,7 +32,7 @@ func TestSignBinaries_Good_SkipsNonDarwin(t *testing.T) {
 	}
 }
 
-func TestSignBinaries_Good_DisabledConfig(t *testing.T) {
+func TestSigning_SignBinariesDisabledConfig_Good(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -48,7 +49,7 @@ func TestSignBinaries_Good_DisabledConfig(t *testing.T) {
 	}
 }
 
-func TestSignBinaries_Good_SkipsOnNonMacOS(t *testing.T) {
+func TestSigning_SignBinariesSkipsOnNonMacOS_Good(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("Skipping on macOS - this tests non-macOS behavior")
 	}
@@ -72,7 +73,7 @@ func TestSignBinaries_Good_SkipsOnNonMacOS(t *testing.T) {
 	}
 }
 
-func TestNotarizeBinaries_Good_DisabledConfig(t *testing.T) {
+func TestSigning_NotarizeBinariesDisabledConfig_Good(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -89,7 +90,7 @@ func TestNotarizeBinaries_Good_DisabledConfig(t *testing.T) {
 	}
 }
 
-func TestNotarizeBinaries_Good_NotarizeDisabled(t *testing.T) {
+func TestSigning_NotarizeBinariesNotarizeDisabled_Good(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -109,7 +110,7 @@ func TestNotarizeBinaries_Good_NotarizeDisabled(t *testing.T) {
 	}
 }
 
-func TestSignChecksums_Good_SkipsNoKey(t *testing.T) {
+func TestSigning_SignChecksumsSkipsNoKey_Good(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -126,7 +127,7 @@ func TestSignChecksums_Good_SkipsNoKey(t *testing.T) {
 	}
 }
 
-func TestSignChecksums_Good_Disabled(t *testing.T) {
+func TestSigning_SignChecksumsDisabled_Good(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -139,12 +140,12 @@ func TestSignChecksums_Good_Disabled(t *testing.T) {
 	}
 }
 
-func TestDefaultSignConfig(t *testing.T) {
+func TestSigning_DefaultSignConfig_Good(t *testing.T) {
 	cfg := DefaultSignConfig()
 	assert.True(t, cfg.Enabled)
 }
 
-func TestSignConfig_ExpandEnv(t *testing.T) {
+func TestSigning_SignConfigExpandEnv_Good(t *testing.T) {
 	t.Setenv("TEST_KEY", "ABC")
 	cfg := SignConfig{
 		GPG: GPGConfig{Key: "$TEST_KEY"},
@@ -153,20 +154,27 @@ func TestSignConfig_ExpandEnv(t *testing.T) {
 	assert.Equal(t, "ABC", cfg.GPG.Key)
 }
 
-func TestWindowsSigner_Good(t *testing.T) {
+func TestSigning_WindowsSigner_Good(t *testing.T) {
 	fs := io.Local
-	s := NewWindowsSigner(WindowsConfig{})
+	s := NewWindowsSigner(WindowsConfig{Certificate: "cert.pfx"})
 	assert.Equal(t, "signtool", s.Name())
-	assert.False(t, s.Available())
-	assert.NoError(t, s.Sign(context.Background(), fs, "test.exe"))
+
+	if runtime.GOOS != "windows" {
+		assert.False(t, s.Available())
+		assert.Error(t, s.Sign(context.Background(), fs, "test.exe"))
+		return
+	}
+
+	// On Windows, availability depends on the SDK toolchain being installed.
+	_ = s.Available()
 }
 
 // mockSigner is a test double that records calls to Sign.
 type mockSigner struct {
-	name      string
-	available bool
+	name        string
+	available   bool
 	signedPaths []string
-	signError error
+	signError   error
 }
 
 func (m *mockSigner) Name() string {
@@ -185,7 +193,7 @@ func (m *mockSigner) Sign(ctx context.Context, fs io.Medium, path string) error 
 // Verify mockSigner implements Signer
 var _ Signer = (*mockSigner)(nil)
 
-func TestSignBinaries_Good_MockSigner(t *testing.T) {
+func TestSigning_SignBinariesMockSigner_Good(t *testing.T) {
 	t.Run("signs only darwin artifacts", func(t *testing.T) {
 		artifacts := []Artifact{
 			{Path: "/dist/linux_amd64/myapp", OS: "linux", Arch: "amd64"},
@@ -230,7 +238,39 @@ func TestSignBinaries_Good_MockSigner(t *testing.T) {
 	})
 }
 
-func TestSignChecksums_Good_MockSigner(t *testing.T) {
+func TestSigning_signArtifactsWithSigner_Good(t *testing.T) {
+	signer := &mockSigner{name: "mock", available: true}
+	artifacts := []Artifact{
+		{Path: "/dist/linux_amd64/myapp", OS: "linux", Arch: "amd64"},
+		{Path: "/dist/windows_amd64/myapp.exe", OS: "windows", Arch: "amd64"},
+		{Path: "/dist/windows_arm64/myapp.exe", OS: "windows", Arch: "arm64"},
+	}
+
+	err := signArtifactsWithSigner(context.Background(), io.Local, signer, "windows", artifacts)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"/dist/windows_amd64/myapp.exe", "/dist/windows_arm64/myapp.exe"}, signer.signedPaths)
+}
+
+func TestSigning_ResolveSigntoolCli_Good(t *testing.T) {
+	fallbackDir := t.TempDir()
+	fallbackPath := fallbackDir + "/signtool.exe"
+	require.NoError(t, io.Local.Write(fallbackPath, "#!/bin/sh\nexit 0\n"))
+	t.Setenv("PATH", "")
+
+	command, err := resolveSigntoolCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestSigning_ResolveSigntoolCli_Bad(t *testing.T) {
+	t.Setenv("PATH", "")
+
+	_, err := resolveSigntoolCli(t.TempDir() + "/missing-signtool.exe")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "signtool tool not found")
+}
+
+func TestSigning_SignChecksumsMockSigner_Good(t *testing.T) {
 	t.Run("skips when GPG key is empty", func(t *testing.T) {
 		cfg := SignConfig{
 			Enabled: true,
@@ -252,7 +292,7 @@ func TestSignChecksums_Good_MockSigner(t *testing.T) {
 	})
 }
 
-func TestNotarizeBinaries_Good_MockSigner(t *testing.T) {
+func TestSigning_NotarizeBinariesMockSigner_Good(t *testing.T) {
 	t.Run("skips when notarize is false", func(t *testing.T) {
 		cfg := SignConfig{
 			Enabled: true,
@@ -292,7 +332,7 @@ func TestNotarizeBinaries_Good_MockSigner(t *testing.T) {
 	})
 }
 
-func TestExpandEnv_Good(t *testing.T) {
+func TestSigning_ExpandEnv_Good(t *testing.T) {
 	t.Run("expands all config fields", func(t *testing.T) {
 		t.Setenv("TEST_GPG_KEY", "GPG123")
 		t.Setenv("TEST_IDENTITY", "Developer ID Application: Test")

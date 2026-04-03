@@ -1,10 +1,10 @@
 package release
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
+	"context"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,18 +16,11 @@ func setupGitRepo(t *testing.T) string {
 	dir := t.TempDir()
 
 	// Initialize git repo
-	cmd := exec.Command("git", "init")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "init")
 
 	// Configure git user for commits
-	cmd = exec.Command("git", "config", "user.email", "test@example.com")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
-
-	cmd = exec.Command("git", "config", "user.name", "Test User")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test User")
 
 	return dir
 }
@@ -37,30 +30,23 @@ func createCommit(t *testing.T, dir, message string) {
 	t.Helper()
 
 	// Create or modify a file
-	filePath := filepath.Join(dir, "test.txt")
-	content, _ := os.ReadFile(filePath)
+	filePath := ax.Join(dir, "test.txt")
+	content, _ := ax.ReadFile(filePath)
 	content = append(content, []byte(message+"\n")...)
-	require.NoError(t, os.WriteFile(filePath, content, 0644))
+	require.NoError(t, ax.WriteFile(filePath, content, 0644))
 
 	// Stage and commit
-	cmd := exec.Command("git", "add", ".")
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
-
-	cmd = exec.Command("git", "commit", "-m", message)
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", message)
 }
 
 // createTag creates a tag in the given directory.
 func createTag(t *testing.T, dir, tag string) {
 	t.Helper()
-	cmd := exec.Command("git", "tag", tag)
-	cmd.Dir = dir
-	require.NoError(t, cmd.Run())
+	runGit(t, dir, "tag", tag)
 }
 
-func TestDetermineVersion_Good(t *testing.T) {
+func TestVersion_DetermineVersion_Good(t *testing.T) {
 	t.Run("returns tag when HEAD has tag", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
@@ -115,7 +101,7 @@ func TestDetermineVersion_Good(t *testing.T) {
 	})
 }
 
-func TestDetermineVersion_Bad(t *testing.T) {
+func TestVersion_DetermineVersion_Bad(t *testing.T) {
 	t.Run("returns v0.0.1 for empty repo", func(t *testing.T) {
 		dir := setupGitRepo(t)
 
@@ -124,15 +110,28 @@ func TestDetermineVersion_Bad(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "v0.0.1", version)
 	})
+
+	t.Run("returns error when context is cancelled", func(t *testing.T) {
+		dir := setupGitRepo(t)
+		createCommit(t, dir, "feat: initial commit")
+		createTag(t, dir, "v1.0.0")
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := DetermineVersionWithContext(ctx, dir)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+	})
 }
 
-func TestGetTagOnHead_Good(t *testing.T) {
+func TestVersion_GetTagOnHead_Good(t *testing.T) {
 	t.Run("returns tag when HEAD has tag", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 		createTag(t, dir, "v1.2.3")
 
-		tag, err := getTagOnHead(dir)
+		tag, err := getTagOnHeadWithContext(context.Background(), dir)
 		require.NoError(t, err)
 		assert.Equal(t, "v1.2.3", tag)
 	})
@@ -143,19 +142,19 @@ func TestGetTagOnHead_Good(t *testing.T) {
 		createTag(t, dir, "v1.0.0")
 		createTag(t, dir, "v1.0.0-beta")
 
-		tag, err := getTagOnHead(dir)
+		tag, err := getTagOnHeadWithContext(context.Background(), dir)
 		require.NoError(t, err)
 		// Git returns one of the tags
 		assert.Contains(t, []string{"v1.0.0", "v1.0.0-beta"}, tag)
 	})
 }
 
-func TestGetTagOnHead_Bad(t *testing.T) {
+func TestVersion_GetTagOnHead_Bad(t *testing.T) {
 	t.Run("returns error when HEAD has no tag", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 
-		_, err := getTagOnHead(dir)
+		_, err := getTagOnHeadWithContext(context.Background(), dir)
 		assert.Error(t, err)
 	})
 
@@ -165,18 +164,18 @@ func TestGetTagOnHead_Bad(t *testing.T) {
 		createTag(t, dir, "v1.0.0")
 		createCommit(t, dir, "feat: new feature")
 
-		_, err := getTagOnHead(dir)
+		_, err := getTagOnHeadWithContext(context.Background(), dir)
 		assert.Error(t, err)
 	})
 }
 
-func TestGetLatestTag_Good(t *testing.T) {
+func TestVersion_GetLatestTag_Good(t *testing.T) {
 	t.Run("returns latest tag", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 		createTag(t, dir, "v1.0.0")
 
-		tag, err := getLatestTag(dir)
+		tag, err := getLatestTagWithContext(context.Background(), dir)
 		require.NoError(t, err)
 		assert.Equal(t, "v1.0.0", tag)
 	})
@@ -189,44 +188,44 @@ func TestGetLatestTag_Good(t *testing.T) {
 		createTag(t, dir, "v1.1.0")
 		createCommit(t, dir, "feat: third")
 
-		tag, err := getLatestTag(dir)
+		tag, err := getLatestTagWithContext(context.Background(), dir)
 		require.NoError(t, err)
 		assert.Equal(t, "v1.1.0", tag)
 	})
 }
 
-func TestGetLatestTag_Bad(t *testing.T) {
+func TestVersion_GetLatestTag_Bad(t *testing.T) {
 	t.Run("returns error when no tags exist", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 
-		_, err := getLatestTag(dir)
+		_, err := getLatestTagWithContext(context.Background(), dir)
 		assert.Error(t, err)
 	})
 
 	t.Run("returns error for empty repo", func(t *testing.T) {
 		dir := setupGitRepo(t)
 
-		_, err := getLatestTag(dir)
+		_, err := getLatestTagWithContext(context.Background(), dir)
 		assert.Error(t, err)
 	})
 }
 
-func TestIncrementMinor_Bad(t *testing.T) {
+func TestVersion_IncrementMinor_Bad(t *testing.T) {
 	t.Run("returns fallback for invalid version", func(t *testing.T) {
 		result := IncrementMinor("not-valid")
 		assert.Equal(t, "not-valid.1", result)
 	})
 }
 
-func TestIncrementMajor_Bad(t *testing.T) {
+func TestVersion_IncrementMajor_Bad(t *testing.T) {
 	t.Run("returns fallback for invalid version", func(t *testing.T) {
 		result := IncrementMajor("not-valid")
 		assert.Equal(t, "not-valid.1", result)
 	})
 }
 
-func TestCompareVersions_Ugly(t *testing.T) {
+func TestVersion_CompareVersions_Ugly(t *testing.T) {
 	t.Run("handles both invalid versions", func(t *testing.T) {
 		result := CompareVersions("invalid-a", "invalid-b")
 		// Should do string comparison for invalid versions
@@ -244,7 +243,7 @@ func TestCompareVersions_Ugly(t *testing.T) {
 	})
 }
 
-func TestIncrementVersion_Good(t *testing.T) {
+func TestVersion_IncrementVersion_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -295,14 +294,14 @@ func TestIncrementVersion_Good(t *testing.T) {
 	}
 }
 
-func TestIncrementVersion_Bad(t *testing.T) {
+func TestVersion_IncrementVersion_Bad(t *testing.T) {
 	t.Run("invalid semver returns original with suffix", func(t *testing.T) {
 		result := IncrementVersion("not-a-version")
 		assert.Equal(t, "not-a-version.1", result)
 	})
 }
 
-func TestIncrementMinor_Good(t *testing.T) {
+func TestVersion_IncrementMinor_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -333,7 +332,7 @@ func TestIncrementMinor_Good(t *testing.T) {
 	}
 }
 
-func TestIncrementMajor_Good(t *testing.T) {
+func TestVersion_IncrementMajor_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -364,7 +363,7 @@ func TestIncrementMajor_Good(t *testing.T) {
 	}
 }
 
-func TestParseVersion_Good(t *testing.T) {
+func TestVersion_ParseVersion_Good(t *testing.T) {
 	tests := []struct {
 		name       string
 		input      string
@@ -418,7 +417,7 @@ func TestParseVersion_Good(t *testing.T) {
 	}
 }
 
-func TestParseVersion_Bad(t *testing.T) {
+func TestVersion_ParseVersion_Bad(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -438,7 +437,7 @@ func TestParseVersion_Bad(t *testing.T) {
 	}
 }
 
-func TestValidateVersion_Good(t *testing.T) {
+func TestVersion_ValidateVersion_Good(t *testing.T) {
 	validVersions := []string{
 		"v1.0.0",
 		"1.0.0",
@@ -456,7 +455,7 @@ func TestValidateVersion_Good(t *testing.T) {
 	}
 }
 
-func TestValidateVersion_Bad(t *testing.T) {
+func TestVersion_ValidateVersion_Bad(t *testing.T) {
 	invalidVersions := []string{
 		"",
 		"v1",
@@ -474,7 +473,7 @@ func TestValidateVersion_Bad(t *testing.T) {
 	}
 }
 
-func TestCompareVersions_Good(t *testing.T) {
+func TestVersion_CompareVersions_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		a        string
@@ -500,7 +499,7 @@ func TestCompareVersions_Good(t *testing.T) {
 	}
 }
 
-func TestNormalizeVersion_Good(t *testing.T) {
+func TestVersion_NormalizeVersion_Good(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string

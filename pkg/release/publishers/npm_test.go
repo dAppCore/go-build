@@ -1,9 +1,7 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
-	"os"
 	"testing"
 
 	"dappco.re/go/core/io"
@@ -12,14 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNpmPublisher_Name_Good(t *testing.T) {
+func TestNpm_NpmPublisherName_Good(t *testing.T) {
 	t.Run("returns npm", func(t *testing.T) {
 		p := NewNpmPublisher()
 		assert.Equal(t, "npm", p.Name())
 	})
 }
 
-func TestNpmPublisher_ParseConfig_Good(t *testing.T) {
+func TestNpm_NpmPublisherParseConfig_Good(t *testing.T) {
 	p := NewNpmPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -88,7 +86,7 @@ func TestNpmPublisher_ParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestNpmPublisher_RenderTemplate_Good(t *testing.T) {
+func TestNpm_NpmPublisherRenderTemplate_Good(t *testing.T) {
 	p := NewNpmPublisher()
 
 	t.Run("renders package.json template with data", func(t *testing.T) {
@@ -134,7 +132,7 @@ func TestNpmPublisher_RenderTemplate_Good(t *testing.T) {
 	})
 }
 
-func TestNpmPublisher_RenderTemplate_Bad(t *testing.T) {
+func TestNpm_NpmPublisherRenderTemplate_Bad(t *testing.T) {
 	p := NewNpmPublisher()
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
@@ -145,14 +143,10 @@ func TestNpmPublisher_RenderTemplate_Bad(t *testing.T) {
 	})
 }
 
-func TestNpmPublisher_DryRunPublish_Good(t *testing.T) {
+func TestNpm_NpmPublisherDryRunPublish_Good(t *testing.T) {
 	p := NewNpmPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := npmTemplateData{
 			Package:     "@myorg/mycli",
 			Version:     "1.0.0",
@@ -161,15 +155,11 @@ func TestNpmPublisher_DryRunPublish_Good(t *testing.T) {
 			BinaryName:  "mycli",
 			Description: "My CLI",
 		}
-		err := p.dryRunPublish(io.Local, data)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: npm Publish")
 		assert.Contains(t, output, "Package:    @myorg/mycli")
@@ -183,10 +173,6 @@ func TestNpmPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 
 	t.Run("shows restricted access correctly", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := npmTemplateData{
 			Package:    "@private/cli",
 			Version:    "2.0.0",
@@ -195,22 +181,18 @@ func TestNpmPublisher_DryRunPublish_Good(t *testing.T) {
 			BinaryName: "cli",
 		}
 
-		err := p.dryRunPublish(io.Local, data)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "Access:     restricted")
 		assert.Contains(t, output, "Would run: npm publish --access restricted")
 	})
 }
 
-func TestNpmPublisher_Publish_Bad(t *testing.T) {
+func TestNpm_NpmPublisherPublish_Bad(t *testing.T) {
 	p := NewNpmPublisher()
 
 	t.Run("fails when package name not configured", func(t *testing.T) {
@@ -228,14 +210,7 @@ func TestNpmPublisher_Publish_Bad(t *testing.T) {
 	})
 
 	t.Run("fails when NPM_TOKEN not set in non-dry-run", func(t *testing.T) {
-		// Ensure NPM_TOKEN is not set
-		oldToken := os.Getenv("NPM_TOKEN")
-		_ = os.Unsetenv("NPM_TOKEN")
-		defer func() {
-			if oldToken != "" {
-				_ = os.Setenv("NPM_TOKEN", oldToken)
-			}
-		}()
+		t.Setenv("NPM_TOKEN", "")
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -256,7 +231,7 @@ func TestNpmPublisher_Publish_Bad(t *testing.T) {
 	})
 }
 
-func TestNpmConfig_Defaults_Good(t *testing.T) {
+func TestNpm_NpmConfigDefaults_Good(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewNpmPublisher()
 		pubCfg := PublisherConfig{Type: "npm"}
@@ -269,7 +244,7 @@ func TestNpmConfig_Defaults_Good(t *testing.T) {
 	})
 }
 
-func TestNpmTemplateData_Good(t *testing.T) {
+func TestNpm_NpmTemplateData_Good(t *testing.T) {
 	t.Run("struct has all expected fields", func(t *testing.T) {
 		data := npmTemplateData{
 			Package:     "@myorg/package",

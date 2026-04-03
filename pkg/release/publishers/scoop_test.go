@@ -1,9 +1,7 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
-	"os"
 	"testing"
 
 	"dappco.re/go/core/io"
@@ -12,14 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestScoopPublisher_Name_Good(t *testing.T) {
+func TestScoop_ScoopPublisherName_Good(t *testing.T) {
 	t.Run("returns scoop", func(t *testing.T) {
 		p := NewScoopPublisher()
 		assert.Equal(t, "scoop", p.Name())
 	})
 }
 
-func TestScoopPublisher_ParseConfig_Good(t *testing.T) {
+func TestScoop_ScoopPublisherParseConfig_Good(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -90,7 +88,7 @@ func TestScoopPublisher_ParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestScoopPublisher_RenderTemplate_Good(t *testing.T) {
+func TestScoop_ScoopPublisherRenderTemplate_Good(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("renders manifest template with data", func(t *testing.T) {
@@ -143,7 +141,7 @@ func TestScoopPublisher_RenderTemplate_Good(t *testing.T) {
 	})
 }
 
-func TestScoopPublisher_RenderTemplate_Bad(t *testing.T) {
+func TestScoop_ScoopPublisherRenderTemplate_Bad(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
@@ -154,14 +152,10 @@ func TestScoopPublisher_RenderTemplate_Bad(t *testing.T) {
 	})
 }
 
-func TestScoopPublisher_DryRunPublish_Good(t *testing.T) {
+func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := scoopTemplateData{
 			PackageName: "myapp",
 			Version:     "1.0.0",
@@ -173,15 +167,11 @@ func TestScoopPublisher_DryRunPublish_Good(t *testing.T) {
 			Bucket: "owner/scoop-bucket",
 		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: Scoop Publish")
 		assert.Contains(t, output, "Package:    myapp")
@@ -194,10 +184,6 @@ func TestScoopPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 
 	t.Run("shows official output path when enabled", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := scoopTemplateData{
 			PackageName: "myapp",
 			Version:     "1.0.0",
@@ -211,23 +197,15 @@ func TestScoopPublisher_DryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "Would write files for official PR to: custom/scoop/path")
 	})
 
 	t.Run("uses default official output path when not specified", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		data := scoopTemplateData{
 			PackageName: "myapp",
 			Version:     "1.0.0",
@@ -240,20 +218,16 @@ func TestScoopPublisher_DryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		err := p.dryRunPublish(io.Local, data, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "Would write files for official PR to: dist/scoop")
 	})
 }
 
-func TestScoopPublisher_Publish_Bad(t *testing.T) {
+func TestScoop_ScoopPublisherPublish_Bad(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("fails when bucket not configured and not official mode", func(t *testing.T) {
@@ -271,7 +245,7 @@ func TestScoopPublisher_Publish_Bad(t *testing.T) {
 	})
 }
 
-func TestScoopConfig_Defaults_Good(t *testing.T) {
+func TestScoop_ScoopConfigDefaults_Good(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewScoopPublisher()
 		pubCfg := PublisherConfig{Type: "scoop"}
@@ -284,7 +258,7 @@ func TestScoopConfig_Defaults_Good(t *testing.T) {
 	})
 }
 
-func TestScoopTemplateData_Good(t *testing.T) {
+func TestScoop_ScoopTemplateData_Good(t *testing.T) {
 	t.Run("struct has all expected fields", func(t *testing.T) {
 		data := scoopTemplateData{
 			PackageName: "myapp",

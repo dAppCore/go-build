@@ -3,13 +3,15 @@ package signing
 
 import (
 	"context"
-	"os"
-	"strings"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 )
 
 // Signer defines the interface for code signing implementations.
+//
+// var s signing.Signer = signing.NewGPGSigner(keyID)
+// err := s.Sign(ctx, io.Local, "dist/myapp")
 type Signer interface {
 	// Name returns the signer's identifier.
 	Name() string
@@ -20,6 +22,8 @@ type Signer interface {
 }
 
 // SignConfig holds signing configuration from .core/build.yaml.
+//
+// cfg := signing.DefaultSignConfig()
 type SignConfig struct {
 	Enabled bool          `yaml:"enabled"`
 	GPG     GPGConfig     `yaml:"gpg,omitempty"`
@@ -28,11 +32,15 @@ type SignConfig struct {
 }
 
 // GPGConfig holds GPG signing configuration.
+//
+// cfg := signing.GPGConfig{Key: "ABCD1234"}
 type GPGConfig struct {
 	Key string `yaml:"key"` // Key ID or fingerprint, supports $ENV
 }
 
 // MacOSConfig holds macOS codesign configuration.
+//
+// cfg := signing.MacOSConfig{Identity: "Developer ID Application: Acme Inc (TEAM123)"}
 type MacOSConfig struct {
 	Identity    string `yaml:"identity"`     // Developer ID Application: ...
 	Notarize    bool   `yaml:"notarize"`     // Submit to Apple for notarization
@@ -41,29 +49,39 @@ type MacOSConfig struct {
 	AppPassword string `yaml:"app_password"` // App-specific password
 }
 
-// WindowsConfig holds Windows signtool configuration (placeholder).
+// WindowsConfig holds Windows signtool configuration.
+//
+// cfg := signing.WindowsConfig{Certificate: "cert.pfx", Password: "secret"}
 type WindowsConfig struct {
 	Certificate string `yaml:"certificate"` // Path to .pfx
 	Password    string `yaml:"password"`    // Certificate password
 }
 
 // DefaultSignConfig returns sensible defaults.
+//
+// cfg := signing.DefaultSignConfig()
 func DefaultSignConfig() SignConfig {
 	return SignConfig{
 		Enabled: true,
 		GPG: GPGConfig{
-			Key: os.Getenv("GPG_KEY_ID"),
+			Key: core.Env("GPG_KEY_ID"),
 		},
 		MacOS: MacOSConfig{
-			Identity:    os.Getenv("CODESIGN_IDENTITY"),
-			AppleID:     os.Getenv("APPLE_ID"),
-			TeamID:      os.Getenv("APPLE_TEAM_ID"),
-			AppPassword: os.Getenv("APPLE_APP_PASSWORD"),
+			Identity:    core.Env("CODESIGN_IDENTITY"),
+			AppleID:     core.Env("APPLE_ID"),
+			TeamID:      core.Env("APPLE_TEAM_ID"),
+			AppPassword: core.Env("APPLE_APP_PASSWORD"),
+		},
+		Windows: WindowsConfig{
+			Certificate: core.Env("SIGNTOOL_CERTIFICATE"),
+			Password:    core.Env("SIGNTOOL_PASSWORD"),
 		},
 	}
 }
 
 // ExpandEnv expands environment variables in config values.
+//
+// cfg.ExpandEnv() // expands $GPG_KEY_ID, $CODESIGN_IDENTITY etc.
 func (c *SignConfig) ExpandEnv() {
 	c.GPG.Key = expandEnv(c.GPG.Key)
 	c.MacOS.Identity = expandEnv(c.MacOS.Identity)
@@ -76,8 +94,47 @@ func (c *SignConfig) ExpandEnv() {
 
 // expandEnv expands $VAR or ${VAR} in a string.
 func expandEnv(s string) string {
-	if strings.HasPrefix(s, "$") {
-		return os.ExpandEnv(s)
+	if !core.Contains(s, "$") {
+		return s
 	}
-	return s
+
+	buf := core.NewBuilder()
+	for i := 0; i < len(s); {
+		if s[i] != '$' {
+			buf.WriteByte(s[i])
+			i++
+			continue
+		}
+
+		if i+1 < len(s) && s[i+1] == '{' {
+			j := i + 2
+			for j < len(s) && s[j] != '}' {
+				j++
+			}
+			if j < len(s) {
+				buf.WriteString(core.Env(s[i+2 : j]))
+				i = j + 1
+				continue
+			}
+		}
+
+		j := i + 1
+		for j < len(s) {
+			c := s[j]
+			if c != '_' && (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
+				break
+			}
+			j++
+		}
+		if j > i+1 {
+			buf.WriteString(core.Env(s[i+1 : j]))
+			i = j
+			continue
+		}
+
+		buf.WriteByte(s[i])
+		i++
+	}
+
+	return buf.String()
 }

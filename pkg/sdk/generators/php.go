@@ -2,50 +2,70 @@ package generators
 
 import (
 	"context"
-	"os"
-	"os/exec"
-	"path/filepath"
 
-	coreio "dappco.re/go/core/io"
+	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
 )
 
 // PHPGenerator generates PHP SDKs from OpenAPI specs.
+//
+// g := generators.NewPHPGenerator()
 type PHPGenerator struct{}
 
 // NewPHPGenerator creates a new PHP generator.
+//
+// g := generators.NewPHPGenerator()
 func NewPHPGenerator() *PHPGenerator {
 	return &PHPGenerator{}
 }
 
 // Language returns the generator's target language identifier.
+//
+// lang := g.Language() // → "php"
 func (g *PHPGenerator) Language() string {
 	return "php"
 }
 
-// Available checks if generator dependencies are installed.
+// Available checks if generator dependencies are installed (requires Docker).
+//
+// if g.Available() { err = g.Generate(ctx, opts) }
 func (g *PHPGenerator) Available() bool {
-	_, err := exec.LookPath("docker")
-	return err == nil
+	return dockerRuntimeAvailable()
 }
 
 // Install returns instructions for installing the generator.
+//
+// fmt.Println(g.Install()) // → "Docker is required for PHP SDK generation"
 func (g *PHPGenerator) Install() string {
 	return "Docker is required for PHP SDK generation"
 }
 
-// Generate creates SDK from OpenAPI spec.
+// Generate creates SDK from OpenAPI spec (requires Docker).
+//
+// err := g.Generate(ctx, generators.Options{SpecPath: "docs/openapi.yaml", OutputDir: "sdk/php"})
 func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
-	if !g.Available() {
+	if err := ctx.Err(); err != nil {
+		return coreerr.E("php.Generate", "generation cancelled", err)
+	}
+
+	if !dockerRuntimeAvailableWithContext(ctx) {
+		if err := ctx.Err(); err != nil {
+			return coreerr.E("php.Generate", "generation cancelled", err)
+		}
 		return coreerr.E("php.Generate", "Docker is required but not available", nil)
 	}
 
-	if err := coreio.Local.EnsureDir(opts.OutputDir); err != nil {
+	dockerCommand, err := resolveDockerRuntimeCli()
+	if err != nil {
+		return coreerr.E("php.Generate", "docker CLI not available", err)
+	}
+
+	if err := ax.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return coreerr.E("php.Generate", "failed to create output dir", err)
 	}
 
-	specDir := filepath.Dir(opts.SpecPath)
-	specName := filepath.Base(opts.SpecPath)
+	specDir := ax.Dir(opts.SpecPath)
+	specName := ax.Base(opts.SpecPath)
 
 	args := []string{"run", "--rm"}
 	args = append(args, dockerUserArgs()...)
@@ -59,11 +79,7 @@ func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
 		"--additional-properties=invokerPackage="+opts.PackageName,
 	)
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, args...); err != nil {
 		return coreerr.E("php.Generate", "docker run failed", err)
 	}
 	return nil

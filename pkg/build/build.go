@@ -1,6 +1,6 @@
 // Package build provides project type detection and cross-compilation for the Core build system.
-// It supports Go, Wails, Node.js, and PHP projects with automatic detection based on
-// marker files (go.mod, wails.json, package.json, composer.json).
+// It supports Go, Wails, Node.js, PHP, Python, Rust, Docs, Docker, LinuxKit, C++, and Taskfile
+// projects with automatic detection based on marker files and builder-specific probes.
 package build
 
 import (
@@ -10,11 +10,13 @@ import (
 )
 
 // ProjectType represents a detected project type.
+//
+// var t build.ProjectType = build.ProjectTypeGo
 type ProjectType string
 
 // Project type constants for build detection.
 const (
-	// ProjectTypeGo indicates a standard Go project with go.mod.
+	// ProjectTypeGo indicates a standard Go project with go.mod or go.work.
 	ProjectTypeGo ProjectType = "go"
 	// ProjectTypeWails indicates a Wails desktop application.
 	ProjectTypeWails ProjectType = "wails"
@@ -30,20 +32,32 @@ const (
 	ProjectTypeLinuxKit ProjectType = "linuxkit"
 	// ProjectTypeTaskfile indicates a project using Taskfile automation.
 	ProjectTypeTaskfile ProjectType = "taskfile"
+	// ProjectTypeDocs indicates a documentation project with mkdocs.yml.
+	ProjectTypeDocs ProjectType = "docs"
+	// ProjectTypePython indicates a Python project with pyproject.toml or requirements.txt.
+	ProjectTypePython ProjectType = "python"
+	// ProjectTypeRust indicates a Rust project with Cargo.toml.
+	ProjectTypeRust ProjectType = "rust"
 )
 
 // Target represents a build target platform.
+//
+// t := build.Target{OS: "linux", Arch: "amd64"}
 type Target struct {
 	OS   string
 	Arch string
 }
 
 // String returns the target in GOOS/GOARCH format.
+//
+// s := t.String() // → "linux/amd64"
 func (t Target) String() string {
 	return t.OS + "/" + t.Arch
 }
 
 // Artifact represents a build output file.
+//
+// a := build.Artifact{Path: "dist/linux_amd64/myapp", OS: "linux", Arch: "amd64"}
 type Artifact struct {
 	Path     string
 	OS       string
@@ -52,9 +66,13 @@ type Artifact struct {
 }
 
 // Config holds build configuration.
+//
+// cfg := &build.Config{FS: io.Local, ProjectDir: ".", OutputDir: "dist", Name: "myapp"}
 type Config struct {
 	// FS is the medium used for file operations.
 	FS io.Medium
+	// Project holds build-time project metadata.
+	Project Project
 	// ProjectDir is the root directory of the project.
 	ProjectDir string
 	// OutputDir is where build artifacts are placed.
@@ -65,8 +83,22 @@ type Config struct {
 	Version string
 	// LDFlags are additional linker flags.
 	LDFlags []string
+	// Flags are additional build flags.
+	Flags []string
+	// BuildTags are Go build tags passed through to `go build`.
+	BuildTags []string
+	// Env are additional environment variables.
+	Env []string
+	// Cache holds build cache configuration for builders that can use it.
+	Cache CacheConfig
 	// CGO enables CGO for the build (required for Wails, FrankenPHP, etc).
 	CGO bool
+	// Obfuscate uses garble instead of go build for binary obfuscation.
+	Obfuscate bool
+	// NSIS enables Windows NSIS installer generation (Wails projects only).
+	NSIS bool
+	// WebView2 sets the WebView2 delivery method: download|embed|browser|error.
+	WebView2 string
 
 	// Docker-specific config
 	Dockerfile string            // Path to Dockerfile (default: Dockerfile)
@@ -75,13 +107,17 @@ type Config struct {
 	Tags       []string          // Additional tags to apply
 	BuildArgs  map[string]string // Docker build arguments
 	Push       bool              // Whether to push after build
+	Load       bool              // Whether to load a single-platform image into the local daemon after build
 
 	// LinuxKit-specific config
-	LinuxKitConfig string   // Path to LinuxKit YAML config
+	LinuxKitConfig string   // Path to LinuxKit YAML config, relative to ProjectDir or absolute.
 	Formats        []string // Output formats (iso, qcow2, raw, vmdk)
 }
 
 // Builder defines the interface for project-specific build implementations.
+//
+// var b build.Builder = builders.NewGoBuilder()
+// artifacts, err := b.Build(ctx, cfg, targets)
 type Builder interface {
 	// Name returns the builder's identifier.
 	Name() string

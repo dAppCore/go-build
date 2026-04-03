@@ -6,9 +6,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
-	"os"
-	"path/filepath"
+	stdfs "io/fs"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	io_interface "dappco.re/go/core/io"
 	"github.com/Snider/Borg/pkg/compress"
@@ -24,20 +25,20 @@ func setupArchiveTestFile(t *testing.T, name, os_, arch string) (binaryPath stri
 	outputDir = t.TempDir()
 
 	// Create platform directory: dist/os_arch
-	platformDir := filepath.Join(outputDir, os_+"_"+arch)
-	err := os.MkdirAll(platformDir, 0755)
+	platformDir := ax.Join(outputDir, os_+"_"+arch)
+	err := ax.MkdirAll(platformDir, 0755)
 	require.NoError(t, err)
 
 	// Create test binary
-	binaryPath = filepath.Join(platformDir, name)
+	binaryPath = ax.Join(platformDir, name)
 	content := []byte("#!/bin/bash\necho 'Hello, World!'\n")
-	err = os.WriteFile(binaryPath, content, 0755)
+	err = ax.WriteFile(binaryPath, content, 0755)
 	require.NoError(t, err)
 
 	return binaryPath, outputDir
 }
 
-func TestArchive_Good(t *testing.T) {
+func TestArchive_Archive_Good(t *testing.T) {
 	fs := io_interface.Local
 	t.Run("creates tar.gz for linux", func(t *testing.T) {
 		binaryPath, outputDir := setupArchiveTestFile(t, "myapp", "linux", "amd64")
@@ -52,7 +53,7 @@ func TestArchive_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify archive was created
-		expectedPath := filepath.Join(outputDir, "myapp_linux_amd64.tar.gz")
+		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.tar.gz")
 		assert.Equal(t, expectedPath, result.Path)
 		assert.FileExists(t, result.Path)
 
@@ -76,7 +77,7 @@ func TestArchive_Good(t *testing.T) {
 		result, err := Archive(fs, artifact)
 		require.NoError(t, err)
 
-		expectedPath := filepath.Join(outputDir, "myapp_darwin_arm64.tar.gz")
+		expectedPath := ax.Join(outputDir, "myapp_darwin_arm64.tar.gz")
 		assert.Equal(t, expectedPath, result.Path)
 		assert.FileExists(t, result.Path)
 
@@ -96,7 +97,7 @@ func TestArchive_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		// Windows archives should strip .exe from archive name
-		expectedPath := filepath.Join(outputDir, "myapp_windows_amd64.zip")
+		expectedPath := ax.Join(outputDir, "myapp_windows_amd64.zip")
 		assert.Equal(t, expectedPath, result.Path)
 		assert.FileExists(t, result.Path)
 
@@ -130,7 +131,7 @@ func TestArchive_Good(t *testing.T) {
 		result, err := ArchiveXZ(fs, artifact)
 		require.NoError(t, err)
 
-		expectedPath := filepath.Join(outputDir, "myapp_linux_amd64.tar.xz")
+		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.tar.xz")
 		assert.Equal(t, expectedPath, result.Path)
 		assert.FileExists(t, result.Path)
 
@@ -149,7 +150,7 @@ func TestArchive_Good(t *testing.T) {
 		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
 		require.NoError(t, err)
 
-		expectedPath := filepath.Join(outputDir, "myapp_darwin_arm64.tar.xz")
+		expectedPath := ax.Join(outputDir, "myapp_darwin_arm64.tar.xz")
 		assert.Equal(t, expectedPath, result.Path)
 		assert.FileExists(t, result.Path)
 
@@ -169,15 +170,71 @@ func TestArchive_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		// Windows should still get .zip regardless of format
-		expectedPath := filepath.Join(outputDir, "myapp_windows_amd64.zip")
+		expectedPath := ax.Join(outputDir, "myapp_windows_amd64.zip")
 		assert.Equal(t, expectedPath, result.Path)
 		assert.FileExists(t, result.Path)
 
 		verifyZipContent(t, result.Path, "myapp.exe")
 	})
+
+	t.Run("creates zip for linux when explicitly requested", func(t *testing.T) {
+		binaryPath, outputDir := setupArchiveTestFile(t, "myapp", "linux", "amd64")
+
+		artifact := Artifact{
+			Path: binaryPath,
+			OS:   "linux",
+			Arch: "amd64",
+		}
+
+		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatZip)
+		require.NoError(t, err)
+
+		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.zip")
+		assert.Equal(t, expectedPath, result.Path)
+		assert.FileExists(t, result.Path)
+
+		verifyZipContent(t, result.Path, "myapp")
+	})
 }
 
-func TestArchive_Bad(t *testing.T) {
+func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
+	t.Run("defaults to gzip when empty", func(t *testing.T) {
+		format, err := ParseArchiveFormat("")
+		require.NoError(t, err)
+		assert.Equal(t, ArchiveFormatGzip, format)
+	})
+
+	t.Run("accepts xz aliases", func(t *testing.T) {
+		for _, input := range []string{"xz", "txz", "tar.xz", "tar-xz"} {
+			format, err := ParseArchiveFormat(input)
+			require.NoError(t, err)
+			assert.Equal(t, ArchiveFormatXZ, format)
+		}
+	})
+
+	t.Run("accepts zip", func(t *testing.T) {
+		format, err := ParseArchiveFormat("zip")
+		require.NoError(t, err)
+		assert.Equal(t, ArchiveFormatZip, format)
+	})
+
+	t.Run("accepts gzip aliases", func(t *testing.T) {
+		for _, input := range []string{"gz", "gzip", "tgz", "tar.gz", "tar-gz"} {
+			format, err := ParseArchiveFormat(input)
+			require.NoError(t, err)
+			assert.Equal(t, ArchiveFormatGzip, format)
+		}
+	})
+
+	t.Run("rejects unsupported formats", func(t *testing.T) {
+		format, err := ParseArchiveFormat("bzip2")
+		assert.Error(t, err)
+		assert.Empty(t, format)
+		assert.Contains(t, err.Error(), "unsupported archive format")
+	})
+}
+
+func TestArchive_Archive_Bad(t *testing.T) {
 	fs := io_interface.Local
 	t.Run("returns error for empty path", func(t *testing.T) {
 		artifact := Artifact{
@@ -221,7 +278,7 @@ func TestArchive_Bad(t *testing.T) {
 	})
 }
 
-func TestArchiveAll_Good(t *testing.T) {
+func TestArchive_ArchiveAll_Good(t *testing.T) {
 	fs := io_interface.Local
 	t.Run("archives multiple artifacts", func(t *testing.T) {
 		outputDir := t.TempDir()
@@ -239,8 +296,8 @@ func TestArchiveAll_Good(t *testing.T) {
 		}
 
 		for _, target := range targets {
-			platformDir := filepath.Join(outputDir, target.os_+"_"+target.arch)
-			err := os.MkdirAll(platformDir, 0755)
+			platformDir := ax.Join(outputDir, target.os_+"_"+target.arch)
+			err := ax.MkdirAll(platformDir, 0755)
 			require.NoError(t, err)
 
 			name := "myapp"
@@ -248,8 +305,8 @@ func TestArchiveAll_Good(t *testing.T) {
 				name = "myapp.exe"
 			}
 
-			binaryPath := filepath.Join(platformDir, name)
-			err = os.WriteFile(binaryPath, []byte("binary content"), 0755)
+			binaryPath := ax.Join(platformDir, name)
+			err = ax.WriteFile(binaryPath, []byte("binary content"), 0755)
 			require.NoError(t, err)
 
 			artifacts = append(artifacts, Artifact{
@@ -284,7 +341,7 @@ func TestArchiveAll_Good(t *testing.T) {
 	})
 }
 
-func TestArchiveAll_Bad(t *testing.T) {
+func TestArchive_ArchiveAll_Bad(t *testing.T) {
 	fs := io_interface.Local
 	t.Run("returns partial results on error", func(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "myapp", "linux", "amd64")
@@ -302,7 +359,7 @@ func TestArchiveAll_Bad(t *testing.T) {
 	})
 }
 
-func TestArchiveFilename_Good(t *testing.T) {
+func TestArchive_ArchiveFilename_Good(t *testing.T) {
 	t.Run("generates correct tar.gz filename", func(t *testing.T) {
 		artifact := Artifact{
 			Path: "/output/linux_amd64/myapp",
@@ -344,7 +401,7 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip-app", "linux", "amd64")
 
 		// Read original content
-		originalContent, err := os.ReadFile(binaryPath)
+		originalContent, err := ax.ReadFile(binaryPath)
 		require.NoError(t, err)
 
 		artifact := Artifact{
@@ -366,7 +423,7 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 	t.Run("tar.xz round trip preserves content", func(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip-xz", "linux", "arm64")
 
-		originalContent, err := os.ReadFile(binaryPath)
+		originalContent, err := ax.ReadFile(binaryPath)
 		require.NoError(t, err)
 
 		artifact := Artifact{
@@ -386,7 +443,7 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 	t.Run("zip round trip preserves content", func(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip.exe", "windows", "amd64")
 
-		originalContent, err := os.ReadFile(binaryPath)
+		originalContent, err := ax.ReadFile(binaryPath)
 		require.NoError(t, err)
 
 		artifact := Artifact{
@@ -418,21 +475,21 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		// Extract and verify permissions are preserved
 		mode := extractTarGzFileMode(t, archiveArtifact.Path, "perms-app")
 		// The original file was written with 0755
-		assert.Equal(t, os.FileMode(0755), mode&os.ModePerm)
+		assert.Equal(t, stdfs.FileMode(0o755), mode&stdfs.ModePerm)
 	})
 
 	t.Run("round trip with large binary content", func(t *testing.T) {
 		outputDir := t.TempDir()
-		platformDir := filepath.Join(outputDir, "linux_amd64")
-		require.NoError(t, os.MkdirAll(platformDir, 0755))
+		platformDir := ax.Join(outputDir, "linux_amd64")
+		require.NoError(t, ax.MkdirAll(platformDir, 0755))
 
 		// Create a larger file (64KB)
 		largeContent := make([]byte, 64*1024)
 		for i := range largeContent {
 			largeContent[i] = byte(i % 256)
 		}
-		binaryPath := filepath.Join(platformDir, "large-app")
-		require.NoError(t, os.WriteFile(binaryPath, largeContent, 0755))
+		binaryPath := ax.Join(platformDir, "large-app")
+		require.NoError(t, ax.WriteFile(binaryPath, largeContent, 0755))
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -449,16 +506,16 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 
 	t.Run("archive is smaller than original for tar.gz", func(t *testing.T) {
 		outputDir := t.TempDir()
-		platformDir := filepath.Join(outputDir, "linux_amd64")
-		require.NoError(t, os.MkdirAll(platformDir, 0755))
+		platformDir := ax.Join(outputDir, "linux_amd64")
+		require.NoError(t, ax.MkdirAll(platformDir, 0755))
 
 		// Create a compressible file (repeated pattern)
 		compressibleContent := make([]byte, 4096)
 		for i := range compressibleContent {
 			compressibleContent[i] = 'A'
 		}
-		binaryPath := filepath.Join(platformDir, "compressible-app")
-		require.NoError(t, os.WriteFile(binaryPath, compressibleContent, 0755))
+		binaryPath := ax.Join(platformDir, "compressible-app")
+		require.NoError(t, ax.WriteFile(binaryPath, compressibleContent, 0755))
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -469,9 +526,9 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		archiveArtifact, err := Archive(fs, artifact)
 		require.NoError(t, err)
 
-		originalInfo, err := os.Stat(binaryPath)
+		originalInfo, err := ax.Stat(binaryPath)
 		require.NoError(t, err)
-		archiveInfo, err := os.Stat(archiveArtifact.Path)
+		archiveInfo, err := ax.Stat(archiveArtifact.Path)
 		require.NoError(t, err)
 
 		// Compressed archive should be smaller than original
@@ -483,7 +540,7 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 func extractTarGzFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
-	file, err := os.Open(archivePath)
+	file, err := ax.Open(archivePath)
 	require.NoError(t, err)
 	defer func() { _ = file.Close() }()
 
@@ -509,10 +566,10 @@ func extractTarGzFile(t *testing.T, archivePath, fileName string) []byte {
 }
 
 // extractTarGzFileMode extracts the file mode of a named file from a tar.gz archive.
-func extractTarGzFileMode(t *testing.T, archivePath, fileName string) os.FileMode {
+func extractTarGzFileMode(t *testing.T, archivePath, fileName string) stdfs.FileMode {
 	t.Helper()
 
-	file, err := os.Open(archivePath)
+	file, err := ax.Open(archivePath)
 	require.NoError(t, err)
 	defer func() { _ = file.Close() }()
 
@@ -539,7 +596,7 @@ func extractTarGzFileMode(t *testing.T, archivePath, fileName string) os.FileMod
 func extractTarXzFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
-	xzData, err := os.ReadFile(archivePath)
+	xzData, err := ax.ReadFile(archivePath)
 	require.NoError(t, err)
 
 	tarData, err := compress.Decompress(xzData)
@@ -590,7 +647,7 @@ func extractZipFile(t *testing.T, archivePath, fileName string) []byte {
 func verifyTarGzContent(t *testing.T, archivePath, expectedName string) {
 	t.Helper()
 
-	file, err := os.Open(archivePath)
+	file, err := ax.Open(archivePath)
 	require.NoError(t, err)
 	defer func() { _ = file.Close() }()
 
@@ -626,7 +683,7 @@ func verifyTarXzContent(t *testing.T, archivePath, expectedName string) {
 	t.Helper()
 
 	// Read the xz-compressed file
-	xzData, err := os.ReadFile(archivePath)
+	xzData, err := ax.ReadFile(archivePath)
 	require.NoError(t, err)
 
 	// Decompress with Borg

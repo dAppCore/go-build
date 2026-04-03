@@ -3,16 +3,17 @@ package publishers
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // DockerConfig holds configuration for the Docker publisher.
+//
+// cfg := publishers.DockerConfig{Registry: "ghcr.io", Image: "host-uk/core-build", Platforms: []string{"linux/amd64", "linux/arm64"}}
 type DockerConfig struct {
 	// Registry is the container registry (default: ghcr.io).
 	Registry string `yaml:"registry"`
@@ -29,49 +30,63 @@ type DockerConfig struct {
 }
 
 // DockerPublisher builds and publishes Docker images.
+//
+// pub := publishers.NewDockerPublisher()
 type DockerPublisher struct{}
 
 // NewDockerPublisher creates a new Docker publisher.
+//
+// pub := publishers.NewDockerPublisher()
 func NewDockerPublisher() *DockerPublisher {
 	return &DockerPublisher{}
 }
 
 // Name returns the publisher's identifier.
+//
+// name := pub.Name() // → "docker"
 func (p *DockerPublisher) Name() string {
 	return "docker"
 }
 
 // Publish builds and pushes Docker images.
+//
+// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	// Validate docker CLI is available
-	if err := validateDockerCli(); err != nil {
-		return err
-	}
-
 	// Parse Docker-specific config from publisher config
-	dockerCfg := p.parseConfig(pubCfg, relCfg, release.ProjectDir)
+	dockerCfg := p.parseConfig(release.FS, pubCfg, relCfg, release.ProjectDir)
 
 	// Validate Dockerfile exists
 	if !release.FS.Exists(dockerCfg.Dockerfile) {
 		return coreerr.E("docker.Publish", "Dockerfile not found: "+dockerCfg.Dockerfile, nil)
 	}
 
+	// Validate docker CLI is available after local config checks.
+	dockerCommand, err := resolveDockerCli()
+	if err != nil {
+		return err
+	}
+
 	if dryRun {
 		return p.dryRunPublish(release, dockerCfg)
 	}
 
-	return p.executePublish(ctx, release, dockerCfg)
+	return p.executePublish(ctx, release, dockerCfg, dockerCommand)
 }
 
 // parseConfig extracts Docker-specific configuration.
-func (p *DockerPublisher) parseConfig(pubCfg PublisherConfig, relCfg ReleaseConfig, projectDir string) DockerConfig {
+func (p *DockerPublisher) parseConfig(fs io.Medium, pubCfg PublisherConfig, relCfg ReleaseConfig, projectDir string) DockerConfig {
 	cfg := DockerConfig{
-		Registry:   "ghcr.io",
-		Image:      "",
-		Dockerfile: filepath.Join(projectDir, "Dockerfile"),
-		Platforms:  []string{"linux/amd64", "linux/arm64"},
-		Tags:       []string{"latest", "{{.Version}}"},
-		BuildArgs:  make(map[string]string),
+		Registry:  "ghcr.io",
+		Image:     "",
+		Platforms: []string{"linux/amd64", "linux/arm64"},
+		Tags:      []string{"latest", "{{.Version}}"},
+		BuildArgs: make(map[string]string),
+	}
+
+	if dockerfile := build.ResolveDockerfilePath(fs, projectDir); dockerfile != "" {
+		cfg.Dockerfile = dockerfile
+	} else {
+		cfg.Dockerfile = ax.Join(projectDir, "Dockerfile")
 	}
 
 	// Try to get image from repository config
@@ -88,10 +103,10 @@ func (p *DockerPublisher) parseConfig(pubCfg PublisherConfig, relCfg ReleaseConf
 			cfg.Image = image
 		}
 		if dockerfile, ok := ext["dockerfile"].(string); ok && dockerfile != "" {
-			if filepath.IsAbs(dockerfile) {
+			if ax.IsAbs(dockerfile) {
 				cfg.Dockerfile = dockerfile
 			} else {
-				cfg.Dockerfile = filepath.Join(projectDir, dockerfile)
+				cfg.Dockerfile = ax.Join(projectDir, dockerfile)
 			}
 		}
 		if platforms, ok := ext["platforms"].([]any); ok && len(platforms) > 0 {
@@ -124,47 +139,47 @@ func (p *DockerPublisher) parseConfig(pubCfg PublisherConfig, relCfg ReleaseConf
 
 // dryRunPublish shows what would be done without actually building.
 func (p *DockerPublisher) dryRunPublish(release *Release, cfg DockerConfig) error {
-	fmt.Println()
-	fmt.Println("=== DRY RUN: Docker Build & Push ===")
-	fmt.Println()
-	fmt.Printf("Version:       %s\n", release.Version)
-	fmt.Printf("Registry:      %s\n", cfg.Registry)
-	fmt.Printf("Image:         %s\n", cfg.Image)
-	fmt.Printf("Dockerfile:    %s\n", cfg.Dockerfile)
-	fmt.Printf("Platforms:     %s\n", strings.Join(cfg.Platforms, ", "))
-	fmt.Println()
+	publisherPrintln()
+	publisherPrintln("=== DRY RUN: Docker Build & Push ===")
+	publisherPrintln()
+	publisherPrint("Version:       %s", release.Version)
+	publisherPrint("Registry:      %s", cfg.Registry)
+	publisherPrint("Image:         %s", cfg.Image)
+	publisherPrint("Dockerfile:    %s", cfg.Dockerfile)
+	publisherPrint("Platforms:     %s", core.Join(", ", cfg.Platforms...))
+	publisherPrintln()
 
 	// Resolve tags
 	tags := p.resolveTags(cfg.Tags, release.Version)
-	fmt.Println("Tags to be applied:")
+	publisherPrintln("Tags to be applied:")
 	for _, tag := range tags {
 		fullTag := p.buildFullTag(cfg.Registry, cfg.Image, tag)
-		fmt.Printf("  - %s\n", fullTag)
+		publisherPrint("  - %s", fullTag)
 	}
-	fmt.Println()
+	publisherPrintln()
 
-	fmt.Println("Would execute command:")
+	publisherPrintln("Would execute command:")
 	args := p.buildBuildxArgs(cfg, tags, release.Version)
-	fmt.Printf("  docker %s\n", strings.Join(args, " "))
+	publisherPrint("  docker %s", core.Join(" ", args...))
 
 	if len(cfg.BuildArgs) > 0 {
-		fmt.Println()
-		fmt.Println("Build arguments:")
+		publisherPrintln()
+		publisherPrintln("Build arguments:")
 		for k, v := range cfg.BuildArgs {
-			fmt.Printf("  %s=%s\n", k, v)
+			publisherPrint("  %s=%s", k, v)
 		}
 	}
 
-	fmt.Println()
-	fmt.Println("=== END DRY RUN ===")
+	publisherPrintln()
+	publisherPrintln("=== END DRY RUN ===")
 
 	return nil
 }
 
 // executePublish builds and pushes Docker images.
-func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, cfg DockerConfig) error {
+func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, cfg DockerConfig, dockerCommand string) error {
 	// Ensure buildx is available and builder is set up
-	if err := p.ensureBuildx(ctx); err != nil {
+	if err := p.ensureBuildx(ctx, dockerCommand); err != nil {
 		return err
 	}
 
@@ -174,13 +189,8 @@ func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, 
 	// Build the docker buildx command
 	args := p.buildBuildxArgs(cfg, tags, release.Version)
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Dir = release.ProjectDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	fmt.Printf("Building and pushing Docker image: %s\n", cfg.Image)
-	if err := cmd.Run(); err != nil {
+	publisherPrint("Building and pushing Docker image: %s", cfg.Image)
+	if err := publisherRun(ctx, release.ProjectDir, nil, dockerCommand, args...); err != nil {
 		return coreerr.E("docker.Publish", "buildx build failed", err)
 	}
 
@@ -192,9 +202,9 @@ func (p *DockerPublisher) resolveTags(tags []string, version string) []string {
 	resolved := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		// Replace {{.Version}} with actual version
-		resolvedTag := strings.ReplaceAll(tag, "{{.Version}}", version)
+		resolvedTag := core.Replace(tag, "{{.Version}}", version)
 		// Also support simpler {{Version}} syntax
-		resolvedTag = strings.ReplaceAll(resolvedTag, "{{Version}}", version)
+		resolvedTag = core.Replace(resolvedTag, "{{Version}}", version)
 		resolved = append(resolved, resolvedTag)
 	}
 	return resolved
@@ -203,9 +213,9 @@ func (p *DockerPublisher) resolveTags(tags []string, version string) []string {
 // buildFullTag builds the full image tag including registry.
 func (p *DockerPublisher) buildFullTag(registry, image, tag string) string {
 	if registry != "" {
-		return fmt.Sprintf("%s/%s:%s", registry, image, tag)
+		return core.Sprintf("%s/%s:%s", registry, image, tag)
 	}
-	return fmt.Sprintf("%s:%s", image, tag)
+	return core.Sprintf("%s:%s", image, tag)
 }
 
 // buildBuildxArgs builds the arguments for docker buildx build command.
@@ -214,7 +224,7 @@ func (p *DockerPublisher) buildBuildxArgs(cfg DockerConfig, tags []string, versi
 
 	// Multi-platform support
 	if len(cfg.Platforms) > 0 {
-		args = append(args, "--platform", strings.Join(cfg.Platforms, ","))
+		args = append(args, "--platform", core.Join(",", cfg.Platforms...))
 	}
 
 	// Add all tags
@@ -230,13 +240,13 @@ func (p *DockerPublisher) buildBuildxArgs(cfg DockerConfig, tags []string, versi
 	// Build arguments
 	for k, v := range cfg.BuildArgs {
 		// Expand version in build args
-		expandedValue := strings.ReplaceAll(v, "{{.Version}}", version)
-		expandedValue = strings.ReplaceAll(expandedValue, "{{Version}}", version)
-		args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, expandedValue))
+		expandedValue := core.Replace(v, "{{.Version}}", version)
+		expandedValue = core.Replace(expandedValue, "{{Version}}", version)
+		args = append(args, "--build-arg", core.Sprintf("%s=%s", k, expandedValue))
 	}
 
 	// Always add VERSION build arg
-	args = append(args, "--build-arg", fmt.Sprintf("VERSION=%s", version))
+	args = append(args, "--build-arg", core.Sprintf("VERSION=%s", version))
 
 	// Push the image
 	args = append(args, "--push")
@@ -248,21 +258,16 @@ func (p *DockerPublisher) buildBuildxArgs(cfg DockerConfig, tags []string, versi
 }
 
 // ensureBuildx ensures docker buildx is available and has a builder.
-func (p *DockerPublisher) ensureBuildx(ctx context.Context) error {
+func (p *DockerPublisher) ensureBuildx(ctx context.Context, dockerCommand string) error {
 	// Check if buildx is available
-	cmd := exec.CommandContext(ctx, "docker", "buildx", "version")
-	if err := cmd.Run(); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, "buildx", "version"); err != nil {
 		return coreerr.E("docker.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", nil)
 	}
 
 	// Check if we have a builder, create one if not
-	cmd = exec.CommandContext(ctx, "docker", "buildx", "inspect", "--bootstrap")
-	if err := cmd.Run(); err != nil {
+	if err := ax.Exec(ctx, dockerCommand, "buildx", "inspect", "--bootstrap"); err != nil {
 		// Try to create a builder
-		cmd = exec.CommandContext(ctx, "docker", "buildx", "create", "--use", "--bootstrap")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		if err := publisherRun(ctx, "", nil, dockerCommand, "buildx", "create", "--use", "--bootstrap"); err != nil {
 			return coreerr.E("docker.ensureBuildx", "failed to create buildx builder", err)
 		}
 	}
@@ -270,11 +275,28 @@ func (p *DockerPublisher) ensureBuildx(ctx context.Context) error {
 	return nil
 }
 
+// resolveDockerCli returns the executable path for the docker CLI.
+func resolveDockerCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/docker",
+			"/opt/homebrew/bin/docker",
+			"/Applications/Docker.app/Contents/Resources/bin/docker",
+		}
+	}
+
+	command, err := ax.ResolveCommand("docker", paths...)
+	if err != nil {
+		return "", coreerr.E("docker.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
+	}
+
+	return command, nil
+}
+
 // validateDockerCli checks if the docker CLI is available.
 func validateDockerCli() error {
-	cmd := exec.Command("docker", "--version")
-	if err := cmd.Run(); err != nil {
-		return coreerr.E("docker.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", nil)
+	if _, err := resolveDockerCli(); err != nil {
+		return coreerr.E("docker.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
 	}
 	return nil
 }

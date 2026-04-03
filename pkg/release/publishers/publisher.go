@@ -9,6 +9,8 @@ import (
 )
 
 // Release represents a release to be published.
+//
+// rel := publishers.NewRelease("v1.2.3", artifacts, changelog, ".", io.Local)
 type Release struct {
 	// Version is the semantic version string (e.g., "v1.2.3").
 	Version string
@@ -23,6 +25,8 @@ type Release struct {
 }
 
 // PublisherConfig holds configuration for a publisher.
+//
+// cfg := publishers.NewPublisherConfig("github", false, false, nil)
 type PublisherConfig struct {
 	// Type is the publisher type (e.g., "github", "linuxkit", "docker").
 	Type string
@@ -35,12 +39,16 @@ type PublisherConfig struct {
 }
 
 // ReleaseConfig holds release configuration needed by publishers.
+//
+// var relCfg publishers.ReleaseConfig = cfg // *release.Config implements this interface
 type ReleaseConfig interface {
 	GetRepository() string
 	GetProjectName() string
 }
 
 // Publisher defines the interface for release publishers.
+//
+// var pub publishers.Publisher = publishers.NewGitHubPublisher()
 type Publisher interface {
 	// Name returns the publisher's identifier.
 	Name() string
@@ -51,6 +59,8 @@ type Publisher interface {
 
 // NewRelease creates a Release from the release package's Release type.
 // This is a helper to convert between packages.
+//
+// rel := publishers.NewRelease("v1.2.3", artifacts, changelog, ".", io.Local)
 func NewRelease(version string, artifacts []build.Artifact, changelog, projectDir string, fs io.Medium) *Release {
 	return &Release{
 		Version:    version,
@@ -62,6 +72,8 @@ func NewRelease(version string, artifacts []build.Artifact, changelog, projectDi
 }
 
 // NewPublisherConfig creates a PublisherConfig.
+//
+// cfg := publishers.NewPublisherConfig("github", false, false, nil)
 func NewPublisherConfig(pubType string, prerelease, draft bool, extended any) PublisherConfig {
 	return PublisherConfig{
 		Type:       pubType,

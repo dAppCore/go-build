@@ -1,13 +1,10 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +13,7 @@ import (
 
 // --- GitHub Publisher Integration Tests ---
 
-func TestGitHubPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("dry run creates no files on disk", func(t *testing.T) {
@@ -27,9 +24,9 @@ func TestGitHubPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 			ProjectDir: tmpDir,
 			FS:         io.Local,
 			Artifacts: []build.Artifact{
-				{Path: filepath.Join(tmpDir, "app-linux-amd64.tar.gz")},
-				{Path: filepath.Join(tmpDir, "app-darwin-arm64.tar.gz")},
-				{Path: filepath.Join(tmpDir, "CHECKSUMS.txt")},
+				{Path: ax.Join(tmpDir, "app-linux-amd64.tar.gz")},
+				{Path: ax.Join(tmpDir, "app-darwin-arm64.tar.gz")},
+				{Path: ax.Join(tmpDir, "CHECKSUMS.txt")},
 			},
 		}
 		pubCfg := PublisherConfig{
@@ -39,20 +36,11 @@ func TestGitHubPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/test-repo", projectName: "testapp"}
 
-		// Capture stdout
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		// Verify dry run output contains expected information
 		assert.Contains(t, output, "DRY RUN: GitHub Release")
@@ -69,7 +57,7 @@ func TestGitHubPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		assert.Contains(t, output, "--prerelease")
 
 		// Verify no files were created in the temp directory
-		entries, err := os.ReadDir(tmpDir)
+		entries, err := ax.ReadDir(tmpDir)
 		require.NoError(t, err)
 		assert.Empty(t, entries, "dry run should not create any files")
 	})
@@ -131,14 +119,10 @@ func TestGitHubPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 	})
 }
 
-func TestGitHubPublisher_Integration_RepositoryDetection_Good(t *testing.T) {
+func TestIntegration_GitHubPublisherIntegrationRepositoryDetection_Good(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("uses relCfg repository when provided", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
@@ -148,31 +132,19 @@ func TestGitHubPublisher_Integration_RepositoryDetection_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: "explicit/repo"}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "Repository: explicit/repo")
+		assert.Contains(t, output, "Repository: explicit/repo")
 	})
 
 	t.Run("detects repository from git remote when relCfg empty", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		cmd := exec.Command("git", "init")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		cmd = exec.Command("git", "remote", "add", "origin", "https://github.com/detected/from-git.git")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+		runPublisherCommand(t, tmpDir, "git", "init")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "https://github.com/detected/from-git.git")
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -183,15 +155,12 @@ func TestGitHubPublisher_Integration_RepositoryDetection_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: ""}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "Repository: detected/from-git")
+		assert.Contains(t, output, "Repository: detected/from-git")
 	})
 
 	t.Run("fails when no repository available", func(t *testing.T) {
@@ -212,14 +181,10 @@ func TestGitHubPublisher_Integration_RepositoryDetection_Good(t *testing.T) {
 	})
 }
 
-func TestGitHubPublisher_Integration_ArtifactUpload_Good(t *testing.T) {
+func TestIntegration_GitHubPublisherIntegrationArtifactUpload_Good(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("dry run lists all artifact types", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			Changelog:  "Release notes",
@@ -235,15 +200,11 @@ func TestGitHubPublisher_Integration_ArtifactUpload_Good(t *testing.T) {
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 
-		err := p.dryRunPublish(release, pubCfg, "owner/repo")
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, pubCfg, "owner/repo")
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "Would upload artifacts:")
 		assert.Contains(t, output, "app-linux-amd64.tar.gz")
@@ -281,7 +242,7 @@ func TestGitHubPublisher_Integration_ArtifactUpload_Good(t *testing.T) {
 
 // --- Docker Publisher Integration Tests ---
 
-func TestDockerPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	if err := validateDockerCli(); err != nil {
 		t.Skip("skipping: docker CLI not available")
 	}
@@ -292,12 +253,8 @@ func TestDockerPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		// Create a Dockerfile
-		err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0644)
+		err := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644)
 		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v1.2.3",
@@ -319,15 +276,10 @@ func TestDockerPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/test-app"}
 
-		err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		// Verify dry run output
 		assert.Contains(t, output, "DRY RUN: Docker Build & Push")
@@ -399,7 +351,7 @@ func TestDockerPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 	})
 }
 
-func TestDockerPublisher_Integration_ConfigParsing_Good(t *testing.T) {
+func TestIntegration_DockerPublisherIntegrationConfigParsing_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("full config round-trip from PublisherConfig to DockerConfig", func(t *testing.T) {
@@ -419,7 +371,7 @@ func TestDockerPublisher_Integration_ConfigParsing_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "fallback/repo"}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/myproject")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/myproject")
 
 		assert.Equal(t, "registry.example.com", cfg.Registry)
 		assert.Equal(t, "myteam/myservice", cfg.Image)
@@ -437,15 +389,11 @@ func TestDockerPublisher_Integration_ConfigParsing_Good(t *testing.T) {
 
 // --- Homebrew Publisher Integration Tests ---
 
-func TestHomebrewPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("dry run generates formula without writing files", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v2.1.0",
@@ -467,15 +415,11 @@ func TestHomebrewPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/my-cli", projectName: "my-cli"}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		// Verify dry run output
 		assert.Contains(t, output, "DRY RUN: Homebrew Publish")
@@ -495,16 +439,12 @@ func TestHomebrewPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		assert.Contains(t, output, "Would commit to tap: test-org/homebrew-tap")
 
 		// Verify no files created
-		entries, err := os.ReadDir(tmpDir)
+		entries, err := ax.ReadDir(tmpDir)
 		require.NoError(t, err)
 		assert.Empty(t, entries, "dry run should not create any files")
 	})
 
 	t.Run("dry run with official config shows output path", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
@@ -522,20 +462,16 @@ func TestHomebrewPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "repo"}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "Would write files for official PR to: dist/homebrew-official")
 	})
 }
 
-func TestHomebrewPublisher_Integration_FormulaGeneration_Good(t *testing.T) {
+func TestIntegration_HomebrewPublisherIntegrationFormulaGeneration_Good(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("generated formula contains correct Ruby class structure", func(t *testing.T) {
@@ -599,15 +535,11 @@ func TestHomebrewPublisher_Integration_FormulaGeneration_Good(t *testing.T) {
 
 // --- Scoop Publisher Integration Tests ---
 
-func TestScoopPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_ScoopPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("dry run generates manifest without writing files", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v1.5.0",
@@ -626,15 +558,11 @@ func TestScoopPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/myapp", projectName: "myapp"}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: Scoop Publish")
 		assert.Contains(t, output, "Package:    myapp")
@@ -645,7 +573,7 @@ func TestScoopPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		assert.Contains(t, output, "Would commit to bucket: test-org/scoop-bucket")
 
 		// Verify no files created
-		entries, err := os.ReadDir(tmpDir)
+		entries, err := ax.ReadDir(tmpDir)
 		require.NoError(t, err)
 		assert.Empty(t, entries)
 	})
@@ -653,15 +581,11 @@ func TestScoopPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 
 // --- AUR Publisher Integration Tests ---
 
-func TestAURPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_AURPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("dry run generates PKGBUILD and SRCINFO without writing files", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v2.0.0",
@@ -680,15 +604,11 @@ func TestAURPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/myapp", projectName: "myapp"}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: AUR Publish")
 		assert.Contains(t, output, "Package:    myapp-bin")
@@ -702,7 +622,7 @@ func TestAURPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		assert.Contains(t, output, "Would push to AUR:")
 
 		// Verify no files created
-		entries, err := os.ReadDir(tmpDir)
+		entries, err := ax.ReadDir(tmpDir)
 		require.NoError(t, err)
 		assert.Empty(t, entries)
 	})
@@ -710,15 +630,11 @@ func TestAURPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 
 // --- Chocolatey Publisher Integration Tests ---
 
-func TestChocolateyPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_ChocolateyPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("dry run generates nuspec and install script without side effects", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -737,15 +653,11 @@ func TestChocolateyPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) 
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/my-cli-tool", projectName: "my-cli-tool"}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: Chocolatey Publish")
 		assert.Contains(t, output, "Package:    my-cli-tool")
@@ -757,7 +669,7 @@ func TestChocolateyPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) 
 		assert.Contains(t, output, "Would generate package files only")
 
 		// Verify no files created
-		entries, err := os.ReadDir(tmpDir)
+		entries, err := ax.ReadDir(tmpDir)
 		require.NoError(t, err)
 		assert.Empty(t, entries)
 	})
@@ -765,15 +677,11 @@ func TestChocolateyPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) 
 
 // --- npm Publisher Integration Tests ---
 
-func TestNpmPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewNpmPublisher()
 
 	t.Run("dry run generates package.json without writing files or publishing", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
 
 		release := &Release{
 			Version:    "v3.0.0",
@@ -789,15 +697,11 @@ func TestNpmPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/my-cli", projectName: "my-cli"}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: npm Publish")
 		assert.Contains(t, output, "Package:    @test-org/my-cli")
@@ -809,7 +713,7 @@ func TestNpmPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		assert.Contains(t, output, "Would run: npm publish --access public")
 
 		// Verify no files created
-		entries, err := os.ReadDir(tmpDir)
+		entries, err := ax.ReadDir(tmpDir)
 		require.NoError(t, err)
 		assert.Empty(t, entries)
 	})
@@ -817,7 +721,7 @@ func TestNpmPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 
 // --- LinuxKit Publisher Integration Tests ---
 
-func TestLinuxKitPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	if err := validateLinuxKitCli(); err != nil {
 		t.Skip("skipping: linuxkit CLI not available")
 	}
@@ -828,13 +732,9 @@ func TestLinuxKitPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		// Create config file
-		configDir := filepath.Join(tmpDir, ".core", "linuxkit")
-		require.NoError(t, os.MkdirAll(configDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0644))
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+		configDir := ax.Join(tmpDir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(configDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(configDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -850,15 +750,11 @@ func TestLinuxKitPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/my-os"}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: LinuxKit Build & Publish")
 		assert.Contains(t, output, "Formats:       iso, qcow2, docker")
@@ -876,15 +772,14 @@ func TestLinuxKitPublisher_Integration_DryRunNoSideEffects_Good(t *testing.T) {
 		assert.Contains(t, output, "docker load")
 
 		// Verify no files created in dist
-		distDir := filepath.Join(tmpDir, "dist")
-		_, err = os.Stat(distDir)
-		assert.True(t, os.IsNotExist(err), "dry run should not create dist directory")
+		distDir := ax.Join(tmpDir, "dist")
+		assert.False(t, ax.Exists(distDir), "dry run should not create dist directory")
 	})
 }
 
 // --- Cross-Publisher Integration Tests ---
 
-func TestAllPublishers_Integration_NameUniqueness_Good(t *testing.T) {
+func TestIntegration_AllPublishersIntegrationNameUniqueness_Good(t *testing.T) {
 	t.Run("all publishers have unique names", func(t *testing.T) {
 		publishers := []Publisher{
 			NewGitHubPublisher(),
@@ -909,21 +804,12 @@ func TestAllPublishers_Integration_NameUniqueness_Good(t *testing.T) {
 	})
 }
 
-func TestAllPublishers_Integration_NilRelCfg_Good(t *testing.T) {
+func TestIntegration_AllPublishersIntegrationNilRelCfg_Good(t *testing.T) {
 	t.Run("github handles nil relCfg with git repo", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		cmd := exec.Command("git", "init")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		cmd = exec.Command("git", "remote", "add", "origin", "git@github.com:niltest/repo.git")
-		cmd.Dir = tmpDir
-		require.NoError(t, cmd.Run())
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+		runPublisherCommand(t, tmpDir, "git", "init")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@github.com:niltest/repo.git")
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -933,19 +819,16 @@ func TestAllPublishers_Integration_NilRelCfg_Good(t *testing.T) {
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 
-		err := NewGitHubPublisher().Publish(context.Background(), release, pubCfg, nil, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = NewGitHubPublisher().Publish(context.Background(), release, pubCfg, nil, true)
+		})
 		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "niltest/repo")
+		assert.Contains(t, output, "niltest/repo")
 	})
 }
 
-func TestBuildChecksumMap_Integration_Good(t *testing.T) {
+func TestIntegration_BuildChecksumMapIntegration_Good(t *testing.T) {
 	t.Run("maps all platforms correctly from realistic artifacts", func(t *testing.T) {
 		artifacts := []build.Artifact{
 			{Path: "/dist/core-v1.0.0-darwin-amd64.tar.gz", Checksum: "da64"},

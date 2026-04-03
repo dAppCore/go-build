@@ -2,17 +2,18 @@ package generators
 
 import (
 	"context"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
 	"time"
+
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // dockerAvailable checks if docker is available for fallback generation.
 func dockerAvailable() bool {
-	_, err := exec.LookPath("docker")
-	return err == nil
+	return ax.Exec(context.Background(), "docker", "info") == nil
 }
 
 // createTestSpec creates a minimal OpenAPI spec for testing.
@@ -30,14 +31,42 @@ paths:
         "200":
           description: OK
 `
-	specPath := filepath.Join(dir, "openapi.yaml")
-	if err := os.WriteFile(specPath, []byte(spec), 0644); err != nil {
+	specPath := ax.Join(dir, "openapi.yaml")
+	if err := ax.WriteFile(specPath, []byte(spec), 0o644); err != nil {
 		t.Fatalf("failed to write test spec: %v", err)
 	}
 	return specPath
 }
 
-func TestTypeScriptGenerator_Good_Available(t *testing.T) {
+func writeFakeTypeScriptGenerator(t *testing.T, dir string) string {
+	t.Helper()
+
+	commandPath := ax.Join(dir, "openapi-typescript-codegen")
+	script := `#!/bin/sh
+set -eu
+output_dir=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output)
+      shift
+      output_dir="$1"
+      ;;
+    --output=*)
+      output_dir="${1#--output=}"
+      ;;
+  esac
+  shift
+done
+if [ -n "$output_dir" ]; then
+  mkdir -p "$output_dir"
+fi
+`
+
+	require.NoError(t, ax.WriteFile(commandPath, []byte(script), 0o755))
+	return commandPath
+}
+
+func TestTypeScript_TypeScriptGeneratorAvailable_Good(t *testing.T) {
 	g := NewTypeScriptGenerator()
 
 	// These should not panic
@@ -54,16 +83,31 @@ func TestTypeScriptGenerator_Good_Available(t *testing.T) {
 	}
 }
 
-func TestTypeScriptGenerator_Good_Generate(t *testing.T) {
+func TestTypeScript_TypeScriptGeneratorNpxAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
+	setAvailabilityProbeTimeout(t, 20*time.Millisecond)
+
+	npxDir := t.TempDir()
+	npxPath := ax.Join(npxDir, "npx")
+	require.NoError(t, ax.WriteFile(npxPath, []byte("#!/bin/sh\nwhile :; do :; done\n"), 0o755))
+	t.Setenv("PATH", npxDir)
+
+	started := time.Now()
+	assert.False(t, NewTypeScriptGenerator().npxAvailable())
+	assert.Less(t, time.Since(started), 500*time.Millisecond)
+}
+
+func TestTypeScript_TypeScriptGeneratorGenerate_Good(t *testing.T) {
+	commandDir := t.TempDir()
+	writeFakeTypeScriptGenerator(t, commandDir)
+	t.Setenv("PATH", commandDir+core.Env("PS")+core.Env("PATH"))
+
 	g := NewTypeScriptGenerator()
-	if !g.Available() && !dockerAvailable() {
-		t.Skip("no TypeScript generator available (neither native nor docker)")
-	}
+	require.True(t, g.Available())
 
 	// Create temp directories
 	tmpDir := t.TempDir()
 	specPath := createTestSpec(t, tmpDir)
-	outputDir := filepath.Join(tmpDir, "output")
+	outputDir := ax.Join(tmpDir, "output")
 
 	opts := Options{
 		SpecPath:    specPath,
@@ -81,7 +125,34 @@ func TestTypeScriptGenerator_Good_Generate(t *testing.T) {
 	}
 
 	// Verify output directory was created
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+	if !ax.Exists(outputDir) {
 		t.Error("output directory was not created")
 	}
+}
+
+func TestTypeScript_TypeScriptGeneratorGenerate_Bad(t *testing.T) {
+	resetDockerRuntimeState()
+	t.Cleanup(resetDockerRuntimeState)
+
+	dockerDir := t.TempDir()
+	dockerPath := ax.Join(dockerDir, "docker")
+	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", dockerDir)
+
+	tmpDir := t.TempDir()
+	specPath := createTestSpec(t, tmpDir)
+	outputDir := ax.Join(tmpDir, "output")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := NewTypeScriptGenerator().Generate(ctx, Options{
+		SpecPath:    specPath,
+		OutputDir:   outputDir,
+		PackageName: "testclient",
+		Version:     "1.0.0",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "context canceled")
 }

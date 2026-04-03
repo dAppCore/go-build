@@ -3,21 +3,26 @@ package release
 
 import (
 	"iter"
-	"os"
-	"path/filepath"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
 )
 
 // ConfigFileName is the name of the release configuration file.
+//
+// configPath := ax.Join(projectDir, release.ConfigDir, release.ConfigFileName)
 const ConfigFileName = "release.yaml"
 
 // ConfigDir is the directory where release configuration is stored.
+//
+// configPath := ax.Join(projectDir, release.ConfigDir, release.ConfigFileName)
 const ConfigDir = ".core"
 
 // Config holds the complete release configuration loaded from .core/release.yaml.
+//
+// cfg, err := release.LoadConfig(".")
 type Config struct {
 	// Version is the config file format version.
 	Version int `yaml:"version"`
@@ -38,6 +43,8 @@ type Config struct {
 }
 
 // ProjectConfig holds project metadata for releases.
+//
+// cfg.Project = release.ProjectConfig{Name: "core-build", Repository: "host-uk/core-build"}
 type ProjectConfig struct {
 	// Name is the project name.
 	Name string `yaml:"name"`
@@ -46,12 +53,19 @@ type ProjectConfig struct {
 }
 
 // BuildConfig holds build settings for releases.
+//
+// cfg.Build.Targets = []release.TargetConfig{{OS: "linux", Arch: "amd64"}}
 type BuildConfig struct {
 	// Targets defines the build targets.
 	Targets []TargetConfig `yaml:"targets"`
+	// ArchiveFormat selects the archive compression format for build outputs.
+	// Supported values are "gz", "xz", and "zip"; empty uses gzip.
+	ArchiveFormat string `yaml:"archive_format,omitempty"`
 }
 
 // TargetConfig defines a build target.
+//
+// t := release.TargetConfig{OS: "linux", Arch: "arm64"}
 type TargetConfig struct {
 	// OS is the target operating system (e.g., "linux", "darwin", "windows").
 	OS string `yaml:"os"`
@@ -60,6 +74,8 @@ type TargetConfig struct {
 }
 
 // PublisherConfig holds configuration for a publisher.
+//
+// cfg.Publishers = []release.PublisherConfig{{Type: "github", Draft: false}}
 type PublisherConfig struct {
 	// Type is the publisher type (e.g., "github", "linuxkit", "docker").
 	Type string `yaml:"type"`
@@ -118,6 +134,8 @@ type PublisherConfig struct {
 }
 
 // OfficialConfig holds configuration for generating files for official repo PRs.
+//
+// pub.Official = &release.OfficialConfig{Enabled: true, Output: "dist/homebrew"}
 type OfficialConfig struct {
 	// Enabled determines whether to generate files for official repos.
 	Enabled bool `yaml:"enabled"`
@@ -126,6 +144,8 @@ type OfficialConfig struct {
 }
 
 // SDKConfig holds SDK generation configuration.
+//
+// cfg.SDK = &release.SDKConfig{Spec: "docs/openapi.yaml", Languages: []string{"typescript", "go"}}
 type SDKConfig struct {
 	// Spec is the path to the OpenAPI spec file.
 	Spec string `yaml:"spec,omitempty"`
@@ -142,24 +162,32 @@ type SDKConfig struct {
 }
 
 // SDKPackageConfig holds package naming configuration.
+//
+// cfg.SDK.Package = release.SDKPackageConfig{Name: "@host-uk/api-client", Version: "1.0.0"}
 type SDKPackageConfig struct {
 	Name    string `yaml:"name,omitempty"`
 	Version string `yaml:"version,omitempty"`
 }
 
 // SDKDiffConfig holds diff configuration.
+//
+// cfg.SDK.Diff = release.SDKDiffConfig{Enabled: true, FailOnBreaking: true}
 type SDKDiffConfig struct {
 	Enabled        bool `yaml:"enabled,omitempty"`
 	FailOnBreaking bool `yaml:"fail_on_breaking,omitempty"`
 }
 
 // SDKPublishConfig holds monorepo publish configuration.
+//
+// cfg.SDK.Publish = release.SDKPublishConfig{Repo: "host-uk/ts", Path: "packages/api-client"}
 type SDKPublishConfig struct {
 	Repo string `yaml:"repo,omitempty"`
 	Path string `yaml:"path,omitempty"`
 }
 
 // ChangelogConfig holds changelog generation settings.
+//
+// cfg.Changelog = release.ChangelogConfig{Include: []string{"feat", "fix"}, Exclude: []string{"chore"}}
 type ChangelogConfig struct {
 	// Include specifies commit types to include in the changelog.
 	Include []string `yaml:"include"`
@@ -168,6 +196,8 @@ type ChangelogConfig struct {
 }
 
 // PublishersIter returns an iterator for the publishers.
+//
+// for p := range cfg.PublishersIter() { fmt.Println(p.Type) }
 func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 	return func(yield func(PublisherConfig) bool) {
 		for _, p := range c.Publishers {
@@ -181,18 +211,20 @@ func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 // LoadConfig loads release configuration from the .core/release.yaml file in the given directory.
 // If the config file does not exist, it returns DefaultConfig().
 // Returns an error if the file exists but cannot be parsed.
+//
+// cfg, err := release.LoadConfig(".")
 func LoadConfig(dir string) (*Config, error) {
-	configPath := filepath.Join(dir, ConfigDir, ConfigFileName)
+	configPath := ax.Join(dir, ConfigDir, ConfigFileName)
 
-	// Convert to absolute path for io.Local
-	absPath, err := filepath.Abs(configPath)
+	// Resolve path with AX-aware helpers.
+	absPath, err := ax.Abs(configPath)
 	if err != nil {
 		return nil, coreerr.E("release.LoadConfig", "failed to resolve path", err)
 	}
 
-	content, err := io.Local.Read(absPath)
+	content, err := ax.ReadFile(absPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if !ax.IsFile(absPath) {
 			cfg := DefaultConfig()
 			cfg.projectDir = dir
 			return cfg, nil
@@ -207,12 +239,15 @@ func LoadConfig(dir string) (*Config, error) {
 
 	// Apply defaults for any missing fields
 	applyDefaults(&cfg)
+	cfg.ExpandEnv()
 	cfg.projectDir = dir
 
 	return &cfg, nil
 }
 
 // DefaultConfig returns sensible defaults for release configuration.
+//
+// cfg := release.DefaultConfig()
 func DefaultConfig() *Config {
 	return &Config{
 		Version: 1,
@@ -242,6 +277,23 @@ func DefaultConfig() *Config {
 	}
 }
 
+// ScaffoldConfig returns the config shape written by `core ci init`.
+//
+// cfg := release.ScaffoldConfig()
+func ScaffoldConfig() *Config {
+	cfg := DefaultConfig()
+	cfg.SDK = &SDKConfig{
+		Spec:      "api/openapi.yaml",
+		Languages: []string{"typescript", "python", "go", "php"},
+		Output:    "sdk",
+		Diff: SDKDiffConfig{
+			Enabled:        true,
+			FailOnBreaking: false,
+		},
+	}
+	return cfg
+}
+
 // applyDefaults fills in default values for any empty fields in the config.
 func applyDefaults(cfg *Config) {
 	defaults := DefaultConfig()
@@ -264,54 +316,129 @@ func applyDefaults(cfg *Config) {
 	}
 }
 
+// ExpandEnv expands environment variables across the release config.
+//
+//	cfg.ExpandEnv() // expands $REPO, $PACKAGE_NAME, $SDK_SPEC, etc.
+func (c *Config) ExpandEnv() {
+	if c == nil {
+		return
+	}
+
+	c.Project.Name = expandEnv(c.Project.Name)
+	c.Project.Repository = expandEnv(c.Project.Repository)
+
+	c.Build.ArchiveFormat = expandEnv(c.Build.ArchiveFormat)
+	c.Build.Targets = expandTargetConfigs(c.Build.Targets)
+
+	c.Publishers = expandPublisherConfigs(c.Publishers)
+
+	c.Changelog.Include = expandEnvSlice(c.Changelog.Include)
+	c.Changelog.Exclude = expandEnvSlice(c.Changelog.Exclude)
+
+	if c.SDK != nil {
+		c.SDK.Spec = expandEnv(c.SDK.Spec)
+		c.SDK.Output = expandEnv(c.SDK.Output)
+		c.SDK.Package.Name = expandEnv(c.SDK.Package.Name)
+		c.SDK.Package.Version = expandEnv(c.SDK.Package.Version)
+		c.SDK.Publish.Repo = expandEnv(c.SDK.Publish.Repo)
+		c.SDK.Publish.Path = expandEnv(c.SDK.Publish.Path)
+	}
+}
+
 // SetProjectDir sets the project directory on the config.
+//
+// cfg.SetProjectDir("/home/user/my-project")
 func (c *Config) SetProjectDir(dir string) {
 	c.projectDir = dir
 }
 
 // SetVersion sets the version override on the config.
+//
+// cfg.SetVersion("v1.2.3")
 func (c *Config) SetVersion(version string) {
 	c.version = version
 }
 
+func expandPublisherConfigs(publishers []PublisherConfig) []PublisherConfig {
+	if len(publishers) == 0 {
+		return publishers
+	}
+
+	result := make([]PublisherConfig, len(publishers))
+	copy(result, publishers)
+
+	for i := range result {
+		result[i].Type = expandEnv(result[i].Type)
+		result[i].Config = expandEnv(result[i].Config)
+		result[i].Formats = expandEnvSlice(result[i].Formats)
+		result[i].Platforms = expandEnvSlice(result[i].Platforms)
+		result[i].Registry = expandEnv(result[i].Registry)
+		result[i].Image = expandEnv(result[i].Image)
+		result[i].Dockerfile = expandEnv(result[i].Dockerfile)
+		result[i].Tags = expandEnvSlice(result[i].Tags)
+		result[i].BuildArgs = expandEnvMap(result[i].BuildArgs)
+		result[i].Package = expandEnv(result[i].Package)
+		result[i].Access = expandEnv(result[i].Access)
+		result[i].Tap = expandEnv(result[i].Tap)
+		result[i].Formula = expandEnv(result[i].Formula)
+		result[i].Bucket = expandEnv(result[i].Bucket)
+		result[i].Maintainer = expandEnv(result[i].Maintainer)
+		if result[i].Official != nil {
+			result[i].Official.Output = expandEnv(result[i].Official.Output)
+		}
+	}
+
+	return result
+}
+
 // ConfigPath returns the path to the release config file for a given directory.
+//
+// path := release.ConfigPath("/home/user/my-project") // → "/home/user/my-project/.core/release.yaml"
 func ConfigPath(dir string) string {
-	return filepath.Join(dir, ConfigDir, ConfigFileName)
+	return ax.Join(dir, ConfigDir, ConfigFileName)
 }
 
 // ConfigExists checks if a release config file exists in the given directory.
+//
+// if release.ConfigExists(".") { ... }
 func ConfigExists(dir string) bool {
 	configPath := ConfigPath(dir)
-	absPath, err := filepath.Abs(configPath)
+	absPath, err := ax.Abs(configPath)
 	if err != nil {
 		return false
 	}
-	return io.Local.IsFile(absPath)
+	return ax.IsFile(absPath)
 }
 
 // GetRepository returns the repository from the config.
+//
+// repo := cfg.GetRepository() // → "host-uk/core-build"
 func (c *Config) GetRepository() string {
 	return c.Project.Repository
 }
 
 // GetProjectName returns the project name from the config.
+//
+// name := cfg.GetProjectName() // → "core-build"
 func (c *Config) GetProjectName() string {
 	return c.Project.Name
 }
 
 // WriteConfig writes the config to the .core/release.yaml file.
+//
+// err := release.WriteConfig(cfg, ".")
 func WriteConfig(cfg *Config, dir string) error {
 	configPath := ConfigPath(dir)
 
-	// Convert to absolute path for io.Local
-	absPath, err := filepath.Abs(configPath)
+	// Resolve path with AX-aware helpers.
+	absPath, err := ax.Abs(configPath)
 	if err != nil {
 		return coreerr.E("release.WriteConfig", "failed to resolve path", err)
 	}
 
 	// Ensure directory exists
-	configDir := filepath.Dir(absPath)
-	if err := io.Local.EnsureDir(configDir); err != nil {
+	configDir := ax.Dir(absPath)
+	if err := ax.MkdirAll(configDir, 0o755); err != nil {
 		return coreerr.E("release.WriteConfig", "failed to create directory", err)
 	}
 
@@ -320,9 +447,95 @@ func WriteConfig(cfg *Config, dir string) error {
 		return coreerr.E("release.WriteConfig", "failed to marshal config", err)
 	}
 
-	if err := io.Local.Write(absPath, string(data)); err != nil {
+	if err := ax.WriteString(absPath, string(data), 0o644); err != nil {
 		return coreerr.E("release.WriteConfig", "failed to write config file", err)
 	}
 
 	return nil
+}
+
+func expandEnvSlice(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make([]string, len(values))
+	for i, value := range values {
+		result[i] = expandEnv(value)
+	}
+	return result
+}
+
+func expandEnvMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make(map[string]string, len(values))
+	for key, value := range values {
+		result[key] = expandEnv(value)
+	}
+	return result
+}
+
+func expandTargetConfigs(values []TargetConfig) []TargetConfig {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make([]TargetConfig, len(values))
+	for i, value := range values {
+		result[i] = TargetConfig{
+			OS:   expandEnv(value.OS),
+			Arch: expandEnv(value.Arch),
+		}
+	}
+	return result
+}
+
+// expandEnv expands $VAR or ${VAR} using the current process environment.
+func expandEnv(s string) string {
+	if !core.Contains(s, "$") {
+		return s
+	}
+
+	buf := core.NewBuilder()
+	for i := 0; i < len(s); {
+		if s[i] != '$' {
+			buf.WriteByte(s[i])
+			i++
+			continue
+		}
+
+		if i+1 < len(s) && s[i+1] == '{' {
+			j := i + 2
+			for j < len(s) && s[j] != '}' {
+				j++
+			}
+			if j < len(s) {
+				buf.WriteString(core.Env(s[i+2 : j]))
+				i = j + 1
+				continue
+			}
+		}
+
+		j := i + 1
+		for j < len(s) {
+			c := s[j]
+			if c != '_' && (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
+				break
+			}
+			j++
+		}
+		if j > i+1 {
+			buf.WriteString(core.Env(s[i+1 : j]))
+			i = j
+			continue
+		}
+
+		buf.WriteByte(s[i])
+		i++
+	}
+
+	return buf.String()
 }

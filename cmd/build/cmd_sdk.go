@@ -7,24 +7,26 @@ package buildcmd
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
+	"forge.lthn.ai/core/cli/pkg/cli"
 )
 
 // runBuildSDK handles the `core build sdk` command.
-func runBuildSDK(specPath, lang, version string, dryRun bool) error {
-	ctx := context.Background()
-
-	projectDir, err := os.Getwd()
+func runBuildSDK(ctx context.Context, specPath, lang, version string, dryRun bool) error {
+	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("build.SDK", "failed to get working directory", err)
 	}
 
+	return runBuildSDKInDir(ctx, projectDir, specPath, lang, version, dryRun)
+}
+
+func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool) error {
 	// Load config
 	config := sdk.DefaultConfig()
 	if specPath != "" {
@@ -36,48 +38,48 @@ func runBuildSDK(specPath, lang, version string, dryRun bool) error {
 		s.SetVersion(version)
 	}
 
-	fmt.Printf("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.sdk.label")), i18n.T("cmd.build.sdk.generating"))
+	cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.sdk.label")), i18n.T("cmd.build.sdk.generating"))
 	if dryRun {
-		fmt.Printf("  %s\n", buildDimStyle.Render(i18n.T("cmd.build.sdk.dry_run_mode")))
+		cli.Print("  %s\n", buildDimStyle.Render(i18n.T("cmd.build.sdk.dry_run_mode")))
 	}
-	fmt.Println()
+	cli.Blank()
 
-	// Detect spec
-	detectedSpec, err := s.DetectSpec()
+	// Validate the spec before generating anything.
+	detectedSpec, err := s.ValidateSpec(ctx)
 	if err != nil {
-		fmt.Printf("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
+		cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
 		return err
 	}
-	fmt.Printf("  %s %s\n", i18n.T("common.label.spec"), buildTargetStyle.Render(detectedSpec))
+	cli.Print("  %s %s\n", i18n.T("common.label.spec"), buildTargetStyle.Render(detectedSpec))
 
 	if dryRun {
 		if lang != "" {
-			fmt.Printf("  %s %s\n", i18n.T("cmd.build.sdk.language_label"), buildTargetStyle.Render(lang))
+			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.language_label"), buildTargetStyle.Render(lang))
 		} else {
-			fmt.Printf("  %s %s\n", i18n.T("cmd.build.sdk.languages_label"), buildTargetStyle.Render(strings.Join(config.Languages, ", ")))
+			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.languages_label"), buildTargetStyle.Render(core.Join(", ", config.Languages...)))
 		}
-		fmt.Println()
-		fmt.Printf("%s %s\n", buildSuccessStyle.Render(i18n.T("cmd.build.label.ok")), i18n.T("cmd.build.sdk.would_generate"))
+		cli.Blank()
+		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("cmd.build.label.ok")), i18n.T("cmd.build.sdk.would_generate"))
 		return nil
 	}
 
 	if lang != "" {
 		// Generate single language
 		if err := s.GenerateLanguage(ctx, lang); err != nil {
-			fmt.Printf("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
+			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
 			return err
 		}
-		fmt.Printf("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), buildTargetStyle.Render(lang))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), buildTargetStyle.Render(lang))
 	} else {
 		// Generate all
 		if err := s.Generate(ctx); err != nil {
-			fmt.Printf("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
+			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
 			return err
 		}
-		fmt.Printf("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), buildTargetStyle.Render(strings.Join(config.Languages, ", ")))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), buildTargetStyle.Render(core.Join(", ", config.Languages...)))
 	}
 
-	fmt.Println()
-	fmt.Printf("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.sdk.complete"))
+	cli.Blank()
+	cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.sdk.complete"))
 	return nil
 }

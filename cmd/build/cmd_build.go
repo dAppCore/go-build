@@ -1,4 +1,4 @@
-// Package buildcmd provides project build commands with auto-detection.
+// Package buildcmd registers auto-detected project build commands.
 package buildcmd
 
 import (
@@ -13,7 +13,7 @@ func init() {
 	cli.RegisterCommands(AddBuildCommands)
 }
 
-// Style aliases from shared package
+// Style aliases used by build command output.
 var (
 	buildHeaderStyle  = cli.TitleStyle
 	buildTargetStyle  = cli.ValueStyle
@@ -27,13 +27,14 @@ var guiTemplate embed.FS
 
 // Flags for the main build command
 var (
-	buildType  string
-	ciMode     bool
-	targets    string
-	outputDir  string
-	doArchive  bool
-	doChecksum bool
-	verbose    bool
+	buildType      string
+	ciMode         bool
+	targets        string
+	outputDir      string
+	archiveOutput  bool
+	checksumOutput bool
+	archiveFormat  string
+	verbose        bool
 
 	// Docker/LinuxKit specific flags
 	configPath string
@@ -61,7 +62,23 @@ var (
 var buildCmd = &cli.Command{
 	Use: "build",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runProjectBuild(cmd.Context(), buildType, ciMode, targets, outputDir, doArchive, doChecksum, configPath, format, push, imageName, noSign, notarize, verbose)
+		return runProjectBuild(ProjectBuildRequest{
+			Context:        cmd.Context(),
+			BuildType:      buildType,
+			CIMode:         ciMode,
+			TargetsFlag:    targets,
+			OutputDir:      outputDir,
+			ArchiveOutput:  archiveOutput,
+			ChecksumOutput: checksumOutput,
+			ArchiveFormat:  archiveFormat,
+			ConfigPath:     configPath,
+			Format:         format,
+			Push:           push,
+			ImageName:      imageName,
+			NoSign:         noSign,
+			Notarize:       notarize,
+			Verbose:        verbose,
+		})
 	},
 }
 
@@ -71,7 +88,7 @@ var fromPathCmd = &cli.Command{
 		if fromPath == "" {
 			return errPathRequired
 		}
-		return runBuild(fromPath)
+		return runBuild(cmd.Context(), fromPath)
 	},
 }
 
@@ -81,14 +98,14 @@ var pwaCmd = &cli.Command{
 		if pwaURL == "" {
 			return errURLRequired
 		}
-		return runPwaBuild(pwaURL)
+		return runPwaBuild(cmd.Context(), pwaURL)
 	},
 }
 
 var sdkBuildCmd = &cli.Command{
 	Use: "sdk",
 	RunE: func(cmd *cli.Command, args []string) error {
-		return runBuildSDK(sdkSpec, sdkLang, sdkVersion, sdkDryRun)
+		return runBuildSDK(cmd.Context(), sdkSpec, sdkLang, sdkVersion, sdkDryRun)
 	},
 }
 
@@ -108,11 +125,14 @@ func initBuildFlags() {
 	buildCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, i18n.T("common.flag.verbose"))
 	buildCmd.Flags().StringVar(&targets, "targets", "", i18n.T("cmd.build.flag.targets"))
 	buildCmd.Flags().StringVar(&outputDir, "output", "", i18n.T("cmd.build.flag.output"))
-	buildCmd.Flags().BoolVar(&doArchive, "archive", true, i18n.T("cmd.build.flag.archive"))
-	buildCmd.Flags().BoolVar(&doChecksum, "checksum", true, i18n.T("cmd.build.flag.checksum"))
+	buildCmd.Flags().BoolVar(&archiveOutput, "archive", true, i18n.T("cmd.build.flag.archive"))
+	buildCmd.Flags().BoolVar(&checksumOutput, "checksum", true, i18n.T("cmd.build.flag.checksum"))
+	buildCmd.Flags().StringVar(&archiveFormat, "archive-format", "", i18n.T("cmd.build.flag.archive_format"))
+
+	// Build config override.
+	buildCmd.Flags().StringVar(&configPath, "config", "", i18n.T("cmd.build.flag.config"))
 
 	// Docker/LinuxKit specific
-	buildCmd.Flags().StringVar(&configPath, "config", "", i18n.T("cmd.build.flag.config"))
 	buildCmd.Flags().StringVar(&format, "format", "", i18n.T("cmd.build.flag.format"))
 	buildCmd.Flags().BoolVar(&push, "push", false, i18n.T("cmd.build.flag.push"))
 	buildCmd.Flags().StringVar(&imageName, "image", "", i18n.T("cmd.build.flag.image"))
@@ -140,9 +160,12 @@ func initBuildFlags() {
 }
 
 // AddBuildCommands registers the 'build' command and all subcommands.
+//
+// buildcmd.AddBuildCommands(root)
 func AddBuildCommands(root *cli.Command) {
 	setBuildI18n()
 	initBuildFlags()
 	AddReleaseCommand(buildCmd)
+	AddWorkflowCommand(buildCmd)
 	root.AddCommand(buildCmd)
 }

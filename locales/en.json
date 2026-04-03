@@ -32,6 +32,7 @@
       },
       "flag": {
         "archive": "Create release archives",
+        "archive_format": "Override the archive format (gz, xz, or zip)",
         "checksum": "Generate checksums for artefacts",
         "ci": "Run in CI mode (all targets, JSON output)",
         "config": "Path to build configuration file",
@@ -108,6 +109,17 @@
           "artifacts": "Artefacts:",
           "published": "Published:",
           "release": "Release"
+        }
+      },
+      "workflow": {
+        "short": "Generate the release workflow",
+        "long": "Write the embedded GitHub Actions release workflow into .github/workflows/release.yml, or pass --path/--workflowPath/--workflow-path/--workflow_path/--outputPath/--output-path/--output_path/--output/--workflowOutputPath/--workflow-output/--workflow_output/--workflow-output-path/--workflow_output_path for a custom location.",
+        "flag": {
+          "path": "Preferred workflow path input.",
+          "workflow_path": "Predictable workflow path alias.",
+          "output_path": "Preferred explicit workflow output path.",
+          "workflow_output_path": "Predictable workflow output path alias.",
+          "output": "Legacy alias for --output-path."
         }
       },
       "sdk": {

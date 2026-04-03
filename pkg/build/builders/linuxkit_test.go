@@ -1,9 +1,11 @@
 package builders
 
 import (
+	"context"
 	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
@@ -11,17 +13,61 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLinuxKitBuilder_Name_Good(t *testing.T) {
+func setupFakeLinuxKitToolchain(t *testing.T, binDir string) {
+	t.Helper()
+
+	script := `#!/bin/sh
+set -eu
+
+if [ "${1:-}" != "build" ]; then
+	exit 1
+fi
+
+config=""
+dir=""
+name=""
+while [ $# -gt 0 ]; do
+	if [ "$1" = "--dir" ]; then
+		shift
+		dir="${1:-}"
+	elif [ "$1" = "--name" ]; then
+		shift
+		name="${1:-}"
+	fi
+	shift
+done
+
+if [ -n "$dir" ] && [ -n "$name" ]; then
+	mkdir -p "$dir"
+	printf 'linuxkit image\n' > "$dir/$name.iso"
+fi
+`
+
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755))
+}
+
+func TestLinuxKit_LinuxKitBuilderName_Good(t *testing.T) {
 	builder := NewLinuxKitBuilder()
 	assert.Equal(t, "linuxkit", builder.Name())
 }
 
-func TestLinuxKitBuilder_Detect_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitBuilderDetect_Good(t *testing.T) {
 	fs := io.Local
 
 	t.Run("detects linuxkit.yml in root", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "linuxkit.yml"), []byte("kernel:\n  image: test\n"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "linuxkit.yml"), []byte("kernel:\n  image: test\n"), 0644)
+		require.NoError(t, err)
+
+		builder := NewLinuxKitBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.True(t, detected)
+	})
+
+	t.Run("detects linuxkit.yaml in root", func(t *testing.T) {
+		dir := t.TempDir()
+		err := ax.WriteFile(ax.Join(dir, "linuxkit.yaml"), []byte("kernel:\n  image: test\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewLinuxKitBuilder()
@@ -32,9 +78,22 @@ func TestLinuxKitBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("detects .core/linuxkit/*.yml", func(t *testing.T) {
 		dir := t.TempDir()
-		lkDir := filepath.Join(dir, ".core", "linuxkit")
-		require.NoError(t, os.MkdirAll(lkDir, 0755))
-		err := os.WriteFile(filepath.Join(lkDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0644)
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
+		err := ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0644)
+		require.NoError(t, err)
+
+		builder := NewLinuxKitBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.True(t, detected)
+	})
+
+	t.Run("detects .core/linuxkit/*.yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
+		err := ax.WriteFile(ax.Join(lkDir, "server.yaml"), []byte("kernel:\n  image: test\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewLinuxKitBuilder()
@@ -45,11 +104,11 @@ func TestLinuxKitBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("detects .core/linuxkit with multiple yml files", func(t *testing.T) {
 		dir := t.TempDir()
-		lkDir := filepath.Join(dir, ".core", "linuxkit")
-		require.NoError(t, os.MkdirAll(lkDir, 0755))
-		err := os.WriteFile(filepath.Join(lkDir, "server.yml"), []byte("kernel:\n"), 0644)
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
+		err := ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n"), 0644)
 		require.NoError(t, err)
-		err = os.WriteFile(filepath.Join(lkDir, "desktop.yml"), []byte("kernel:\n"), 0644)
+		err = ax.WriteFile(ax.Join(lkDir, "desktop.yml"), []byte("kernel:\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewLinuxKitBuilder()
@@ -69,7 +128,7 @@ func TestLinuxKitBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("returns false for non-LinuxKit project", func(t *testing.T) {
 		dir := t.TempDir()
-		err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644)
+		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644)
 		require.NoError(t, err)
 
 		builder := NewLinuxKitBuilder()
@@ -80,8 +139,8 @@ func TestLinuxKitBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("returns false for empty .core/linuxkit directory", func(t *testing.T) {
 		dir := t.TempDir()
-		lkDir := filepath.Join(dir, ".core", "linuxkit")
-		require.NoError(t, os.MkdirAll(lkDir, 0755))
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
 
 		builder := NewLinuxKitBuilder()
 		detected, err := builder.Detect(fs, dir)
@@ -91,9 +150,22 @@ func TestLinuxKitBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("returns false when .core/linuxkit has only non-yml files", func(t *testing.T) {
 		dir := t.TempDir()
-		lkDir := filepath.Join(dir, ".core", "linuxkit")
-		require.NoError(t, os.MkdirAll(lkDir, 0755))
-		err := os.WriteFile(filepath.Join(lkDir, "README.md"), []byte("# LinuxKit\n"), 0644)
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
+		err := ax.WriteFile(ax.Join(lkDir, "README.md"), []byte("# LinuxKit\n"), 0644)
+		require.NoError(t, err)
+
+		builder := NewLinuxKitBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.False(t, detected)
+	})
+
+	t.Run("returns false when .core/linuxkit has only non-yaml files", func(t *testing.T) {
+		dir := t.TempDir()
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		require.NoError(t, ax.MkdirAll(lkDir, 0755))
+		err := ax.WriteFile(ax.Join(lkDir, "README.md"), []byte("# LinuxKit\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewLinuxKitBuilder()
@@ -104,11 +176,11 @@ func TestLinuxKitBuilder_Detect_Good(t *testing.T) {
 
 	t.Run("ignores subdirectories in .core/linuxkit", func(t *testing.T) {
 		dir := t.TempDir()
-		lkDir := filepath.Join(dir, ".core", "linuxkit")
-		subDir := filepath.Join(lkDir, "subdir")
-		require.NoError(t, os.MkdirAll(subDir, 0755))
+		lkDir := ax.Join(dir, ".core", "linuxkit")
+		subDir := ax.Join(lkDir, "subdir")
+		require.NoError(t, ax.MkdirAll(subDir, 0755))
 		// Put yml in subdir only, not in lkDir itself
-		err := os.WriteFile(filepath.Join(subDir, "server.yml"), []byte("kernel:\n"), 0644)
+		err := ax.WriteFile(ax.Join(subDir, "server.yml"), []byte("kernel:\n"), 0644)
 		require.NoError(t, err)
 
 		builder := NewLinuxKitBuilder()
@@ -118,7 +190,7 @@ func TestLinuxKitBuilder_Detect_Good(t *testing.T) {
 	})
 }
 
-func TestLinuxKitBuilder_GetFormatExtension_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitBuilderGetFormatExtension_Good(t *testing.T) {
 	builder := NewLinuxKitBuilder()
 
 	tests := []struct {
@@ -138,6 +210,9 @@ func TestLinuxKitBuilder_GetFormatExtension_Good(t *testing.T) {
 		{"vhd", ".vhd"},
 		{"gcp", ".img.tar.gz"},
 		{"aws", ".raw"},
+		{"docker", ".docker.tar"},
+		{"tar", ".tar"},
+		{"kernel+initrd", "-initrd.img"},
 		{"custom", ".custom"},
 	}
 
@@ -149,7 +224,7 @@ func TestLinuxKitBuilder_GetFormatExtension_Good(t *testing.T) {
 	}
 }
 
-func TestLinuxKitBuilder_GetArtifactPath_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitBuilderGetArtifactPath_Good(t *testing.T) {
 	builder := NewLinuxKitBuilder()
 
 	t.Run("constructs correct path", func(t *testing.T) {
@@ -161,9 +236,19 @@ func TestLinuxKitBuilder_GetArtifactPath_Good(t *testing.T) {
 		path := builder.getArtifactPath("/output/linuxkit", "server-arm64", "qcow2-bios")
 		assert.Equal(t, "/output/linuxkit/server-arm64.qcow2", path)
 	})
+
+	t.Run("constructs correct path for docker images", func(t *testing.T) {
+		path := builder.getArtifactPath("/output/linuxkit", "server-amd64", "docker")
+		assert.Equal(t, "/output/linuxkit/server-amd64.docker.tar", path)
+	})
+
+	t.Run("constructs correct path for kernel+initrd images", func(t *testing.T) {
+		path := builder.getArtifactPath("/output/linuxkit", "server-amd64", "kernel+initrd")
+		assert.Equal(t, "/output/linuxkit/server-amd64-initrd.img", path)
+	})
 }
 
-func TestLinuxKitBuilder_BuildLinuxKitArgs_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitBuilderBuildLinuxKitArgs_Good(t *testing.T) {
 	builder := NewLinuxKitBuilder()
 
 	t.Run("builds args for amd64 without --arch", func(t *testing.T) {
@@ -186,14 +271,48 @@ func TestLinuxKitBuilder_BuildLinuxKitArgs_Good(t *testing.T) {
 	})
 }
 
-func TestLinuxKitBuilder_FindArtifact_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitBuilderBuild_ResolvesRelativeConfigPath_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeLinuxKitToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	configPath := ax.Join(projectDir, "deploy", "linuxkit.yml")
+	require.NoError(t, ax.MkdirAll(ax.Dir(configPath), 0o755))
+	require.NoError(t, ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644))
+
+	outputDir := t.TempDir()
+	builder := NewLinuxKitBuilder()
+	cfg := &build.Config{
+		FS:             io.Local,
+		ProjectDir:     projectDir,
+		OutputDir:      outputDir,
+		Name:           "sample",
+		LinuxKitConfig: "deploy/linuxkit.yml",
+		Formats:        []string{"iso"},
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	expectedPath := ax.Join(outputDir, "sample-amd64.iso")
+	assert.Equal(t, expectedPath, artifacts[0].Path)
+	assert.FileExists(t, expectedPath)
+}
+
+func TestLinuxKit_LinuxKitBuilderFindArtifact_Good(t *testing.T) {
 	fs := io.Local
 	builder := NewLinuxKitBuilder()
 
 	t.Run("finds artifact with exact extension", func(t *testing.T) {
 		dir := t.TempDir()
-		artifactPath := filepath.Join(dir, "server-amd64.iso")
-		require.NoError(t, os.WriteFile(artifactPath, []byte("fake iso"), 0644))
+		artifactPath := ax.Join(dir, "server-amd64.iso")
+		require.NoError(t, ax.WriteFile(artifactPath, []byte("fake iso"), 0644))
 
 		found := builder.findArtifact(fs, dir, "server-amd64", "iso")
 		assert.Equal(t, artifactPath, found)
@@ -209,16 +328,64 @@ func TestLinuxKitBuilder_FindArtifact_Good(t *testing.T) {
 	t.Run("finds artifact with alternate naming", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create file matching the name prefix + known image extension
-		artifactPath := filepath.Join(dir, "server-amd64.qcow2")
-		require.NoError(t, os.WriteFile(artifactPath, []byte("fake qcow2"), 0644))
+		artifactPath := ax.Join(dir, "server-amd64.qcow2")
+		require.NoError(t, ax.WriteFile(artifactPath, []byte("fake qcow2"), 0644))
 
 		found := builder.findArtifact(fs, dir, "server-amd64", "qcow2")
 		assert.Equal(t, artifactPath, found)
 	})
+
+	t.Run("finds cloud image artifacts", func(t *testing.T) {
+		dir := t.TempDir()
+		artifactPath := ax.Join(dir, "server-amd64-gcp.img.tar.gz")
+		require.NoError(t, ax.WriteFile(artifactPath, []byte("fake gcp image"), 0644))
+
+		found := builder.findArtifact(fs, dir, "server-amd64", "gcp")
+		assert.Equal(t, artifactPath, found)
+	})
+
+	t.Run("finds docker artifacts", func(t *testing.T) {
+		dir := t.TempDir()
+		artifactPath := ax.Join(dir, "server-amd64.docker.tar")
+		require.NoError(t, ax.WriteFile(artifactPath, []byte("fake docker tar"), 0644))
+
+		found := builder.findArtifact(fs, dir, "server-amd64", "docker")
+		assert.Equal(t, artifactPath, found)
+	})
+
+	t.Run("finds kernel+initrd artifacts", func(t *testing.T) {
+		dir := t.TempDir()
+		artifactPath := ax.Join(dir, "server-amd64-initrd.img")
+		require.NoError(t, ax.WriteFile(artifactPath, []byte("fake initrd"), 0644))
+
+		found := builder.findArtifact(fs, dir, "server-amd64", "kernel+initrd")
+		assert.Equal(t, artifactPath, found)
+	})
 }
 
-func TestLinuxKitBuilder_Interface_Good(t *testing.T) {
+func TestLinuxKit_LinuxKitBuilderInterface_Good(t *testing.T) {
 	// Verify LinuxKitBuilder implements Builder interface
 	var _ build.Builder = (*LinuxKitBuilder)(nil)
 	var _ build.Builder = NewLinuxKitBuilder()
+}
+
+func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCli_Good(t *testing.T) {
+	builder := NewLinuxKitBuilder()
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "linuxkit")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
+
+	command, err := builder.resolveLinuxKitCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCli_Bad(t *testing.T) {
+	builder := NewLinuxKitBuilder()
+	t.Setenv("PATH", "")
+
+	_, err := builder.resolveLinuxKitCli(ax.Join(t.TempDir(), "missing-linuxkit"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "linuxkit CLI not found")
 }

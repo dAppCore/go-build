@@ -4,18 +4,20 @@ package release
 import (
 	"bufio"
 	"bytes"
-	"fmt"
-	"os/exec"
+	"context"
 	"regexp"
-	"slices"
-	"strings"
+	"sort"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
 // ConventionalCommit represents a parsed conventional commit.
+//
+// commit := release.ConventionalCommit{Type: "feat", Scope: "build", Description: "add linuxkit support"}
 type ConventionalCommit struct {
 	Type        string // feat, fix, etc.
 	Scope       string // optional scope in parentheses
@@ -61,15 +63,29 @@ var conventionalCommitRegex = regexp.MustCompile(`^(\w+)(?:\(([^)]+)\))?(!)?:\s*
 // Generate generates a markdown changelog from git commits between two refs.
 // If fromRef is empty, it uses the previous tag or initial commit.
 // If toRef is empty, it uses HEAD.
+//
+// md, err := release.Generate(".", "v1.2.3", "HEAD")
 func Generate(dir, fromRef, toRef string) (string, error) {
+	return GenerateWithContext(context.Background(), dir, fromRef, toRef)
+}
+
+// GenerateWithContext generates a markdown changelog while honouring caller cancellation.
+// If fromRef is empty, it uses the previous tag or initial commit.
+// If toRef is empty, it uses HEAD.
+//
+// md, err := release.GenerateWithContext(ctx, ".", "v1.2.3", "HEAD")
+func GenerateWithContext(ctx context.Context, dir, fromRef, toRef string) (string, error) {
 	if toRef == "" {
 		toRef = "HEAD"
 	}
 
 	// If fromRef is empty, try to find previous tag
 	if fromRef == "" {
-		prevTag, err := getPreviousTag(dir, toRef)
+		prevTag, err := getPreviousTagWithContext(ctx, dir, toRef)
 		if err != nil {
+			if ctx.Err() != nil {
+				return "", coreerr.E("changelog.Generate", "generation cancelled", ctx.Err())
+			}
 			// No previous tag, use initial commit
 			fromRef = ""
 		} else {
@@ -78,7 +94,7 @@ func Generate(dir, fromRef, toRef string) (string, error) {
 	}
 
 	// Get commits between refs
-	commits, err := getCommits(dir, fromRef, toRef)
+	commits, err := getCommitsWithContext(ctx, dir, fromRef, toRef)
 	if err != nil {
 		return "", coreerr.E("changelog.Generate", "failed to get commits", err)
 	}
@@ -97,15 +113,27 @@ func Generate(dir, fromRef, toRef string) (string, error) {
 }
 
 // GenerateWithConfig generates a changelog with filtering based on config.
+//
+// md, err := release.GenerateWithConfig(".", "v1.2.3", "HEAD", &cfg.Changelog)
 func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
+	return GenerateWithConfigWithContext(context.Background(), dir, fromRef, toRef, cfg)
+}
+
+// GenerateWithConfigWithContext generates a filtered changelog while honouring caller cancellation.
+//
+// md, err := release.GenerateWithConfigWithContext(ctx, ".", "v1.2.3", "HEAD", &cfg.Changelog)
+func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
 	if toRef == "" {
 		toRef = "HEAD"
 	}
 
 	// If fromRef is empty, try to find previous tag
 	if fromRef == "" {
-		prevTag, err := getPreviousTag(dir, toRef)
+		prevTag, err := getPreviousTagWithContext(ctx, dir, toRef)
 		if err != nil {
+			if ctx.Err() != nil {
+				return "", coreerr.E("changelog.GenerateWithConfig", "generation cancelled", ctx.Err())
+			}
 			fromRef = ""
 		} else {
 			fromRef = prevTag
@@ -113,7 +141,7 @@ func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (strin
 	}
 
 	// Get commits between refs
-	commits, err := getCommits(dir, fromRef, toRef)
+	commits, err := getCommitsWithContext(ctx, dir, fromRef, toRef)
 	if err != nil {
 		return "", coreerr.E("changelog.GenerateWithConfig", "failed to get commits", err)
 	}
@@ -150,20 +178,15 @@ func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (strin
 	return formatChangelog(parsedCommits, toRef), nil
 }
 
-// getPreviousTag returns the tag before the given ref.
-func getPreviousTag(dir, ref string) (string, error) {
-	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0", ref+"^")
-	cmd.Dir = dir
-	output, err := cmd.Output()
+func getPreviousTagWithContext(ctx context.Context, dir, ref string) (string, error) {
+	output, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0", ref+"^")
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(output)), nil
+	return core.Trim(output), nil
 }
 
-// getCommits returns a slice of commit strings between two refs.
-// Format: "hash subject"
-func getCommits(dir, fromRef, toRef string) ([]string, error) {
+func getCommitsWithContext(ctx context.Context, dir, fromRef, toRef string) ([]string, error) {
 	var args []string
 	if fromRef == "" {
 		// All commits up to toRef
@@ -173,15 +196,13 @@ func getCommits(dir, fromRef, toRef string) ([]string, error) {
 		args = []string{"log", "--oneline", "--no-merges", fromRef + ".." + toRef}
 	}
 
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	output, err := cmd.Output()
+	output, err := ax.RunDir(ctx, dir, "git", args...)
 	if err != nil {
 		return nil, err
 	}
 
 	var commits []string
-	scanner := bufio.NewScanner(bytes.NewReader(output))
+	scanner := bufio.NewScanner(bytes.NewReader([]byte(output)))
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line != "" {
@@ -196,7 +217,7 @@ func getCommits(dir, fromRef, toRef string) ([]string, error) {
 // Returns nil if the commit doesn't follow conventional commit format.
 func parseConventionalCommit(commitLine string) *ConventionalCommit {
 	// Split hash and subject
-	parts := strings.SplitN(commitLine, " ", 2)
+	parts := core.SplitN(commitLine, " ", 2)
 	if len(parts) != 2 {
 		return nil
 	}
@@ -211,7 +232,7 @@ func parseConventionalCommit(commitLine string) *ConventionalCommit {
 	}
 
 	return &ConventionalCommit{
-		Type:        strings.ToLower(matches[1]),
+		Type:        core.Lower(matches[1]),
 		Scope:       matches[2],
 		Breaking:    matches[3] == "!",
 		Description: matches[4],
@@ -222,7 +243,7 @@ func parseConventionalCommit(commitLine string) *ConventionalCommit {
 // formatChangelog formats parsed commits into markdown.
 func formatChangelog(commits []ConventionalCommit, version string) string {
 	if len(commits) == 0 {
-		return fmt.Sprintf("## %s\n\nNo notable changes.", version)
+		return core.Sprintf("## %s\n\nNo notable changes.", version)
 	}
 
 	// Group commits by type
@@ -236,8 +257,8 @@ func formatChangelog(commits []ConventionalCommit, version string) string {
 		grouped[commit.Type] = append(grouped[commit.Type], commit)
 	}
 
-	var buf strings.Builder
-	buf.WriteString(fmt.Sprintf("## %s\n\n", version))
+	buf := core.NewBuilder()
+	buf.WriteString(core.Sprintf("## %s\n\n", version))
 
 	// Breaking changes first
 	if len(breaking) > 0 {
@@ -260,7 +281,7 @@ func formatChangelog(commits []ConventionalCommit, version string) string {
 			label = cases.Title(language.English).String(commitType)
 		}
 
-		buf.WriteString(fmt.Sprintf("### %s\n\n", label))
+		buf.WriteString(core.Sprintf("### %s\n\n", label))
 		for _, commit := range commits {
 			buf.WriteString(formatCommitLine(commit))
 		}
@@ -270,46 +291,57 @@ func formatChangelog(commits []ConventionalCommit, version string) string {
 	// Any remaining types not in the order list
 	var remainingTypes []string
 	for commitType := range grouped {
-		if !slices.Contains(commitTypeOrder, commitType) {
+		if !containsCommitType(commitTypeOrder, commitType) {
 			remainingTypes = append(remainingTypes, commitType)
 		}
 	}
-	slices.Sort(remainingTypes)
+	sort.Strings(remainingTypes)
 
 	for _, commitType := range remainingTypes {
 		commits := grouped[commitType]
 		label := cases.Title(language.English).String(commitType)
-		buf.WriteString(fmt.Sprintf("### %s\n\n", label))
+		buf.WriteString(core.Sprintf("### %s\n\n", label))
 		for _, commit := range commits {
 			buf.WriteString(formatCommitLine(commit))
 		}
 		buf.WriteString("\n")
 	}
 
-	return strings.TrimSuffix(buf.String(), "\n")
+	return core.TrimSuffix(buf.String(), "\n")
 }
 
 // formatCommitLine formats a single commit as a changelog line.
 func formatCommitLine(commit ConventionalCommit) string {
-	var buf strings.Builder
+	buf := core.NewBuilder()
 	buf.WriteString("- ")
 
 	if commit.Scope != "" {
-		buf.WriteString(fmt.Sprintf("**%s**: ", commit.Scope))
+		buf.WriteString(core.Sprintf("**%s**: ", commit.Scope))
 	}
 
 	buf.WriteString(commit.Description)
-	buf.WriteString(fmt.Sprintf(" (%s)\n", commit.Hash))
+	buf.WriteString(core.Sprintf(" (%s)\n", commit.Hash))
 
 	return buf.String()
 }
 
 // ParseCommitType extracts the type from a conventional commit subject.
 // Returns empty string if not a conventional commit.
+//
+// t := release.ParseCommitType("feat(build): add linuxkit support") // → "feat"
 func ParseCommitType(subject string) string {
 	matches := conventionalCommitRegex.FindStringSubmatch(subject)
 	if matches == nil {
 		return ""
 	}
-	return strings.ToLower(matches[1])
+	return core.Lower(matches[1])
+}
+
+func containsCommitType(types []string, target string) bool {
+	for _, item := range types {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }

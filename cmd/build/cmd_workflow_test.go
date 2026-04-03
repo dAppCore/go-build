@@ -1,0 +1,357 @@
+package buildcmd
+
+import (
+	"testing"
+
+	"forge.lthn.ai/core/cli/pkg/cli"
+
+	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/io"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathInput_Good(t *testing.T) {
+	t.Run("accepts the preferred output path", func(t *testing.T) {
+		path, err := build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("accepts the snake_case output path alias", func(t *testing.T) {
+		path, err := build.ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("accepts the legacy output alias", func(t *testing.T) {
+		path, err := build.ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+
+	t.Run("accepts matching output aliases", func(t *testing.T) {
+		path, err := build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "ci/release.yml", "ci/release.yml")
+		require.NoError(t, err)
+		assert.Equal(t, "ci/release.yml", path)
+	})
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathInput_Bad(t *testing.T) {
+	_, err := build.ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops/release.yml", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "output aliases specify different locations")
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_Good(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "ci/release.yml", "", "", "", "", "./ci/release.yml", "ci/release.yml", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_CamelCaseGood(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "ci/release.yml", "", "", "", "", "", "", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_WorkflowCamelCaseGood(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "", "", "", "", "ci/release.yml", "", "", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_WorkflowHyphenGood(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "", "", "", "", "", "ci/release.yml", "", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_WorkflowSnakeGood(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "", "", "", "", "", "", "ci/release.yml", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_Bad(t *testing.T) {
+	projectDir := t.TempDir()
+
+	_, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "ci/release.yml", "", "", "", "ops/release.yml", "", "", "", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow output aliases specify different locations")
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_HyphenatedGood(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "", "ci/release.yml", "", "", "", "", "", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_AbsoluteEquivalent_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	absolutePath := ax.Join(projectDir, "ci", "release.yml")
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "ci/release.yml", "", "", "", "", "", "", "", absolutePath)
+	require.NoError(t, err)
+	assert.Equal(t, absolutePath, path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_AbsoluteDirectory_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	absoluteDir := ax.Join(projectDir, "ops")
+	require.NoError(t, io.Local.EnsureDir(absoluteDir))
+
+	path, err := resolveReleaseWorkflowOutputPathAliases(projectDir, "", "", "", "", absoluteDir, "", "", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(absoluteDir, "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_WorkflowPathGood(t *testing.T) {
+	projectDir := t.TempDir()
+
+	path, err := resolveReleaseWorkflowInputPathAliases(projectDir, "", "ci/release.yml", "", "")
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "ci", "release.yml"), path)
+}
+
+func TestBuildCmd_resolveReleaseWorkflowInputPathAliases_Bad(t *testing.T) {
+	projectDir := t.TempDir()
+
+	_, err := resolveReleaseWorkflowInputPathAliases(projectDir, "ci/release.yml", "ops/release.yml", "", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow path aliases specify different locations")
+}
+
+func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
+	projectDir := t.TempDir()
+
+	t.Run("writes to the conventional workflow path by default", func(t *testing.T) {
+		err := runReleaseWorkflowInDir(projectDir, "", "")
+		require.NoError(t, err)
+
+		path := build.ReleaseWorkflowPath(projectDir)
+		content, err := io.Local.Read(path)
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+		assert.Contains(t, content, "--archive-format")
+		assert.Contains(t, content, "actions/download-artifact@v4")
+		assert.Contains(t, content, "command: ci")
+	})
+
+	t.Run("registers both path and output flags", func(t *testing.T) {
+		buildCmd := &cli.Command{Use: "build"}
+		AddWorkflowCommand(buildCmd)
+
+		pathFlag := releaseWorkflowCmd.Flags().Lookup("path")
+		workflowPathCamelFlag := releaseWorkflowCmd.Flags().Lookup("workflowPath")
+		workflowPathFlag := releaseWorkflowCmd.Flags().Lookup("workflow-path")
+		workflowPathSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_path")
+		outputPathCamelFlag := releaseWorkflowCmd.Flags().Lookup("outputPath")
+		outputPathFlag := releaseWorkflowCmd.Flags().Lookup("output-path")
+		outputPathSnakeFlag := releaseWorkflowCmd.Flags().Lookup("output_path")
+		outputFlag := releaseWorkflowCmd.Flags().Lookup("output")
+		workflowOutputPathCamelFlag := releaseWorkflowCmd.Flags().Lookup("workflowOutputPath")
+		workflowOutputPathFlag := releaseWorkflowCmd.Flags().Lookup("workflow-output-path")
+		workflowOutputPathSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_output_path")
+		workflowOutputFlag := releaseWorkflowCmd.Flags().Lookup("workflow-output")
+		workflowOutputSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_output")
+
+		assert.NotNil(t, pathFlag)
+		assert.NotNil(t, workflowPathCamelFlag)
+		assert.NotNil(t, workflowPathFlag)
+		assert.NotNil(t, workflowPathSnakeFlag)
+		assert.NotNil(t, outputPathCamelFlag)
+		assert.NotNil(t, outputPathFlag)
+		assert.NotNil(t, outputPathSnakeFlag)
+		assert.NotNil(t, outputFlag)
+		assert.NotNil(t, workflowOutputPathFlag)
+		assert.NotNil(t, workflowOutputPathSnakeFlag)
+		assert.NotEmpty(t, pathFlag.Usage)
+		assert.NotEmpty(t, workflowPathCamelFlag.Usage)
+		assert.NotEmpty(t, workflowPathFlag.Usage)
+		assert.NotEmpty(t, workflowPathSnakeFlag.Usage)
+		assert.NotEmpty(t, outputPathCamelFlag.Usage)
+		assert.NotEmpty(t, outputPathFlag.Usage)
+		assert.NotEmpty(t, outputPathSnakeFlag.Usage)
+		assert.NotEmpty(t, outputFlag.Usage)
+		assert.NotNil(t, workflowOutputPathCamelFlag)
+		assert.NotEmpty(t, workflowOutputPathFlag.Usage)
+		assert.NotEmpty(t, workflowOutputPathSnakeFlag.Usage)
+		assert.NotNil(t, workflowOutputFlag)
+		assert.NotNil(t, workflowOutputSnakeFlag)
+		assert.NotEmpty(t, workflowOutputFlag.Usage)
+		assert.NotEmpty(t, workflowOutputSnakeFlag.Usage)
+		assert.NotEqual(t, pathFlag.Usage, outputFlag.Usage)
+		assert.Equal(t, pathFlag.Usage, workflowPathCamelFlag.Usage)
+		assert.Equal(t, pathFlag.Usage, workflowPathFlag.Usage)
+		assert.Equal(t, workflowPathFlag.Usage, workflowPathSnakeFlag.Usage)
+		assert.Equal(t, outputPathFlag.Usage, outputPathCamelFlag.Usage)
+		assert.NotEqual(t, outputPathFlag.Usage, outputFlag.Usage)
+		assert.Equal(t, outputPathFlag.Usage, outputPathSnakeFlag.Usage)
+		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputPathCamelFlag.Usage)
+		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputPathSnakeFlag.Usage)
+		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputFlag.Usage)
+		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputSnakeFlag.Usage)
+
+		helpText, err := io.Local.Read("/workspace/locales/en.json")
+		require.NoError(t, err)
+		assert.Contains(t, helpText, "--workflowPath/")
+		assert.Contains(t, helpText, "--outputPath/")
+		assert.Contains(t, helpText, "--workflow-output/")
+		assert.Contains(t, helpText, "--workflow_output/")
+	})
+
+	t.Run("writes to a custom relative path", func(t *testing.T) {
+		customPath := "ci/release.yml"
+		err := runReleaseWorkflowInDir(projectDir, customPath, "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, customPath))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+		assert.Contains(t, content, "--archive-format")
+		assert.Contains(t, content, "actions/download-artifact@v4")
+		assert.Contains(t, content, "command: ci")
+	})
+
+	t.Run("writes release.yml inside a directory-style relative path", func(t *testing.T) {
+		customPath := "ci/"
+		err := runReleaseWorkflowInDir(projectDir, customPath, "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, "ci", "release.yml"))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes release.yml inside an existing directory without a trailing slash", func(t *testing.T) {
+		require.NoError(t, io.Local.EnsureDir(ax.Join(projectDir, "ops")))
+
+		err := runReleaseWorkflowInDir(projectDir, "ops", "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, "ops", "release.yml"))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes release.yml inside a bare directory-style path", func(t *testing.T) {
+		err := runReleaseWorkflowInDir(projectDir, "ci", "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, "ci", "release.yml"))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes release.yml inside a current-directory-prefixed directory-style path", func(t *testing.T) {
+		err := runReleaseWorkflowInDir(projectDir, "./ci", "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, "ci", "release.yml"))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes release.yml inside the conventional workflows directory", func(t *testing.T) {
+		err := runReleaseWorkflowInDir(projectDir, ".github/workflows", "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, ".github", "workflows", "release.yml"))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes release.yml inside a current-directory-prefixed workflows directory", func(t *testing.T) {
+		err := runReleaseWorkflowInDir(projectDir, "./.github/workflows", "")
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, ".github", "workflows", "release.yml"))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes to the output alias", func(t *testing.T) {
+		customPath := "ci/alias-release.yml"
+		err := runReleaseWorkflowInDir(projectDir, "", customPath)
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, customPath))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes to the output-path alias", func(t *testing.T) {
+		customPath := "ci/output-path-release.yml"
+		err := runReleaseWorkflowInDir(projectDir, "", customPath)
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, customPath))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes to the output_path alias", func(t *testing.T) {
+		customPath := "ci/output_path-release.yml"
+		err := runReleaseWorkflowInDir(projectDir, "", customPath)
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, customPath))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes to the workflow-output alias", func(t *testing.T) {
+		customPath := "ci/workflow-output-release.yml"
+		err := runReleaseWorkflowInDir(projectDir, "", customPath)
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, customPath))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+
+	t.Run("writes to the workflow_output alias", func(t *testing.T) {
+		customPath := "ci/workflow_output-release.yml"
+		err := runReleaseWorkflowInDir(projectDir, "", customPath)
+		require.NoError(t, err)
+
+		content, err := io.Local.Read(ax.Join(projectDir, customPath))
+		require.NoError(t, err)
+		assert.Contains(t, content, "workflow_call:")
+		assert.Contains(t, content, "workflow_dispatch:")
+	})
+}

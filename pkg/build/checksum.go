@@ -4,18 +4,17 @@ package build
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"io"
-	"path/filepath"
-	"slices"
+	"sort"
 
-	"strings"
-
+	"dappco.re/go/core"
 	io_interface "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
 // Checksum computes SHA256 for an artifact and returns the artifact with the Checksum field filled.
+//
+// cs, err := build.Checksum(io.Local, artifact)
 func Checksum(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 	if artifact.Path == "" {
 		return Artifact{}, coreerr.E("build.Checksum", "artifact path is empty", nil)
@@ -46,6 +45,8 @@ func Checksum(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 
 // ChecksumAll computes checksums for all artifacts.
 // Returns a slice of artifacts with their Checksum fields filled.
+//
+// checked, err := build.ChecksumAll(io.Local, artifacts)
 func ChecksumAll(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, error) {
 	if len(artifacts) == 0 {
 		return nil, nil
@@ -70,6 +71,8 @@ func ChecksumAll(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, erro
 //
 // The artifacts should have their Checksum fields filled (call ChecksumAll first).
 // Filenames are relative to the output directory (just the basename).
+//
+// err := build.WriteChecksumFile(io.Local, artifacts, "dist/CHECKSUMS.txt")
 func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string) error {
 	if len(artifacts) == 0 {
 		return nil
@@ -81,14 +84,14 @@ func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string
 		if artifact.Checksum == "" {
 			return coreerr.E("build.WriteChecksumFile", "artifact "+artifact.Path+" has no checksum", nil)
 		}
-		filename := filepath.Base(artifact.Path)
-		lines = append(lines, fmt.Sprintf("%s  %s", artifact.Checksum, filename))
+		filename := core.PathBase(artifact.Path)
+		lines = append(lines, core.Sprintf("%s  %s", artifact.Checksum, filename))
 	}
 
 	// Sort lines for consistent output
-	slices.Sort(lines)
+	sort.Strings(lines)
 
-	content := strings.Join(lines, "\n") + "\n"
+	content := core.Concat(core.Join("\n", lines...), "\n")
 
 	// Write the file using the medium (which handles directory creation in Write)
 	if err := fs.Write(path, content); err != nil {

@@ -1,9 +1,9 @@
 package build
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
 
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
@@ -16,19 +16,19 @@ func setupConfigTestDir(t *testing.T, configContent string) string {
 	dir := t.TempDir()
 
 	if configContent != "" {
-		coreDir := filepath.Join(dir, ConfigDir)
-		err := os.MkdirAll(coreDir, 0755)
+		coreDir := ax.Join(dir, ConfigDir)
+		err := ax.MkdirAll(coreDir, 0755)
 		require.NoError(t, err)
 
-		configPath := filepath.Join(coreDir, ConfigFileName)
-		err = os.WriteFile(configPath, []byte(configContent), 0644)
+		configPath := ax.Join(coreDir, ConfigFileName)
+		err = ax.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 	}
 
 	return dir
 }
 
-func TestLoadConfig_Good(t *testing.T) {
+func TestConfig_LoadConfig_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("loads valid config", func(t *testing.T) {
 		content := `
@@ -46,8 +46,13 @@ build:
   ldflags:
     - -s
     - -w
+  build_tags:
+    - integration
+    - webkit2_41
+  archive_format: xz
   env:
     - FOO=bar
+  load: true
 targets:
   - os: linux
     arch: amd64
@@ -68,12 +73,112 @@ targets:
 		assert.True(t, cfg.Build.CGO)
 		assert.Equal(t, []string{"-trimpath", "-race"}, cfg.Build.Flags)
 		assert.Equal(t, []string{"-s", "-w"}, cfg.Build.LDFlags)
+		assert.Equal(t, []string{"integration", "webkit2_41"}, cfg.Build.BuildTags)
+		assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
 		assert.Equal(t, []string{"FOO=bar"}, cfg.Build.Env)
+		assert.True(t, cfg.Build.Load)
 		assert.Len(t, cfg.Targets, 2)
 		assert.Equal(t, "linux", cfg.Targets[0].OS)
 		assert.Equal(t, "amd64", cfg.Targets[0].Arch)
 		assert.Equal(t, "darwin", cfg.Targets[1].OS)
 		assert.Equal(t, "arm64", cfg.Targets[1].Arch)
+	})
+
+	t.Run("expands environment variables in target config", func(t *testing.T) {
+		t.Setenv("TARGET_OS", "linux")
+		t.Setenv("TARGET_ARCH", "arm64")
+
+		content := `
+version: 1
+targets:
+  - os: ${TARGET_OS}
+    arch: ${TARGET_ARCH}
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		require.Len(t, cfg.Targets, 1)
+		assert.Equal(t, "linux", cfg.Targets[0].OS)
+		assert.Equal(t, "arm64", cfg.Targets[0].Arch)
+	})
+
+	t.Run("expands environment variables in build and signing config", func(t *testing.T) {
+		t.Setenv("APP_NAME", "demo-app")
+		t.Setenv("APP_ROOT", "./cmd/demo")
+		t.Setenv("APP_BINARY", "demo-bin")
+		t.Setenv("BUILD_TYPE", "wails")
+		t.Setenv("WEBVIEW2", "embed")
+		t.Setenv("ARCHIVE_FORMAT", "xz")
+		t.Setenv("APP_VERSION", "v1.2.3")
+		t.Setenv("APP_TAG", "integration")
+		t.Setenv("CACHE_DIR", ".core/cache/demo-app")
+		t.Setenv("DOCKERFILE", "Dockerfile.release")
+		t.Setenv("IMAGE_NAME", "owner/demo-app")
+		t.Setenv("GPG_KEY_ID", "ABCD1234")
+
+		content := `
+version: 1
+project:
+  name: ${APP_NAME}
+  main: ${APP_ROOT}
+  binary: ${APP_BINARY}
+build:
+  type: ${BUILD_TYPE}
+  webview2: ${WEBVIEW2}
+  archive_format: ${ARCHIVE_FORMAT}
+  flags:
+    - -trimpath
+    - -X
+    - main.version=${APP_VERSION}
+  ldflags:
+    - -s
+    - -w
+  build_tags:
+    - ${APP_TAG}
+  env:
+    - VERSION=${APP_VERSION}
+  cache:
+    enabled: true
+    dir: ${CACHE_DIR}
+    paths:
+      - ${CACHE_DIR}/go-build
+  dockerfile: ${DOCKERFILE}
+  image: ${IMAGE_NAME}
+  tags:
+    - latest
+    - ${APP_VERSION}
+  build_args:
+    VERSION: ${APP_VERSION}
+sign:
+  gpg:
+    key: ${GPG_KEY_ID}
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "demo-app", cfg.Project.Name)
+		assert.Equal(t, "./cmd/demo", cfg.Project.Main)
+		assert.Equal(t, "demo-bin", cfg.Project.Binary)
+		assert.Equal(t, "wails", cfg.Build.Type)
+		assert.Equal(t, "embed", cfg.Build.WebView2)
+		assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
+		assert.Equal(t, []string{"-trimpath", "-X", "main.version=v1.2.3"}, cfg.Build.Flags)
+		assert.Equal(t, []string{"-s", "-w"}, cfg.Build.LDFlags)
+		assert.Equal(t, []string{"integration"}, cfg.Build.BuildTags)
+		assert.Equal(t, []string{"VERSION=v1.2.3"}, cfg.Build.Env)
+		assert.Equal(t, ".core/cache/demo-app", cfg.Build.Cache.Directory)
+		assert.Equal(t, []string{".core/cache/demo-app/go-build"}, cfg.Build.Cache.Paths)
+		assert.Equal(t, "Dockerfile.release", cfg.Build.Dockerfile)
+		assert.Equal(t, "owner/demo-app", cfg.Build.Image)
+		assert.Equal(t, []string{"latest", "v1.2.3"}, cfg.Build.Tags)
+		assert.Equal(t, map[string]string{"VERSION": "v1.2.3"}, cfg.Build.BuildArgs)
+		assert.Equal(t, "ABCD1234", cfg.Sign.GPG.Key)
 	})
 
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
@@ -89,6 +194,8 @@ targets:
 		assert.Equal(t, defaults.Build.CGO, cfg.Build.CGO)
 		assert.Equal(t, defaults.Build.Flags, cfg.Build.Flags)
 		assert.Equal(t, defaults.Build.LDFlags, cfg.Build.LDFlags)
+		assert.False(t, cfg.Build.Load)
+		assert.Empty(t, cfg.Build.BuildTags)
 		assert.Equal(t, defaults.Targets, cfg.Targets)
 	})
 
@@ -114,6 +221,22 @@ project:
 		assert.Equal(t, defaults.Build.Flags, cfg.Build.Flags)
 		assert.Equal(t, defaults.Build.LDFlags, cfg.Build.LDFlags)
 		assert.Equal(t, defaults.Targets, cfg.Targets)
+		assert.True(t, cfg.Sign.Enabled)
+	})
+
+	t.Run("preserves explicit signing disablement", func(t *testing.T) {
+		content := `
+version: 1
+sign:
+  enabled: false
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.Sign.Enabled)
 	})
 
 	t.Run("preserves empty arrays when explicitly set", func(t *testing.T) {
@@ -124,6 +247,7 @@ project:
 build:
   flags: []
   ldflags: []
+  build_tags: []
 targets:
   - os: linux
     arch: amd64
@@ -137,12 +261,48 @@ targets:
 		// Empty arrays are preserved (not replaced with defaults)
 		assert.Empty(t, cfg.Build.Flags)
 		assert.Empty(t, cfg.Build.LDFlags)
+		assert.Empty(t, cfg.Build.BuildTags)
 		// Targets explicitly set
 		assert.Len(t, cfg.Targets, 1)
 	})
 }
 
-func TestLoadConfig_Bad(t *testing.T) {
+func TestConfig_LoadConfigAtPath_Good(t *testing.T) {
+	fs := io.Local
+
+	t.Run("loads config from explicit file path", func(t *testing.T) {
+		dir := t.TempDir()
+		configPath := ax.Join(dir, "custom-build.yaml")
+		content := `
+version: 3
+project:
+  name: custom-app
+  binary: custom-app
+build:
+  cgo: true
+targets:
+  - os: linux
+    arch: amd64
+`
+		err := ax.WriteFile(configPath, []byte(content), 0644)
+		require.NoError(t, err)
+
+		cfg, err := LoadConfigAtPath(fs, configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, 3, cfg.Version)
+		assert.Equal(t, "custom-app", cfg.Project.Name)
+		assert.Equal(t, "custom-app", cfg.Project.Binary)
+		assert.True(t, cfg.Build.CGO)
+		assert.Empty(t, cfg.Build.BuildTags)
+		assert.Len(t, cfg.Targets, 1)
+		assert.Equal(t, "linux", cfg.Targets[0].OS)
+		assert.Equal(t, "amd64", cfg.Targets[0].Arch)
+	})
+}
+
+func TestConfig_LoadConfig_Bad(t *testing.T) {
 	fs := io.Local
 	t.Run("returns error for invalid YAML", func(t *testing.T) {
 		content := `
@@ -160,13 +320,13 @@ project:
 
 	t.Run("returns error for unreadable file", func(t *testing.T) {
 		dir := t.TempDir()
-		coreDir := filepath.Join(dir, ConfigDir)
-		err := os.MkdirAll(coreDir, 0755)
+		coreDir := ax.Join(dir, ConfigDir)
+		err := ax.MkdirAll(coreDir, 0755)
 		require.NoError(t, err)
 
 		// Create config as a directory instead of file
-		configPath := filepath.Join(coreDir, ConfigFileName)
-		err = os.Mkdir(configPath, 0755)
+		configPath := ax.Join(coreDir, ConfigFileName)
+		err = ax.Mkdir(configPath, 0755)
 		require.NoError(t, err)
 
 		cfg, err := LoadConfig(fs, dir)
@@ -176,7 +336,7 @@ project:
 	})
 }
 
-func TestDefaultConfig_Good(t *testing.T) {
+func TestConfig_DefaultConfig_Good(t *testing.T) {
 	t.Run("returns sensible defaults", func(t *testing.T) {
 		cfg := DefaultConfig()
 
@@ -212,14 +372,14 @@ func TestDefaultConfig_Good(t *testing.T) {
 	})
 }
 
-func TestConfigPath_Good(t *testing.T) {
+func TestConfig_ConfigPath_Good(t *testing.T) {
 	t.Run("returns correct path", func(t *testing.T) {
 		path := ConfigPath("/project/root")
 		assert.Equal(t, "/project/root/.core/build.yaml", path)
 	})
 }
 
-func TestConfigExists_Good(t *testing.T) {
+func TestConfig_ConfigExists_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("returns true when config exists", func(t *testing.T) {
 		dir := setupConfigTestDir(t, "version: 1")
@@ -237,10 +397,10 @@ func TestConfigExists_Good(t *testing.T) {
 	})
 }
 
-func TestLoadConfig_Good_SignConfig(t *testing.T) {
+func TestConfig_LoadConfigSignConfig_Good(t *testing.T) {
 	tmpDir := t.TempDir()
-	coreDir := filepath.Join(tmpDir, ".core")
-	_ = os.MkdirAll(coreDir, 0755)
+	coreDir := ax.Join(tmpDir, ".core")
+	_ = ax.MkdirAll(coreDir, 0755)
 
 	configContent := `version: 1
 sign:
@@ -251,7 +411,7 @@ sign:
     identity: "Developer ID Application: Test"
     notarize: true
 `
-	_ = os.WriteFile(filepath.Join(coreDir, "build.yaml"), []byte(configContent), 0644)
+	_ = ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(configContent), 0644)
 
 	cfg, err := LoadConfig(io.Local, tmpDir)
 	if err != nil {
@@ -272,7 +432,7 @@ sign:
 	}
 }
 
-func TestBuildConfig_ToTargets_Good(t *testing.T) {
+func TestConfig_BuildConfigToTargets_Good(t *testing.T) {
 	t.Run("converts TargetConfig to Target", func(t *testing.T) {
 		cfg := &BuildConfig{
 			Targets: []TargetConfig{
@@ -301,9 +461,9 @@ func TestBuildConfig_ToTargets_Good(t *testing.T) {
 }
 
 // TestLoadConfig_Testdata tests loading from the testdata fixture.
-func TestLoadConfig_Testdata(t *testing.T) {
+func TestConfig_LoadConfigTestdata_Good(t *testing.T) {
 	fs := io.Local
-	abs, err := filepath.Abs("testdata/config-project")
+	abs, err := ax.Abs("testdata/config-project")
 	require.NoError(t, err)
 
 	t.Run("loads config-project fixture", func(t *testing.T) {

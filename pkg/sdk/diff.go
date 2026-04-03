@@ -1,8 +1,7 @@
 package sdk
 
 import (
-	"fmt"
-
+	"dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 	"github.com/oasdiff/kin-openapi/openapi3"
 	"github.com/oasdiff/oasdiff/checker"
@@ -11,6 +10,8 @@ import (
 )
 
 // DiffResult holds the result of comparing two OpenAPI specs.
+//
+// result, err := sdk.Diff("docs/openapi.v1.yaml", "docs/openapi.yaml")
 type DiffResult struct {
 	// Breaking is true if breaking changes were detected.
 	Breaking bool
@@ -21,6 +22,8 @@ type DiffResult struct {
 }
 
 // Diff compares two OpenAPI specs and detects breaking changes.
+//
+// result, err := sdk.Diff("docs/openapi.v1.yaml", "docs/openapi.yaml")
 func Diff(basePath, revisionPath string) (*DiffResult, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
@@ -64,7 +67,7 @@ func Diff(basePath, revisionPath string) (*DiffResult, error) {
 	}
 
 	if result.Breaking {
-		result.Summary = fmt.Sprintf("%d breaking change(s) detected", len(breaks))
+		result.Summary = core.Sprintf("%d breaking change(s) detected", len(breaks))
 	} else {
 		result.Summary = "No breaking changes"
 	}
@@ -73,7 +76,9 @@ func Diff(basePath, revisionPath string) (*DiffResult, error) {
 }
 
 // DiffExitCode returns the exit code for CI integration.
-// 0 = no breaking changes, 1 = breaking changes, 2 = error
+// 0 = no breaking changes, 1 = breaking changes, 2 = error.
+//
+// os.Exit(sdk.DiffExitCode(sdk.Diff("old.yaml", "new.yaml")))
 func DiffExitCode(result *DiffResult, err error) int {
 	if err != nil {
 		return 2

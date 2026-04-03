@@ -1,31 +1,29 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDockerPublisher_Name_Good(t *testing.T) {
+func TestDocker_DockerPublisherName_Good(t *testing.T) {
 	t.Run("returns docker", func(t *testing.T) {
 		p := NewDockerPublisher()
 		assert.Equal(t, "docker", p.Name())
 	})
 }
 
-func TestDockerPublisher_ParseConfig_Good(t *testing.T) {
+func TestDocker_DockerPublisherParseConfig_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "ghcr.io", cfg.Registry)
 		assert.Equal(t, "owner/repo", cfg.Image)
@@ -49,7 +47,7 @@ func TestDockerPublisher_ParseConfig_Good(t *testing.T) {
 			},
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "docker.io", cfg.Registry)
 		assert.Equal(t, "myorg/myimage", cfg.Image)
@@ -67,13 +65,24 @@ func TestDockerPublisher_ParseConfig_Good(t *testing.T) {
 			},
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "/absolute/path/Dockerfile", cfg.Dockerfile)
 	})
+
+	t.Run("detects Containerfile when Dockerfile is absent", func(t *testing.T) {
+		projectDir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine\n"), 0o644))
+
+		pubCfg := PublisherConfig{Type: "docker"}
+		relCfg := &mockReleaseConfig{repository: "owner/repo"}
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, projectDir)
+
+		assert.Equal(t, ax.Join(projectDir, "Containerfile"), cfg.Dockerfile)
+	})
 }
 
-func TestDockerPublisher_ResolveTags_Good(t *testing.T) {
+func TestDocker_DockerPublisherResolveTags_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("resolves version template", func(t *testing.T) {
@@ -95,7 +104,7 @@ func TestDockerPublisher_ResolveTags_Good(t *testing.T) {
 	})
 }
 
-func TestDockerPublisher_BuildFullTag_Good(t *testing.T) {
+func TestDocker_DockerPublisherBuildFullTag_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	tests := []struct {
@@ -136,7 +145,7 @@ func TestDockerPublisher_BuildFullTag_Good(t *testing.T) {
 	}
 }
 
-func TestDockerPublisher_BuildBuildxArgs_Good(t *testing.T) {
+func TestDocker_DockerPublisherBuildBuildxArgs_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("builds basic args", func(t *testing.T) {
@@ -228,7 +237,7 @@ func TestDockerPublisher_BuildBuildxArgs_Good(t *testing.T) {
 	})
 }
 
-func TestDockerPublisher_Publish_Bad(t *testing.T) {
+func TestDocker_DockerPublisherPublish_Bad(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -255,13 +264,13 @@ func TestDockerPublisher_Publish_Bad(t *testing.T) {
 	})
 }
 
-func TestDockerConfig_Defaults_Good(t *testing.T) {
+func TestDocker_DockerConfigDefaults_Good(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewDockerPublisher()
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		// Verify defaults
 		assert.Equal(t, "ghcr.io", cfg.Registry)
@@ -273,14 +282,10 @@ func TestDockerConfig_Defaults_Good(t *testing.T) {
 	})
 }
 
-func TestDockerPublisher_DryRunPublish_Good(t *testing.T) {
+func TestDocker_DockerPublisherDryRunPublish_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
@@ -295,15 +300,11 @@ func TestDockerPublisher_DryRunPublish_Good(t *testing.T) {
 			BuildArgs:  make(map[string]string),
 		}
 
-		err := p.dryRunPublish(release, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "DRY RUN: Docker Build & Push")
 		assert.Contains(t, output, "Version:       v1.0.0")
@@ -320,10 +321,6 @@ func TestDockerPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 
 	t.Run("shows build args when present", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
@@ -341,15 +338,11 @@ func TestDockerPublisher_DryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		err := p.dryRunPublish(release, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "Build arguments:")
 		assert.Contains(t, output, "GO_VERSION=1.21")
@@ -357,10 +350,6 @@ func TestDockerPublisher_DryRunPublish_Good(t *testing.T) {
 	})
 
 	t.Run("handles single platform", func(t *testing.T) {
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
 		release := &Release{
 			Version:    "v2.0.0",
 			ProjectDir: "/project",
@@ -375,22 +364,18 @@ func TestDockerPublisher_DryRunPublish_Good(t *testing.T) {
 			BuildArgs:  make(map[string]string),
 		}
 
-		err := p.dryRunPublish(release, cfg)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 
 		assert.Contains(t, output, "Platforms:     linux/amd64")
 		assert.Contains(t, output, "ghcr.io/owner/repo:stable")
 	})
 }
 
-func TestDockerPublisher_ParseConfig_EdgeCases_Good(t *testing.T) {
+func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("handles nil release config", func(t *testing.T) {
@@ -401,7 +386,7 @@ func TestDockerPublisher_ParseConfig_EdgeCases_Good(t *testing.T) {
 			},
 		}
 
-		cfg := p.parseConfig(pubCfg, nil, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, nil, "/project")
 
 		assert.Equal(t, "custom/image", cfg.Image)
 		assert.Equal(t, "ghcr.io", cfg.Registry)
@@ -416,7 +401,7 @@ func TestDockerPublisher_ParseConfig_EdgeCases_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: ""}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "fallback/image", cfg.Image)
 	})
@@ -430,7 +415,7 @@ func TestDockerPublisher_ParseConfig_EdgeCases_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "original/repo"}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "override/image", cfg.Image)
 	})
@@ -447,7 +432,7 @@ func TestDockerPublisher_ParseConfig_EdgeCases_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		cfg := p.parseConfig(pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
 
 		assert.Equal(t, "value", cfg.BuildArgs["STRING_ARG"])
 		_, exists := cfg.BuildArgs["INT_ARG"]
@@ -455,7 +440,7 @@ func TestDockerPublisher_ParseConfig_EdgeCases_Good(t *testing.T) {
 	})
 }
 
-func TestDockerPublisher_ResolveTags_EdgeCases_Good(t *testing.T) {
+func TestDocker_DockerPublisherResolveTagsEdgeCases_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("handles empty tags", func(t *testing.T) {
@@ -474,7 +459,7 @@ func TestDockerPublisher_ResolveTags_EdgeCases_Good(t *testing.T) {
 	})
 }
 
-func TestDockerPublisher_BuildBuildxArgs_EdgeCases_Good(t *testing.T) {
+func TestDocker_DockerPublisherBuildBuildxArgsEdgeCases_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("handles empty platforms", func(t *testing.T) {
@@ -563,7 +548,7 @@ func TestDockerPublisher_BuildBuildxArgs_EdgeCases_Good(t *testing.T) {
 	})
 }
 
-func TestDockerPublisher_Publish_DryRun_Good(t *testing.T) {
+func TestDocker_DockerPublisherPublishDryRun_Good(t *testing.T) {
 	// Skip if docker CLI is not available - dry run still validates docker is installed
 	if err := validateDockerCli(); err != nil {
 		t.Skip("skipping test: docker CLI not available")
@@ -573,17 +558,8 @@ func TestDockerPublisher_Publish_DryRun_Good(t *testing.T) {
 
 	t.Run("dry run succeeds with valid Dockerfile", func(t *testing.T) {
 		// Create temp directory with Dockerfile
-		tmpDir, err := os.MkdirTemp("", "docker-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
-
-		dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-		err = os.WriteFile(dockerfilePath, []byte("FROM alpine:latest\n"), 0644)
-		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+		tmpDir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -593,35 +569,20 @@ func TestDockerPublisher_Publish_DryRun_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "DRY RUN: Docker Build & Push")
 	})
 
 	t.Run("dry run uses custom dockerfile path", func(t *testing.T) {
 		// Create temp directory with custom Dockerfile
-		tmpDir, err := os.MkdirTemp("", "docker-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
-
-		customDir := filepath.Join(tmpDir, "docker")
-		err = os.MkdirAll(customDir, 0755)
-		require.NoError(t, err)
-
-		dockerfilePath := filepath.Join(customDir, "Dockerfile.prod")
-		err = os.WriteFile(dockerfilePath, []byte("FROM alpine:latest\n"), 0644)
-		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+		tmpDir := t.TempDir()
+		customDir := ax.Join(tmpDir, "docker")
+		require.NoError(t, ax.MkdirAll(customDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(customDir, "Dockerfile.prod"), []byte("FROM alpine:latest\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -636,20 +597,16 @@ func TestDockerPublisher_Publish_DryRun_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "Dockerfile.prod")
 	})
 }
 
-func TestDockerPublisher_Publish_Validation_Bad(t *testing.T) {
+func TestDocker_DockerPublisherPublishValidation_Bad(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("fails when Dockerfile not found with docker installed", func(t *testing.T) {
@@ -675,9 +632,12 @@ func TestDockerPublisher_Publish_Validation_Bad(t *testing.T) {
 			t.Skip("skipping test: docker CLI is available")
 		}
 
+		tmpDir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644))
+
 		release := &Release{
 			Version:    "v1.0.0",
-			ProjectDir: "/tmp",
+			ProjectDir: tmpDir,
 			FS:         io.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}
@@ -689,7 +649,7 @@ func TestDockerPublisher_Publish_Validation_Bad(t *testing.T) {
 	})
 }
 
-func TestValidateDockerCli_Good(t *testing.T) {
+func TestDocker_ValidateDockerCli_Good(t *testing.T) {
 	t.Run("returns nil when docker is installed", func(t *testing.T) {
 		err := validateDockerCli()
 		if err != nil {
@@ -700,7 +660,25 @@ func TestValidateDockerCli_Good(t *testing.T) {
 	})
 }
 
-func TestDockerPublisher_Publish_WithCLI_Good(t *testing.T) {
+func TestDocker_ResolveDockerCli_Good(t *testing.T) {
+	fallbackDir := t.TempDir()
+	fallbackPath := ax.Join(fallbackDir, "docker")
+	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", "")
+
+	command, err := resolveDockerCli(fallbackPath)
+	require.NoError(t, err)
+	assert.Equal(t, fallbackPath, command)
+}
+
+func TestDocker_ResolveDockerCli_Bad(t *testing.T) {
+	t.Setenv("PATH", "")
+	_, err := resolveDockerCli(ax.Join(t.TempDir(), "missing-docker"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "docker CLI not found")
+}
+
+func TestDocker_DockerPublisherPublishWithCLI_Good(t *testing.T) {
 	// These tests run only when docker CLI is available
 	if err := validateDockerCli(); err != nil {
 		t.Skip("skipping test: docker CLI not available")
@@ -709,17 +687,8 @@ func TestDockerPublisher_Publish_WithCLI_Good(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("dry run succeeds with all config options", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "docker-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
-
-		dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-		err = os.WriteFile(dockerfilePath, []byte("FROM alpine:latest\n"), 0644)
-		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+		tmpDir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -738,32 +707,19 @@ func TestDockerPublisher_Publish_WithCLI_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "DRY RUN: Docker Build & Push")
 		assert.Contains(t, output, "docker.io")
 		assert.Contains(t, output, "myorg/myapp")
 	})
 
 	t.Run("dry run with nil relCfg uses extended image", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "docker-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
-
-		dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-		err = os.WriteFile(dockerfilePath, []byte("FROM alpine:latest\n"), 0644)
-		require.NoError(t, err)
-
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+		tmpDir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -777,22 +733,16 @@ func TestDockerPublisher_Publish_WithCLI_Good(t *testing.T) {
 			},
 		}
 
-		err = p.Publish(context.TODO(), release, pubCfg, nil, true) // nil relCfg
-
-		_ = w.Close()
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		os.Stdout = oldStdout
-
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.Publish(context.TODO(), release, pubCfg, nil, true)
+		})
 		require.NoError(t, err)
-		output := buf.String()
 		assert.Contains(t, output, "standalone/image")
 	})
 
 	t.Run("fails with non-existent Dockerfile in non-dry-run", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "docker-test")
-		require.NoError(t, err)
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpDir := t.TempDir()
 
 		// Don't create a Dockerfile
 		release := &Release{
@@ -803,7 +753,7 @@ func TestDockerPublisher_Publish_WithCLI_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, false)
+		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "Dockerfile not found")
 	})

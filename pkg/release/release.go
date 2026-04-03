@@ -5,18 +5,31 @@ package release
 
 import (
 	"context"
-	"fmt"
-	"path/filepath"
+	"sort"
 	"strings"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/projectdetect"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
+	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/build/pkg/release/publishers"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
+// release signing hooks allow tests to observe the release pipeline without
+// shelling out to platform-specific signing tools.
+var (
+	signReleaseBinaries     = signing.SignBinaries
+	notarizeReleaseBinaries = signing.NotarizeBinaries
+	signReleaseChecksums    = signing.SignChecksums
+)
+
 // Release represents a release with its version, artifacts, and changelog.
+//
+// rel, err := release.Publish(ctx, cfg, false)
 type Release struct {
 	// Version is the semantic version string (e.g., "v1.2.3").
 	Version string
@@ -32,13 +45,14 @@ type Release struct {
 
 // Publish publishes pre-built artifacts from dist/ to configured targets.
 // Use this after `core build` to separate build and publish concerns.
-// If dryRun is true, it will show what would be done without actually publishing.
+//
+// rel, err := release.Publish(ctx, cfg, false) // dryRun=true to preview
 func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	if cfg == nil {
 		return nil, coreerr.E("release.Publish", "config is nil", nil)
 	}
 
-	m := io.Local
+	filesystem := io.Local
 
 	projectDir := cfg.projectDir
 	if projectDir == "" {
@@ -46,7 +60,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Resolve to absolute path
-	absProjectDir, err := filepath.Abs(projectDir)
+	absProjectDir, err := ax.Abs(projectDir)
 	if err != nil {
 		return nil, coreerr.E("release.Publish", "failed to resolve project directory", err)
 	}
@@ -54,15 +68,15 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	// Step 1: Determine version
 	version := cfg.version
 	if version == "" {
-		version, err = DetermineVersion(absProjectDir)
+		version, err = DetermineVersionWithContext(ctx, absProjectDir)
 		if err != nil {
 			return nil, coreerr.E("release.Publish", "failed to determine version", err)
 		}
 	}
 
 	// Step 2: Find pre-built artifacts in dist/
-	distDir := filepath.Join(absProjectDir, "dist")
-	artifacts, err := findArtifacts(m, distDir)
+	distDir := ax.Join(absProjectDir, "dist")
+	artifacts, err := findArtifacts(filesystem, distDir)
 	if err != nil {
 		return nil, coreerr.E("release.Publish", "failed to find artifacts", err)
 	}
@@ -72,10 +86,13 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Step 3: Generate changelog
-	changelog, err := Generate(absProjectDir, "", version)
+	changelog, err := GenerateWithContext(ctx, absProjectDir, "", version)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, coreerr.E("release.Publish", "changelog generation cancelled", ctx.Err())
+		}
 		// Non-fatal: continue with empty changelog
-		changelog = fmt.Sprintf("Release %s", version)
+		changelog = core.Sprintf("Release %s", version)
 	}
 
 	release := &Release{
@@ -83,23 +100,23 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 		Artifacts:  artifacts,
 		Changelog:  changelog,
 		ProjectDir: absProjectDir,
-		FS:         m,
+		FS:         filesystem,
 	}
 
 	// Step 4: Publish to configured targets
 	if len(cfg.Publishers) > 0 {
 		pubRelease := publishers.NewRelease(release.Version, release.Artifacts, release.Changelog, release.ProjectDir, release.FS)
 
-		for _, pubCfg := range cfg.Publishers {
-			publisher, err := getPublisher(pubCfg.Type)
+		for _, publisherConfig := range cfg.Publishers {
+			publisher, err := getPublisher(publisherConfig.Type)
 			if err != nil {
 				return release, coreerr.E("release.Publish", "unsupported publisher", err)
 			}
 
-			extendedCfg := buildExtendedConfig(pubCfg)
-			publisherCfg := publishers.NewPublisherConfig(pubCfg.Type, pubCfg.Prerelease, pubCfg.Draft, extendedCfg)
-			if err := publisher.Publish(ctx, pubRelease, publisherCfg, cfg, dryRun); err != nil {
-				return release, coreerr.E("release.Publish", "publish to "+pubCfg.Type+" failed", err)
+			extendedConfig := buildExtendedConfig(publisherConfig)
+			publisherRuntimeConfig := publishers.NewPublisherConfig(publisherConfig.Type, publisherConfig.Prerelease, publisherConfig.Draft, extendedConfig)
+			if err := publisher.Publish(ctx, pubRelease, publisherRuntimeConfig, cfg, dryRun); err != nil {
+				return release, coreerr.E("release.Publish", "publish to "+publisherConfig.Type+" failed", err)
 			}
 		}
 	}
@@ -108,48 +125,150 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 }
 
 // findArtifacts discovers pre-built artifacts in the dist directory.
-func findArtifacts(m io.Medium, distDir string) ([]build.Artifact, error) {
-	if !m.IsDir(distDir) {
+func findArtifacts(filesystem io.Medium, distDir string) ([]build.Artifact, error) {
+	if !filesystem.IsDir(distDir) {
 		return nil, coreerr.E("release.findArtifacts", "dist/ directory not found", nil)
 	}
 
-	var artifacts []build.Artifact
-
-	entries, err := m.List(distDir)
+	entries, err := filesystem.List(distDir)
 	if err != nil {
 		return nil, coreerr.E("release.findArtifacts", "failed to read dist/", err)
 	}
 
+	var artifacts []build.Artifact
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
 
-		name := entry.Name()
-		path := filepath.Join(distDir, name)
-
-		// Include archives and checksums
-		if strings.HasSuffix(name, ".tar.gz") ||
-			strings.HasSuffix(name, ".zip") ||
-			strings.HasSuffix(name, ".txt") ||
-			strings.HasSuffix(name, ".sig") {
-			artifacts = append(artifacts, build.Artifact{Path: path})
+		if artifact, ok := releaseArtifactFromName(ax.Join(distDir, entry.Name()), entry.Name()); ok {
+			artifacts = append(artifacts, artifact)
 		}
 	}
+
+	if len(artifacts) > 0 {
+		return artifacts, nil
+	}
+
+	platformArtifacts, err := findPlatformArtifacts(filesystem, distDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return platformArtifacts, nil
+}
+
+func findPlatformArtifacts(filesystem io.Medium, distDir string) ([]build.Artifact, error) {
+	entries, err := filesystem.List(distDir)
+	if err != nil {
+		return nil, coreerr.E("release.findArtifacts", "failed to read dist/", err)
+	}
+
+	var artifacts []build.Artifact
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		osValue, archValue, ok := parsePlatformDir(entry.Name())
+		if !ok {
+			continue
+		}
+
+		platformDir := ax.Join(distDir, entry.Name())
+		files, err := filesystem.List(platformDir)
+		if err != nil {
+			continue
+		}
+
+		for _, file := range files {
+			if file.IsDir() {
+				if shouldPublishAppBundle(file.Name()) {
+					artifacts = append(artifacts, build.Artifact{
+						Path: ax.Join(platformDir, file.Name()),
+						OS:   osValue,
+						Arch: archValue,
+					})
+				}
+				continue
+			}
+
+			name := file.Name()
+			if !shouldPublishRawArtifact(name) {
+				continue
+			}
+
+			artifacts = append(artifacts, build.Artifact{
+				Path: ax.Join(platformDir, name),
+				OS:   osValue,
+				Arch: archValue,
+			})
+		}
+	}
+
+	sort.Slice(artifacts, func(i, j int) bool {
+		return artifacts[i].Path < artifacts[j].Path
+	})
 
 	return artifacts, nil
 }
 
+func releaseArtifactFromName(path, name string) (build.Artifact, bool) {
+	if shouldPublishArchive(name) || shouldPublishChecksum(name) || shouldPublishSignature(name) {
+		return build.Artifact{Path: path}, true
+	}
+	return build.Artifact{}, false
+}
+
+func shouldPublishArchive(name string) bool {
+	return core.HasSuffix(name, ".tar.gz") ||
+		core.HasSuffix(name, ".tar.xz") ||
+		core.HasSuffix(name, ".zip")
+}
+
+func shouldPublishChecksum(name string) bool {
+	return name == "CHECKSUMS.txt"
+}
+
+func shouldPublishSignature(name string) bool {
+	return core.HasSuffix(name, ".asc") ||
+		core.HasSuffix(name, ".sig")
+}
+
+func shouldPublishRawArtifact(name string) bool {
+	if name == "" || strings.HasPrefix(name, ".") {
+		return false
+	}
+	if name == "artifact_meta.json" || name == "CHECKSUMS.txt" || name == "CHECKSUMS.txt.asc" {
+		return false
+	}
+	return true
+}
+
+func shouldPublishAppBundle(name string) bool {
+	return strings.HasSuffix(name, ".app")
+}
+
+func parsePlatformDir(name string) (string, string, bool) {
+	osValue, archValue, ok := strings.Cut(name, "_")
+	if !ok || osValue == "" || archValue == "" {
+		return "", "", false
+	}
+
+	return osValue, archValue, true
+}
+
 // Run executes the full release process: determine version, build artifacts,
 // generate changelog, and publish to configured targets.
-// For separated concerns, prefer using `core build` then `core ci` (Publish).
-// If dryRun is true, it will show what would be done without actually publishing.
+// For separated concerns, prefer `core build` then `core ci` (Publish).
+//
+// rel, err := release.Run(ctx, cfg, false) // dryRun=true to preview
 func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	if cfg == nil {
 		return nil, coreerr.E("release.Run", "config is nil", nil)
 	}
 
-	m := io.Local
+	filesystem := io.Local
 
 	projectDir := cfg.projectDir
 	if projectDir == "" {
@@ -157,7 +276,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Resolve to absolute path
-	absProjectDir, err := filepath.Abs(projectDir)
+	absProjectDir, err := ax.Abs(projectDir)
 	if err != nil {
 		return nil, coreerr.E("release.Run", "failed to resolve project directory", err)
 	}
@@ -165,21 +284,24 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	// Step 1: Determine version
 	version := cfg.version
 	if version == "" {
-		version, err = DetermineVersion(absProjectDir)
+		version, err = DetermineVersionWithContext(ctx, absProjectDir)
 		if err != nil {
 			return nil, coreerr.E("release.Run", "failed to determine version", err)
 		}
 	}
 
 	// Step 2: Generate changelog
-	changelog, err := Generate(absProjectDir, "", version)
+	changelog, err := GenerateWithContext(ctx, absProjectDir, "", version)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, coreerr.E("release.Run", "changelog generation cancelled", ctx.Err())
+		}
 		// Non-fatal: continue with empty changelog
-		changelog = fmt.Sprintf("Release %s", version)
+		changelog = core.Sprintf("Release %s", version)
 	}
 
 	// Step 3: Build artifacts
-	artifacts, err := buildArtifacts(ctx, m, cfg, absProjectDir, version)
+	artifacts, err := buildArtifacts(ctx, filesystem, cfg, absProjectDir, version)
 	if err != nil {
 		return nil, coreerr.E("release.Run", "build failed", err)
 	}
@@ -189,7 +311,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 		Artifacts:  artifacts,
 		Changelog:  changelog,
 		ProjectDir: absProjectDir,
-		FS:         m,
+		FS:         filesystem,
 	}
 
 	// Step 4: Publish to configured targets
@@ -197,17 +319,17 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 		// Convert to publisher types
 		pubRelease := publishers.NewRelease(release.Version, release.Artifacts, release.Changelog, release.ProjectDir, release.FS)
 
-		for _, pubCfg := range cfg.Publishers {
-			publisher, err := getPublisher(pubCfg.Type)
+		for _, publisherConfig := range cfg.Publishers {
+			publisher, err := getPublisher(publisherConfig.Type)
 			if err != nil {
 				return release, coreerr.E("release.Run", "unsupported publisher", err)
 			}
 
 			// Build extended config for publisher-specific settings
-			extendedCfg := buildExtendedConfig(pubCfg)
-			publisherCfg := publishers.NewPublisherConfig(pubCfg.Type, pubCfg.Prerelease, pubCfg.Draft, extendedCfg)
-			if err := publisher.Publish(ctx, pubRelease, publisherCfg, cfg, dryRun); err != nil {
-				return release, coreerr.E("release.Run", "publish to "+pubCfg.Type+" failed", err)
+			extendedConfig := buildExtendedConfig(publisherConfig)
+			publisherRuntimeConfig := publishers.NewPublisherConfig(publisherConfig.Type, publisherConfig.Prerelease, publisherConfig.Draft, extendedConfig)
+			if err := publisher.Publish(ctx, pubRelease, publisherRuntimeConfig, cfg, dryRun); err != nil {
+				return release, coreerr.E("release.Run", "publish to "+publisherConfig.Type+" failed", err)
 			}
 		}
 	}
@@ -216,21 +338,30 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 }
 
 // buildArtifacts builds all artifacts for the release.
-func buildArtifacts(ctx context.Context, fs io.Medium, cfg *Config, projectDir, version string) ([]build.Artifact, error) {
+func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, projectDir, version string) ([]build.Artifact, error) {
 	// Load build configuration
-	buildCfg, err := build.LoadConfig(fs, projectDir)
+	buildConfig, err := build.LoadConfig(filesystem, projectDir)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to load build config", err)
+	}
+
+	if err := build.SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "failed to set up build cache", err)
+	}
+
+	discovery, err := build.DiscoverFull(filesystem, projectDir)
+	if err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "failed to inspect project for build options", err)
 	}
 
 	// Determine targets
 	var targets []build.Target
 	if len(cfg.Build.Targets) > 0 {
-		for _, t := range cfg.Build.Targets {
-			targets = append(targets, build.Target{OS: t.OS, Arch: t.Arch})
+		for _, targetConfig := range cfg.Build.Targets {
+			targets = append(targets, build.Target{OS: targetConfig.OS, Arch: targetConfig.Arch})
 		}
-	} else if len(buildCfg.Targets) > 0 {
-		targets = buildCfg.ToTargets()
+	} else if len(buildConfig.Targets) > 0 {
+		targets = buildConfig.ToTargets()
 	} else {
 		// Default targets
 		targets = []build.Target{
@@ -244,20 +375,20 @@ func buildArtifacts(ctx context.Context, fs io.Medium, cfg *Config, projectDir, 
 	// Determine binary name
 	binaryName := cfg.Project.Name
 	if binaryName == "" {
-		binaryName = buildCfg.Project.Binary
+		binaryName = buildConfig.Project.Binary
 	}
 	if binaryName == "" {
-		binaryName = buildCfg.Project.Name
+		binaryName = buildConfig.Project.Name
 	}
 	if binaryName == "" {
-		binaryName = filepath.Base(projectDir)
+		binaryName = ax.Base(projectDir)
 	}
 
 	// Determine output directory
-	outputDir := filepath.Join(projectDir, "dist")
+	outputDir := ax.Join(projectDir, "dist")
 
-	// Get builder (detect project type)
-	projectType, err := build.PrimaryType(fs, projectDir)
+	// Get builder, respecting an explicit build type override when configured.
+	projectType, err := resolveProjectType(filesystem, projectDir, buildConfig.Build.Type)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to detect project type", err)
 	}
@@ -268,37 +399,94 @@ func buildArtifacts(ctx context.Context, fs io.Medium, cfg *Config, projectDir, 
 	}
 
 	// Build configuration
-	buildConfig := &build.Config{
-		FS:         fs,
-		ProjectDir: projectDir,
-		OutputDir:  outputDir,
-		Name:       binaryName,
-		Version:    version,
-		LDFlags:    buildCfg.Build.LDFlags,
+	builderConfig := &build.Config{
+		FS:             filesystem,
+		Project:        buildConfig.Project,
+		ProjectDir:     projectDir,
+		OutputDir:      outputDir,
+		Name:           binaryName,
+		Version:        version,
+		LDFlags:        append([]string{}, buildConfig.Build.LDFlags...),
+		Flags:          append([]string{}, buildConfig.Build.Flags...),
+		BuildTags:      append([]string{}, buildConfig.Build.BuildTags...),
+		Env:            append([]string{}, buildConfig.Build.Env...),
+		Cache:          buildConfig.Build.Cache,
+		CGO:            buildConfig.Build.CGO,
+		Obfuscate:      buildConfig.Build.Obfuscate,
+		NSIS:           buildConfig.Build.NSIS,
+		WebView2:       buildConfig.Build.WebView2,
+		Dockerfile:     buildConfig.Build.Dockerfile,
+		Registry:       buildConfig.Build.Registry,
+		Image:          buildConfig.Build.Image,
+		Tags:           append([]string{}, buildConfig.Build.Tags...),
+		BuildArgs:      build.CloneStringMap(buildConfig.Build.BuildArgs),
+		Push:           buildConfig.Build.Push,
+		Load:           buildConfig.Build.Load,
+		LinuxKitConfig: buildConfig.Build.LinuxKitConfig,
+		Formats:        append([]string{}, buildConfig.Build.Formats...),
 	}
+	build.ApplyOptions(builderConfig, build.ComputeOptions(buildConfig, discovery))
 
 	// Build
-	artifacts, err := builder.Build(ctx, buildConfig, targets)
+	artifacts, err := builder.Build(ctx, builderConfig, targets)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "build failed", err)
 	}
 
+	if err := writeArtifactMetadata(filesystem, binaryName, artifacts); err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "failed to write artifact metadata", err)
+	}
+
+	signingArtifacts := make([]signing.Artifact, len(artifacts))
+	for i, artifact := range artifacts {
+		signingArtifacts[i] = signing.Artifact{
+			Path: artifact.Path,
+			OS:   artifact.OS,
+			Arch: artifact.Arch,
+		}
+	}
+
+	if buildConfig.Sign.Enabled {
+		if err := signReleaseBinaries(ctx, filesystem, buildConfig.Sign, signingArtifacts); err != nil {
+			return nil, coreerr.E("release.buildArtifacts", "failed to sign binaries", err)
+		}
+
+		if err := notarizeReleaseBinaries(ctx, filesystem, buildConfig.Sign, signingArtifacts); err != nil {
+			return nil, coreerr.E("release.buildArtifacts", "failed to notarise binaries", err)
+		}
+	}
+
 	// Archive artifacts
-	archivedArtifacts, err := build.ArchiveAll(fs, artifacts)
+	archiveFormatValue := cfg.Build.ArchiveFormat
+	if archiveFormatValue == "" {
+		archiveFormatValue = buildConfig.Build.ArchiveFormat
+	}
+
+	archiveFormat, err := build.ParseArchiveFormat(archiveFormatValue)
+	if err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "invalid archive format", err)
+	}
+
+	archivedArtifacts, err := build.ArchiveAllWithFormat(filesystem, artifacts, archiveFormat)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "archive failed", err)
 	}
 
 	// Compute checksums
-	checksummedArtifacts, err := build.ChecksumAll(fs, archivedArtifacts)
+	checksummedArtifacts, err := build.ChecksumAll(filesystem, archivedArtifacts)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "checksum failed", err)
 	}
 
 	// Write CHECKSUMS.txt
-	checksumPath := filepath.Join(outputDir, "CHECKSUMS.txt")
-	if err := build.WriteChecksumFile(fs, checksummedArtifacts, checksumPath); err != nil {
+	checksumPath := ax.Join(outputDir, "CHECKSUMS.txt")
+	if err := build.WriteChecksumFile(filesystem, checksummedArtifacts, checksumPath); err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to write checksums file", err)
+	}
+
+	// Sign CHECKSUMS.txt when signing is configured.
+	if err := signReleaseChecksums(ctx, filesystem, buildConfig.Sign, checksumPath); err != nil {
+		return nil, coreerr.E("release.buildArtifacts", "failed to sign checksums file", err)
 	}
 
 	// Add CHECKSUMS.txt as an artifact
@@ -307,7 +495,36 @@ func buildArtifacts(ctx context.Context, fs io.Medium, cfg *Config, projectDir, 
 	}
 	checksummedArtifacts = append(checksummedArtifacts, checksumArtifact)
 
+	// Add the detached signature when one was created.
+	signaturePath := checksumPath + ".asc"
+	if filesystem.Exists(signaturePath) {
+		checksummedArtifacts = append(checksummedArtifacts, build.Artifact{
+			Path: signaturePath,
+		})
+	}
+
 	return checksummedArtifacts, nil
+}
+
+// writeArtifactMetadata writes artifact_meta.json files next to built artifacts
+// when GitHub metadata is available.
+func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []build.Artifact) error {
+	ci := build.DetectCI()
+	if ci == nil {
+		ci = build.DetectGitHubMetadata()
+	}
+	if ci == nil {
+		return nil
+	}
+
+	for _, artifact := range artifacts {
+		metaPath := ax.Join(ax.Dir(artifact.Path), "artifact_meta.json")
+		if err := build.WriteArtifactMeta(filesystem, metaPath, buildName, build.Target{OS: artifact.OS, Arch: artifact.Arch}, ci); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // getBuilder returns the appropriate builder for the project type.
@@ -318,17 +535,41 @@ func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 	case build.ProjectTypeGo:
 		return builders.NewGoBuilder(), nil
 	case build.ProjectTypeNode:
-		return nil, coreerr.E("release.getBuilder", "node.js builder not yet implemented", nil)
+		return builders.NewNodeBuilder(), nil
 	case build.ProjectTypePHP:
-		return nil, coreerr.E("release.getBuilder", "PHP builder not yet implemented", nil)
+		return builders.NewPHPBuilder(), nil
+	case build.ProjectTypePython:
+		return builders.NewPythonBuilder(), nil
+	case build.ProjectTypeRust:
+		return builders.NewRustBuilder(), nil
+	case build.ProjectTypeDocs:
+		return builders.NewDocsBuilder(), nil
+	case build.ProjectTypeCPP:
+		return builders.NewCPPBuilder(), nil
+	case build.ProjectTypeDocker:
+		return builders.NewDockerBuilder(), nil
+	case build.ProjectTypeLinuxKit:
+		return builders.NewLinuxKitBuilder(), nil
+	case build.ProjectTypeTaskfile:
+		return builders.NewTaskfileBuilder(), nil
 	default:
 		return nil, coreerr.E("release.getBuilder", "unsupported project type: "+string(projectType), nil)
 	}
 }
 
+// resolveProjectType determines which builder type to use for release builds.
+// An explicit build type in .core/build.yaml takes precedence over marker-based detection.
+func resolveProjectType(filesystem io.Medium, projectDir, buildType string) (build.ProjectType, error) {
+	if buildType != "" {
+		return build.ProjectType(buildType), nil
+	}
+
+	return projectdetect.DetectProjectType(filesystem, projectDir)
+}
+
 // getPublisher returns the publisher for the given type.
-func getPublisher(pubType string) (publishers.Publisher, error) {
-	switch pubType {
+func getPublisher(publisherType string) (publishers.Publisher, error) {
+	switch publisherType {
 	case "github":
 		return publishers.NewGitHubPublisher(), nil
 	case "linuxkit":
@@ -346,88 +587,88 @@ func getPublisher(pubType string) (publishers.Publisher, error) {
 	case "chocolatey":
 		return publishers.NewChocolateyPublisher(), nil
 	default:
-		return nil, coreerr.E("release.getPublisher", "unsupported publisher type: "+pubType, nil)
+		return nil, coreerr.E("release.getPublisher", "unsupported publisher type: "+publisherType, nil)
 	}
 }
 
 // buildExtendedConfig builds a map of extended configuration for a publisher.
-func buildExtendedConfig(pubCfg PublisherConfig) map[string]any {
-	ext := make(map[string]any)
+func buildExtendedConfig(publisherConfig PublisherConfig) map[string]any {
+	extendedConfig := make(map[string]any)
 
 	// LinuxKit-specific config
-	if pubCfg.Config != "" {
-		ext["config"] = pubCfg.Config
+	if publisherConfig.Config != "" {
+		extendedConfig["config"] = publisherConfig.Config
 	}
-	if len(pubCfg.Formats) > 0 {
-		ext["formats"] = toAnySlice(pubCfg.Formats)
+	if len(publisherConfig.Formats) > 0 {
+		extendedConfig["formats"] = toAnySlice(publisherConfig.Formats)
 	}
-	if len(pubCfg.Platforms) > 0 {
-		ext["platforms"] = toAnySlice(pubCfg.Platforms)
+	if len(publisherConfig.Platforms) > 0 {
+		extendedConfig["platforms"] = toAnySlice(publisherConfig.Platforms)
 	}
 
 	// Docker-specific config
-	if pubCfg.Registry != "" {
-		ext["registry"] = pubCfg.Registry
+	if publisherConfig.Registry != "" {
+		extendedConfig["registry"] = publisherConfig.Registry
 	}
-	if pubCfg.Image != "" {
-		ext["image"] = pubCfg.Image
+	if publisherConfig.Image != "" {
+		extendedConfig["image"] = publisherConfig.Image
 	}
-	if pubCfg.Dockerfile != "" {
-		ext["dockerfile"] = pubCfg.Dockerfile
+	if publisherConfig.Dockerfile != "" {
+		extendedConfig["dockerfile"] = publisherConfig.Dockerfile
 	}
-	if len(pubCfg.Tags) > 0 {
-		ext["tags"] = toAnySlice(pubCfg.Tags)
+	if len(publisherConfig.Tags) > 0 {
+		extendedConfig["tags"] = toAnySlice(publisherConfig.Tags)
 	}
-	if len(pubCfg.BuildArgs) > 0 {
+	if len(publisherConfig.BuildArgs) > 0 {
 		args := make(map[string]any)
-		for k, v := range pubCfg.BuildArgs {
+		for k, v := range publisherConfig.BuildArgs {
 			args[k] = v
 		}
-		ext["build_args"] = args
+		extendedConfig["build_args"] = args
 	}
 
 	// npm-specific config
-	if pubCfg.Package != "" {
-		ext["package"] = pubCfg.Package
+	if publisherConfig.Package != "" {
+		extendedConfig["package"] = publisherConfig.Package
 	}
-	if pubCfg.Access != "" {
-		ext["access"] = pubCfg.Access
+	if publisherConfig.Access != "" {
+		extendedConfig["access"] = publisherConfig.Access
 	}
 
 	// Homebrew-specific config
-	if pubCfg.Tap != "" {
-		ext["tap"] = pubCfg.Tap
+	if publisherConfig.Tap != "" {
+		extendedConfig["tap"] = publisherConfig.Tap
 	}
-	if pubCfg.Formula != "" {
-		ext["formula"] = pubCfg.Formula
+	if publisherConfig.Formula != "" {
+		extendedConfig["formula"] = publisherConfig.Formula
 	}
 
 	// Scoop-specific config
-	if pubCfg.Bucket != "" {
-		ext["bucket"] = pubCfg.Bucket
+	if publisherConfig.Bucket != "" {
+		extendedConfig["bucket"] = publisherConfig.Bucket
 	}
 
 	// AUR-specific config
-	if pubCfg.Maintainer != "" {
-		ext["maintainer"] = pubCfg.Maintainer
+	if publisherConfig.Maintainer != "" {
+		extendedConfig["maintainer"] = publisherConfig.Maintainer
 	}
 
 	// Chocolatey-specific configuration
-	if pubCfg.Push {
-		ext["push"] = pubCfg.Push
+	if publisherConfig.Push {
+		extendedConfig["push"] = publisherConfig.Push
 	}
 
 	// Official repo config (shared by multiple publishers)
-	if pubCfg.Official != nil {
+	if publisherConfig.Official != nil {
 		official := make(map[string]any)
-		official["enabled"] = pubCfg.Official.Enabled
-		if pubCfg.Official.Output != "" {
-			official["output"] = pubCfg.Official.Output
+		official["enabled"] = publisherConfig.Official.Enabled
+		if publisherConfig.Official.Output != "" {
+			official["output"] = publisherConfig.Official.Output
 		}
-		ext["official"] = official
+		extendedConfig["official"] = official
 	}
 
-	return ext
+	return extendedConfig
 }
 
 // toAnySlice converts a string slice to an any slice.

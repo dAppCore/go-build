@@ -8,8 +8,8 @@
 package sdkcmd
 
 import (
-	"os"
-
+	"context"
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
@@ -61,6 +61,8 @@ func setSDKI18n() {
 }
 
 // AddSDKCommands registers the 'sdk' command and all subcommands.
+//
+// sdkcmd.AddSDKCommands(root)
 func AddSDKCommands(root *cli.Command) {
 	setSDKI18n()
 
@@ -79,7 +81,7 @@ func AddSDKCommands(root *cli.Command) {
 }
 
 func runSDKDiff(basePath, specPath string) error {
-	projectDir, err := os.Getwd()
+	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("sdk.Diff", "failed to get working directory", err)
 	}
@@ -119,16 +121,20 @@ func runSDKDiff(basePath, specPath string) error {
 }
 
 func runSDKValidate(specPath string) error {
-	projectDir, err := os.Getwd()
+	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("sdk.Validate", "failed to get working directory", err)
 	}
 
+	return runSDKValidateInDir(context.Background(), projectDir, specPath)
+}
+
+func runSDKValidateInDir(ctx context.Context, projectDir, specPath string) error {
 	s := sdk.New(projectDir, &sdk.Config{Spec: specPath})
 
 	cli.Print("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.sdk.label.sdk")), i18n.T("cmd.sdk.validate.validating"))
 
-	detectedPath, err := s.DetectSpec()
+	detectedPath, err := s.ValidateSpec(ctx)
 	if err != nil {
 		cli.Print("%s %v\n", sdkErrorStyle.Render(i18n.Label("error")), err)
 		return err
