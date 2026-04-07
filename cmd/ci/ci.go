@@ -8,7 +8,7 @@ import (
 	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/core/cli/pkg/cli"
 )
 
 // Style aliases used by CI command output.
