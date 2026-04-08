@@ -1,7 +1,10 @@
-// cmd_project.go implements the main project build logic.
+// cmd_project.go implements project build orchestration and auto-detection.
 //
-// This handles auto-detection of project types (Go, Wails, Node, PHP, Docs, Docker, LinuxKit, Taskfile)
-// and orchestrates the build process including signing, archiving, and checksums.
+// runProjectBuild(ProjectBuildRequest{
+//   BuildType: "go",
+//   TargetsFlag: "linux/amd64,darwin/arm64",
+//   ArchiveOutput: true,
+// }) executes end-to-end build/sign/archive/checksum flow for the selected project.
 
 package buildcmd
 
@@ -48,6 +51,14 @@ type ProjectBuildRequest struct {
 }
 
 // runProjectBuild handles the main `core build` command with auto-detection.
+//
+// runProjectBuild(ProjectBuildRequest{
+//   BuildType: "node",
+//   TargetsFlag: "linux/amd64",
+//   ArchiveOutput: true,
+//   ChecksumOutput: true,
+//   Format: "gz",
+// })
 func runProjectBuild(req ProjectBuildRequest) error {
 	ctx := req.Context
 	if ctx == nil {

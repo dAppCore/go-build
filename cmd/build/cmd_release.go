@@ -51,6 +51,8 @@ func AddReleaseCommand(buildCmd *cli.Command) {
 }
 
 // runRelease executes the full release workflow: build + archive + checksum + publish.
+//
+// runRelease(ctx, true, "v1.2.3", true, false, "xz") // dry run with a forced release version, draft output
 func runRelease(ctx context.Context, dryRun bool, version string, draft, prerelease bool, archiveFormat string) error {
 	// Get current directory
 	projectDir, err := ax.Getwd()
