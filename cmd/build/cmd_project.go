@@ -19,10 +19,10 @@ import (
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/build/pkg/release"
+	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
-	"dappco.re/go/core/cli/pkg/cli"
 )
 
 // ProjectBuildRequest groups the inputs for the main `core build` command.
@@ -52,13 +52,13 @@ type ProjectBuildRequest struct {
 
 // runProjectBuild handles the main `core build` command with auto-detection.
 //
-// runProjectBuild(ProjectBuildRequest{
-//   BuildType: "node",
-//   TargetsFlag: "linux/amd64",
-//   ArchiveOutput: true,
-//   ChecksumOutput: true,
-//   Format: "gz",
-// })
+//	runProjectBuild(ProjectBuildRequest{
+//	  BuildType: "node",
+//	  TargetsFlag: "linux/amd64",
+//	  ArchiveOutput: true,
+//	  ChecksumOutput: true,
+//	  Format: "gz",
+//	})
 func runProjectBuild(req ProjectBuildRequest) error {
 	ctx := req.Context
 	if ctx == nil {
@@ -518,30 +518,9 @@ func formatTargets(targets []build.Target) string {
 
 // getBuilder returns the appropriate builder for the project type.
 func getBuilder(projectType build.ProjectType) (build.Builder, error) {
-	switch projectType {
-	case build.ProjectTypeWails:
-		return builders.NewWailsBuilder(), nil
-	case build.ProjectTypeGo:
-		return builders.NewGoBuilder(), nil
-	case build.ProjectTypeDocker:
-		return builders.NewDockerBuilder(), nil
-	case build.ProjectTypeLinuxKit:
-		return builders.NewLinuxKitBuilder(), nil
-	case build.ProjectTypeTaskfile:
-		return builders.NewTaskfileBuilder(), nil
-	case build.ProjectTypeCPP:
-		return builders.NewCPPBuilder(), nil
-	case build.ProjectTypeNode:
-		return builders.NewNodeBuilder(), nil
-	case build.ProjectTypePHP:
-		return builders.NewPHPBuilder(), nil
-	case build.ProjectTypePython:
-		return builders.NewPythonBuilder(), nil
-	case build.ProjectTypeRust:
-		return builders.NewRustBuilder(), nil
-	case build.ProjectTypeDocs:
-		return builders.NewDocsBuilder(), nil
-	default:
-		return nil, coreerr.E("build.getBuilder", "unsupported project type: "+string(projectType), nil)
+	builder, err := builders.ResolveBuilder(projectType)
+	if err != nil {
+		return nil, coreerr.E("build.getBuilder", "unsupported project type: "+string(projectType), err)
 	}
+	return builder, nil
 }
