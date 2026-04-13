@@ -4,7 +4,6 @@ package builders
 import (
 	"context"
 	"runtime"
-	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -144,7 +143,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 		args = append(args, "--build-arg", core.Sprintf("VERSION=%s", cfg.Version))
 	}
 
-	safeImageName := strings.ReplaceAll(imageName, "/", "_")
+	safeImageName := core.Replace(imageName, "/", "_")
 
 	// Output to local docker images or push.
 	// `--load` only works for a single target, so multi-platform local builds

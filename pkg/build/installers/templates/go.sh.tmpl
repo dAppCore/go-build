@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# go.sh — Go variant installer for {{.BinaryName}} {{.Version}}
+# Installs: core CLI + Go toolchain (if missing) + gopls
+#
+# Usage:
+#   curl -sL https://raw.githubusercontent.com/{{.Repo}}/main/go.sh | bash
+set -euo pipefail
+
+BINARY_NAME="{{.BinaryName}}"
+VERSION="{{.Version}}"
+REPO="{{.Repo}}"
+GITHUB_BASE="https://github.com/${REPO}"
+GO_VERSION="1.24.1"
+
+detect_os() {
+    case "$(uname -s)" in
+        Linux*)  echo "linux"  ;;
+        Darwin*) echo "darwin" ;;
+        *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+    esac
+}
+
+detect_arch() {
+    case "$(uname -m)" in
+        x86_64)        echo "amd64" ;;
+        aarch64|arm64) echo "arm64" ;;
+        *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+    esac
+}
+
+OS="$(detect_os)"
+ARCH="$(detect_arch)"
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+INSTALL_DIR="/usr/local/bin"
+USE_SUDO="sudo"
+if [ -w "${INSTALL_DIR}" ]; then USE_SUDO=""; fi
+
+# ── Install core CLI ──────────────────────────────────────────────────────────
+
+TARBALL="${BINARY_NAME}_${OS}_${ARCH}.tar.gz"
+echo "Downloading ${BINARY_NAME} ${VERSION}..."
+curl -fsSL "${GITHUB_BASE}/releases/download/${VERSION}/${TARBALL}" -o "${TMP_DIR}/${TARBALL}"
+tar -xzf "${TMP_DIR}/${TARBALL}" -C "${TMP_DIR}"
+${USE_SUDO} install -m 0755 "${TMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+echo "Installed ${BINARY_NAME} ${VERSION}"
+
+# ── Install Go ────────────────────────────────────────────────────────────────
+
+if ! command -v go &>/dev/null; then
+    echo "Installing Go ${GO_VERSION}..."
+    GO_TARBALL="go${GO_VERSION}.${OS}-${ARCH}.tar.gz"
+    curl -fsSL "https://go.dev/dl/${GO_TARBALL}" -o "${TMP_DIR}/${GO_TARBALL}"
+    ${USE_SUDO} tar -C /usr/local -xzf "${TMP_DIR}/${GO_TARBALL}"
+    # Add to PATH for this session
+    export PATH="/usr/local/go/bin:${PATH}"
+    echo "Installed Go ${GO_VERSION}"
+else
+    echo "Go already installed: $(go version)"
+fi
+
+# ── Install gopls ─────────────────────────────────────────────────────────────
+
+if ! command -v gopls &>/dev/null; then
+    echo "Installing gopls..."
+    go install golang.org/x/tools/gopls@latest
+    echo "Installed gopls"
+else
+    echo "gopls already installed"
+fi
+
+# ── Verify ────────────────────────────────────────────────────────────────────
+
+echo ""
+"${BINARY_NAME}" --version
+echo "Go variant installation complete."

@@ -5,9 +5,8 @@ package build
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"sort"
+	"slices"
 	"strconv"
-	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -174,18 +173,18 @@ func cacheKeySnapshot(buildName string, target Target, cfg *CacheConfig) string 
 	)
 
 	paths := deduplicateStrings(append([]string(nil), cfg.Paths...))
-	sort.Strings(paths)
+	slices.Sort(paths)
 	parts = append(parts, "paths:"+core.Join(",", paths...))
 
 	restoreKeys := deduplicateStrings(append([]string(nil), cfg.RestoreKeys...))
-	sort.Strings(restoreKeys)
+	slices.Sort(restoreKeys)
 	parts = append(parts, "restore:"+core.Join(",", restoreKeys...))
 
 	return core.Join("\n", parts...)
 }
 
 func cacheEnvironmentName(path string) string {
-	base := strings.ToLower(ax.Base(path))
+	base := core.Lower(ax.Base(path))
 
 	switch base {
 	case "go-build", "gocache":
@@ -207,19 +206,19 @@ func appendIfMissing(values []string, value string) []string {
 }
 
 func normaliseCachePath(baseDir, path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return ""
 	}
 
-	if strings.HasPrefix(path, "~") {
+	if core.HasPrefix(path, "~") {
 		home := core.Env("HOME")
 		if home != "" {
 			if path == "~" {
 				return ax.Clean(home)
 			}
-			if strings.HasPrefix(path, "~/") {
-				return ax.Join(home, strings.TrimPrefix(path, "~/"))
+			if core.HasPrefix(path, "~/") {
+				return ax.Join(home, core.TrimPrefix(path, "~/"))
 			}
 		}
 	}
@@ -253,7 +252,7 @@ func deduplicateStrings(values []string) []string {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
+		if core.Trim(value) != "" {
 			return value
 		}
 	}

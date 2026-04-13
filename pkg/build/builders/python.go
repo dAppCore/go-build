@@ -5,9 +5,9 @@ import (
 	"archive/zip"
 	"context"
 	stdio "io"
+	stdfs "io/fs"
 	"runtime"
-	"sort"
-	"strings"
+	"slices"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -120,8 +120,14 @@ func (b *PythonBuilder) writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, 
 		return coreerr.E("PythonBuilder.writeZipTree", "failed to list directory", err)
 	}
 
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
+	slices.SortFunc(entries, func(a, b stdfs.DirEntry) int {
+		if a.Name() < b.Name() {
+			return -1
+		}
+		if a.Name() > b.Name() {
+			return 1
+		}
+		return 0
 	})
 
 	for _, entry := range entries {
@@ -151,7 +157,7 @@ func (b *PythonBuilder) writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, 
 		if err != nil {
 			return coreerr.E("PythonBuilder.writeZipTree", "failed to create zip header", err)
 		}
-		header.Name = strings.ReplaceAll(relPath, ax.DS(), "/")
+		header.Name = core.Replace(relPath, ax.DS(), "/")
 		header.Method = zip.Deflate
 		header.SetModTime(deterministicZipTime)
 

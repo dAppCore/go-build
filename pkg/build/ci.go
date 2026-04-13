@@ -3,9 +3,8 @@
 package build
 
 import (
-	"encoding/json"
-
 	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	io_interface "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -197,12 +196,12 @@ func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, ta
 		meta.Repo = ci.Repo
 	}
 
-	data, err := json.MarshalIndent(meta, "", "  ")
+	encoded, err := ax.JSONMarshal(meta)
 	if err != nil {
 		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", err)
 	}
 
-	if err := fs.Write(path, string(data)); err != nil {
+	if err := fs.Write(path, encoded); err != nil {
 		return coreerr.E("build.WriteArtifactMeta", "failed to write artifact meta", err)
 	}
 

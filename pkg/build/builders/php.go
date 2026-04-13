@@ -5,9 +5,9 @@ import (
 	"archive/zip"
 	"context"
 	stdio "io"
+	stdfs "io/fs"
 	"runtime"
-	"sort"
-	"strings"
+	"slices"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -190,8 +190,14 @@ func (b *PHPBuilder) writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, cur
 		return coreerr.E("PHPBuilder.writeZipTree", "failed to list directory", err)
 	}
 
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
+	slices.SortFunc(entries, func(a, b stdfs.DirEntry) int {
+		if a.Name() < b.Name() {
+			return -1
+		}
+		if a.Name() > b.Name() {
+			return 1
+		}
+		return 0
 	})
 
 	for _, entry := range entries {
@@ -221,7 +227,7 @@ func (b *PHPBuilder) writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, cur
 		if err != nil {
 			return coreerr.E("PHPBuilder.writeZipTree", "failed to create zip header", err)
 		}
-		header.Name = strings.ReplaceAll(relPath, ax.DS(), "/")
+		header.Name = core.Replace(relPath, ax.DS(), "/")
 		header.Method = zip.Deflate
 		header.SetModTime(deterministicZipTime)
 
@@ -253,7 +259,7 @@ func (b *PHPBuilder) isExcludedPath(path, outputDir, bundlePath string) bool {
 	cleanOutputDir := ax.Clean(outputDir)
 	cleanBundlePath := ax.Clean(bundlePath)
 
-	if cleanPath == cleanOutputDir || strings.HasPrefix(cleanPath, cleanOutputDir+ax.DS()) {
+	if cleanPath == cleanOutputDir || core.HasPrefix(cleanPath, cleanOutputDir+ax.DS()) {
 		return true
 	}
 	if cleanPath == cleanBundlePath {

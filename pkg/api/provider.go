@@ -6,11 +6,10 @@
 package api
 
 import (
-	"errors"
-	stdio "io"
 	"io/fs"
 	"net/http"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
 	"dappco.re/go/core/build/internal/ax"
@@ -671,7 +670,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 	var request ReleaseWorkflowRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		// Empty bodies are valid; malformed JSON is not.
-		if !errors.Is(err, stdio.EOF) {
+		if !core.Contains(err.Error(), "EOF") {
 			c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 			return
 		}

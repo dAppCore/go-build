@@ -6,8 +6,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
-	"io"
-	"strings"
+	stdio "io"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -35,7 +34,7 @@ const (
 //	format, err := build.ParseArchiveFormat("xz")  // → build.ArchiveFormatXZ
 //	format, err := build.ParseArchiveFormat("zip") // → build.ArchiveFormatZip
 func ParseArchiveFormat(value string) (ArchiveFormat, error) {
-	switch core.Trim(strings.ToLower(value)) {
+	switch core.Trim(core.Lower(value)) {
 	case "", "gz", "gzip", "tgz", "tar.gz", "tar-gz":
 		return ArchiveFormatGzip, nil
 	case "xz", "txz", "tar.xz", "tar-xz":
@@ -201,7 +200,7 @@ func createTarXzArchive(fs io_interface.Medium, src, dst string) error {
 		return coreerr.E("build.createTarXzArchive", "failed to write tar header", err)
 	}
 
-	if _, err := io.Copy(tarWriter, srcFile); err != nil {
+	if _, err := stdio.Copy(tarWriter, srcFile); err != nil {
 		return coreerr.E("build.createTarXzArchive", "failed to write file content to tar", err)
 	}
 
@@ -272,7 +271,7 @@ func createTarGzArchive(fs io_interface.Medium, src, dst string) error {
 	}
 
 	// Write file content
-	if _, err := io.Copy(tarWriter, srcFile); err != nil {
+	if _, err := stdio.Copy(tarWriter, srcFile); err != nil {
 		return coreerr.E("build.createTarGzArchive", "failed to write file content to tar", err)
 	}
 
@@ -320,7 +319,7 @@ func createZipArchive(fs io_interface.Medium, src, dst string) error {
 	}
 
 	// Write file content
-	if _, err := io.Copy(writer, srcFile); err != nil {
+	if _, err := stdio.Copy(writer, srcFile); err != nil {
 		return coreerr.E("build.createZipArchive", "failed to write file content to zip", err)
 	}
 

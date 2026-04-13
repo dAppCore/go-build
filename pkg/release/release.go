@@ -5,8 +5,7 @@ package release
 
 import (
 	"context"
-	"sort"
-	"strings"
+	"slices"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -206,8 +205,14 @@ func findPlatformArtifacts(filesystem io.Medium, distDir string) ([]build.Artifa
 		}
 	}
 
-	sort.Slice(artifacts, func(i, j int) bool {
-		return artifacts[i].Path < artifacts[j].Path
+	slices.SortFunc(artifacts, func(a, b build.Artifact) int {
+		if a.Path < b.Path {
+			return -1
+		}
+		if a.Path > b.Path {
+			return 1
+		}
+		return 0
 	})
 
 	return artifacts, nil
@@ -236,7 +241,7 @@ func shouldPublishSignature(name string) bool {
 }
 
 func shouldPublishRawArtifact(name string) bool {
-	if name == "" || strings.HasPrefix(name, ".") {
+	if name == "" || core.HasPrefix(name, ".") {
 		return false
 	}
 	if name == "artifact_meta.json" || name == "CHECKSUMS.txt" || name == "CHECKSUMS.txt.asc" {
@@ -246,16 +251,16 @@ func shouldPublishRawArtifact(name string) bool {
 }
 
 func shouldPublishAppBundle(name string) bool {
-	return strings.HasSuffix(name, ".app")
+	return core.HasSuffix(name, ".app")
 }
 
 func parsePlatformDir(name string) (string, string, bool) {
-	osValue, archValue, ok := strings.Cut(name, "_")
-	if !ok || osValue == "" || archValue == "" {
+	parts := core.SplitN(name, "_", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", false
 	}
 
-	return osValue, archValue, true
+	return parts[0], parts[1], true
 }
 
 // Run executes the full release process: determine version, build artifacts,

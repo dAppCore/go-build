@@ -1,0 +1,114 @@
+// Package installers generates installer shell scripts for Core CLI releases.
+// Each variant targets a specific install profile (full, CI, PHP, Go, agent, dev).
+package installers
+
+import (
+	"bytes"
+	"embed"
+	"text/template"
+
+	coreerr "dappco.re/go/core/log"
+)
+
+//go:embed templates/*.tmpl
+var installerTemplates embed.FS
+
+// InstallerVariant represents an installer script variant.
+//
+//	var v installers.InstallerVariant = installers.VariantFull
+type InstallerVariant string
+
+const (
+	// VariantFull generates setup.sh — full installer with PATH setup and shell completions.
+	VariantFull InstallerVariant = "full"
+	// VariantCI generates ci.sh — minimal download-only installer for CI environments.
+	VariantCI InstallerVariant = "ci"
+	// VariantPHP generates php.sh — installs core CLI + FrankenPHP + Composer (~50MB).
+	VariantPHP InstallerVariant = "php"
+	// VariantGo generates go.sh — installs core CLI + Go toolchain + gopls (~200MB).
+	VariantGo InstallerVariant = "go"
+	// VariantAgent generates agent.sh — installs core CLI + core-agent + Claude Code (~30MB).
+	VariantAgent InstallerVariant = "agent"
+	// VariantDev generates dev.sh — installs core CLI + pulls core-dev LinuxKit image (~500MB).
+	VariantDev InstallerVariant = "dev"
+)
+
+// variantTemplates maps each InstallerVariant to its embedded template filename and output script name.
+var variantTemplates = map[InstallerVariant]struct {
+	tmpl   string
+	output string
+}{
+	VariantFull:  {tmpl: "templates/setup.sh.tmpl", output: "setup.sh"},
+	VariantCI:    {tmpl: "templates/ci.sh.tmpl", output: "ci.sh"},
+	VariantPHP:   {tmpl: "templates/php.sh.tmpl", output: "php.sh"},
+	VariantGo:    {tmpl: "templates/go.sh.tmpl", output: "go.sh"},
+	VariantAgent: {tmpl: "templates/agent.sh.tmpl", output: "agent.sh"},
+	VariantDev:   {tmpl: "templates/dev.sh.tmpl", output: "dev.sh"},
+}
+
+// InstallerConfig holds the values injected into installer script templates.
+//
+//	cfg := installers.InstallerConfig{
+//	    Version:    "v1.2.3",
+//	    Repo:       "dappcore/core",
+//	    BinaryName: "core",
+//	}
+type InstallerConfig struct {
+	// Version is the release tag (e.g. "v1.2.3").
+	Version string
+	// Repo is the GitHub repository in "owner/name" format (e.g. "dappcore/core").
+	Repo string
+	// BinaryName is the name of the installed binary (e.g. "core").
+	BinaryName string
+}
+
+// GenerateInstaller renders an installer script for the given variant.
+//
+//	script, err := installers.GenerateInstaller(installers.VariantCI, installers.InstallerConfig{
+//	    Version: "v1.2.3", Repo: "dappcore/core", BinaryName: "core",
+//	})
+func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, error) {
+	entry, ok := variantTemplates[variant]
+	if !ok {
+		return "", coreerr.E("installers.GenerateInstaller", "unknown variant: "+string(variant), nil)
+	}
+
+	raw, err := installerTemplates.ReadFile(entry.tmpl)
+	if err != nil {
+		return "", coreerr.E("installers.GenerateInstaller", "failed to read template "+entry.tmpl, err)
+	}
+
+	tmpl, err := template.New(entry.output).Parse(string(raw))
+	if err != nil {
+		return "", coreerr.E("installers.GenerateInstaller", "failed to parse template "+entry.tmpl, err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cfg); err != nil {
+		return "", coreerr.E("installers.GenerateInstaller", "failed to render template "+entry.tmpl, err)
+	}
+
+	return buf.String(), nil
+}
+
+// GenerateAll renders all installer variants and returns a map of output filename → script content.
+//
+//	scripts, err := installers.GenerateAll(installers.InstallerConfig{
+//	    Version: "v1.2.3", Repo: "dappcore/core", BinaryName: "core",
+//	})
+//	for name, content := range scripts {
+//	    // name: "setup.sh", content: "#!/usr/bin/env bash\n..."
+//	}
+func GenerateAll(cfg InstallerConfig) (map[string]string, error) {
+	out := make(map[string]string, len(variantTemplates))
+
+	for variant, entry := range variantTemplates {
+		script, err := GenerateInstaller(variant, cfg)
+		if err != nil {
+			return nil, coreerr.E("installers.GenerateAll", "failed to generate variant "+string(variant), err)
+		}
+		out[entry.output] = script
+	}
+
+	return out, nil
+}

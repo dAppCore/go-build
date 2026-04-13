@@ -3,9 +3,7 @@ package builders
 
 import (
 	"context"
-	"os"
 	"runtime"
-	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -217,8 +215,12 @@ func garbleInstallPaths() []string {
 	}
 
 	if gopath := core.Env("GOPATH"); gopath != "" {
-		for _, root := range strings.Split(gopath, string(os.PathListSeparator)) {
-			root = strings.TrimSpace(root)
+		sep := ":"
+		if runtime.GOOS == "windows" {
+			sep = ";"
+		}
+		for _, root := range core.Split(gopath, sep) {
+			root = core.Trim(root)
 			if root == "" {
 				continue
 			}
@@ -232,7 +234,7 @@ func garbleInstallPaths() []string {
 // hasVersionLDFlag reports whether a version linker flag is already present.
 func hasVersionLDFlag(ldflags []string) bool {
 	for _, flag := range ldflags {
-		if strings.Contains(flag, "main.version=") || strings.Contains(flag, "main.Version=") {
+		if core.Contains(flag, "main.version=") || core.Contains(flag, "main.Version=") {
 			return true
 		}
 	}

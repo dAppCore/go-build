@@ -4,7 +4,6 @@ import (
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/io"
-	"strings"
 )
 
 // Marker files for project type detection.
@@ -334,7 +333,7 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 			continue
 		}
 		name := entry.Name()
-		if name == "node_modules" || strings.HasPrefix(name, ".") {
+		if name == "node_modules" || core.HasPrefix(name, ".") {
 			continue
 		}
 
@@ -351,7 +350,7 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 			if !subEntry.IsDir() {
 				continue
 			}
-			if subEntry.Name() == "node_modules" || strings.HasPrefix(subEntry.Name(), ".") {
+			if subEntry.Name() == "node_modules" || core.HasPrefix(subEntry.Name(), ".") {
 				continue
 			}
 			nested := ax.Join(subdir, subEntry.Name())
@@ -437,8 +436,8 @@ func hasYAMLInDir(fs io.Medium, dir string) bool {
 		if entry.IsDir() {
 			continue
 		}
-		name := strings.ToLower(entry.Name())
-		if strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml") {
+		name := core.Lower(entry.Name())
+		if core.HasSuffix(name, ".yml") || core.HasSuffix(name, ".yaml") {
 			return true
 		}
 	}
@@ -472,19 +471,23 @@ func parseOSReleaseDistro(content string) string {
 	var idLike string
 	var version string
 
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
+	for _, line := range core.Split(content, "\n") {
+		line = core.Trim(line)
+		if line == "" || core.HasPrefix(line, "#") {
 			continue
 		}
 
-		key, value, ok := strings.Cut(line, "=")
-		if !ok {
+		parts := core.SplitN(line, "=", 2)
+		if len(parts) != 2 {
 			continue
 		}
 
-		key = strings.TrimSpace(key)
-		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		key := core.Trim(parts[0])
+		value := core.Trim(parts[1])
+		value = core.TrimPrefix(value, `"`)
+		value = core.TrimSuffix(value, `"`)
+		value = core.TrimPrefix(value, `'`)
+		value = core.TrimSuffix(value, `'`)
 
 		switch key {
 		case "ID":
@@ -500,7 +503,7 @@ func parseOSReleaseDistro(content string) string {
 		return ""
 	}
 
-	if id == "ubuntu" || strings.Contains(" "+idLike+" ", " ubuntu ") {
+	if id == "ubuntu" || core.Contains(" "+idLike+" ", " ubuntu ") {
 		return version
 	}
 

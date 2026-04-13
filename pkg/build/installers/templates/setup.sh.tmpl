@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# setup.sh — Full installer for {{.BinaryName}} {{.Version}}
+# Downloads the binary, installs to /usr/local/bin (or ~/.local/bin), sets up PATH and shell completions.
+#
+# Usage:
+#   curl -sL https://raw.githubusercontent.com/{{.Repo}}/main/setup.sh | bash
+#   curl -sL https://raw.githubusercontent.com/{{.Repo}}/main/setup.sh | bash -s -- --version {{.Version}}
+set -euo pipefail
+
+BINARY_NAME="{{.BinaryName}}"
+VERSION="{{.Version}}"
+REPO="{{.Repo}}"
+GITHUB_BASE="https://github.com/${REPO}"
+
+# ── OS / ARCH detection ──────────────────────────────────────────────────────
+
+detect_os() {
+    case "$(uname -s)" in
+        Linux*)  echo "linux"  ;;
+        Darwin*) echo "darwin" ;;
+        *)
+            echo "Unsupported OS: $(uname -s)" >&2
+            exit 1
+            ;;
+    esac
+}
+
+detect_arch() {
+    case "$(uname -m)" in
+        x86_64)          echo "amd64" ;;
+        aarch64|arm64)   echo "arm64" ;;
+        *)
+            echo "Unsupported architecture: $(uname -m)" >&2
+            exit 1
+            ;;
+    esac
+}
+
+OS="$(detect_os)"
+ARCH="$(detect_arch)"
+
+TARBALL="${BINARY_NAME}_${OS}_${ARCH}.tar.gz"
+DOWNLOAD_URL="${GITHUB_BASE}/releases/download/${VERSION}/${TARBALL}"
+
+# ── Install path ─────────────────────────────────────────────────────────────
+
+if [ -w "/usr/local/bin" ] || sudo -n true 2>/dev/null; then
+    INSTALL_DIR="/usr/local/bin"
+    USE_SUDO="sudo"
+else
+    INSTALL_DIR="${HOME}/.local/bin"
+    USE_SUDO=""
+    mkdir -p "${INSTALL_DIR}"
+fi
+
+# ── Download & extract ────────────────────────────────────────────────────────
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+echo "Downloading ${BINARY_NAME} ${VERSION} (${OS}/${ARCH})..."
+curl -fsSL "${DOWNLOAD_URL}" -o "${TMP_DIR}/${TARBALL}"
+
+echo "Extracting..."
+tar -xzf "${TMP_DIR}/${TARBALL}" -C "${TMP_DIR}"
+
+# ── Install binary ────────────────────────────────────────────────────────────
+
+echo "Installing ${BINARY_NAME} to ${INSTALL_DIR}..."
+${USE_SUDO} install -m 0755 "${TMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+
+# ── PATH setup ────────────────────────────────────────────────────────────────
+
+if [ "${INSTALL_DIR}" = "${HOME}/.local/bin" ]; then
+    PATH_LINE='export PATH="${HOME}/.local/bin:${PATH}"'
+    for RC in "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.profile"; do
+        if [ -f "${RC}" ] && ! grep -qF '.local/bin' "${RC}" 2>/dev/null; then
+            echo "" >> "${RC}"
+            echo "# Added by ${BINARY_NAME} installer" >> "${RC}"
+            echo "${PATH_LINE}" >> "${RC}"
+            echo "Added PATH entry to ${RC}"
+        fi
+    done
+    export PATH="${HOME}/.local/bin:${PATH}"
+fi
+
+# ── Shell completions ─────────────────────────────────────────────────────────
+
+setup_completions() {
+    local shell_name="$1"
+    case "${shell_name}" in
+        bash)
+            local comp_dir="/etc/bash_completion.d"
+            if [ ! -w "${comp_dir}" ]; then
+                comp_dir="${HOME}/.local/share/bash-completion/completions"
+                mkdir -p "${comp_dir}"
+            fi
+            if "${BINARY_NAME}" completion bash > "${comp_dir}/${BINARY_NAME}" 2>/dev/null; then
+                echo "Installed bash completions to ${comp_dir}/${BINARY_NAME}"
+            fi
+            ;;
+        zsh)
+            local comp_dir="${HOME}/.zsh/completions"
+            mkdir -p "${comp_dir}"
+            if "${BINARY_NAME}" completion zsh > "${comp_dir}/_${BINARY_NAME}" 2>/dev/null; then
+                echo "Installed zsh completions to ${comp_dir}/_${BINARY_NAME}"
+                # Ensure fpath is configured
+                for RC in "${HOME}/.zshrc"; do
+                    if [ -f "${RC}" ] && ! grep -qF 'zsh/completions' "${RC}" 2>/dev/null; then
+                        echo "" >> "${RC}"
+                        echo "# ${BINARY_NAME} completions" >> "${RC}"
+                        echo 'fpath=("${HOME}/.zsh/completions" $fpath)' >> "${RC}"
+                        echo 'autoload -Uz compinit && compinit' >> "${RC}"
+                    fi
+                done
+            fi
+            ;;
+        fish)
+            local comp_dir="${HOME}/.config/fish/completions"
+            mkdir -p "${comp_dir}"
+            if "${BINARY_NAME}" completion fish > "${comp_dir}/${BINARY_NAME}.fish" 2>/dev/null; then
+                echo "Installed fish completions to ${comp_dir}/${BINARY_NAME}.fish"
+            fi
+            ;;
+    esac
+}
+
+CURRENT_SHELL="$(basename "${SHELL:-bash}")"
+setup_completions "${CURRENT_SHELL}"
+
+# ── Verify ────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "Verifying installation..."
+if "${BINARY_NAME}" --version; then
+    echo ""
+    echo "✓ ${BINARY_NAME} ${VERSION} installed successfully."
+    echo "  Run '${BINARY_NAME} --help' to get started."
+else
+    echo "Installation may have succeeded but '${BINARY_NAME} --version' failed." >&2
+    echo "Ensure ${INSTALL_DIR} is in your PATH." >&2
+    exit 1
+fi

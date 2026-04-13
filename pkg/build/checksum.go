@@ -4,8 +4,8 @@ package build
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"io"
-	"sort"
+	stdio "io"
+	"slices"
 
 	"dappco.re/go/core"
 	io_interface "dappco.re/go/core/io"
@@ -29,7 +29,7 @@ func Checksum(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 
 	// Compute SHA256 hash
 	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
+	if _, err := stdio.Copy(hasher, file); err != nil {
 		return Artifact{}, coreerr.E("build.Checksum", "failed to hash file", err)
 	}
 
@@ -89,7 +89,7 @@ func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string
 	}
 
 	// Sort lines for consistent output
-	sort.Strings(lines)
+	slices.Sort(lines)
 
 	content := core.Concat(core.Join("\n", lines...), "\n")
 

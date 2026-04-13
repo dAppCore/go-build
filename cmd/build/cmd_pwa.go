@@ -8,10 +8,9 @@ package buildcmd
 
 import (
 	"context"
-	"io"
+	stdio "io"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -59,7 +58,7 @@ func downloadPWA(ctx context.Context, baseURL, destDir string) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := stdio.ReadAll(resp.Body)
 	if err != nil {
 		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "read response body"}), err)
 	}
@@ -154,8 +153,8 @@ func findManifestURL(htmlContent, baseURL string) (string, error) {
 // relIncludesManifest reports whether a rel attribute declares a manifest link.
 // HTML allows multiple space-separated tokens and case-insensitive values.
 func relIncludesManifest(rel string) bool {
-	for _, token := range strings.Fields(rel) {
-		if strings.EqualFold(token, "manifest") {
+	for _, token := range core.Split(core.Trim(rel), " ") {
+		if core.Lower(core.Trim(token)) == "manifest" {
 			return true
 		}
 	}
@@ -170,7 +169,7 @@ func fetchManifest(ctx context.Context, manifestURL string) (map[string]any, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := stdio.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +234,7 @@ func downloadAsset(ctx context.Context, assetURL, destDir string) error {
 	}
 	defer func() { _ = out.Close() }()
 
-	_, err = io.Copy(out, resp.Body)
+	_, err = stdio.Copy(out, resp.Body)
 	return err
 }
 
@@ -340,7 +339,7 @@ func copyDir(src, dst string) error {
 			return err
 		}
 
-		if _, err := io.Copy(dstFile, srcFile); err != nil {
+		if _, err := stdio.Copy(dstFile, srcFile); err != nil {
 			_ = srcFile.Close()
 			_ = dstFile.Close()
 			return err

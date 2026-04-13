@@ -5,7 +5,7 @@ import (
 	"context"
 	"iter"
 	"runtime"
-	"sort"
+	"slices"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -103,7 +103,7 @@ func (r *Registry) LanguagesIter() iter.Seq[string] {
 		for lang := range r.generators {
 			keys = append(keys, lang)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 		for _, lang := range keys {
 			if !yield(lang) {
 				return

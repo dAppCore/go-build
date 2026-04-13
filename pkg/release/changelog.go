@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"context"
 	"regexp"
-	"sort"
+	"slices"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -295,7 +295,7 @@ func formatChangelog(commits []ConventionalCommit, version string) string {
 			remainingTypes = append(remainingTypes, commitType)
 		}
 	}
-	sort.Strings(remainingTypes)
+	slices.Sort(remainingTypes)
 
 	for _, commitType := range remainingTypes {
 		commits := grouped[commitType]
