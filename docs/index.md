@@ -42,6 +42,8 @@ core sdk
 | `cmd/ci/` | `core ci` publish/version/changelog commands |
 | `cmd/sdk/` | `core sdk diff` and `core sdk validate` |
 
+See also: [Architecture](architecture.md) and [Stacks](stacks.md).
+
 ## Builder Detection
 
 Discovery checks the project root and selected nested paths:

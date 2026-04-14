@@ -32,6 +32,18 @@ Important detection behaviour:
 - LinuxKit detection accepts root manifests and `.core/linuxkit/*.yml`
 - Taskfile detection accepts common case variants
 
+## Action Pipeline
+
+The generated release workflow mirrors the composable `dAppCore/build@v3` action flow:
+
+1. Discovery gathers repository markers, Git metadata, distro hints, and stack suggestions.
+2. Option computation folds config defaults, CLI overrides, and discovery-derived flags into a single build option set.
+3. Toolchain setup installs only the required runtimes and CLIs for the detected stack.
+4. Stack-specific builders perform the actual build, with Wails, C++, Docs, Docker, LinuxKit, and Taskfile all owning their own execution details.
+5. Signing and packaging run last so the same build outputs can be archived, checksummed, uploaded, or published.
+
+This keeps the Go package aligned with the action architecture without copying the action repository's bash and PowerShell implementation split.
+
 ## Builder Layer
 
 Every builder implements:
@@ -83,6 +95,17 @@ The workflow keeps the action inputs exposed at the CLI layer:
 - `deno-build`
 - `wails-build-webview2`
 - `build-cache`
+
+## Ported Action Behaviours
+
+The Go implementation intentionally preserves the higher-signal behaviours from the public action:
+
+- Ubuntu-aware WebKit dependency selection and `webkit2_41` build-tag injection for Wails on 24.04+
+- frontend manifest scanning at the root, under `frontend/`, and in nested trees up to depth 2
+- MkDocs project detection and setup hooks
+- Conan installation hooks and C++ build support
+- Deno setup and `DENO_BUILD` overrides
+- garble-based obfuscation, NSIS packaging, WebView2 modes, and build cache wiring
 
 ## Apple Pipeline
 
