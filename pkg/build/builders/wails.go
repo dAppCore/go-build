@@ -687,13 +687,7 @@ func buildV3TaskVars(cfg *build.Config, target build.Target) ([]string, error) {
 		if err := validateWebView2Mode(cfg.WebView2); err != nil {
 			return nil, err
 		}
-		switch cfg.WebView2 {
-		case "download":
-			// Wails v3 fallback packaging already uses the bootstrapper-based runtime installer.
-			taskVars = append(taskVars, "WEBVIEW2_MODE=download")
-		case "embed", "browser", "error":
-			return nil, coreerr.E("WailsBuilder.buildV3TaskVars", "wails v3 fallback only supports webview2=download on Windows", nil)
-		}
+		taskVars = append(taskVars, "WEBVIEW2_MODE="+cfg.WebView2)
 	}
 
 	return taskVars, nil

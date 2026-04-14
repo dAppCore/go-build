@@ -1554,7 +1554,18 @@ func TestWails_WailsBuilderBuildV3NSISWebView2Download_Good(t *testing.T) {
 	assert.Contains(t, string(content), "WEBVIEW2_MODE=download")
 }
 
-func TestWails_WailsBuilderBuildV3NSISWebView2Unsupported_Bad(t *testing.T) {
+func TestWails_buildV3TaskVars_WebView2Modes_Good(t *testing.T) {
+	modes := []string{"download", "embed", "browser", "error"}
+	for _, mode := range modes {
+		t.Run(mode, func(t *testing.T) {
+			taskVars, err := buildV3TaskVars(&build.Config{WebView2: mode}, build.Target{OS: "windows", Arch: "amd64"})
+			require.NoError(t, err)
+			assert.Contains(t, taskVars, "WEBVIEW2_MODE="+mode)
+		})
+	}
+}
+
+func TestWails_WailsBuilderBuildV3NSISWebView2Embed_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -1565,6 +1576,8 @@ func TestWails_WailsBuilderBuildV3NSISWebView2Unsupported_Bad(t *testing.T) {
 
 	projectDir := setupWailsTestProject(t)
 	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+	logPath := ax.Join(t.TempDir(), "wails3-package-webview2-embed.log")
+	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
 
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
@@ -1576,9 +1589,14 @@ func TestWails_WailsBuilderBuildV3NSISWebView2Unsupported_Bad(t *testing.T) {
 		WebView2:   "embed",
 	}
 
-	_, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "only supports webview2=download")
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.FileExists(t, artifacts[0].Path)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "WEBVIEW2_MODE=embed")
 }
 
 func TestWails_WailsBuilderInterface_Good(t *testing.T) {
