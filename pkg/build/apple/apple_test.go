@@ -92,12 +92,14 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 	oldDetermineVersion := determineVersion
 	oldGetwd := getwdFn
 	oldRunDir := runDirFn
+	oldWriteXcodeCloudScripts := writeXcodeCloudScriptsFn
 	t.Cleanup(func() {
 		loadConfigFn = oldLoadConfig
 		buildAppleFn = oldBuildApple
 		determineVersion = oldDetermineVersion
 		getwdFn = oldGetwd
 		runDirFn = oldRunDir
+		writeXcodeCloudScriptsFn = oldWriteXcodeCloudScripts
 	})
 
 	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
@@ -278,6 +280,69 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 
 	result := New().Build(context.Background(), nil)
 	require.True(t, result.OK)
+	assert.Equal(t, ax.Join(projectDir, "dist", "apple", "Core.app"), result.Value)
+}
+
+func TestAppleBuilder_Build_WritesXcodeCloudScripts_Good(t *testing.T) {
+	projectDir := t.TempDir()
+
+	oldLoadConfig := loadConfigFn
+	oldBuildApple := buildAppleFn
+	oldDetermineVersion := determineVersion
+	oldGetwd := getwdFn
+	oldRunDir := runDirFn
+	oldWriteXcodeCloudScripts := writeXcodeCloudScriptsFn
+	t.Cleanup(func() {
+		loadConfigFn = oldLoadConfig
+		buildAppleFn = oldBuildApple
+		determineVersion = oldDetermineVersion
+		getwdFn = oldGetwd
+		runDirFn = oldRunDir
+		writeXcodeCloudScriptsFn = oldWriteXcodeCloudScripts
+	})
+
+	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+		require.Equal(t, projectDir, dir)
+		return &build.BuildConfig{
+			Project: build.Project{
+				Name:   "Core",
+				Binary: "Core",
+			},
+			Apple: build.AppleConfig{
+				BundleID: "ai.lthn.core",
+				Sign:     boolPtr(false),
+				XcodeCloud: build.XcodeCloudConfig{
+					Workflow: "CoreGUI Release",
+				},
+			},
+		}, nil
+	}
+	determineVersion = func(ctx context.Context, dir string) (string, error) {
+		return "v1.2.3", nil
+	}
+	getwdFn = func() (string, error) {
+		return projectDir, nil
+	}
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
+		return "42", nil
+	}
+
+	var scriptsWritten bool
+	writeXcodeCloudScriptsFn = func(fs coreio.Medium, dir string, cfg *build.BuildConfig) ([]string, error) {
+		require.Equal(t, projectDir, dir)
+		require.Equal(t, "CoreGUI Release", cfg.Apple.XcodeCloud.Workflow)
+		scriptsWritten = true
+		return []string{ax.Join(dir, build.XcodeCloudScriptsDir, build.XcodeCloudPreXcodebuildScriptName)}, nil
+	}
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+		return &build.AppleBuildResult{
+			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
+		}, nil
+	}
+
+	result := New().Build(context.Background(), nil)
+	require.True(t, result.OK)
+	assert.True(t, scriptsWritten)
 	assert.Equal(t, ax.Join(projectDir, "dist", "apple", "Core.app"), result.Value)
 }
 

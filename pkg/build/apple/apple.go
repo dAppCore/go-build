@@ -84,18 +84,19 @@ type explicitOptions struct {
 type Option func(*AppleOptions)
 
 var (
-	loadConfigFn      = build.LoadConfig
-	buildAppleFn      = build.BuildApple
-	determineVersion  = release.DetermineVersionWithContext
-	getwdFn           = ax.Getwd
-	runDirFn          = ax.RunDir
-	buildWailsAppFn   = build.BuildWailsApp
-	createUniversalFn = build.CreateUniversal
-	signFn            = build.Sign
-	notariseFn        = build.Notarise
-	createDMGFn       = build.CreateDMG
-	uploadTFn         = build.UploadTestFlight
-	submitASFn        = build.SubmitAppStore
+	loadConfigFn             = build.LoadConfig
+	buildAppleFn             = build.BuildApple
+	determineVersion         = release.DetermineVersionWithContext
+	getwdFn                  = ax.Getwd
+	runDirFn                 = ax.RunDir
+	buildWailsAppFn          = build.BuildWailsApp
+	createUniversalFn        = build.CreateUniversal
+	signFn                   = build.Sign
+	notariseFn               = build.Notarise
+	createDMGFn              = build.CreateDMG
+	uploadTFn                = build.UploadTestFlight
+	submitASFn               = build.SubmitAppStore
+	writeXcodeCloudScriptsFn = build.WriteXcodeCloudScripts
 )
 
 // Register wires AppleBuilder into the Core service container and seeds the
@@ -219,6 +220,11 @@ func (b *AppleBuilder) Build(ctx context.Context, cfg *AppleOptions) core.Result
 	}
 	if err := build.SetupBuildCache(coreio.Local, projectDir, buildConfig); err != nil {
 		return core.Result{Value: err, OK: false}
+	}
+	if build.HasXcodeCloudConfig(buildConfig) {
+		if _, err := writeXcodeCloudScriptsFn(coreio.Local, projectDir, buildConfig); err != nil {
+			return core.Result{Value: err, OK: false}
+		}
 	}
 
 	version, err := determineVersion(ctx, projectDir)
