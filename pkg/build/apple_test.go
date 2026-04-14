@@ -99,9 +99,9 @@ func TestApple_BuildApple_Good(t *testing.T) {
 		return ax.WriteFile(ax.Join(outputPath, "Contents", "MacOS", "Core"), []byte("universal"), 0o755)
 	}
 
-	var signCall SignConfig
+	var signCalls []SignConfig
 	appleSignFn = func(ctx context.Context, cfg SignConfig) error {
-		signCall = cfg
+		signCalls = append(signCalls, cfg)
 		return nil
 	}
 
@@ -140,8 +140,12 @@ func TestApple_BuildApple_Good(t *testing.T) {
 	assert.Equal(t, ax.Join(outputDir, "Core.app"), result.BundlePath)
 	assert.Equal(t, ax.Join(outputDir, "Core-1.2.3.dmg"), result.DMGPath)
 	assert.Equal(t, result.DMGPath, notarisedPath)
-	assert.Equal(t, result.BundlePath, signCall.AppPath)
-	assert.Equal(t, result.EntitlementsPath, signCall.Entitlements)
+	require.Len(t, signCalls, 2)
+	assert.Equal(t, result.BundlePath, signCalls[0].AppPath)
+	assert.Equal(t, result.EntitlementsPath, signCalls[0].Entitlements)
+	assert.Equal(t, result.DMGPath, signCalls[1].AppPath)
+	assert.Empty(t, signCalls[1].Entitlements)
+	assert.False(t, signCalls[1].Hardened)
 	assert.Equal(t, result.DMGPath, dmgCall.OutputPath)
 
 	plistContent, err := io.Local.Read(result.InfoPlistPath)

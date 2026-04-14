@@ -24,32 +24,32 @@ const (
 
 // AppleOptions holds the resolved runtime settings for the macOS Apple pipeline.
 type AppleOptions struct {
-	TeamID       string
-	BundleID     string
-	Arch         string
-	CertIdentity string
-	ProfilePath  string
-	KeychainPath string
+	TeamID       string `json:"team_id" yaml:"team_id"`
+	BundleID     string `json:"bundle_id" yaml:"bundle_id"`
+	Arch         string `json:"arch" yaml:"arch"`
+	CertIdentity string `json:"cert_identity" yaml:"cert_identity"`
+	ProfilePath  string `json:"profile_path" yaml:"profile_path"`
+	KeychainPath string `json:"keychain_path" yaml:"keychain_path"`
 
-	Sign       bool
-	Notarise   bool
-	DMG        bool
-	TestFlight bool
-	AppStore   bool
+	Sign       bool `json:"sign" yaml:"sign"`
+	Notarise   bool `json:"notarise" yaml:"notarise"`
+	DMG        bool `json:"dmg" yaml:"dmg"`
+	TestFlight bool `json:"testflight" yaml:"testflight"`
+	AppStore   bool `json:"appstore" yaml:"appstore"`
 
-	APIKeyID       string
-	APIKeyIssuerID string
-	APIKeyPath     string
-	AppleID        string
-	Password       string
+	APIKeyID       string `json:"api_key_id" yaml:"api_key_id"`
+	APIKeyIssuerID string `json:"api_key_issuer_id" yaml:"api_key_issuer_id"`
+	APIKeyPath     string `json:"api_key_path" yaml:"api_key_path"`
+	AppleID        string `json:"apple_id" yaml:"apple_id"`
+	Password       string `json:"password" yaml:"password"`
 
-	BundleDisplayName string
-	MinSystemVersion  string
-	Category          string
-	Copyright         string
-	DMGBackground     string
-	DMGVolumeName     string
-	EntitlementsPath  string
+	BundleDisplayName string `json:"bundle_display_name" yaml:"bundle_display_name"`
+	MinSystemVersion  string `json:"min_system_version" yaml:"min_system_version"`
+	Category          string `json:"category" yaml:"category"`
+	Copyright         string `json:"copyright" yaml:"copyright"`
+	DMGBackground     string `json:"dmg_background" yaml:"dmg_background"`
+	DMGVolumeName     string `json:"dmg_volume_name" yaml:"dmg_volume_name"`
+	EntitlementsPath  string `json:"entitlements_path" yaml:"entitlements_path"`
 }
 
 // AppleBuildResult captures the primary outputs of the Apple pipeline.
@@ -65,95 +65,95 @@ type AppleBuildResult struct {
 
 // WailsBuildConfig defines the Wails v3 build inputs for a macOS app bundle.
 type WailsBuildConfig struct {
-	ProjectDir string
-	Name       string
-	Arch       string
-	BuildTags  []string
-	LDFlags    []string
-	OutputDir  string
-	Version    string
-	Env        []string
+	ProjectDir string   `json:"project_dir" yaml:"project_dir"`
+	Name       string   `json:"name" yaml:"name"`
+	Arch       string   `json:"arch" yaml:"arch"`
+	BuildTags  []string `json:"build_tags" yaml:"build_tags"`
+	LDFlags    []string `json:"ldflags" yaml:"ldflags"`
+	OutputDir  string   `json:"output_dir" yaml:"output_dir"`
+	Version    string   `json:"version" yaml:"version"`
+	Env        []string `json:"env" yaml:"env"`
 }
 
 // SignConfig defines the codesign inputs for a macOS app bundle.
 type SignConfig struct {
-	AppPath      string
-	Identity     string
-	Entitlements string
-	Hardened     bool
-	Deep         bool
-	KeychainPath string
+	AppPath      string `json:"app_path" yaml:"app_path"`
+	Identity     string `json:"identity" yaml:"identity"`
+	Entitlements string `json:"entitlements" yaml:"entitlements"`
+	Hardened     bool   `json:"hardened" yaml:"hardened"`
+	Deep         bool   `json:"deep" yaml:"deep"`
+	KeychainPath string `json:"keychain_path" yaml:"keychain_path"`
 }
 
 // NotariseConfig defines the Apple notarisation request.
 type NotariseConfig struct {
-	AppPath string
+	AppPath string `json:"app_path" yaml:"app_path"`
 
-	APIKeyID       string
-	APIKeyIssuerID string
-	APIKeyPath     string
+	APIKeyID       string `json:"api_key_id" yaml:"api_key_id"`
+	APIKeyIssuerID string `json:"api_key_issuer_id" yaml:"api_key_issuer_id"`
+	APIKeyPath     string `json:"api_key_path" yaml:"api_key_path"`
 
-	TeamID   string
-	AppleID  string
-	Password string
+	TeamID   string `json:"team_id" yaml:"team_id"`
+	AppleID  string `json:"apple_id" yaml:"apple_id"`
+	Password string `json:"password" yaml:"password"`
 }
 
 // DMGConfig defines the DMG packaging inputs.
 type DMGConfig struct {
-	AppPath    string
-	OutputPath string
-	VolumeName string
-	Background string
-	IconSize   int
-	WindowSize [2]int
+	AppPath    string `json:"app_path" yaml:"app_path"`
+	OutputPath string `json:"output_path" yaml:"output_path"`
+	VolumeName string `json:"volume_name" yaml:"volume_name"`
+	Background string `json:"background" yaml:"background"`
+	IconSize   int    `json:"icon_size" yaml:"icon_size"`
+	WindowSize [2]int `json:"window_size" yaml:"window_size"`
 }
 
 // TestFlightConfig defines the TestFlight upload inputs.
 type TestFlightConfig struct {
-	AppPath        string
-	APIKeyID       string
-	APIKeyIssuerID string
-	APIKeyPath     string
-	CertIdentity   string
+	AppPath        string `json:"app_path" yaml:"app_path"`
+	APIKeyID       string `json:"api_key_id" yaml:"api_key_id"`
+	APIKeyIssuerID string `json:"api_key_issuer_id" yaml:"api_key_issuer_id"`
+	APIKeyPath     string `json:"api_key_path" yaml:"api_key_path"`
+	CertIdentity   string `json:"cert_identity" yaml:"cert_identity"`
 }
 
 // AppStoreConfig defines the App Store Connect submission inputs.
 type AppStoreConfig struct {
-	AppPath        string
-	APIKeyID       string
-	APIKeyIssuerID string
-	APIKeyPath     string
-	CertIdentity   string
-	Version        string
-	ReleaseType    string
+	AppPath        string `json:"app_path" yaml:"app_path"`
+	APIKeyID       string `json:"api_key_id" yaml:"api_key_id"`
+	APIKeyIssuerID string `json:"api_key_issuer_id" yaml:"api_key_issuer_id"`
+	APIKeyPath     string `json:"api_key_path" yaml:"api_key_path"`
+	CertIdentity   string `json:"cert_identity" yaml:"cert_identity"`
+	Version        string `json:"version" yaml:"version"`
+	ReleaseType    string `json:"release_type" yaml:"release_type"`
 }
 
 // InfoPlist defines the generated macOS application metadata.
 type InfoPlist struct {
-	BundleID                      string
-	BundleName                    string
-	BundleDisplayName             string
-	BundleVersion                 string
-	BuildNumber                   string
-	MinSystemVersion              string
-	Category                      string
-	Copyright                     string
-	Executable                    string
-	HighResCapable                bool
-	SupportsSecureRestorableState bool
+	BundleID                      string `json:"bundle_id" plist:"CFBundleIdentifier"`
+	BundleName                    string `json:"bundle_name" plist:"CFBundleName"`
+	BundleDisplayName             string `json:"bundle_display_name" plist:"CFBundleDisplayName"`
+	BundleVersion                 string `json:"bundle_version" plist:"CFBundleShortVersionString"`
+	BuildNumber                   string `json:"build_number" plist:"CFBundleVersion"`
+	MinSystemVersion              string `json:"min_system_version" plist:"LSMinimumSystemVersion"`
+	Category                      string `json:"category" plist:"LSApplicationCategoryType"`
+	Copyright                     string `json:"copyright" plist:"NSHumanReadableCopyright"`
+	Executable                    string `json:"executable" plist:"CFBundleExecutable"`
+	HighResCapable                bool   `json:"high_res_capable" plist:"NSHighResolutionCapable"`
+	SupportsSecureRestorableState bool   `json:"supports_secure_restorable_state" plist:"NSSupportsSecureRestorableState"`
 }
 
 // Entitlements defines the generated macOS entitlements profile.
 type Entitlements struct {
-	Sandbox               bool
-	NetworkClient         bool
-	NetworkServer         bool
-	MetalGPU              bool
-	UserSelectedReadWrite bool
-	Downloads             bool
-	HardenedRuntime       bool
-	JIT                   bool
-	DylibEnvVar           bool
+	Sandbox               bool `json:"sandbox" plist:"com.apple.security.app-sandbox"`
+	NetworkClient         bool `json:"network_client" plist:"com.apple.security.network.client"`
+	NetworkServer         bool `json:"network_server" plist:"com.apple.security.network.server"`
+	MetalGPU              bool `json:"metal_gpu" plist:"com.apple.security.device.metal"`
+	UserSelectedReadWrite bool `json:"user_selected_read_write" plist:"com.apple.security.files.user-selected.read-write"`
+	Downloads             bool `json:"downloads" plist:"com.apple.security.files.downloads.read-write"`
+	HardenedRuntime       bool `json:"hardened_runtime" plist:"com.apple.security.cs.allow-unsigned-executable-memory"`
+	JIT                   bool `json:"jit" plist:"com.apple.security.cs.allow-jit"`
+	DylibEnvVar           bool `json:"dylib_env_var" plist:"com.apple.security.cs.allow-dylib-environment-variables"`
 }
 
 var (
@@ -422,6 +422,17 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			WindowSize: [2]int{640, 480},
 		}); err != nil {
 			return nil, coreerr.E("build.BuildApple", "failed to create DMG", err)
+		}
+		if options.Sign {
+			if err := appleSignFn(ctx, SignConfig{
+				AppPath:      dmgPath,
+				Identity:     options.CertIdentity,
+				Hardened:     false,
+				Deep:         false,
+				KeychainPath: options.KeychainPath,
+			}); err != nil {
+				return nil, coreerr.E("build.BuildApple", "failed to sign DMG", err)
+			}
 		}
 		distributionPath = dmgPath
 	}
