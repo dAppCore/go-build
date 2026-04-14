@@ -354,6 +354,64 @@ func TestApple_BuildWailsApp_PreBuildsFrontendAndForcesCGO_Good(t *testing.T) {
 	assert.Equal(t, "wails3", calls[1].command)
 }
 
+func TestApple_BuildWailsApp_UsesDenoWhenEnabledWithoutManifest_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	bundlePath := ax.Join(projectDir, "build", "bin", "Core.app")
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+	t.Setenv("DENO_ENABLE", "true")
+
+	oldResolve := appleResolveCommand
+	oldCombined := appleCombinedOutput
+	t.Cleanup(func() {
+		appleResolveCommand = oldResolve
+		appleCombinedOutput = oldCombined
+	})
+
+	var calls []struct {
+		dir     string
+		command string
+		args    []string
+	}
+
+	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
+		return name, nil
+	}
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+		calls = append(calls, struct {
+			dir     string
+			command string
+			args    []string
+		}{
+			dir:     dir,
+			command: command,
+			args:    append([]string{}, args...),
+		})
+
+		switch command {
+		case "deno":
+			assert.Equal(t, projectDir, dir)
+			assert.Equal(t, []string{"task", "build"}, args)
+		case "wails3":
+			writeDummyAppBundle(t, bundlePath, "Core", "built")
+		default:
+			t.Fatalf("unexpected command: %s", command)
+		}
+
+		return "", nil
+	}
+
+	result, err := BuildWailsApp(context.Background(), WailsBuildConfig{
+		ProjectDir: projectDir,
+		Name:       "Core",
+		Arch:       "arm64",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, bundlePath, result)
+	require.Len(t, calls, 2)
+	assert.Equal(t, "deno", calls[0].command)
+	assert.Equal(t, "wails3", calls[1].command)
+}
+
 func TestApple_BuildApple_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist", "apple")

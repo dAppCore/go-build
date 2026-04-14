@@ -248,10 +248,18 @@ func (b *WailsBuilder) resolveFrontendBuild(cfg *build.Config) (string, string, 
 	projectDir := cfg.ProjectDir
 	frontendDir := b.resolveFrontendDir(fs, projectDir)
 	if frontendDir == "" {
-		return "", "", nil, nil
+		if build.DenoRequested(cfg.DenoBuild) {
+			if fs.IsDir(ax.Join(projectDir, "frontend")) {
+				frontendDir = ax.Join(projectDir, "frontend")
+			} else {
+				frontendDir = projectDir
+			}
+		} else {
+			return "", "", nil, nil
+		}
 	}
 
-	if b.hasDenoConfig(fs, frontendDir) {
+	if b.hasDenoConfig(fs, frontendDir) || build.DenoRequested(cfg.DenoBuild) {
 		command, args, err := resolveDenoBuildCommand(cfg, b.resolveDenoCli)
 		if err != nil {
 			return "", "", nil, err
@@ -310,6 +318,13 @@ func (b *WailsBuilder) resolveFrontendDir(fs io.Medium, projectDir string) strin
 
 	if nestedFrontendDir := b.resolveSubtreeFrontendDir(fs, projectDir); nestedFrontendDir != "" {
 		return nestedFrontendDir
+	}
+
+	if build.DenoRequested("") {
+		if fs.IsDir(frontendDir) {
+			return frontendDir
+		}
+		return projectDir
 	}
 
 	return ""

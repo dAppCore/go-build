@@ -1,6 +1,7 @@
 package build
 
 import (
+	"runtime"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -778,12 +779,31 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
+		assert.Equal(t, runtime.GOOS, result.OS)
+		assert.Equal(t, runtime.GOARCH, result.Arch)
 		assert.Equal(t, "go", result.PrimaryStack)
 		assert.Equal(t, "go", result.SuggestedStack)
 		assert.False(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)
 		assert.True(t, result.Markers["go.mod"])
 		assert.False(t, result.Markers["wails.json"])
+	})
+
+	t.Run("captures GitHub metadata when available", func(t *testing.T) {
+		t.Setenv("GITHUB_SHA", "0123456789abcdef")
+		t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
+		t.Setenv("GITHUB_REPOSITORY", "dappcore/core")
+
+		dir := setupTestDir(t, "go.mod")
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, "refs/tags/v1.2.3", result.Ref)
+		assert.Equal(t, "v1.2.3", result.Tag)
+		assert.True(t, result.IsTag)
+		assert.Equal(t, "0123456789abcdef", result.SHA)
+		assert.Equal(t, "0123456", result.ShortSHA)
+		assert.Equal(t, "dappcore/core", result.Repo)
+		assert.Equal(t, "dappcore", result.Owner)
 	})
 
 	t.Run("returns complete result for Go workspace project", func(t *testing.T) {

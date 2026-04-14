@@ -1,5 +1,7 @@
 package build
 
+import "dappco.re/go/core"
+
 // BuildEnvironment returns a fresh environment slice that includes the
 // configured build environment, any derived cache variables, and optional
 // builder-specific values.
@@ -20,4 +22,28 @@ func BuildEnvironment(cfg *Config, extra ...string) []string {
 	}
 
 	return env
+}
+
+// DenoRequested reports whether the current build should prefer a Deno-backed
+// frontend build. It honours the action-style environment overrides first and
+// then the persisted/configured command override.
+func DenoRequested(configuredBuild string) bool {
+	if truthyEnv(core.Env("DENO_ENABLE")) {
+		return true
+	}
+
+	if core.Trim(core.Env("DENO_BUILD")) != "" {
+		return true
+	}
+
+	return core.Trim(configuredBuild) != ""
+}
+
+func truthyEnv(value string) bool {
+	switch core.Lower(core.Trim(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }

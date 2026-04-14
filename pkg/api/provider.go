@@ -332,6 +332,8 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 
 	c.JSON(http.StatusOK, api.OK(map[string]any{
 		"types":           typeStrings,
+		"os":              discovery.OS,
+		"arch":            discovery.Arch,
 		"primary":         primary,
 		"primary_stack":   discovery.PrimaryStack,
 		"suggested_stack": discovery.SuggestedStack,
@@ -339,6 +341,14 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		"has_frontend":    discovery.HasFrontend,
 		"has_subtree_npm": discovery.HasSubtreeNpm,
 		"linux_packages":  discovery.LinuxPackages,
+		"ref":             discovery.Ref,
+		"branch":          discovery.Branch,
+		"tag":             discovery.Tag,
+		"is_tag":          discovery.IsTag,
+		"sha":             discovery.SHA,
+		"short_sha":       discovery.ShortSHA,
+		"repo":            discovery.Repo,
+		"owner":           discovery.Owner,
 		"build_options":   options.String(),
 		"options": map[string]any{
 			"obfuscate": options.Obfuscate,

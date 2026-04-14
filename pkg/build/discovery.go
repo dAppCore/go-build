@@ -1,6 +1,8 @@
 package build
 
 import (
+	"runtime"
+
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/io"
@@ -274,6 +276,10 @@ func IsRustProject(fs io.Medium, dir string) bool {
 type DiscoveryResult struct {
 	// Types lists all detected project types in priority order.
 	Types []ProjectType
+	// OS is the current host operating system for the discovery run.
+	OS string
+	// Arch is the current host architecture for the discovery run.
+	Arch string
 	// PrimaryStack is the best stack suggestion based on detected types.
 	PrimaryStack string
 	// SuggestedStack is the richer action-oriented stack hint derived from markers.
@@ -291,6 +297,22 @@ type DiscoveryResult struct {
 	// Distro holds the detected Linux distribution version (e.g., "24.04").
 	// Used by ComputeOptions to inject webkit2_41 tag on Ubuntu 24.04+.
 	Distro string
+	// Ref is the Git ref when discovery runs under GitHub metadata.
+	Ref string
+	// Branch is the branch name when available from GitHub metadata.
+	Branch string
+	// Tag is the tag name when available from GitHub metadata.
+	Tag string
+	// IsTag reports whether Ref points at a tag.
+	IsTag bool
+	// SHA is the current GitHub commit SHA when available.
+	SHA string
+	// ShortSHA is the short GitHub commit SHA when available.
+	ShortSHA string
+	// Repo is the GitHub owner/repo string when available.
+	Repo string
+	// Owner is the GitHub repository owner when available.
+	Owner string
 }
 
 // DiscoverFull returns a rich discovery result with all markers and metadata.
@@ -305,6 +327,8 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	result := &DiscoveryResult{
 		Types:   types,
+		OS:      runtime.GOOS,
+		Arch:    runtime.GOARCH,
 		Markers: make(map[string]bool),
 	}
 
@@ -342,6 +366,16 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	// Linux distro detection: used for distro-sensitive build flags.
 	result.Distro = detectDistroVersion(fs)
 	result.LinuxPackages = ResolveLinuxPackages(result.Types, result.Distro)
+	if git := DetectGitHubMetadata(); git != nil {
+		result.Ref = git.Ref
+		result.Branch = git.Branch
+		result.Tag = git.Tag
+		result.IsTag = git.IsTag
+		result.SHA = git.SHA
+		result.ShortSHA = git.ShortSHA
+		result.Repo = git.Repo
+		result.Owner = git.Owner
+	}
 
 	// Primary stack: first detected type as string, or empty
 	if len(types) > 0 {

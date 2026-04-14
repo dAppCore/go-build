@@ -147,6 +147,16 @@ set -euo pipefail
 
 export PATH="${HOME}/go/bin:${HOME}/.deno/bin:${HOME}/.bun/bin:${PATH}"
 
+deno_requested() {
+  case "${DENO_ENABLE:-}" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+  esac
+
+  [ -n "${DENO_BUILD:-}" ]
+}
+
 install_node_package_dir() {
   local dir="$1"
   if [ ! -f "$dir/package.json" ]; then
@@ -204,7 +214,7 @@ if ! command -v wails3 >/dev/null 2>&1 && ! command -v wails >/dev/null 2>&1; th
   go install github.com/wailsapp/wails/v3/cmd/wails3@latest
 fi
 
-if find . -maxdepth 3 \( -name deno.json -o -name deno.jsonc \) -not -path '*/node_modules/*' | grep -q .; then
+if deno_requested || find . -maxdepth 3 \( -name deno.json -o -name deno.jsonc \) -not -path '*/node_modules/*' | grep -q .; then
   if ! command -v deno >/dev/null 2>&1; then
     curl -fsSL https://deno.land/install.sh | sh
     export PATH="${HOME}/.deno/bin:${PATH}"

@@ -53,6 +53,8 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "python -m pip install mkdocs")
 		assert.Contains(t, content, "Setup Deno")
 		assert.Contains(t, content, "denoland/setup-deno@v2")
+		assert.Contains(t, content, "env.DENO_ENABLE == 'true'")
+		assert.Contains(t, content, "inputs.deno-build != ''")
 		assert.Contains(t, content, "build-cache:")
 		assert.Contains(t, content, "Restore build cache")
 		assert.Contains(t, content, "actions/cache@v4")

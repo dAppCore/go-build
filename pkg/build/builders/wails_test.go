@@ -471,6 +471,17 @@ func TestWails_WailsBuilderResolveFrontendDir_Good(t *testing.T) {
 		got := builder.resolveFrontendDir(fs, projectDir)
 		assert.Empty(t, got)
 	})
+
+	t.Run("falls back to frontend directory when DENO_ENABLE is set", func(t *testing.T) {
+		t.Setenv("DENO_ENABLE", "true")
+
+		projectDir := t.TempDir()
+		frontendDir := ax.Join(projectDir, "frontend")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+
+		got := builder.resolveFrontendDir(fs, projectDir)
+		assert.Equal(t, frontendDir, got)
+	})
 }
 
 func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
@@ -755,6 +766,68 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 		assert.Equal(t, "npm", lines[0])
 		assert.Equal(t, "run", lines[1])
 		assert.Equal(t, "build", lines[2])
+	})
+
+	t.Run("prefers deno when DENO_ENABLE is set without a deno manifest", func(t *testing.T) {
+		binDir := t.TempDir()
+		setupFakeFrontendCommand(t, binDir, "deno")
+		setupFakeFrontendCommand(t, binDir, "npm")
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		t.Setenv("DENO_ENABLE", "true")
+
+		projectDir := setupWailsTestProject(t)
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+
+		logPath := ax.Join(t.TempDir(), "frontend-deno-enable.log")
+		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
+
+		builder := NewWailsBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+		}
+
+		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.Len(t, lines, 3)
+		assert.Equal(t, "deno", lines[0])
+		assert.Equal(t, "task", lines[1])
+		assert.Equal(t, "build", lines[2])
+	})
+
+	t.Run("uses configured deno build command without a deno manifest", func(t *testing.T) {
+		binDir := t.TempDir()
+		setupFakeFrontendCommand(t, binDir, "deno-build")
+		setupFakeFrontendCommand(t, binDir, "npm")
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		projectDir := setupWailsTestProject(t)
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+
+		logPath := ax.Join(t.TempDir(), "frontend-config-deno.log")
+		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
+
+		builder := NewWailsBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			DenoBuild:  "deno-build --target release",
+		}
+
+		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.Len(t, lines, 3)
+		assert.Equal(t, "deno-build", lines[0])
+		assert.Equal(t, "--target", lines[1])
+		assert.Equal(t, "release", lines[2])
 	})
 
 	t.Run("discovers nested package.json in a monorepo", func(t *testing.T) {

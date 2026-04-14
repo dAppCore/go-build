@@ -326,7 +326,7 @@ jobs:
           python -m pip install mkdocs
 
       - name: Setup Deno
-        if: hashFiles(format('{0}/**/deno.json', inputs.working-directory), format('{0}/**/deno.jsonc', inputs.working-directory)) != ''
+        if: env.DENO_ENABLE == 'true' || env.DENO_ENABLE == '1' || env.DENO_ENABLE == 'yes' || env.DENO_ENABLE == 'on' || inputs.deno-build != '' || hashFiles(format('{0}/**/deno.json', inputs.working-directory), format('{0}/**/deno.jsonc', inputs.working-directory)) != ''
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x

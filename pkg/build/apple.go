@@ -658,10 +658,17 @@ func prepareWailsFrontend(ctx context.Context, cfg WailsBuildConfig) error {
 func resolveWailsFrontendBuild(cfg WailsBuildConfig) (string, string, []string, error) {
 	frontendDir := resolveFrontendDir(io.Local, cfg.ProjectDir)
 	if frontendDir == "" {
-		return "", "", nil, nil
+		if DenoRequested(cfg.DenoBuild) {
+			frontendDir = cfg.ProjectDir
+			if io.Local.IsDir(ax.Join(cfg.ProjectDir, "frontend")) {
+				frontendDir = ax.Join(cfg.ProjectDir, "frontend")
+			}
+		} else {
+			return "", "", nil, nil
+		}
 	}
 
-	if hasDenoConfig(io.Local, frontendDir) {
+	if hasDenoConfig(io.Local, frontendDir) || DenoRequested(cfg.DenoBuild) {
 		command, args, err := resolveDenoBuildCommand(cfg)
 		if err != nil {
 			return "", "", nil, err
@@ -686,7 +693,18 @@ func resolveFrontendDir(filesystem io.Medium, projectDir string) string {
 		return projectDir
 	}
 
-	return resolveSubtreeFrontendDir(filesystem, projectDir)
+	if nested := resolveSubtreeFrontendDir(filesystem, projectDir); nested != "" {
+		return nested
+	}
+
+	if DenoRequested("") {
+		if filesystem.IsDir(frontendDir) {
+			return frontendDir
+		}
+		return projectDir
+	}
+
+	return ""
 }
 
 func hasDenoConfig(filesystem io.Medium, dir string) bool {

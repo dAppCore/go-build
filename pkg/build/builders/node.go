@@ -182,7 +182,12 @@ func (b *NodeBuilder) resolvePackageManager(fs io.Medium, projectDir string) (st
 //
 // command, args, err := b.resolveBuildCommand("npm")
 func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, projectDir string) (string, []string, error) {
-	if b.hasDenoConfig(fs, projectDir) {
+	configuredDenoBuild := ""
+	if cfg != nil {
+		configuredDenoBuild = cfg.DenoBuild
+	}
+
+	if b.hasDenoConfig(fs, projectDir) || build.DenoRequested(configuredDenoBuild) {
 		return resolveDenoBuildCommand(cfg, b.resolveDenoCli)
 	}
 

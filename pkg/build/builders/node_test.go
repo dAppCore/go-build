@@ -300,6 +300,85 @@ func TestNode_NodeBuilderBuild_Good_DenoOverrideFromEnvWins(t *testing.T) {
 	assert.Equal(t, "--env", lines[1])
 }
 
+func TestNode_NodeBuilderBuild_Good_DenoEnableWithoutManifest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeNodeToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("DENO_ENABLE", "true")
+
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+
+	outputDir := t.TempDir()
+	logPath := ax.Join(t.TempDir(), "deno-enable.log")
+	t.Setenv("NODE_BUILD_LOG_FILE", logPath)
+
+	builder := NewNodeBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Name:       "denoapp",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.GreaterOrEqual(t, len(lines), 3)
+	assert.Equal(t, "deno", lines[0])
+	assert.Equal(t, "task", lines[1])
+	assert.Equal(t, "build", lines[2])
+}
+
+func TestNode_NodeBuilderBuild_Good_DenoOverrideWithoutManifest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeNodeToolchain(t, binDir)
+	setupFakeNodeCommand(t, binDir, "deno-build")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+
+	outputDir := t.TempDir()
+	logPath := ax.Join(t.TempDir(), "deno-config.log")
+	t.Setenv("NODE_BUILD_LOG_FILE", logPath)
+
+	builder := NewNodeBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Name:       "denoapp",
+		DenoBuild:  "deno-build --target release",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.GreaterOrEqual(t, len(lines), 3)
+	assert.Equal(t, "deno-build", lines[0])
+	assert.Equal(t, "--target", lines[1])
+	assert.Equal(t, "release", lines[2])
+}
+
 func TestNode_ResolvePackageManager_Good(t *testing.T) {
 	fs := io.Local
 	builder := NewNodeBuilder()
