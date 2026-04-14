@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -121,6 +122,129 @@ func TestApple_CreateUniversal_MergesHelpersAndFrameworks_Good(t *testing.T) {
 		require.NoError(t, readErr)
 		assert.Equal(t, "universal", string(content))
 	}
+}
+
+func TestApple_NormaliseDMGConfig_Defaults_Good(t *testing.T) {
+	cfg := normaliseDMGConfig(DMGConfig{
+		AppPath: ax.Join("/tmp", "Core.app"),
+	})
+
+	assert.Equal(t, "Core", cfg.VolumeName)
+	assert.Equal(t, defaultDMGIconSize, cfg.IconSize)
+	assert.Equal(t, [2]int{defaultDMGWindowWidth, defaultDMGWindowHeight}, cfg.WindowSize)
+}
+
+func TestApple_BuildDMGAppleScript_UsesConfiguredLayout_Good(t *testing.T) {
+	script := buildDMGAppleScript("Core", "Core.app", DMGConfig{
+		AppPath:    ax.Join("/tmp", "Core.app"),
+		Background: "assets/dmg-background.png",
+		IconSize:   144,
+		WindowSize: [2]int{800, 520},
+	})
+
+	assert.Contains(t, script, `tell disk "Core"`)
+	assert.Contains(t, script, "set bounds of container window to {100, 100, 900, 620}")
+	assert.Contains(t, script, "set icon size of opts to 144")
+	assert.Contains(t, script, `set background picture of opts to file ".background:dmg-background.png"`)
+	assert.Contains(t, script, `set position of item "Core.app" of container window to {200, 260}`)
+	assert.Contains(t, script, `set position of item "Applications" of container window to {600, 260}`)
+}
+
+func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	appPath := ax.Join(projectDir, "Core.app")
+	backgroundPath := ax.Join(projectDir, "assets", "dmg-background.png")
+	outputPath := ax.Join(projectDir, "dist", "Core.dmg")
+
+	writeDummyAppBundle(t, appPath, "Core", "built")
+	require.NoError(t, io.Local.EnsureDir(ax.Dir(backgroundPath)))
+	require.NoError(t, ax.WriteFile(backgroundPath, []byte("background"), 0o644))
+
+	oldResolve := appleResolveCommand
+	oldCombined := appleCombinedOutput
+	t.Cleanup(func() {
+		appleResolveCommand = oldResolve
+		appleCombinedOutput = oldCombined
+	})
+
+	var commands []struct {
+		command string
+		args    []string
+	}
+
+	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
+		return name, nil
+	}
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+		commands = append(commands, struct {
+			command string
+			args    []string
+		}{
+			command: command,
+			args:    append([]string{}, args...),
+		})
+
+		switch command {
+		case "hdiutil":
+			require.NotEmpty(t, args)
+			switch args[0] {
+			case "create":
+				srcIndex := indexOf(args, "-srcfolder")
+				require.GreaterOrEqual(t, srcIndex, 0)
+				stageDir := args[srcIndex+1]
+
+				assert.True(t, io.Local.Exists(ax.Join(stageDir, "Core.app")))
+				linkTarget, err := os.Readlink(ax.Join(stageDir, "Applications"))
+				require.NoError(t, err)
+				assert.Equal(t, "/Applications", linkTarget)
+				backgroundContent, err := io.Local.Read(ax.Join(stageDir, ".background", "dmg-background.png"))
+				require.NoError(t, err)
+				assert.Equal(t, "background", backgroundContent)
+			case "attach":
+				assert.Contains(t, args, "-mountpoint")
+			case "detach":
+				assert.Equal(t, "detach", args[0])
+			case "convert":
+				assert.Equal(t, outputPath, args[len(args)-1])
+			default:
+				t.Fatalf("unexpected hdiutil command: %v", args)
+			}
+		case "osascript":
+			require.Len(t, args, 1)
+			script, err := io.Local.Read(args[0])
+			require.NoError(t, err)
+			assert.Contains(t, script, "set bounds of container window to {100, 100, 740, 580}")
+			assert.Contains(t, script, "set icon size of opts to 144")
+			assert.Contains(t, script, `set background picture of opts to file ".background:dmg-background.png"`)
+			assert.Contains(t, script, `set position of item "Core.app" of container window to {176, 240}`)
+			assert.Contains(t, script, `set position of item "Applications" of container window to {480, 240}`)
+		default:
+			t.Fatalf("unexpected command: %s", command)
+		}
+
+		return "", nil
+	}
+
+	err := CreateDMG(context.Background(), DMGConfig{
+		AppPath:    appPath,
+		OutputPath: outputPath,
+		VolumeName: "Core",
+		Background: backgroundPath,
+		IconSize:   144,
+		WindowSize: [2]int{640, 480},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, commands, 5)
+	assert.Equal(t, "hdiutil", commands[0].command)
+	assert.Equal(t, "create", commands[0].args[0])
+	assert.Equal(t, "hdiutil", commands[1].command)
+	assert.Equal(t, "attach", commands[1].args[0])
+	assert.Equal(t, "osascript", commands[2].command)
+	assert.Equal(t, "hdiutil", commands[3].command)
+	assert.Equal(t, "detach", commands[3].args[0])
+	assert.Equal(t, "hdiutil", commands[4].command)
+	assert.Equal(t, "convert", commands[4].args[0])
 }
 
 func TestApple_BuildWailsApp_AddsMLXBuildTag_Good(t *testing.T) {
@@ -604,4 +728,13 @@ func assertEnvEntry(entry, prefix string) (string, bool) {
 		return "", false
 	}
 	return entry[len(prefix):], true
+}
+
+func indexOf(values []string, needle string) int {
+	for i, value := range values {
+		if value == needle {
+			return i
+		}
+	}
+	return -1
 }

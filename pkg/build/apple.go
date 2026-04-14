@@ -23,6 +23,9 @@ const (
 	defaultAppleArch             = "universal"
 	defaultAppleMinSystemVersion = "13.0"
 	defaultAppleCategory         = "public.app-category.developer-tools"
+	defaultDMGIconSize           = 128
+	defaultDMGWindowWidth        = 640
+	defaultDMGWindowHeight       = 480
 )
 
 // AppleOptions holds the resolved runtime settings for the macOS Apple pipeline.
@@ -1066,12 +1069,24 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) error {
 	if cfg.AppPath == "" || cfg.OutputPath == "" {
 		return coreerr.E("build.CreateDMG", "app_path and output_path are required", nil)
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
-	stageDir, err := ax.TempDir("core-build-dmg-*")
+	cfg = normaliseDMGConfig(cfg)
+
+	tempDir, err := ax.TempDir("core-build-dmg-*")
 	if err != nil {
 		return coreerr.E("build.CreateDMG", "failed to create DMG staging directory", err)
 	}
-	defer func() { _ = ax.RemoveAll(stageDir) }()
+	defer func() { _ = ax.RemoveAll(tempDir) }()
+
+	stageDir := ax.Join(tempDir, "stage")
+	mountDir := ax.Join(tempDir, "mount")
+	rwDMGPath := ax.Join(tempDir, "staging.dmg")
+	if err := io.Local.EnsureDir(stageDir); err != nil {
+		return coreerr.E("build.CreateDMG", "failed to create DMG stage directory", err)
+	}
 
 	appName := ax.Base(cfg.AppPath)
 	stageAppPath := ax.Join(stageDir, appName)
@@ -1101,18 +1116,183 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) error {
 	if err != nil {
 		return err
 	}
+	osascriptCommand, err := resolveOsaScriptCli()
+	if err != nil {
+		return err
+	}
 
-	args := []string{
+	volumeName := firstNonEmpty(cfg.VolumeName, core.TrimSuffix(appName, ".app"))
+	createArgs := []string{
 		"create",
-		"-volname", firstNonEmpty(cfg.VolumeName, core.TrimSuffix(appName, ".app")),
+		"-volname", volumeName,
 		"-srcfolder", stageDir,
 		"-ov",
-		"-format", "UDZO",
-		cfg.OutputPath,
+		"-format", "UDRW",
+		rwDMGPath,
 	}
-	output, err := appleCombinedOutput(ctx, "", nil, hdiutilCommand, args...)
+	output, err := appleCombinedOutput(ctx, "", nil, hdiutilCommand, createArgs...)
 	if err != nil {
 		return coreerr.E("build.CreateDMG", "hdiutil failed: "+output, err)
+	}
+
+	if err := io.Local.EnsureDir(mountDir); err != nil {
+		return coreerr.E("build.CreateDMG", "failed to create DMG mount directory", err)
+	}
+
+	attached := false
+	defer func() {
+		if attached {
+			_ = detachDMG(context.Background(), hdiutilCommand, mountDir)
+		}
+	}()
+
+	attachArgs := []string{
+		"attach",
+		"-readwrite",
+		"-noverify",
+		"-noautoopen",
+		"-mountpoint", mountDir,
+		rwDMGPath,
+	}
+	output, err = appleCombinedOutput(ctx, "", nil, hdiutilCommand, attachArgs...)
+	if err != nil {
+		return coreerr.E("build.CreateDMG", "failed to mount staging DMG: "+output, err)
+	}
+	attached = true
+
+	scriptPath := ax.Join(tempDir, "layout.applescript")
+	script := buildDMGAppleScript(volumeName, appName, cfg)
+	if err := io.Local.WriteMode(scriptPath, script, 0o644); err != nil {
+		return coreerr.E("build.CreateDMG", "failed to write DMG layout script", err)
+	}
+
+	output, err = appleCombinedOutput(ctx, "", nil, osascriptCommand, scriptPath)
+	if err != nil {
+		return coreerr.E("build.CreateDMG", "failed to configure Finder layout: "+output, err)
+	}
+
+	if err := detachDMG(ctx, hdiutilCommand, mountDir); err != nil {
+		return err
+	}
+	attached = false
+
+	convertArgs := []string{
+		"convert",
+		rwDMGPath,
+		"-format", "UDZO",
+		"-ov",
+		"-o", cfg.OutputPath,
+	}
+	output, err = appleCombinedOutput(ctx, "", nil, hdiutilCommand, convertArgs...)
+	if err != nil {
+		return coreerr.E("build.CreateDMG", "failed to convert DMG: "+output, err)
+	}
+
+	return nil
+}
+
+func normaliseDMGConfig(cfg DMGConfig) DMGConfig {
+	if cfg.IconSize <= 0 {
+		cfg.IconSize = defaultDMGIconSize
+	}
+	if cfg.WindowSize[0] <= 0 || cfg.WindowSize[1] <= 0 {
+		cfg.WindowSize = [2]int{defaultDMGWindowWidth, defaultDMGWindowHeight}
+	}
+	if cfg.VolumeName == "" {
+		cfg.VolumeName = core.TrimSuffix(ax.Base(cfg.AppPath), ".app")
+	}
+	return cfg
+}
+
+func buildDMGAppleScript(volumeName, appName string, cfg DMGConfig) string {
+	cfg = normaliseDMGConfig(cfg)
+	appX, appY, applicationsX, applicationsY := dmgLayoutPositions(cfg.WindowSize, cfg.IconSize)
+
+	backgroundLine := ""
+	if cfg.Background != "" {
+		backgroundLine = core.Sprintf("\n    set background picture of opts to file \".background:%s\"", escapeAppleScriptString(ax.Base(cfg.Background)))
+	}
+
+	return core.Sprintf(
+		"tell application \"Finder\"\n"+
+			"  tell disk \"%s\"\n"+
+			"    open\n"+
+			"    set current view of container window to icon view\n"+
+			"    set toolbar visible of container window to false\n"+
+			"    set statusbar visible of container window to false\n"+
+			"    set bounds of container window to {100, 100, %d, %d}\n"+
+			"    set opts to the icon view options of container window\n"+
+			"    set arrangement of opts to not arranged\n"+
+			"    set icon size of opts to %d%s\n"+
+			"    set position of item \"%s\" of container window to {%d, %d}\n"+
+			"    set position of item \"Applications\" of container window to {%d, %d}\n"+
+			"    update without registering applications\n"+
+			"    delay 1\n"+
+			"    close\n"+
+			"    open\n"+
+			"    update without registering applications\n"+
+			"    delay 1\n"+
+			"  end tell\n"+
+			"end tell\n",
+		escapeAppleScriptString(volumeName),
+		100+cfg.WindowSize[0],
+		100+cfg.WindowSize[1],
+		cfg.IconSize,
+		backgroundLine,
+		escapeAppleScriptString(appName),
+		appX,
+		appY,
+		applicationsX,
+		applicationsY,
+	)
+}
+
+func dmgLayoutPositions(windowSize [2]int, iconSize int) (int, int, int, int) {
+	width := windowSize[0]
+	height := windowSize[1]
+	if width <= 0 {
+		width = defaultDMGWindowWidth
+	}
+	if height <= 0 {
+		height = defaultDMGWindowHeight
+	}
+	if iconSize <= 0 {
+		iconSize = defaultDMGIconSize
+	}
+
+	appX := width / 4
+	if appX < iconSize+32 {
+		appX = iconSize + 32
+	}
+	applicationsX := (width * 3) / 4
+	if applicationsX <= appX {
+		applicationsX = appX + iconSize + 96
+	}
+	appY := height / 2
+	if appY < iconSize+32 {
+		appY = iconSize + 32
+	}
+
+	return appX, appY, applicationsX, appY
+}
+
+func escapeAppleScriptString(value string) string {
+	return strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(value)
+}
+
+func detachDMG(ctx context.Context, hdiutilCommand, mountDir string) error {
+	output, err := appleCombinedOutput(ctx, "", nil, hdiutilCommand, "detach", mountDir)
+	if err == nil {
+		return nil
+	}
+
+	forceOutput, forceErr := appleCombinedOutput(ctx, "", nil, hdiutilCommand, "detach", mountDir, "-force")
+	if forceErr != nil {
+		message := output
+		if forceOutput != "" {
+			message = core.Join("\n", output, forceOutput)
+		}
+		return coreerr.E("build.CreateDMG", "failed to detach staging DMG: "+message, forceErr)
 	}
 
 	return nil
@@ -2107,6 +2287,14 @@ func resolveHdiutilCli() (string, error) {
 	command, err := appleResolveCommand("hdiutil", "/usr/bin/hdiutil", "/usr/local/bin/hdiutil", "/opt/homebrew/bin/hdiutil")
 	if err != nil {
 		return "", coreerr.E("build.resolveHdiutilCli", "hdiutil not found. macOS disk image tools are required.", err)
+	}
+	return command, nil
+}
+
+func resolveOsaScriptCli() (string, error) {
+	command, err := appleResolveCommand("osascript", "/usr/bin/osascript", "/usr/local/bin/osascript", "/opt/homebrew/bin/osascript")
+	if err != nil {
+		return "", coreerr.E("build.resolveOsaScriptCli", "osascript not found. Finder automation is required for DMG layout.", err)
 	}
 	return command, nil
 }
