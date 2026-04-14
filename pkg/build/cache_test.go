@@ -66,7 +66,7 @@ func TestCache_SetupCache_Good_Disabled(t *testing.T) {
 	err := SetupCache(fs, "/workspace/project", cfg)
 	require.NoError(t, err)
 
-	assert.Empty(t, fs.Dirs)
+	assert.False(t, fs.Exists("/workspace/project/.core/cache"))
 	assert.Empty(t, fs.Files)
 	assert.Empty(t, cfg.Directory)
 	assert.Equal(t, []string{"cache/go-build"}, cfg.Paths)
@@ -86,7 +86,7 @@ func TestCache_SetupBuildCache_Good_Disabled(t *testing.T) {
 	err := SetupBuildCache(fs, "/workspace/project", cfg)
 	require.NoError(t, err)
 
-	assert.Empty(t, fs.Dirs)
+	assert.False(t, fs.Exists("/workspace/project/.core/cache"))
 	assert.Empty(t, cfg.Build.Cache.Directory)
 	assert.Equal(t, []string{"cache/go-build"}, cfg.Build.Cache.Paths)
 }

@@ -63,6 +63,37 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeNode}, types)
 	})
 
+	t.Run("detects Wails project from go.mod and root package.json", func(t *testing.T) {
+		dir := setupTestDir(t, "go.mod", "package.json")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
+	})
+
+	t.Run("detects Wails project from go.mod and nested frontend package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
+		nested := ax.Join(dir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
+	})
+
+	t.Run("detects Wails project from go.work and frontend deno.json", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.26\nuse ."), 0o644))
+		frontend := ax.Join(dir, "frontend")
+		require.NoError(t, ax.MkdirAll(frontend, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontend, "deno.json"), []byte("{}"), 0o644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo}, types)
+	})
+
 	t.Run("detects PHP project", func(t *testing.T) {
 		dir := setupTestDir(t, "composer.json")
 		types, err := Discover(fs, dir)
@@ -184,7 +215,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		dir := setupTestDir(t, "go.mod", "package.json")
 		types, err := Discover(fs, dir)
 		assert.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeGo, ProjectTypeNode}, types)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
 	})
 
 	t.Run("preserves priority when core and fallback markers overlap", func(t *testing.T) {
@@ -249,6 +280,18 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 		assert.Equal(t, ProjectTypeNode, primary)
 	})
 
+	t.Run("returns wails for go.mod with nested frontend package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
+		nested := ax.Join(dir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
+
+		primary, err := PrimaryType(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, ProjectTypeWails, primary)
+	})
+
 	t.Run("returns empty string for empty directory", func(t *testing.T) {
 		dir := t.TempDir()
 		primary, err := PrimaryType(fs, dir)
@@ -284,6 +327,29 @@ func TestDiscovery_IsWailsProject_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("true with wails.json", func(t *testing.T) {
 		dir := setupTestDir(t, "wails.json")
+		assert.True(t, IsWailsProject(fs, dir))
+	})
+
+	t.Run("true with go.mod and root package.json", func(t *testing.T) {
+		dir := setupTestDir(t, "go.mod", "package.json")
+		assert.True(t, IsWailsProject(fs, dir))
+	})
+
+	t.Run("true with go.mod and nested frontend package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
+		nested := ax.Join(dir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
+		assert.True(t, IsWailsProject(fs, dir))
+	})
+
+	t.Run("true with go.work and frontend deno.json", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.26\nuse ."), 0o644))
+		frontend := ax.Join(dir, "frontend")
+		require.NoError(t, ax.MkdirAll(frontend, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontend, "deno.json"), []byte("{}"), 0o644))
 		assert.True(t, IsWailsProject(fs, dir))
 	})
 
@@ -360,7 +426,7 @@ func TestDiscovery_DiscoverTestdata_Good(t *testing.T) {
 		{"wails-project", "wails-project", []ProjectType{ProjectTypeWails, ProjectTypeGo}},
 		{"node-project", "node-project", []ProjectType{ProjectTypeNode}},
 		{"php-project", "php-project", []ProjectType{ProjectTypePHP}},
-		{"multi-project", "multi-project", []ProjectType{ProjectTypeGo, ProjectTypeNode}},
+		{"multi-project", "multi-project", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}},
 		{"empty-project", "empty-project", []ProjectType{}},
 		{"docs-project", "docs-project", []ProjectType{ProjectTypeDocs}},
 		{"python-project", "python-project", []ProjectType{ProjectTypePython}},
@@ -616,7 +682,8 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeGo, ProjectTypeNode}, result.Types)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
+		assert.Equal(t, "wails", result.PrimaryStack)
 		assert.True(t, result.HasSubtreeNpm)
 		assert.True(t, result.HasFrontend)
 	})
@@ -633,6 +700,17 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.False(t, result.HasSubtreeNpm)
 	})
 
+	t.Run("detects go.mod with root package.json as Wails", func(t *testing.T) {
+		dir := setupTestDir(t, "go.mod", "package.json")
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
+		assert.Equal(t, "wails", result.PrimaryStack)
+		assert.True(t, result.HasFrontend)
+		assert.False(t, result.HasSubtreeNpm)
+	})
+
 	t.Run("detects frontend deno manifest at project root", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644)
@@ -643,7 +721,8 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo}, result.Types)
+		assert.Equal(t, "wails", result.PrimaryStack)
 		assert.True(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)
 		assert.True(t, result.Markers["frontend/deno.json"])
@@ -660,7 +739,8 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo}, result.Types)
+		assert.Equal(t, "wails", result.PrimaryStack)
 		assert.True(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)
 	})

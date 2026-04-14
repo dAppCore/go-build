@@ -660,6 +660,30 @@ func TestWails_WailsBuilderDetect_Good(t *testing.T) {
 		assert.False(t, detected)
 	})
 
+	t.Run("detects Go project with root frontend package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
+
+		builder := NewWailsBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.True(t, detected)
+	})
+
+	t.Run("detects Go project with nested frontend deno manifest", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.26\nuse ."), 0o644))
+		frontendDir := ax.Join(dir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644))
+
+		builder := NewWailsBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.True(t, detected)
+	})
+
 	t.Run("returns false for Node.js project", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644)

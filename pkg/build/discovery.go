@@ -66,6 +66,10 @@ var markers = []projectMarker{
 func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 	var detected []ProjectType
 
+	if IsWailsProject(fs, dir) {
+		detected = append(detected, ProjectTypeWails)
+	}
+
 	for _, m := range markers {
 		path := ax.Join(dir, m.file)
 		if fileExists(fs, path) {
@@ -124,7 +128,17 @@ func IsGoProject(fs io.Medium, dir string) bool {
 //
 // if build.IsWailsProject(io.Local, ".") { ... }
 func IsWailsProject(fs io.Medium, dir string) bool {
-	return fileExists(fs, ax.Join(dir, markerWails))
+	if fileExists(fs, ax.Join(dir, markerWails)) {
+		return true
+	}
+
+	if !hasGoRootMarker(fs, dir) {
+		return false
+	}
+
+	return hasFrontendManifest(fs, dir) ||
+		hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
+		hasSubtreeFrontendManifest(fs, dir)
 }
 
 // IsNodeProject checks if the directory contains a Node.js project.
@@ -361,6 +375,12 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 	}
 
 	return false
+}
+
+// hasGoRootMarker reports whether the project root contains a Go module or workspace marker.
+func hasGoRootMarker(fs io.Medium, dir string) bool {
+	return fileExists(fs, ax.Join(dir, markerGoMod)) ||
+		fileExists(fs, ax.Join(dir, markerGoWork))
 }
 
 // fileExists checks if a file exists and is not a directory.

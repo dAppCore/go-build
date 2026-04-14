@@ -125,7 +125,7 @@ func TestWorkflow_ReleaseWorkflowPath_Good(t *testing.T) {
 func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
 		fs := io.NewMockMedium()
-		fs.Dirs["/tmp/project/ci"] = true
+		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path := ResolveReleaseWorkflowOutputPathWithMedium(fs, "/tmp/project", "ci")
 		assert.Equal(t, "/tmp/project/ci/release.yml", path)
@@ -271,7 +271,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Bad(t *testing.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
 		fs := io.NewMockMedium()
-		fs.Dirs["/tmp/project/ci"] = true
+		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "")
 		require.NoError(t, err)
@@ -320,7 +320,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 
 	t.Run("normalizes matching directory aliases", func(t *testing.T) {
 		fs := io.NewMockMedium()
-		fs.Dirs["/tmp/project/ci"] = true
+		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "ci/")
 		require.NoError(t, err)
@@ -329,7 +329,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 
 	t.Run("trims surrounding whitespace before resolving", func(t *testing.T) {
 		fs := io.NewMockMedium()
-		fs.Dirs["/tmp/project/ci"] = true
+		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "  ci  ", "  ")
 		require.NoError(t, err)
@@ -372,7 +372,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 
 	t.Run("normalises matching aliases", func(t *testing.T) {
 		fs := io.NewMockMedium()
-		fs.Dirs["/tmp/project/ci"] = true
+		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/", "./ci", "ci", "")
 		require.NoError(t, err)
@@ -498,7 +498,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testi
 
 	t.Run("treats an existing absolute directory as a workflow directory", func(t *testing.T) {
 		fs := io.NewMockMedium()
-		fs.Dirs[absoluteDirectory] = true
+		require.NoError(t, fs.EnsureDir(absoluteDirectory))
 
 		path, err := ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(fs, projectDir, "", "", "", "", absoluteDirectory, "", "", "", "")
 		require.NoError(t, err)
