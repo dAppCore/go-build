@@ -53,6 +53,7 @@ func TestAppleBuilder_Register_Good(t *testing.T) {
 	require.NotNil(t, builder.ServiceRuntime)
 	assert.Same(t, c, builder.Core())
 	assert.True(t, c.Service("apple").OK)
+	assert.True(t, c.RegistryOf("services").Has("apple"))
 }
 
 func TestAppleBuilder_Detect_Good(t *testing.T) {
@@ -199,6 +200,45 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 	result := New().Build(context.Background(), nil)
 	require.True(t, result.OK)
 	assert.Equal(t, ax.Join(projectDir, "dist", "apple", "Core.app"), result.Value)
+}
+
+func TestApple_BuildWailsApp_UsesCurrentDirectoryAndStringLDFlags_Good(t *testing.T) {
+	projectDir := t.TempDir()
+
+	oldBuildWails := buildWailsAppFn
+	oldGetwd := getwdFn
+	t.Cleanup(func() {
+		buildWailsAppFn = oldBuildWails
+		getwdFn = oldGetwd
+	})
+
+	getwdFn = func() (string, error) {
+		return projectDir, nil
+	}
+
+	buildWailsAppFn = func(ctx context.Context, cfg build.WailsBuildConfig) (string, error) {
+		assert.Equal(t, projectDir, cfg.ProjectDir)
+		assert.Equal(t, "Core", cfg.Name)
+		assert.Equal(t, "arm64", cfg.Arch)
+		assert.Equal(t, []string{"integration"}, cfg.BuildTags)
+		assert.Equal(t, []string{"-s -w -X main.version=1.2.3"}, cfg.LDFlags)
+		assert.Equal(t, "1.2.3", cfg.Version)
+		assert.Equal(t, []string{"FOO=bar"}, cfg.Env)
+		return ax.Join(projectDir, "dist", "Core.app"), nil
+	}
+
+	result := BuildWailsApp(context.Background(), WailsBuildConfig{
+		Name:      "Core",
+		Arch:      "arm64",
+		BuildTags: []string{"integration"},
+		LDFlags:   "-s -w -X main.version=1.2.3",
+		OutputDir: ax.Join(projectDir, "dist"),
+		Version:   "1.2.3",
+		Env:       []string{"FOO=bar"},
+	})
+
+	require.True(t, result.OK)
+	assert.Equal(t, ax.Join(projectDir, "dist", "Core.app"), result.Value)
 }
 
 func boolPtr(value bool) *bool {

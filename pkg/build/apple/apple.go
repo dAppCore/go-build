@@ -15,8 +15,19 @@ import (
 // AppleOptions aliases the core Apple pipeline options.
 type AppleOptions = build.AppleOptions
 
-// WailsBuildConfig aliases the Wails build configuration used by the Apple pipeline.
-type WailsBuildConfig = build.WailsBuildConfig
+// WailsBuildConfig mirrors the RFC-facing Apple wrapper input shape.
+// The wrapper keeps LDFlags as a single string while the lower-level build
+// package accepts a slice for direct CLI assembly.
+type WailsBuildConfig struct {
+	ProjectDir string   `json:"project_dir" yaml:"project_dir"`
+	Name       string   `json:"name" yaml:"name"`
+	Arch       string   `json:"arch" yaml:"arch"`
+	BuildTags  []string `json:"build_tags" yaml:"build_tags"`
+	LDFlags    string   `json:"ldflags" yaml:"ldflags"`
+	OutputDir  string   `json:"output_dir" yaml:"output_dir"`
+	Version    string   `json:"version" yaml:"version"`
+	Env        []string `json:"env" yaml:"env"`
+}
 
 // SignConfig aliases the codesign configuration.
 type SignConfig = build.SignConfig
@@ -238,7 +249,29 @@ func (b *AppleBuilder) Build(ctx context.Context, cfg *AppleOptions) core.Result
 
 // BuildWailsApp compiles the Wails application for a single Apple architecture.
 func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) core.Result {
-	return core.Result{}.New(buildWailsAppFn(ctx, cfg))
+	projectDir := cfg.ProjectDir
+	if projectDir == "" {
+		var err error
+		projectDir, err = getwdFn()
+		if err != nil {
+			return core.Result{Value: err, OK: false}
+		}
+	}
+
+	buildCfg := build.WailsBuildConfig{
+		ProjectDir: projectDir,
+		Name:       cfg.Name,
+		Arch:       cfg.Arch,
+		BuildTags:  append([]string{}, cfg.BuildTags...),
+		OutputDir:  cfg.OutputDir,
+		Version:    cfg.Version,
+		Env:        append([]string{}, cfg.Env...),
+	}
+	if core.Trim(cfg.LDFlags) != "" {
+		buildCfg.LDFlags = []string{cfg.LDFlags}
+	}
+
+	return core.Result{}.New(buildWailsAppFn(ctx, buildCfg))
 }
 
 // CreateUniversal merges arm64 and amd64 bundles into a universal bundle.

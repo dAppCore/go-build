@@ -18,7 +18,12 @@ import (
 //
 // buildcmd.AddReleaseCommand(buildCmd)
 func AddReleaseCommand(c *core.Core) {
-	c.Command("build/release", core.Command{
+	registerReleaseCommand(c, "build/release")
+	registerReleaseCommand(c, "release")
+}
+
+func registerReleaseCommand(c *core.Core, path string) {
+	c.Command(path, core.Command{
 		Description: "cmd.build.release.long",
 		Action: func(opts core.Options) core.Result {
 			return cmdutil.ResultFromError(runRelease(
