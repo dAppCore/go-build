@@ -1,6 +1,7 @@
 package build
 
 import (
+	"strings"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -34,6 +35,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "build-tags:")
 		assert.Contains(t, content, "build-obfuscate:")
 		assert.Contains(t, content, "sign:")
+		assert.Equal(t, 2, strings.Count(content, "sign:\n        description: Enable platform signing after build.\n        required: false\n        type: boolean\n        default: false"))
 		assert.Contains(t, content, "package:")
 		assert.Contains(t, content, "wails-build-webview2:")
 		assert.Contains(t, content, "Setup Go")
