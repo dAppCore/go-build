@@ -731,6 +731,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeDocker}, result.Types)
 		assert.Equal(t, "docker", result.PrimaryStack)
+		assert.Equal(t, "docker", result.SuggestedStack)
 		assert.True(t, result.Markers["go.mod"])
 		assert.True(t, result.Markers["wails.json"])
 	})
@@ -741,6 +742,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
 		assert.Equal(t, "go", result.PrimaryStack)
+		assert.Equal(t, "go", result.SuggestedStack)
 		assert.False(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)
 		assert.True(t, result.Markers["go.mod"])
@@ -772,6 +774,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		assert.Equal(t, "wails", result.PrimaryStack)
+		assert.Equal(t, "wails2", result.SuggestedStack)
 		assert.True(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)
 		assert.True(t, result.Markers["wails.json"])
@@ -804,6 +807,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeNode}, result.Types)
 		assert.Equal(t, "node", result.PrimaryStack)
+		assert.Equal(t, "node", result.SuggestedStack)
 		assert.True(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)
 	})
@@ -1045,6 +1049,23 @@ func TestDiscovery_DiscoverFull_Ugly(t *testing.T) {
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
 		assert.NotNil(t, result.Markers)
+	})
+}
+
+func TestDiscovery_SuggestStack_Good(t *testing.T) {
+	t.Run("maps Wails projects to the v3 action stack name", func(t *testing.T) {
+		assert.Equal(t, "wails2", SuggestStack([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}))
+	})
+
+	t.Run("passes through non-Wails primary project types", func(t *testing.T) {
+		assert.Equal(t, "cpp", SuggestStack([]ProjectType{ProjectTypeCPP}))
+		assert.Equal(t, "docs", SuggestStack([]ProjectType{ProjectTypeDocs}))
+		assert.Equal(t, "node", SuggestStack([]ProjectType{ProjectTypeNode}))
+		assert.Equal(t, "go", SuggestStack([]ProjectType{ProjectTypeGo}))
+	})
+
+	t.Run("returns empty when nothing is detected", func(t *testing.T) {
+		assert.Empty(t, SuggestStack(nil))
 	})
 }
 

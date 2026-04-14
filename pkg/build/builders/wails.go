@@ -345,6 +345,12 @@ func (b *WailsBuilder) findFrontendDir(fs io.Medium, dir string, depth int) stri
 
 // buildV2Target compiles for a single target platform using wails (v2).
 func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, target build.Target) (build.Artifact, error) {
+	if cfg.WebView2 != "" && target.OS == "windows" {
+		if err := validateWebView2Mode(cfg.WebView2); err != nil {
+			return build.Artifact{}, err
+		}
+	}
+
 	wailsCommand, err := b.resolveWailsCli()
 	if err != nil {
 		return build.Artifact{}, err
@@ -375,11 +381,11 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 		args = append(args, "-obfuscated")
 	}
 
-	if cfg.NSIS {
+	if cfg.NSIS && target.OS == "windows" {
 		args = append(args, "-nsis")
 	}
 
-	if cfg.WebView2 != "" {
+	if cfg.WebView2 != "" && target.OS == "windows" {
 		args = append(args, "-webview2", cfg.WebView2)
 	}
 
@@ -628,6 +634,15 @@ func buildV3GoFlags(cfg *build.Config) string {
 	}
 
 	return core.Join(" ", flags...)
+}
+
+func validateWebView2Mode(mode string) error {
+	switch mode {
+	case "", "download", "embed", "browser", "error":
+		return nil
+	default:
+		return coreerr.E("WailsBuilder.validateWebView2Mode", "webview2 must be one of download, embed, browser, or error", nil)
+	}
 }
 
 // resolveDenoCli returns the executable path for the deno CLI.

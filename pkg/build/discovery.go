@@ -272,6 +272,9 @@ type DiscoveryResult struct {
 	Types []ProjectType
 	// PrimaryStack is the best stack suggestion based on detected types.
 	PrimaryStack string
+	// SuggestedStack is the richer action-oriented stack hint derived from markers.
+	// This preserves the v3 action naming where Wails projects map to "wails2".
+	SuggestedStack string
 	// HasFrontend is true when a root or frontend/ package.json/deno manifest is found,
 	// or when a nested frontend tree is detected.
 	HasFrontend bool
@@ -340,8 +343,33 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	if len(types) > 0 {
 		result.PrimaryStack = string(types[0])
 	}
+	result.SuggestedStack = SuggestStack(types)
 
 	return result, nil
+}
+
+// SuggestStack returns the action-oriented stack suggestion for the detected
+// project markers. This keeps discovery compatible with the v3 action naming,
+// where Wails-backed projects use the "wails2" stack identifier.
+//
+//	stack := build.SuggestStack([]build.ProjectType{build.ProjectTypeWails}) // "wails2"
+func SuggestStack(types []ProjectType) string {
+	if len(types) == 0 {
+		return ""
+	}
+
+	switch types[0] {
+	case ProjectTypeWails:
+		return "wails2"
+	case ProjectTypeCPP:
+		return "cpp"
+	case ProjectTypeDocs:
+		return "docs"
+	case ProjectTypeNode:
+		return "node"
+	default:
+		return string(types[0])
+	}
 }
 
 func configuredProjectType(fs io.Medium, dir string) (ProjectType, bool) {

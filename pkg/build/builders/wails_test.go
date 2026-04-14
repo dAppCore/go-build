@@ -110,8 +110,44 @@ fi
 output_dir="build/bin"
 binary_name="testapp"
 mkdir -p "$output_dir"
-printf 'fake wails binary\n' > "$output_dir/$binary_name"
-chmod +x "$output_dir/$binary_name"
+platform=""
+use_nsis=0
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		-platform)
+			shift
+			platform="${1:-}"
+			;;
+		-nsis)
+			use_nsis=1
+			;;
+	esac
+	shift || true
+done
+
+target_os="${platform%%/*}"
+
+case "$target_os" in
+	windows)
+		if [ "$use_nsis" -eq 1 ]; then
+			printf 'fake wails installer\n' > "$output_dir/${binary_name}-installer.exe"
+			chmod +x "$output_dir/${binary_name}-installer.exe"
+		else
+			printf 'fake wails binary\n' > "$output_dir/${binary_name}.exe"
+			chmod +x "$output_dir/${binary_name}.exe"
+		fi
+		;;
+	darwin)
+		mkdir -p "$output_dir/${binary_name}.app/Contents/MacOS"
+		printf 'fake wails binary\n' > "$output_dir/${binary_name}.app/Contents/MacOS/${binary_name}"
+		chmod +x "$output_dir/${binary_name}.app/Contents/MacOS/${binary_name}"
+		;;
+	*)
+		printf 'fake wails binary\n' > "$output_dir/$binary_name"
+		chmod +x "$output_dir/$binary_name"
+		;;
+esac
 `
 
 	err := ax.WriteFile(ax.Join(binDir, "wails"), []byte(wailsScript), 0o755)
@@ -320,7 +356,7 @@ func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
 		require.NoError(t, err)
 		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		assert.True(t, io.Local.Exists(artifacts[0].Path))
 	})
 }
 
@@ -362,49 +398,82 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 	goModCacheDir := ax.Join(outputDir, "cache", "go-mod")
 
 	builder := NewWailsBuilder()
-	cfg := &build.Config{
-		FS:         io.Local,
-		ProjectDir: projectDir,
-		OutputDir:  outputDir,
-		Name:       "testapp",
-		Version:    "v1.2.3",
-		BuildTags:  []string{"integration", "webkit2_41"},
-		LDFlags:    []string{"-s", "-w"},
-		Obfuscate:  true,
-		NSIS:       true,
-		WebView2:   "embed",
-		Cache: build.CacheConfig{
-			Enabled: true,
-			Paths: []string{
-				goCacheDir,
-				goModCacheDir,
+	t.Run("includes Windows-only packaging flags for Windows targets", func(t *testing.T) {
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "testapp",
+			Version:    "v1.2.3",
+			BuildTags:  []string{"integration", "webkit2_41"},
+			LDFlags:    []string{"-s", "-w"},
+			Obfuscate:  true,
+			NSIS:       true,
+			WebView2:   "embed",
+			Cache: build.CacheConfig{
+				Enabled: true,
+				Paths: []string{
+					goCacheDir,
+					goModCacheDir,
+				},
 			},
-		},
-	}
-	targets := []build.Target{
-		{OS: runtime.GOOS, Arch: runtime.GOARCH},
-	}
+		}
 
-	artifacts, err := builder.Build(context.Background(), cfg, targets)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
 
-	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
 
-	args := strings.Split(strings.TrimSpace(string(content)), "\n")
-	require.NotEmpty(t, args)
-	assert.Equal(t, "build", args[0])
-	assert.Contains(t, args, "-tags")
-	assert.Contains(t, args, "integration,webkit2_41")
-	assert.Contains(t, args, "-ldflags")
-	assert.Contains(t, args, "-s -w -X main.version=v1.2.3")
-	assert.Contains(t, args, "-obfuscated")
-	assert.Contains(t, args, "-nsis")
-	assert.Contains(t, args, "-webview2")
-	assert.Contains(t, args, "embed")
-	assert.Contains(t, args, "GOCACHE="+goCacheDir)
-	assert.Contains(t, args, "GOMODCACHE="+goModCacheDir)
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-tags")
+		assert.Contains(t, args, "integration,webkit2_41")
+		assert.Contains(t, args, "-ldflags")
+		assert.Contains(t, args, "-s -w -X main.version=v1.2.3")
+		assert.Contains(t, args, "-obfuscated")
+		assert.Contains(t, args, "-nsis")
+		assert.Contains(t, args, "-webview2")
+		assert.Contains(t, args, "embed")
+		assert.Contains(t, args, "GOCACHE="+goCacheDir)
+		assert.Contains(t, args, "GOMODCACHE="+goModCacheDir)
+	})
+
+	t.Run("omits Windows-only packaging flags for non-Windows targets", func(t *testing.T) {
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "testapp",
+			Version:    "v1.2.3",
+			BuildTags:  []string{"integration", "webkit2_41"},
+			LDFlags:    []string{"-s", "-w"},
+			Obfuscate:  true,
+			NSIS:       true,
+			WebView2:   "embed",
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		args := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.NotEmpty(t, args)
+		assert.NotContains(t, args, "-nsis")
+		assert.NotContains(t, args, "-webview2")
+		assert.NotContains(t, args, "embed")
+	})
+}
+
+func TestWails_WailsBuilderBuildV2Flags_Bad(t *testing.T) {
+	err := validateWebView2Mode("invalid")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "webview2 must be one of")
 }
 
 func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
