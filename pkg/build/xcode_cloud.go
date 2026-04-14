@@ -165,11 +165,74 @@ find_visible_files() {
     "$@" -print
 }
 
+package_manager_from_manifest() {
+  local manifest_path="$1/package.json"
+  if [ ! -f "$manifest_path" ]; then
+    return 0
+  fi
+
+  node -e '
+const fs = require("fs");
+const manifestPath = process.argv[1];
+try {
+  const pkg = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const raw = typeof pkg.packageManager === "string" ? pkg.packageManager.trim() : "";
+  if (!raw) process.exit(0);
+  const manager = raw.split("@")[0];
+  if (["bun", "npm", "pnpm", "yarn"].includes(manager)) {
+    process.stdout.write(manager);
+  }
+} catch (_) {}
+' "$manifest_path"
+}
+
 install_node_package_dir() {
   local dir="$1"
   if [ ! -f "$dir/package.json" ]; then
     return 0
   fi
+
+  declared_manager="$(package_manager_from_manifest "$dir")"
+  case "$declared_manager" in
+    pnpm)
+      corepack enable pnpm
+      if [ -f "$dir/pnpm-lock.yaml" ]; then
+        (cd "$dir" && pnpm install --frozen-lockfile)
+      else
+        (cd "$dir" && pnpm install)
+      fi
+      return 0
+      ;;
+    yarn)
+      corepack enable yarn
+      if [ -f "$dir/yarn.lock" ]; then
+        (cd "$dir" && yarn install --immutable)
+      else
+        (cd "$dir" && yarn install)
+      fi
+      return 0
+      ;;
+    bun)
+      if ! command -v bun >/dev/null 2>&1; then
+        curl -fsSL https://bun.sh/install | bash
+        export PATH="${HOME}/.bun/bin:${PATH}"
+      fi
+      if [ -f "$dir/bun.lockb" ] || [ -f "$dir/bun.lock" ]; then
+        (cd "$dir" && bun install --frozen-lockfile)
+      else
+        (cd "$dir" && bun install)
+      fi
+      return 0
+      ;;
+    npm)
+      if [ -f "$dir/package-lock.json" ]; then
+        (cd "$dir" && npm ci)
+      else
+        (cd "$dir" && npm install)
+      fi
+      return 0
+      ;;
+  esac
 
   if [ -f "$dir/pnpm-lock.yaml" ]; then
     corepack enable pnpm
