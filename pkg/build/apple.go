@@ -256,6 +256,56 @@ func (cfg AppleConfig) Resolve() AppleOptions {
 	return options
 }
 
+func validateAppleBuildOptions(options AppleOptions) error {
+	if options.Sign && core.Trim(options.CertIdentity) == "" {
+		return coreerr.E("build.validateAppleBuildOptions", "signing identity is required when sign is enabled", nil)
+	}
+
+	if options.Notarise {
+		if _, err := notariseAuthArgs(NotariseConfig{
+			AppPath:        "",
+			APIKeyID:       options.APIKeyID,
+			APIKeyIssuerID: options.APIKeyIssuerID,
+			APIKeyPath:     options.APIKeyPath,
+			TeamID:         options.TeamID,
+			AppleID:        options.AppleID,
+			Password:       options.Password,
+		}); err != nil {
+			return coreerr.E("build.validateAppleBuildOptions", "invalid notarisation credentials", err)
+		}
+	}
+
+	if options.TestFlight || options.AppStore {
+		if err := validateAppStoreConnectAPIKey(options.APIKeyID, options.APIKeyIssuerID, options.APIKeyPath, "build.validateAppleBuildOptions"); err != nil {
+			return err
+		}
+		if core.Trim(options.ProfilePath) == "" {
+			return coreerr.E("build.validateAppleBuildOptions", "profile_path is required for App Store Connect uploads", nil)
+		}
+	}
+
+	if options.AppStore {
+		if isDeveloperIDIdentity(options.CertIdentity) {
+			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions require an Apple distribution certificate, not Developer ID", nil)
+		}
+
+		minSystemVersion := firstNonEmpty(options.MinSystemVersion, defaultAppleMinSystemVersion)
+		if compareAppleVersion(minSystemVersion, defaultAppleMinSystemVersion) < 0 {
+			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions require min_system_version 13.0 or newer", nil)
+		}
+
+		if core.Trim(firstNonEmpty(options.Category, defaultAppleCategory)) == "" {
+			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions require an application category", nil)
+		}
+
+		if !core.Contains(core.Lower(options.Copyright), "eupl-1.2") {
+			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions must declare EUPL-1.2 in copyright metadata", nil)
+		}
+	}
+
+	return nil
+}
+
 // BuildApple runs the end-to-end macOS Apple pipeline for a Wails app.
 func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNumber string) (*AppleBuildResult, error) {
 	if cfg == nil {
@@ -273,6 +323,9 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 	}
 	if (options.TestFlight || options.AppStore) && !options.Sign {
 		return nil, coreerr.E("build.BuildApple", "TestFlight and App Store uploads require code signing", nil)
+	}
+	if err := validateAppleBuildOptions(options); err != nil {
+		return nil, err
 	}
 
 	name := resolveAppleBundleName(cfg)
@@ -772,8 +825,8 @@ func UploadTestFlight(ctx context.Context, cfg TestFlightConfig) error {
 	if cfg.AppPath == "" {
 		return coreerr.E("build.UploadTestFlight", "app_path is required", nil)
 	}
-	if cfg.APIKeyID == "" || cfg.APIKeyIssuerID == "" {
-		return coreerr.E("build.UploadTestFlight", "api_key_id and api_key_issuer_id are required", nil)
+	if err := validateAppStoreConnectAPIKey(cfg.APIKeyID, cfg.APIKeyIssuerID, cfg.APIKeyPath, "build.UploadTestFlight"); err != nil {
+		return err
 	}
 
 	uploadPath, env, err := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyPath)
@@ -807,8 +860,8 @@ func SubmitAppStore(ctx context.Context, cfg AppStoreConfig) error {
 	if cfg.AppPath == "" {
 		return coreerr.E("build.SubmitAppStore", "app_path is required", nil)
 	}
-	if cfg.APIKeyID == "" || cfg.APIKeyIssuerID == "" {
-		return coreerr.E("build.SubmitAppStore", "api_key_id and api_key_issuer_id are required", nil)
+	if err := validateAppStoreConnectAPIKey(cfg.APIKeyID, cfg.APIKeyIssuerID, cfg.APIKeyPath, "build.SubmitAppStore"); err != nil {
+		return err
 	}
 
 	uploadPath, env, err := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyPath)
@@ -1148,6 +1201,90 @@ func notariseAuthArgs(cfg NotariseConfig) ([]string, error) {
 		"--password", cfg.Password,
 		"--team-id", cfg.TeamID,
 	}, nil
+}
+
+func validateAppStoreConnectAPIKey(apiKeyID, apiKeyIssuerID, apiKeyPath, op string) error {
+	switch {
+	case core.Trim(apiKeyID) == "":
+		return coreerr.E(op, "api_key_id is required for App Store Connect uploads", nil)
+	case core.Trim(apiKeyIssuerID) == "":
+		return coreerr.E(op, "api_key_issuer_id is required for App Store Connect uploads", nil)
+	case core.Trim(apiKeyPath) == "":
+		return coreerr.E(op, "api_key_path is required for App Store Connect uploads", nil)
+	default:
+		return nil
+	}
+}
+
+func isDeveloperIDIdentity(identity string) bool {
+	return core.Contains(core.Lower(identity), "developer id")
+}
+
+func compareAppleVersion(left, right string) int {
+	leftParts := appleVersionParts(left)
+	rightParts := appleVersionParts(right)
+
+	maxLen := len(leftParts)
+	if len(rightParts) > maxLen {
+		maxLen = len(rightParts)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		var leftValue, rightValue int
+		if i < len(leftParts) {
+			leftValue = leftParts[i]
+		}
+		if i < len(rightParts) {
+			rightValue = rightParts[i]
+		}
+		switch {
+		case leftValue < rightValue:
+			return -1
+		case leftValue > rightValue:
+			return 1
+		}
+	}
+
+	return 0
+}
+
+func appleVersionParts(value string) []int {
+	value = core.Trim(core.TrimPrefix(value, "v"))
+	if value == "" {
+		return nil
+	}
+
+	rawParts := core.Split(value, ".")
+	parts := make([]int, 0, len(rawParts))
+	for _, rawPart := range rawParts {
+		part := strings.TrimSpace(rawPart)
+		if part == "" {
+			parts = append(parts, 0)
+			continue
+		}
+
+		digits := strings.Builder{}
+		for _, r := range part {
+			if r < '0' || r > '9' {
+				break
+			}
+			digits.WriteRune(r)
+		}
+
+		if digits.Len() == 0 {
+			parts = append(parts, 0)
+			continue
+		}
+
+		number, err := strconv.Atoi(digits.String())
+		if err != nil {
+			parts = append(parts, 0)
+			continue
+		}
+		parts = append(parts, number)
+	}
+
+	return parts
 }
 
 func extractNotaryRequestID(output string) string {

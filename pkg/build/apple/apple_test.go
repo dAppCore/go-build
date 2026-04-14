@@ -25,7 +25,9 @@ func TestAppleBuilder_New_Good(t *testing.T) {
 
 	require.NotNil(t, builder)
 	assert.Equal(t, "apple", builder.Name())
+	require.NotNil(t, builder.ServiceRuntime)
 	assert.Equal(t, "arm64", builder.options.Arch)
+	assert.Equal(t, "arm64", builder.Options().Arch)
 	assert.False(t, builder.options.Sign)
 	assert.False(t, builder.options.Notarise)
 	assert.True(t, builder.options.DMG)
@@ -48,6 +50,8 @@ func TestAppleBuilder_Register_Good(t *testing.T) {
 	builder, ok := result.Value.(*AppleBuilder)
 	require.True(t, ok)
 	assert.Equal(t, "apple", builder.Name())
+	require.NotNil(t, builder.ServiceRuntime)
+	assert.Same(t, c, builder.Core())
 	assert.True(t, c.Service("apple").OK)
 }
 

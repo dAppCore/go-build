@@ -39,6 +39,12 @@ type InfoPlist = build.InfoPlist
 // Entitlements aliases the generated entitlements model.
 type Entitlements = build.Entitlements
 
+// XcodeCloudConfig aliases the Xcode Cloud workflow metadata stored in build config.
+type XcodeCloudConfig = build.XcodeCloudConfig
+
+// XcodeCloudTrigger aliases a single Xcode Cloud trigger rule.
+type XcodeCloudTrigger = build.XcodeCloudTrigger
+
 // Builder defines the RFC-facing Apple builder contract.
 type Builder interface {
 	Name() string
@@ -48,6 +54,7 @@ type Builder interface {
 
 // AppleBuilder wraps the existing Apple pipeline with functional options.
 type AppleBuilder struct {
+	*core.ServiceRuntime[AppleOptions]
 	options  AppleOptions
 	explicit explicitOptions
 }
@@ -86,6 +93,7 @@ func Register(c *core.Core) core.Result {
 	}
 
 	builder := New()
+	builder.ServiceRuntime = core.NewServiceRuntime[AppleOptions](c, builder.options)
 	if r := c.RegisterService("apple", builder); !r.OK {
 		return r
 	}
@@ -103,6 +111,7 @@ func New(opts ...Option) *AppleBuilder {
 			opt(builder)
 		}
 	}
+	builder.ServiceRuntime = core.NewServiceRuntime[AppleOptions](nil, builder.options)
 	return builder
 }
 

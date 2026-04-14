@@ -133,6 +133,8 @@ func TestApple_BuildApple_Good(t *testing.T) {
 		DMG:          true,
 		CertIdentity: "Developer ID Application: Lethean CIC (ABC123DEF4)",
 		TeamID:       "ABC123DEF4",
+		AppleID:      "dev@example.com",
+		Password:     "app-password",
 	}, "42")
 	require.NoError(t, err)
 
@@ -175,6 +177,50 @@ func TestApple_NotariseAuthArgs_Good(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"--apple-id", "dev@example.com", "--password", "app-password", "--team-id", "ABC123DEF4"}, args)
+}
+
+func TestApple_BuildApple_AppStorePreflight_Bad(t *testing.T) {
+	_, err := BuildApple(context.Background(), &Config{
+		FS:         io.Local,
+		ProjectDir: t.TempDir(),
+		OutputDir:  ax.Join(t.TempDir(), "dist", "apple"),
+		Name:       "Core",
+		Version:    "v1.2.3",
+	}, AppleOptions{
+		BundleID:       "ai.lthn.core",
+		Arch:           "arm64",
+		Sign:           true,
+		AppStore:       true,
+		CertIdentity:   "Developer ID Application: Lethean CIC (ABC123DEF4)",
+		APIKeyID:       "KEY123",
+		APIKeyIssuerID: "ISSUER456",
+		APIKeyPath:     "/tmp/AuthKey_KEY123.p8",
+		ProfilePath:    "/tmp/Core.provisionprofile",
+		Category:       "public.app-category.developer-tools",
+		Copyright:      "Copyright 2026 Lethean CIC. EUPL-1.2.",
+	}, "42")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "distribution certificate")
+}
+
+func TestApple_UploadTestFlight_Bad(t *testing.T) {
+	err := UploadTestFlight(context.Background(), TestFlightConfig{
+		AppPath:        "build/Core.app",
+		APIKeyID:       "KEY123",
+		APIKeyIssuerID: "ISSUER456",
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "api_key_path")
+}
+
+func TestApple_SubmitAppStore_Bad(t *testing.T) {
+	err := SubmitAppStore(context.Background(), AppStoreConfig{
+		AppPath:        "build/Core.app",
+		APIKeyID:       "KEY123",
+		APIKeyIssuerID: "ISSUER456",
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "api_key_path")
 }
 
 func writeDummyAppBundle(t *testing.T, appPath, executableName, marker string) {
