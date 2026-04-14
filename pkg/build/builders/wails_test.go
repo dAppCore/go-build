@@ -315,6 +315,100 @@ tasks:
 		require.NoError(t, err)
 		assert.NotEmpty(t, artifacts)
 	})
+
+	t.Run("passes Wails v3 build vars through Taskfile builds", func(t *testing.T) {
+		projectDir := setupWailsTestProject(t)
+		outputDir := t.TempDir()
+		binDir := t.TempDir()
+		logPath := ax.Join(t.TempDir(), "task.env")
+		taskPath := ax.Join(binDir, "task")
+
+		script := `#!/bin/sh
+set -eu
+
+env | sort > "${TASK_BUILD_LOG_FILE}"
+
+name="${NAME:-testapp}"
+if [ "${GOOS:-}" = "windows" ]; then
+	name="${name}.exe"
+fi
+
+mkdir -p "${OUTPUT_DIR}/${GOOS}_${GOARCH}"
+printf 'taskfile build\n' > "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}"
+chmod +x "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}"
+`
+		require.NoError(t, ax.WriteFile(taskPath, []byte(script), 0o755))
+
+		t.Setenv("TASK_BUILD_LOG_FILE", logPath)
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		builder := NewWailsBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  outputDir,
+			Name:       "testapp",
+			Version:    "v1.2.3",
+			BuildTags:  []string{"integration"},
+			LDFlags:    []string{"-s", "-w"},
+			WebView2:   "download",
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		assert.Contains(t, string(content), "GOOS=windows")
+		assert.Contains(t, string(content), "GOARCH=amd64")
+		assert.Contains(t, string(content), "CGO_ENABLED=1")
+		assert.Contains(t, string(content), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
+		assert.Contains(t, string(content), "EXTRA_TAGS=integration")
+		assert.Contains(t, string(content), "WEBVIEW2_MODE=download")
+		assert.Contains(t, string(content), `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -H windowsgui -X main.version=v1.2.3"`)
+	})
+
+	t.Run("uses the garble shim for Wails v3 Taskfile builds", func(t *testing.T) {
+		projectDir := setupWailsTestProject(t)
+		binDir := t.TempDir()
+		logPath := ax.Join(t.TempDir(), "garble.log")
+		taskPath := ax.Join(binDir, "task")
+
+		script := `#!/bin/sh
+set -eu
+
+name="${NAME:-testapp}"
+mkdir -p "${OUTPUT_DIR}/${GOOS}_${GOARCH}"
+go build -o "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}" .
+`
+		require.NoError(t, ax.WriteFile(taskPath, []byte(script), 0o755))
+
+		setupFakeWails3GoBuildToolchain(t, binDir)
+		t.Setenv("GARBLE_LOG_FILE", logPath)
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		builder := NewWailsBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  t.TempDir(),
+			Name:       "testapp",
+			Obfuscate:  true,
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.FileExists(t, artifacts[0].Path)
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "build")
+		assert.Contains(t, string(content), "-o")
+	})
 }
 
 func TestWails_WailsBuilderName_Good(t *testing.T) {

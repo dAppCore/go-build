@@ -65,7 +65,7 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 		// project is Wails-backed but does not expose Task targets.
 		taskBuilder := NewTaskfileBuilder()
 		if detected, _ := taskBuilder.Detect(cfg.FS, cfg.ProjectDir); detected {
-			return taskBuilder.Build(ctx, cfg, targets)
+			return taskBuilder.Build(ctx, b.buildV3Config(cfg), targets)
 		}
 
 		if err := b.PreBuild(ctx, cfg); err != nil {

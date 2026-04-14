@@ -147,6 +147,16 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 	args = append(args, value)
 	env = append(env, value)
 
+	cleanup := func() {}
+	if cfg != nil {
+		var err error
+		args, env, cleanup, err = b.applyWailsV3BuildSurface(cfg, target, args, env)
+		if err != nil {
+			return err
+		}
+	}
+	defer cleanup()
+
 	if target.OS != "" && target.Arch != "" {
 		core.Print(nil, "Running task build for %s/%s", target.OS, target.Arch)
 	} else {
@@ -158,6 +168,46 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 	}
 
 	return nil
+}
+
+func (b *TaskfileBuilder) applyWailsV3BuildSurface(cfg *build.Config, target build.Target, args, env []string) ([]string, []string, func(), error) {
+	if cfg == nil || cfg.ProjectDir == "" {
+		return args, env, func() {}, nil
+	}
+
+	fs := cfg.FS
+	if fs == nil {
+		fs = io.Local
+	}
+
+	wailsBuilder := NewWailsBuilder()
+	if !build.IsWailsProject(fs, cfg.ProjectDir) || !wailsBuilder.isWailsV3(fs, cfg.ProjectDir) {
+		return args, env, func() {}, nil
+	}
+
+	if goflags := buildV3GoFlags(cfg); goflags != "" {
+		env = append(env, "GOFLAGS="+goflags)
+	}
+
+	taskVars, err := buildV3TaskVars(cfg, target)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if len(taskVars) > 0 {
+		args = append(args, taskVars...)
+		env = append(env, taskVars...)
+	}
+
+	if !cfg.Obfuscate {
+		return args, env, func() {}, nil
+	}
+
+	env, cleanup, err := wailsBuilder.prepareV3Obfuscation(env)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return args, env, cleanup, nil
 }
 
 // findArtifacts searches for built artifacts in the output directory.
