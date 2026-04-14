@@ -349,6 +349,8 @@ jobs:
           branch=""
           tag=""
           is_tag=false
+          runner_os="${RUNNER_OS:-}"
+          runner_arch="${RUNNER_ARCH:-}"
           case "$ref" in
             refs/heads/*)
               branch="${GITHUB_REF_NAME:-${ref#refs/heads/}}"
@@ -385,6 +387,8 @@ jobs:
           fi
 
           {
+            echo "os=$runner_os"
+            echo "arch=$runner_arch"
             echo "ref=$ref"
             echo "branch=$branch"
             echo "tag=$tag"
@@ -602,7 +606,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          args=(core build --targets "${{ matrix.target }}" --archive --checksum)
+          args=(core build --ci --targets "${{ matrix.target }}" --archive --checksum)
 
           if [ -n "${{ inputs.archive-format }}" ]; then
             args+=(--archive-format "${{ inputs.archive-format }}")
