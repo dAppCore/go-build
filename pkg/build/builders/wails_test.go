@@ -119,6 +119,10 @@ while [ "$#" -gt 0 ]; do
 			shift
 			platform="${1:-}"
 			;;
+		-o)
+			shift
+			binary_name="${1:-}"
+			;;
 		-nsis)
 			use_nsis=1
 			;;
@@ -586,6 +590,8 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 		args := strings.Split(strings.TrimSpace(string(content)), "\n")
 		require.NotEmpty(t, args)
 		assert.Equal(t, "build", args[0])
+		assert.Contains(t, args, "-o")
+		assert.Contains(t, args, "testapp")
 		assert.Contains(t, args, "-tags")
 		assert.Contains(t, args, "integration,webkit2_41")
 		assert.Contains(t, args, "-ldflags")
@@ -621,10 +627,81 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 
 		args := strings.Split(strings.TrimSpace(string(content)), "\n")
 		require.NotEmpty(t, args)
+		assert.Contains(t, args, "-o")
+		assert.Contains(t, args, "testapp")
 		assert.NotContains(t, args, "-nsis")
 		assert.NotContains(t, args, "-webview2")
 		assert.NotContains(t, args, "embed")
 	})
+}
+
+func TestWails_WailsBuilderBuildV2_RespectsConfiguredOutputName_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	cases := []struct {
+		name         string
+		target       build.Target
+		nsis         bool
+		expectedBase string
+	}{
+		{
+			name:         "linux binary",
+			target:       build.Target{OS: "linux", Arch: "amd64"},
+			expectedBase: "customapp",
+		},
+		{
+			name:         "darwin app bundle",
+			target:       build.Target{OS: "darwin", Arch: "arm64"},
+			expectedBase: "customapp.app",
+		},
+		{
+			name:         "windows executable",
+			target:       build.Target{OS: "windows", Arch: "amd64"},
+			expectedBase: "customapp.exe",
+		},
+		{
+			name:         "windows nsis installer",
+			target:       build.Target{OS: "windows", Arch: "amd64"},
+			nsis:         true,
+			expectedBase: "customapp-installer.exe",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			binDir := t.TempDir()
+			setupFakeWailsToolchain(t, binDir)
+			t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+			projectDir := setupWailsV2TestProject(t)
+			outputDir := t.TempDir()
+			logPath := ax.Join(t.TempDir(), "wails.log")
+			t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
+
+			builder := NewWailsBuilder()
+			cfg := &build.Config{
+				FS:         io.Local,
+				ProjectDir: projectDir,
+				OutputDir:  outputDir,
+				Name:       "customapp",
+				NSIS:       tc.nsis,
+			}
+
+			artifacts, err := builder.Build(context.Background(), cfg, []build.Target{tc.target})
+			require.NoError(t, err)
+			require.Len(t, artifacts, 1)
+			assert.Equal(t, tc.expectedBase, ax.Base(artifacts[0].Path))
+
+			content, err := ax.ReadFile(logPath)
+			require.NoError(t, err)
+			args := strings.Split(strings.TrimSpace(string(content)), "\n")
+			assert.Contains(t, args, "-o")
+			assert.Contains(t, args, "customapp")
+		})
+	}
 }
 
 func TestWails_WailsBuilderBuildV2Flags_Bad(t *testing.T) {

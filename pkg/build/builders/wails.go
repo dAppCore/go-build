@@ -399,6 +399,11 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Build the wails build arguments
 	args := []string{"build"}
 
+	// Honour the action/CLI build-name override by forwarding it to Wails v2.
+	if binaryName != "" {
+		args = append(args, "-o", binaryName)
+	}
+
 	if len(cfg.BuildTags) > 0 {
 		args = append(args, "-tags", core.Join(",", cfg.BuildTags...))
 	}
