@@ -66,6 +66,10 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 			return taskBuilder.Build(ctx, cfg, targets)
 		}
 
+		if err := b.PreBuild(ctx, cfg); err != nil {
+			return nil, err
+		}
+
 		var artifacts []build.Artifact
 		for _, target := range targets {
 			artifact, err := b.buildV3Target(ctx, cfg, target)

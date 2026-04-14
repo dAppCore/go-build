@@ -172,6 +172,15 @@ if [ -n "$log_file" ]; then
 	fi
 fi
 
+sequence_file="${BUILD_SEQUENCE_FILE:-}"
+if [ -n "$sequence_file" ]; then
+	printf '%s\n' "wails3" >> "$sequence_file"
+	printf '%s\n' "$@" >> "$sequence_file"
+	if [ -n "${GOFLAGS:-}" ]; then
+		printf '%s\n' "GOFLAGS=${GOFLAGS}" >> "$sequence_file"
+	fi
+fi
+
 verb="${1:-build}"
 shift || true
 
@@ -1174,6 +1183,52 @@ func TestWails_WailsBuilderBuildV3Fallback_Good(t *testing.T) {
 	assert.Contains(t, strings.Join(lines, "\n"), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
 	assert.Contains(t, lines, "GOCACHE="+goCacheDir)
 	assert.Contains(t, lines, "GOMODCACHE="+goModCacheDir)
+}
+
+func TestWails_WailsBuilderBuildV3Fallback_PreBuild_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeWails3Toolchain(t, binDir)
+	setupFakeFrontendCommand(t, binDir, "deno")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := setupWailsTestProject(t)
+	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+
+	frontendDir := ax.Join(projectDir, "frontend")
+	require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
+
+	logPath := ax.Join(t.TempDir(), "build-sequence.log")
+	t.Setenv("BUILD_SEQUENCE_FILE", logPath)
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  t.TempDir(),
+		Name:       "testapp",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.GreaterOrEqual(t, len(lines), 7)
+	assert.Equal(t, "deno", lines[0])
+	assert.Equal(t, "task", lines[1])
+	assert.Equal(t, "build", lines[2])
+	assert.Equal(t, "wails3", lines[3])
+	assert.Equal(t, "build", lines[4])
+	assert.Contains(t, lines, "GOOS=linux")
+	assert.Contains(t, lines, "GOARCH=amd64")
 }
 
 func TestWails_WailsBuilderBuildV3NSIS_Good(t *testing.T) {

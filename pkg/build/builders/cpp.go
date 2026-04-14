@@ -48,8 +48,11 @@ func (b *CPPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 		return nil, coreerr.E("CPPBuilder.Build", "config is nil", nil)
 	}
 
-	// Validate make is available
+	// Validate the required host toolchain before invoking the project Makefile.
 	if err := b.validateMake(); err != nil {
+		return nil, err
+	}
+	if err := b.validateConan(); err != nil {
 		return nil, err
 	}
 
@@ -253,6 +256,12 @@ func (b *CPPBuilder) validateMake() error {
 	return err
 }
 
+// validateConan checks if conan is available.
+func (b *CPPBuilder) validateConan() error {
+	_, err := b.resolveConanCli()
+	return err
+}
+
 // resolveMakeCli returns the executable path for make or gmake.
 func (b *CPPBuilder) resolveMakeCli(paths ...string) (string, error) {
 	if len(paths) == 0 {
@@ -268,6 +277,27 @@ func (b *CPPBuilder) resolveMakeCli(paths ...string) (string, error) {
 	command, err := ax.ResolveCommand("make", paths...)
 	if err != nil {
 		return "", coreerr.E("CPPBuilder.resolveMakeCli", "make not found. Install build-essential (Linux) or Xcode Command Line Tools (macOS)", err)
+	}
+
+	return command, nil
+}
+
+// resolveConanCli returns the executable path for conan.
+func (b *CPPBuilder) resolveConanCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/conan",
+			"/opt/homebrew/bin/conan",
+		}
+
+		if home := core.Env("HOME"); home != "" {
+			paths = append(paths, ax.Join(home, ".local", "bin", "conan"))
+		}
+	}
+
+	command, err := ax.ResolveCommand("conan", paths...)
+	if err != nil {
+		return "", coreerr.E("CPPBuilder.resolveConanCli", "conan not found. Install it with: python -m pip install conan", err)
 	}
 
 	return command, nil
