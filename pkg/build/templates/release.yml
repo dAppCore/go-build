@@ -264,6 +264,12 @@ jobs:
           has_frontend_package_json=false
           [ -f frontend/package.json ] && has_frontend_package_json=true
 
+          has_root_composer_json=false
+          [ -f composer.json ] && has_root_composer_json=true
+
+          has_root_cargo_toml=false
+          [ -f Cargo.toml ] && has_root_cargo_toml=true
+
           has_root_go_mod=false
           [ -f go.mod ] && has_root_go_mod=true
 
@@ -278,6 +284,11 @@ jobs:
 
           has_root_wails_json=false
           [ -f wails.json ] && has_root_wails_json=true
+
+          has_taskfile=false
+          if [ -f Taskfile.yml ] || [ -f Taskfile.yaml ] || [ -f Taskfile ] || [ -f taskfile.yml ] || [ -f taskfile.yaml ]; then
+            has_taskfile=true
+          fi
 
           has_docs_config=false
           if [ -f mkdocs.yml ] || [ -f mkdocs.yaml ] || [ -f docs/mkdocs.yml ] || [ -f docs/mkdocs.yaml ]; then
@@ -399,9 +410,12 @@ jobs:
             echo "owner=$owner"
             echo "has_root_package_json=$has_root_package_json"
             echo "has_frontend_package_json=$has_frontend_package_json"
+            echo "has_root_composer_json=$has_root_composer_json"
+            echo "has_root_cargo_toml=$has_root_cargo_toml"
             echo "has_root_go_mod=$has_root_go_mod"
             echo "has_root_main_go=$has_root_main_go"
             echo "has_root_cmakelists=$has_root_cmakelists"
+            echo "has_taskfile=$has_taskfile"
             echo "has_package_json=$has_package_json"
             echo "has_deno_manifest=$has_deno_manifest"
             echo "deno_requested=$deno_requested"
@@ -414,7 +428,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Setup Go
-        if: steps.discovery.outputs.has_go_toolchain == 'true'
+        if: steps.discovery.outputs.has_go_toolchain == 'true' || steps.discovery.outputs.has_taskfile == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: ${{ inputs.go-version }}
@@ -431,6 +445,25 @@ jobs:
           fi
 
           go install mvdan.cc/garble@latest
+
+          gobin="$(go env GOBIN)"
+          if [ -z "$gobin" ]; then
+            gobin="$(go env GOPATH)/bin"
+          fi
+          echo "$gobin" >> "${GITHUB_PATH}"
+
+      - name: Install Task CLI
+        if: steps.discovery.outputs.has_taskfile == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if command -v task >/dev/null 2>&1; then
+            task --version
+            exit 0
+          fi
+
+          go install github.com/go-task/task/v3/cmd/task@latest
 
           gobin="$(go env GOBIN)"
           if [ -z "$gobin" ]; then
@@ -549,6 +582,54 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+
+      - name: Setup PHP and Composer
+        if: steps.discovery.outputs.has_root_composer_json == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v php >/dev/null 2>&1; then
+            echo "PHP is required to build composer-backed projects on this runner." >&2
+            exit 1
+          fi
+
+          if command -v composer >/dev/null 2>&1; then
+            composer --version
+            exit 0
+          fi
+
+          php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+          php composer-setup.php --install-dir="${RUNNER_TEMP}" --filename=composer
+          rm -f composer-setup.php
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+
+      - name: Setup Rust
+        if: steps.discovery.outputs.has_root_cargo_toml == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if command -v cargo >/dev/null 2>&1; then
+            cargo --version
+            exit 0
+          fi
+
+          case "${RUNNER_OS}" in
+            Linux|macOS)
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+              echo "${HOME}/.cargo/bin" >> "${GITHUB_PATH}"
+              ;;
+            Windows)
+              choco install rustup.install -y
+              rustup default stable
+              echo "${USERPROFILE}\\.cargo\\bin" >> "${GITHUB_PATH}"
+              ;;
+            *)
+              echo "Unsupported runner OS for Rust setup: ${RUNNER_OS}" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Install Conan
         if: steps.discovery.outputs.has_root_cmakelists == 'true'

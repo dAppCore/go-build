@@ -41,6 +41,22 @@ C++ projects map cleanly onto the action's Conan-oriented setup story:
 - Setup installs Python and Conan in the generated workflow when a C++ marker is present.
 - Build uses CMake and Conan profile mapping for native and cross-target builds.
 
+## PHP
+
+PHP projects now get the workflow setup they need:
+
+- Detection uses `composer.json`.
+- Setup verifies PHP is available and installs Composer on demand when the runner does not already provide it.
+- Build runs Composer-backed dependency installation and optionally a Composer `build` script before bundling artifacts.
+
+## Rust
+
+Rust projects also have explicit workflow setup:
+
+- Detection uses `Cargo.toml`.
+- Setup verifies Cargo is available and bootstraps Rust with `rustup` when the runner image does not already include it.
+- Build uses `cargo build --release --target ...` and collects target-specific binaries.
+
 ## Docker, LinuxKit, and Taskfile
 
 Additional stacks are exposed through dedicated builders:
@@ -48,6 +64,7 @@ Additional stacks are exposed through dedicated builders:
 - Docker uses Buildx-backed image builds and archive-friendly export modes.
 - LinuxKit supports root manifests and `.core/linuxkit/*.yml` configs.
 - Taskfile acts as a generic wrapper for repositories that already encode their own build graph, including many Wails v3 projects.
+- Setup installs the Task CLI when a Taskfile marker is present so Wails v3 Taskfile builds work in generated CI without extra bootstrapping.
 
 ## Future Direction
 

@@ -11,7 +11,7 @@ description: Build, release, Apple packaging, SDK generation, and GitHub workflo
 
 - Auto-detecting builders for Go, Wails, Node, PHP, Python, Rust, Docs, Docker, LinuxKit, C++, and Taskfile projects
 - Action-oriented discovery hints for `wails2`, `cpp`, `docs`, `node`, and `go`
-- Generated reusable GitHub release workflow with Go/Node/Python/Deno setup, Conan/MkDocs hooks, distro-aware WebKit packages, cache restore/save, and canonical artifact naming
+- Generated reusable GitHub release workflow with conditional Go/Node/PHP/Python/Rust/Deno/Task setup, Conan/MkDocs hooks, distro-aware WebKit packages, cache restore/save, and canonical artifact naming
 - macOS Apple pipeline with `core build apple`, DMG packaging, notarisation, Xcode Cloud script generation, TestFlight, and App Store submission
 - Release orchestration with eight publishers
 - OpenAPI SDK generation with breaking-change detection
@@ -69,7 +69,7 @@ Monorepo frontend discovery scans subtree manifests to depth 2 and ignores `node
 `core build workflow` writes a reusable release workflow that:
 
 1. Detects the required toolchains from the repository contents.
-2. Installs Go, Node, Python, Conan, MkDocs, Deno, and Wails only when needed, plus frontend package dependencies and optional garble for obfuscated builds.
+2. Installs Go, Node, PHP/Composer, Python, Rust, Deno, Task, and Wails only when needed, plus frontend package dependencies and optional garble for obfuscated builds.
 3. Restores build caches under `.core/cache` and `cache/`.
 4. Applies Ubuntu 24.04 WebKit 4.1 handling for Wails Linux builds.
 5. Runs `core build --archive --checksum`.
