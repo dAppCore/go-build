@@ -127,6 +127,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "--build-name")
 		assert.Contains(t, content, "--build-tags")
 		assert.Contains(t, content, "--build-obfuscate")
+		assert.Contains(t, content, "--sign=true")
 		assert.Contains(t, content, "--sign=false")
 		assert.Contains(t, content, "--package=false")
 		assert.Contains(t, content, "--build-cache=false")

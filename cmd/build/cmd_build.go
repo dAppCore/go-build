@@ -73,6 +73,8 @@ func AddBuildCommands(c *core.Core) {
 				Format:         cmdutil.OptionString(opts, "format"),
 				Push:           cmdutil.OptionBool(opts, "push"),
 				ImageName:      cmdutil.OptionString(opts, "image"),
+				Sign:           cmdutil.OptionBoolDefault(opts, true, "sign"),
+				SignSet:        cmdutil.OptionHas(opts, "sign"),
 				NoSign: resolveNoSign(
 					cmdutil.OptionBool(opts, "no-sign"),
 					cmdutil.OptionBoolDefault(opts, true, "sign"),

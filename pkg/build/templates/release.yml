@@ -818,7 +818,9 @@ try {
             args+=(--build-obfuscate)
           fi
 
-          if [ "${{ inputs.sign }}" = "false" ]; then
+          if [ "${{ inputs.sign }}" = "true" ]; then
+            args+=(--sign=true)
+          else
             args+=(--sign=false)
           fi
 

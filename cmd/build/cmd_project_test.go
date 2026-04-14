@@ -164,6 +164,8 @@ func TestBuildCmd_applyProjectBuildOverrides_Good(t *testing.T) {
 			DenoBuildSet:  true,
 			BuildCache:    true,
 			BuildCacheSet: true,
+			Sign:          false,
+			SignSet:       true,
 		})
 
 		assert.Equal(t, []string{"mlx", "debug", "release"}, cfg.Build.BuildTags)
@@ -174,6 +176,7 @@ func TestBuildCmd_applyProjectBuildOverrides_Good(t *testing.T) {
 		assert.True(t, cfg.Build.Cache.Enabled)
 		assert.Equal(t, ax.Join(build.ConfigDir, "cache"), cfg.Build.Cache.Directory)
 		assert.Equal(t, []string{ax.Join("cache", "go-build"), ax.Join("cache", "go-mod")}, cfg.Build.Cache.Paths)
+		assert.False(t, cfg.Sign.Enabled)
 	})
 
 	t.Run("preserves configured cache paths when enabling cache from the CLI", func(t *testing.T) {
@@ -209,6 +212,18 @@ func TestBuildCmd_applyProjectBuildOverrides_Good(t *testing.T) {
 		assert.False(t, cfg.Build.Cache.Enabled)
 		assert.Equal(t, "custom/cache", cfg.Build.Cache.Directory)
 		assert.Equal(t, []string{"custom/go-build", "custom/go-mod"}, cfg.Build.Cache.Paths)
+	})
+
+	t.Run("can force signing back on when config disabled it", func(t *testing.T) {
+		cfg := build.DefaultConfig()
+		cfg.Sign.Enabled = false
+
+		applyProjectBuildOverrides(cfg, ProjectBuildRequest{
+			Sign:    true,
+			SignSet: true,
+		})
+
+		assert.True(t, cfg.Sign.Enabled)
 	})
 }
 

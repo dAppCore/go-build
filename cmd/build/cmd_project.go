@@ -58,6 +58,8 @@ type ProjectBuildRequest struct {
 	Format         string
 	Push           bool
 	ImageName      string
+	Sign           bool
+	SignSet        bool
 	NoSign         bool
 	Notarize       bool
 	Verbose        bool
@@ -369,6 +371,9 @@ func applyProjectBuildOverrides(cfg *build.BuildConfig, req ProjectBuildRequest)
 		} else {
 			cfg.Build.Cache.Enabled = false
 		}
+	}
+	if req.SignSet {
+		cfg.Sign.Enabled = req.Sign
 	}
 }
 
