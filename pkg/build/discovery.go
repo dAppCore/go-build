@@ -72,7 +72,7 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 	var detected []ProjectType
 
 	if configuredType, ok := configuredProjectType(fs, dir); ok {
-		detected = append(detected, configuredType)
+		return []ProjectType{configuredType}, nil
 	}
 
 	if IsWailsProject(fs, dir) {

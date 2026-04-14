@@ -34,6 +34,19 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeDocker}, types)
 	})
 
+	t.Run("configured build type short-circuits marker detection", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocker}, types)
+	})
+
 	t.Run("detects Go project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
 		types, err := Discover(fs, dir)
@@ -283,6 +296,18 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
 		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: taskfile\n"), 0o644))
+
+		primary, err := PrimaryType(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, ProjectTypeTaskfile, primary)
+	})
+
+	t.Run("returns configured type when markers disagree", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: taskfile\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644))
 
 		primary, err := PrimaryType(fs, dir)
 		assert.NoError(t, err)
@@ -679,6 +704,21 @@ func TestDiscovery_IsRustProject_Ugly(t *testing.T) {
 
 func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	fs := io.Local
+	t.Run("configured build type stays authoritative in full discovery", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocker}, result.Types)
+		assert.Equal(t, "docker", result.PrimaryStack)
+		assert.True(t, result.Markers["go.mod"])
+		assert.True(t, result.Markers["wails.json"])
+	})
+
 	t.Run("returns complete result for Go project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
 		result, err := DiscoverFull(fs, dir)
@@ -831,9 +871,10 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeCPP, ProjectTypeDocker}, result.Types)
+		assert.Equal(t, []ProjectType{ProjectTypeCPP}, result.Types)
 		assert.Equal(t, "cpp", result.PrimaryStack)
 		assert.True(t, result.Markers[".core/build.yaml"])
+		assert.True(t, result.Markers["Dockerfile"])
 	})
 
 	t.Run("reports distro-aware Linux packages for Wails projects", func(t *testing.T) {

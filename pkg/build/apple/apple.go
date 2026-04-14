@@ -97,7 +97,8 @@ var (
 	submitASFn        = build.SubmitAppStore
 )
 
-// Register wires AppleBuilder into the Core service registry.
+// Register wires AppleBuilder into the Core service container and seeds the
+// builders registry when the host Core exposes one.
 func Register(c *core.Core) core.Result {
 	if c == nil {
 		return core.Result{Value: coreerr.E("apple.Register", "core is nil", nil), OK: false}
@@ -105,6 +106,9 @@ func Register(c *core.Core) core.Result {
 
 	builder := New()
 	builder.ServiceRuntime = core.NewServiceRuntime[AppleOptions](c, builder.options)
+	if r := c.RegistryOf("builders").Set("apple", builder); !r.OK {
+		return r
+	}
 	if r := c.RegisterService("apple", builder); !r.OK {
 		return r
 	}
