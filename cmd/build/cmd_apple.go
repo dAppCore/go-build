@@ -8,8 +8,8 @@ import (
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/internal/cmdutil"
 	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/cli/pkg/cli"
+	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -88,6 +88,9 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 	buildConfig, err := loadAppleBuildConfig(filesystem, projectDir, opts.ConfigPath)
 	if err != nil {
 		return err
+	}
+	if err := build.SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
+		return coreerr.E("build.apple", "failed to set up build cache", err)
 	}
 
 	version := opts.Version

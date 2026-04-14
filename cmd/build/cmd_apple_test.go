@@ -146,6 +146,53 @@ sign:
 	assert.True(t, called)
 }
 
+func TestBuildCmd_runAppleBuildInDir_SetsUpBuildCache_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	coreDir := ax.Join(projectDir, ".core")
+	require.NoError(t, ax.MkdirAll(coreDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
+project:
+  name: Core
+  binary: Core
+build:
+  cache:
+    enabled: true
+    paths:
+      - cache/go-build
+      - cache/go-mod
+apple:
+  bundle_id: ai.lthn.core
+  sign: false
+`), 0o644))
+
+	oldBuildApple := buildAppleFn
+	t.Cleanup(func() {
+		buildAppleFn = oldBuildApple
+	})
+
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+		assert.Equal(t, []string{
+			ax.Join(projectDir, "cache", "go-build"),
+			ax.Join(projectDir, "cache", "go-mod"),
+		}, cfg.Cache.Paths)
+		assert.True(t, cfg.Cache.Enabled)
+		assert.True(t, cfg.FS.Exists(ax.Join(projectDir, ".core", "cache")))
+		assert.True(t, cfg.FS.Exists(ax.Join(projectDir, "cache", "go-build")))
+		assert.True(t, cfg.FS.Exists(ax.Join(projectDir, "cache", "go-mod")))
+		return &build.AppleBuildResult{
+			BundlePath:  ax.Join(cfg.OutputDir, "Core.app"),
+			Version:     "1.2.3",
+			BuildNumber: buildNumber,
+		}, nil
+	}
+
+	err := runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
+		Version:     "v1.2.3",
+		BuildNumber: "42",
+	})
+	require.NoError(t, err)
+}
+
 func boolPtr(value bool) *bool {
 	return &value
 }

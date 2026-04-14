@@ -209,6 +209,9 @@ func (b *AppleBuilder) Build(ctx context.Context, cfg *AppleOptions) core.Result
 	if err != nil {
 		return core.Result{Value: err, OK: false}
 	}
+	if err := build.SetupBuildCache(coreio.Local, projectDir, buildConfig); err != nil {
+		return core.Result{Value: err, OK: false}
+	}
 
 	version, err := determineVersion(ctx, projectDir)
 	if err != nil {
@@ -385,33 +388,7 @@ func resolveBundleName(cfg *build.BuildConfig, projectDir string) string {
 }
 
 func runtimeConfig(filesystem coreio.Medium, projectDir, outputDir, name string, buildConfig *build.BuildConfig, version string) *build.Config {
-	buildDefaults := buildConfig.Build
-	return &build.Config{
-		FS:             filesystem,
-		Project:        buildConfig.Project,
-		ProjectDir:     projectDir,
-		OutputDir:      outputDir,
-		Name:           name,
-		Version:        version,
-		LDFlags:        append([]string{}, buildDefaults.LDFlags...),
-		Flags:          append([]string{}, buildDefaults.Flags...),
-		BuildTags:      append([]string{}, buildDefaults.BuildTags...),
-		Env:            append([]string{}, buildDefaults.Env...),
-		Cache:          buildDefaults.Cache,
-		CGO:            buildDefaults.CGO,
-		Obfuscate:      buildDefaults.Obfuscate,
-		NSIS:           buildDefaults.NSIS,
-		WebView2:       buildDefaults.WebView2,
-		Dockerfile:     buildDefaults.Dockerfile,
-		Registry:       buildDefaults.Registry,
-		Image:          buildDefaults.Image,
-		Tags:           append([]string{}, buildDefaults.Tags...),
-		BuildArgs:      build.CloneStringMap(buildDefaults.BuildArgs),
-		Push:           buildDefaults.Push,
-		Load:           buildDefaults.Load,
-		LinuxKitConfig: buildDefaults.LinuxKitConfig,
-		Formats:        append([]string{}, buildDefaults.Formats...),
-	}
+	return build.RuntimeConfigFromBuildConfig(filesystem, projectDir, outputDir, name, buildConfig, false, "", version)
 }
 
 var buildNumberPattern = regexp.MustCompile(`^[0-9]+$`)

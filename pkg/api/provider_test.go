@@ -4,6 +4,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -912,4 +913,121 @@ func TestProvider_DiscoverProject_Good(t *testing.T) {
 	assert.Contains(t, body, `"linux_packages":`)
 	assert.Contains(t, body, `"go.mod":true`)
 	assert.Contains(t, body, `"frontend/package.json":true`)
+}
+
+func TestProvider_TriggerBuild_UsesFullBuildRuntimeConfig_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	require.NoError(t, io.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+project:
+  name: API Build
+  main: ./cmd/api
+  binary: api-build
+build:
+  type: go
+  cgo: true
+  obfuscate: true
+  flags:
+    - -mod=readonly
+  ldflags:
+    - -s
+  build_tags:
+    - integration
+  env:
+    - FOO=bar
+  cache:
+    enabled: true
+    paths:
+      - cache/go-build
+      - cache/go-mod
+targets:
+  - os: linux
+    arch: amd64
+`), 0o644))
+
+	oldGetBuilder := providerGetBuilder
+	oldDetermineVersion := providerDetermineVersion
+	t.Cleanup(func() {
+		providerGetBuilder = oldGetBuilder
+		providerDetermineVersion = oldDetermineVersion
+	})
+
+	var capturedCfg *build.Config
+	var capturedTargets []build.Target
+	providerGetBuilder = func(projectType build.ProjectType) (build.Builder, error) {
+		return &capturingBuilder{
+			name: "go",
+			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+				capturedCfg = cfg
+				capturedTargets = append([]build.Target{}, targets...)
+
+				artifactDir := ax.Join(cfg.OutputDir, "linux_amd64")
+				require.NoError(t, cfg.FS.EnsureDir(artifactDir))
+				artifactPath := ax.Join(artifactDir, cfg.Name)
+				require.NoError(t, cfg.FS.WriteMode(artifactPath, "binary", 0o755))
+
+				return []build.Artifact{{
+					Path: artifactPath,
+					OS:   "linux",
+					Arch: "amd64",
+				}}, nil
+			},
+		}, nil
+	}
+	providerDetermineVersion = func(ctx context.Context, dir string) (string, error) {
+		return "v1.2.3", nil
+	}
+
+	p := NewProvider(projectDir, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/build", nil)
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.triggerBuild(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	require.NotNil(t, capturedCfg)
+	assert.Equal(t, build.Project{
+		Name:   "API Build",
+		Main:   "./cmd/api",
+		Binary: "api-build",
+	}, capturedCfg.Project)
+	assert.Equal(t, "api-build", capturedCfg.Name)
+	assert.Equal(t, "v1.2.3", capturedCfg.Version)
+	assert.Equal(t, []string{"-mod=readonly"}, capturedCfg.Flags)
+	assert.Equal(t, []string{"-s"}, capturedCfg.LDFlags)
+	assert.Equal(t, []string{"integration"}, capturedCfg.BuildTags)
+	assert.Equal(t, []string{"FOO=bar"}, capturedCfg.Env)
+	assert.True(t, capturedCfg.CGO)
+	assert.True(t, capturedCfg.Obfuscate)
+	assert.True(t, capturedCfg.Cache.Enabled)
+	assert.Equal(t, []string{
+		ax.Join(projectDir, "cache", "go-build"),
+		ax.Join(projectDir, "cache", "go-mod"),
+	}, capturedCfg.Cache.Paths)
+	assert.True(t, capturedCfg.FS.Exists(ax.Join(projectDir, ".core", "cache")))
+	assert.True(t, capturedCfg.FS.Exists(ax.Join(projectDir, "cache", "go-build")))
+	assert.True(t, capturedCfg.FS.Exists(ax.Join(projectDir, "cache", "go-mod")))
+	assert.Equal(t, []build.Target{{OS: "linux", Arch: "amd64"}}, capturedTargets)
+}
+
+type capturingBuilder struct {
+	name    string
+	buildFn func(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error)
+}
+
+func (b *capturingBuilder) Name() string {
+	return b.name
+}
+
+func (b *capturingBuilder) Detect(fs io.Medium, dir string) (bool, error) {
+	return true, nil
+}
+
+func (b *capturingBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+	return b.buildFn(ctx, cfg, targets)
 }

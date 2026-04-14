@@ -368,39 +368,7 @@ func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []b
 
 // buildRuntimeConfig maps persisted build configuration onto the runtime builder config.
 func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName string, buildConfig *build.BuildConfig, push bool, imageName string, version string) *build.Config {
-	buildDefaults := buildConfig.Build
-	cfg := &build.Config{
-		FS:             filesystem,
-		Project:        buildConfig.Project,
-		ProjectDir:     projectDir,
-		OutputDir:      outputDir,
-		Name:           binaryName,
-		Version:        version,
-		LDFlags:        append([]string{}, buildDefaults.LDFlags...),
-		Flags:          append([]string{}, buildDefaults.Flags...),
-		BuildTags:      append([]string{}, buildDefaults.BuildTags...),
-		Env:            append([]string{}, buildDefaults.Env...),
-		Cache:          buildDefaults.Cache,
-		CGO:            buildDefaults.CGO,
-		Obfuscate:      buildDefaults.Obfuscate,
-		NSIS:           buildDefaults.NSIS,
-		WebView2:       buildDefaults.WebView2,
-		Dockerfile:     buildDefaults.Dockerfile,
-		Registry:       buildDefaults.Registry,
-		Image:          buildDefaults.Image,
-		Tags:           append([]string{}, buildDefaults.Tags...),
-		BuildArgs:      build.CloneStringMap(buildDefaults.BuildArgs),
-		Push:           buildDefaults.Push || push,
-		Load:           buildDefaults.Load,
-		LinuxKitConfig: buildDefaults.LinuxKitConfig,
-		Formats:        append([]string{}, buildDefaults.Formats...),
-	}
-
-	if imageName != "" {
-		cfg.Image = imageName
-	}
-
-	return cfg
+	return build.RuntimeConfigFromBuildConfig(filesystem, projectDir, outputDir, binaryName, buildConfig, push, imageName, version)
 }
 
 // resolveArchiveFormat selects the archive format from CLI overrides or config defaults.

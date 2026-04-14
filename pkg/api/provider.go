@@ -36,6 +36,12 @@ type BuildProvider struct {
 	medium     io.Medium
 }
 
+var (
+	providerResolveProjectType = resolveProjectType
+	providerGetBuilder         = getBuilder
+	providerDetermineVersion   = release.DetermineVersionWithContext
+)
+
 // compile-time interface checks
 var (
 	_ provider.Provider    = (*BuildProvider)(nil)
@@ -343,6 +349,10 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
 	}
+	if err := build.SetupBuildCache(p.medium, dir, cfg); err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("cache_setup_failed", err.Error()))
+		return
+	}
 
 	discovery, err := build.DiscoverFull(p.medium, dir)
 	if err != nil {
@@ -351,21 +361,21 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	}
 
 	// Detect project type, honouring an explicit build.type override.
-	projectType, err := resolveProjectType(p.medium, dir, cfg.Build.Type)
+	projectType, err := providerResolveProjectType(p.medium, dir, cfg.Build.Type)
 	if err != nil || projectType == "" {
 		c.JSON(http.StatusBadRequest, api.Fail("no_project", "no buildable project detected"))
 		return
 	}
 
 	// Get builder
-	builder, err := getBuilder(projectType)
+	builder, err := providerGetBuilder(projectType)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("unsupported_type", err.Error()))
 		return
 	}
 
 	// Determine version
-	version, verr := release.DetermineVersionWithContext(c.Request.Context(), dir)
+	version, verr := providerDetermineVersion(c.Request.Context(), dir)
 	if verr != nil {
 		version = "dev"
 	}
@@ -381,15 +391,7 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 
 	outputDir := ax.Join(dir, "dist")
 
-	buildConfig := &build.Config{
-		FS:         p.medium,
-		ProjectDir: dir,
-		OutputDir:  outputDir,
-		Name:       binaryName,
-		Version:    version,
-		LDFlags:    cfg.Build.LDFlags,
-		CGO:        cfg.Build.CGO,
-	}
+	buildConfig := build.RuntimeConfigFromBuildConfig(p.medium, dir, outputDir, binaryName, cfg, false, "", version)
 	build.ApplyOptions(buildConfig, build.ComputeOptions(cfg, discovery))
 
 	targets := cfg.ToTargets()

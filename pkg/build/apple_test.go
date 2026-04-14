@@ -70,6 +70,46 @@ func TestApple_CreateUniversal_Good(t *testing.T) {
 	assert.Equal(t, "universal", string(content))
 }
 
+func TestApple_BuildWailsApp_AddsMLXBuildTag_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	bundlePath := ax.Join(projectDir, "build", "bin", "Core.app")
+	writeDummyAppBundle(t, bundlePath, "Core", "built")
+
+	oldResolve := appleResolveCommand
+	oldCombined := appleCombinedOutput
+	t.Cleanup(func() {
+		appleResolveCommand = oldResolve
+		appleCombinedOutput = oldCombined
+	})
+
+	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
+		return name, nil
+	}
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+		require.Equal(t, "wails3", command)
+		assert.Contains(t, args, "-tags")
+		tagIndex := -1
+		for i, arg := range args {
+			if arg == "-tags" {
+				tagIndex = i + 1
+				break
+			}
+		}
+		require.GreaterOrEqual(t, tagIndex, 1)
+		assert.Equal(t, "integration,mlx", args[tagIndex])
+		return "", nil
+	}
+
+	result, err := BuildWailsApp(context.Background(), WailsBuildConfig{
+		ProjectDir: projectDir,
+		Name:       "Core",
+		Arch:       "arm64",
+		BuildTags:  []string{"integration"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, bundlePath, result)
+}
+
 func TestApple_BuildApple_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist", "apple")

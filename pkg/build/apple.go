@@ -579,7 +579,7 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) (string, error) {
 
 	args := []string{"build", "-platform", "darwin/" + cfg.Arch}
 
-	buildTags := deduplicateStrings(cfg.BuildTags)
+	buildTags := deduplicateStrings(append(append([]string{}, cfg.BuildTags...), "mlx"))
 	if len(buildTags) > 0 {
 		args = append(args, "-tags", core.Join(",", buildTags...))
 	}
