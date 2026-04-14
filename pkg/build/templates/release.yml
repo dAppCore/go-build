@@ -241,6 +241,23 @@ jobs:
         run: |
           set -euo pipefail
 
+          truthy_env() {
+            case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+              1|true|yes|on)
+                return 0
+                ;;
+            esac
+            return 1
+          }
+
+          find_visible_files() {
+            local maxdepth="$1"
+            shift
+            find . -maxdepth "$maxdepth" \
+              \( -path './.*' -o -path '*/.*' -o -path '*/node_modules' -o -path '*/node_modules/*' \) -prune -o \
+              "$@" -print
+          }
+
           has_root_package_json=false
           [ -f package.json ] && has_root_package_json=true
 
@@ -268,21 +285,20 @@ jobs:
           fi
 
           has_subtree_package_json=false
-          if find . -maxdepth 3 -name package.json \
-            -not -path './package.json' \
-            -not -path './frontend/package.json' \
-            -not -path '*/node_modules/*' | grep -q .; then
+          if find_visible_files 3 -name package.json \
+            | grep -qvE '^\./package\.json$|^\./frontend/package\.json$'; then
             has_subtree_package_json=true
           fi
 
           has_subtree_deno_manifest=false
-          if find . -maxdepth 3 \( -name deno.json -o -name deno.jsonc \) \
-            -not -path './deno.json' \
-            -not -path './deno.jsonc' \
-            -not -path './frontend/deno.json' \
-            -not -path './frontend/deno.jsonc' \
-            -not -path '*/node_modules/*' | grep -q .; then
+          if find_visible_files 3 \( -name deno.json -o -name deno.jsonc \) \
+            | grep -qvE '^\./deno\.json$|^\./deno\.jsonc$|^\./frontend/deno\.json$|^\./frontend/deno\.jsonc$'; then
             has_subtree_deno_manifest=true
+          fi
+
+          deno_requested=false
+          if truthy_env "${DENO_ENABLE:-}" || [ -n "${DENO_BUILD:-}" ] || [ -n "${{ inputs.deno-build }}" ]; then
+            deno_requested=true
           fi
 
           has_package_json=false
@@ -303,10 +319,10 @@ jobs:
           has_go_toolchain=false
           if [ "$has_root_go_mod" = "true" ] || [ "$has_root_go_work" = "true" ]; then
             has_go_toolchain=true
-          elif find . -maxdepth 4 \( -name go.mod -o -name go.work \) \
-            -not -path './go.mod' \
-            -not -path './go.work' \
-            -not -path '*/node_modules/*' | grep -q .; then
+          elif find . -maxdepth 4 \
+            \( -path './.*' -o -path '*/.*' -o -path '*/node_modules' -o -path '*/node_modules/*' \) -prune -o \
+            \( -name go.mod -o -name go.work \) -print \
+            | grep -q .; then
             has_go_toolchain=true
           fi
 
@@ -384,6 +400,7 @@ jobs:
             echo "has_root_cmakelists=$has_root_cmakelists"
             echo "has_package_json=$has_package_json"
             echo "has_deno_manifest=$has_deno_manifest"
+            echo "deno_requested=$deno_requested"
             echo "has_frontend=$has_frontend"
             echo "has_go_toolchain=$has_go_toolchain"
             echo "has_docs_config=$has_docs_config"
@@ -437,6 +454,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          find_visible_files() {
+            local maxdepth="$1"
+            shift
+            find . -maxdepth "$maxdepth" \
+              \( -path './.*' -o -path '*/.*' -o -path '*/node_modules' -o -path '*/node_modules/*' \) -prune -o \
+              "$@" -print
+          }
+
           install_node_package_dir() {
             local dir="$1"
             if [ ! -f "$dir/package.json" ]; then
@@ -486,7 +511,7 @@ jobs:
                 ;;
             esac
             install_node_package_dir "$dir"
-          done < <(find . -maxdepth 3 -name package.json -not -path '*/node_modules/*' | sort)
+          done < <(find_visible_files 3 -name package.json | sort)
 
       - name: Install Wails CLI
         if: steps.discovery.outputs.primary_stack_suggestion == 'wails2'
@@ -538,7 +563,7 @@ jobs:
           python -m pip install mkdocs
 
       - name: Setup Deno
-        if: env.DENO_ENABLE == 'true' || env.DENO_ENABLE == '1' || env.DENO_ENABLE == 'yes' || env.DENO_ENABLE == 'on' || inputs.deno-build != '' || steps.discovery.outputs.has_deno_manifest == 'true'
+        if: steps.discovery.outputs.deno_requested == 'true' || steps.discovery.outputs.has_deno_manifest == 'true'
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x

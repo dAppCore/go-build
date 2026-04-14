@@ -46,7 +46,9 @@ func TestXcodeCloud_GenerateXcodeCloudScripts_Good(t *testing.T) {
 
 	require.Len(t, scripts, 3)
 	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "go install github.com/wailsapp/wails/v3/cmd/wails3@latest")
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "find . -maxdepth 3 -name package.json")
+	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "find_visible_files()")
+	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "-path './.*'")
+	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "find_visible_files 3 -name package.json")
 	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "deno_requested()")
 	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "DENO_ENABLE")
 	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "DENO_BUILD")

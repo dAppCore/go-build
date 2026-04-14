@@ -157,6 +157,14 @@ deno_requested() {
   [ -n "${DENO_BUILD:-}" ]
 }
 
+find_visible_files() {
+  local maxdepth="$1"
+  shift
+  find . -maxdepth "$maxdepth" \
+    \( -path './.*' -o -path '*/.*' -o -path '*/node_modules' -o -path '*/node_modules/*' \) -prune -o \
+    "$@" -print
+}
+
 install_node_package_dir() {
   local dir="$1"
   if [ ! -f "$dir/package.json" ]; then
@@ -214,7 +222,7 @@ if ! command -v wails3 >/dev/null 2>&1 && ! command -v wails >/dev/null 2>&1; th
   go install github.com/wailsapp/wails/v3/cmd/wails3@latest
 fi
 
-if deno_requested || find . -maxdepth 3 \( -name deno.json -o -name deno.jsonc \) -not -path '*/node_modules/*' | grep -q .; then
+if deno_requested || find_visible_files 3 \( -name deno.json -o -name deno.jsonc \) | grep -q .; then
   if ! command -v deno >/dev/null 2>&1; then
     curl -fsSL https://deno.land/install.sh | sh
     export PATH="${HOME}/.deno/bin:${PATH}"
@@ -235,7 +243,7 @@ while IFS= read -r manifest; do
       ;;
   esac
   install_node_package_dir "$dir"
-done < <(find . -maxdepth 3 -name package.json -not -path '*/node_modules/*' | sort)
+done < <(find_visible_files 3 -name package.json | sort)
 `) + "\n"
 }
 
