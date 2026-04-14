@@ -13,6 +13,8 @@ const (
 	markerGoWork             = "go.work"
 	markerWails              = "wails.json"
 	markerNodePackage        = "package.json"
+	markerDenoJSON           = "deno.json"
+	markerDenoJSONC          = "deno.jsonc"
 	markerComposer           = "composer.json"
 	markerMkDocs             = "mkdocs.yml"
 	markerMkDocsYAML         = "mkdocs.yaml"
@@ -49,6 +51,8 @@ var markers = []projectMarker{
 	{markerGoMod, ProjectTypeGo},
 	{markerGoWork, ProjectTypeGo},
 	{markerNodePackage, ProjectTypeNode},
+	{markerDenoJSON, ProjectTypeNode},
+	{markerDenoJSONC, ProjectTypeNode},
 	{markerComposer, ProjectTypePHP},
 	{markerMkDocs, ProjectTypeDocs},
 	{markerMkDocsYAML, ProjectTypeDocs},
@@ -150,7 +154,9 @@ func IsWailsProject(fs io.Medium, dir string) bool {
 //
 // if build.IsNodeProject(io.Local, ".") { ... }
 func IsNodeProject(fs io.Medium, dir string) bool {
-	return fileExists(fs, ax.Join(dir, markerNodePackage))
+	return fileExists(fs, ax.Join(dir, markerNodePackage)) ||
+		fileExists(fs, ax.Join(dir, markerDenoJSON)) ||
+		fileExists(fs, ax.Join(dir, markerDenoJSONC))
 }
 
 // IsPHPProject checks if the directory contains a PHP project.
@@ -297,7 +303,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	// Record raw marker presence
 	allMarkers := []string{
 		markerBuildConfig,
-		markerGoMod, markerGoWork, markerWails, markerNodePackage, markerComposer,
+		markerGoMod, markerGoWork, markerWails, markerNodePackage, markerDenoJSON, markerDenoJSONC, markerComposer,
 		markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
 		markerPyProject, markerRequirements, markerCargo,
 		"CMakeLists.txt", markerDockerfile, "Containerfile", "dockerfile", "containerfile",

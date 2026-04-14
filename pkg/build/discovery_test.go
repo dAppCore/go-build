@@ -62,6 +62,13 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeNode}, types)
 	})
 
+	t.Run("detects Deno project", func(t *testing.T) {
+		dir := setupTestDir(t, "deno.json")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeNode}, types)
+	})
+
 	t.Run("detects nested Node.js project", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "apps", "web")
@@ -307,6 +314,13 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 		assert.Equal(t, ProjectTypeNode, primary)
 	})
 
+	t.Run("returns node for root deno project", func(t *testing.T) {
+		dir := setupTestDir(t, "deno.jsonc")
+		primary, err := PrimaryType(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, ProjectTypeNode, primary)
+	})
+
 	t.Run("returns wails for go.mod with nested frontend package.json", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
@@ -388,14 +402,24 @@ func TestDiscovery_IsWailsProject_Good(t *testing.T) {
 
 func TestDiscovery_IsNodeProject_Good(t *testing.T) {
 	fs := io.Local
+
 	t.Run("true with package.json", func(t *testing.T) {
 		dir := setupTestDir(t, "package.json")
 		assert.True(t, IsNodeProject(fs, dir))
 	})
 
-	t.Run("false without package.json", func(t *testing.T) {
-		dir := t.TempDir()
-		assert.False(t, IsNodeProject(fs, dir))
+	t.Run("true with deno.json", func(t *testing.T) {
+		dir := setupTestDir(t, "deno.json")
+		assert.True(t, IsNodeProject(fs, dir))
+	})
+
+	t.Run("true with deno.jsonc", func(t *testing.T) {
+		dir := setupTestDir(t, "deno.jsonc")
+		assert.True(t, IsNodeProject(fs, dir))
+	})
+
+	t.Run("false without markers", func(t *testing.T) {
+		assert.False(t, IsNodeProject(fs, t.TempDir()))
 	})
 }
 
@@ -725,6 +749,19 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, "node", result.PrimaryStack)
 		assert.True(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)
+	})
+
+	t.Run("detects root deno.json as node project", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "deno.json"), []byte("{}"), 0644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeNode}, result.Types)
+		assert.Equal(t, "node", result.PrimaryStack)
+		assert.True(t, result.HasFrontend)
+		assert.True(t, result.Markers["deno.json"])
+		assert.False(t, result.Markers["package.json"])
 	})
 
 	t.Run("detects go.mod with root package.json as Wails", func(t *testing.T) {

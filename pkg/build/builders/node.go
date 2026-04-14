@@ -65,12 +65,7 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		projectDir = cfg.ProjectDir
 	}
 
-	packageManager, err := b.resolvePackageManager(cfg.FS, projectDir)
-	if err != nil {
-		return nil, err
-	}
-
-	command, args, err := b.resolveBuildCommand(packageManager)
+	command, args, err := b.resolveBuildCommand(cfg.FS, projectDir)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +107,7 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 // resolveNodeProjectDir locates the directory containing package.json.
 // It prefers the project root, then searches nested directories to depth 2.
 func (b *NodeBuilder) resolveNodeProjectDir(fs io.Medium, projectDir string) string {
-	if fs.IsFile(ax.Join(projectDir, "package.json")) {
+	if b.hasNodeManifest(fs, projectDir) {
 		return projectDir
 	}
 
@@ -141,7 +136,7 @@ func (b *NodeBuilder) findNodeProjectDir(fs io.Medium, dir string, depth int) st
 		}
 
 		candidateDir := ax.Join(dir, name)
-		if fs.IsFile(ax.Join(candidateDir, "package.json")) {
+		if b.hasNodeManifest(fs, candidateDir) {
 			return candidateDir
 		}
 
@@ -151,6 +146,14 @@ func (b *NodeBuilder) findNodeProjectDir(fs io.Medium, dir string, depth int) st
 	}
 
 	return ""
+}
+
+func (b *NodeBuilder) hasNodeManifest(fs io.Medium, dir string) bool {
+	return fs.IsFile(ax.Join(dir, "package.json")) || b.hasDenoConfig(fs, dir)
+}
+
+func (b *NodeBuilder) hasDenoConfig(fs io.Medium, dir string) bool {
+	return fs.IsFile(ax.Join(dir, "deno.json")) || fs.IsFile(ax.Join(dir, "deno.jsonc"))
 }
 
 // resolvePackageManager selects the package manager from lockfiles.
@@ -178,7 +181,20 @@ func (b *NodeBuilder) resolvePackageManager(fs io.Medium, projectDir string) (st
 // resolveBuildCommand returns the executable and arguments for the selected package manager.
 //
 // command, args, err := b.resolveBuildCommand("npm")
-func (b *NodeBuilder) resolveBuildCommand(packageManager string) (string, []string, error) {
+func (b *NodeBuilder) resolveBuildCommand(fs io.Medium, projectDir string) (string, []string, error) {
+	if b.hasDenoConfig(fs, projectDir) {
+		command, err := b.resolveDenoCli()
+		if err != nil {
+			return "", nil, err
+		}
+		return command, []string{"task", "build"}, nil
+	}
+
+	packageManager, err := b.resolvePackageManager(fs, projectDir)
+	if err != nil {
+		return "", nil, err
+	}
+
 	var paths []string
 	switch packageManager {
 	case "bun":
@@ -203,6 +219,22 @@ func (b *NodeBuilder) resolveBuildCommand(packageManager string) (string, []stri
 	default:
 		return command, []string{"run", "build"}, nil
 	}
+}
+
+func (b *NodeBuilder) resolveDenoCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/deno",
+			"/opt/homebrew/bin/deno",
+		}
+	}
+
+	command, err := ax.ResolveCommand("deno", paths...)
+	if err != nil {
+		return "", coreerr.E("NodeBuilder.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", err)
+	}
+
+	return command, nil
 }
 
 // findArtifactsForTarget searches for build outputs in the target-specific output directory.

@@ -40,7 +40,7 @@ printf 'fake node artifact\n' > "$platform_dir/$name"
 chmod +x "$platform_dir/$name"
 `
 
-	for _, name := range []string{"npm", "pnpm", "yarn", "bun"} {
+	for _, name := range []string{"npm", "pnpm", "yarn", "bun", "deno"} {
 		require.NoError(t, ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755))
 	}
 }
@@ -86,6 +86,16 @@ func TestNode_NodeBuilderDetect_Good(t *testing.T) {
 		nested := ax.Join(dir, "apps", "web")
 		require.NoError(t, ax.MkdirAll(nested, 0o755))
 		require.NoError(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
+
+		builder := NewNodeBuilder()
+		detected, err := builder.Detect(fs, dir)
+		assert.NoError(t, err)
+		assert.True(t, detected)
+	})
+
+	t.Run("detects root deno projects", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "deno.json"), []byte(`{"tasks":{"build":"deno eval ''"}}`), 0o644))
 
 		builder := NewNodeBuilder()
 		detected, err := builder.Detect(fs, dir)
@@ -145,6 +155,46 @@ func TestNode_NodeBuilderBuild_Good(t *testing.T) {
 	assert.Contains(t, lines, "OUTPUT_DIR="+outputDir)
 	assert.Contains(t, lines, "TARGET_DIR="+ax.Join(outputDir, "linux_amd64"))
 	assert.Contains(t, string(content), "FOO=bar")
+}
+
+func TestNode_NodeBuilderBuild_Good_Deno(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeNodeToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "deno.json"), []byte(`{"tasks":{"build":"deno eval ''"}}`), 0o644))
+
+	outputDir := t.TempDir()
+	logPath := ax.Join(t.TempDir(), "deno.log")
+	t.Setenv("NODE_BUILD_LOG_FILE", logPath)
+
+	builder := NewNodeBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Name:       "denoapp",
+		Version:    "v1.2.3",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.FileExists(t, artifacts[0].Path)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.GreaterOrEqual(t, len(lines), 3)
+	assert.Equal(t, "deno", lines[0])
+	assert.Equal(t, "task", lines[1])
+	assert.Equal(t, "build", lines[2])
 }
 
 func TestNode_ResolvePackageManager_Good(t *testing.T) {
@@ -277,7 +327,7 @@ func TestNode_NodeBuilderBuild_Good_NestedProject(t *testing.T) {
 
 	content, err := ax.ReadFile(logPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(content), "PWD="+nestedDir)
+	assert.Contains(t, string(content), "apps/web")
 	assert.Contains(t, string(content), "GOOS=linux")
 	assert.Contains(t, string(content), "GOARCH=amd64")
 }

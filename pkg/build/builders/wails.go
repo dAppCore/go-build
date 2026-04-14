@@ -50,19 +50,32 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 		return nil, coreerr.E("WailsBuilder.Build", "no targets specified", nil)
 	}
 
+	if cfg.OutputDir == "" {
+		cfg.OutputDir = ax.Join(cfg.ProjectDir, "dist")
+	}
+
 	// Detect Wails version
 	isV3 := b.isWailsV3(cfg.FS, cfg.ProjectDir)
 
 	if isV3 {
-		// Wails v3 strategy: Delegate to Taskfile if present, otherwise use Go builder with CGO
+		// Wails v3 projects already ship Taskfiles. Prefer them when present because
+		// they capture project-specific packaging logic. Fall back to the CLI when a
+		// project is Wails-backed but does not expose Task targets.
 		taskBuilder := NewTaskfileBuilder()
 		if detected, _ := taskBuilder.Detect(cfg.FS, cfg.ProjectDir); detected {
 			return taskBuilder.Build(ctx, cfg, targets)
 		}
-		// Fall back to Go builder — Wails v3 is just a Go project that needs CGO
-		v3Config := b.buildV3Config(cfg)
-		goBuilder := NewGoBuilder()
-		return goBuilder.Build(ctx, v3Config, targets)
+
+		var artifacts []build.Artifact
+		for _, target := range targets {
+			artifact, err := b.buildV3Target(ctx, cfg, target)
+			if err != nil {
+				return artifacts, coreerr.E("WailsBuilder.Build", "failed to build "+target.String(), err)
+			}
+			artifacts = append(artifacts, artifact)
+		}
+
+		return artifacts, nil
 	}
 
 	// Wails v2 strategy: Use 'wails build'
@@ -99,6 +112,72 @@ func (b *WailsBuilder) buildV3Config(cfg *build.Config) *build.Config {
 	v3Config := *cfg
 	v3Config.CGO = true
 	return &v3Config
+}
+
+// buildV3Target builds a Wails v3 project for a single target using the wails3 CLI.
+func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, target build.Target) (build.Artifact, error) {
+	wailsCommand, err := b.resolveWails3Cli()
+	if err != nil {
+		return build.Artifact{}, err
+	}
+
+	binaryName := cfg.Name
+	if binaryName == "" {
+		binaryName = ax.Base(cfg.ProjectDir)
+	}
+
+	verb := "build"
+	args := []string{verb, "GOOS=" + target.OS, "GOARCH=" + target.Arch}
+	if cfg.NSIS && target.OS == "windows" {
+		verb = "package"
+		args[0] = verb
+	}
+
+	env := appendConfiguredEnv(cfg.Env,
+		core.Sprintf("GOOS=%s", target.OS),
+		core.Sprintf("GOARCH=%s", target.Arch),
+		core.Sprintf("TARGET_OS=%s", target.OS),
+		core.Sprintf("TARGET_ARCH=%s", target.Arch),
+		core.Sprintf("OUTPUT_DIR=%s", cfg.OutputDir),
+	)
+	if cfg.Version != "" {
+		env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
+	}
+	if binaryName != "" {
+		env = append(env, core.Sprintf("NAME=%s", binaryName))
+	}
+	if goflags := buildV3GoFlags(cfg); goflags != "" {
+		env = append(env, "GOFLAGS="+goflags)
+	}
+	if cfg.CGO {
+		env = append(env, "CGO_ENABLED=1")
+	}
+
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, wailsCommand, args...)
+	if err != nil {
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV3Target", "wails3 "+verb+" failed: "+output, err)
+	}
+
+	sourcePath, err := b.findV3Artifact(cfg.FS, cfg.ProjectDir, binaryName, target, verb == "package")
+	if err != nil {
+		return build.Artifact{}, err
+	}
+
+	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
+	if err := cfg.FS.EnsureDir(platformDir); err != nil {
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV3Target", "failed to create output dir", err)
+	}
+
+	destPath := ax.Join(platformDir, ax.Base(sourcePath))
+	if err := copyBuildArtifact(cfg.FS, sourcePath, destPath); err != nil {
+		return build.Artifact{}, coreerr.E("WailsBuilder.buildV3Target", "failed to copy artifact "+sourcePath, err)
+	}
+
+	return build.Artifact{
+		Path: destPath,
+		OS:   target.OS,
+		Arch: target.Arch,
+	}, nil
 }
 
 // PreBuild runs the frontend build step before Wails compiles the desktop app.
@@ -404,6 +483,31 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 	return "", coreerr.E("WailsBuilder.findArtifact", "no artifact found in "+platformDir, nil)
 }
 
+func (b *WailsBuilder) findV3Artifact(fs io.Medium, projectDir, binaryName string, target build.Target, packaged bool) (string, error) {
+	if packaged && target.OS == "windows" {
+		for _, candidate := range []string{
+			ax.Join(projectDir, "build", "windows", "nsis", binaryName+"-installer.exe"),
+			ax.Join(projectDir, "bin", binaryName+"-installer.exe"),
+		} {
+			if fs.Exists(candidate) {
+				return candidate, nil
+			}
+		}
+	}
+
+	for _, platformDir := range []string{
+		ax.Join(projectDir, "build", "bin"),
+		ax.Join(projectDir, "bin"),
+	} {
+		path, err := b.findArtifact(fs, platformDir, binaryName, target)
+		if err == nil {
+			return path, nil
+		}
+	}
+
+	return "", coreerr.E("WailsBuilder.findV3Artifact", "no artifact found for "+target.String(), nil)
+}
+
 // copyBuildArtifact copies a file or directory artifact into the build output tree.
 //
 // err := copyBuildArtifact(io.Local, "/tmp/source.app", "/tmp/dist/source.app")
@@ -465,6 +569,52 @@ func (b *WailsBuilder) resolveWailsCli(paths ...string) (string, error) {
 	}
 
 	return command, nil
+}
+
+func (b *WailsBuilder) resolveWails3Cli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/wails3",
+			"/opt/homebrew/bin/wails3",
+		}
+
+		if home := core.Env("HOME"); home != "" {
+			paths = append(paths, ax.Join(home, "go", "bin", "wails3"))
+		}
+	}
+
+	command, err := ax.ResolveCommand("wails3", paths...)
+	if err != nil {
+		return "", coreerr.E("WailsBuilder.resolveWails3Cli", "wails3 CLI not found. Install Wails v3 or expose it on PATH.", err)
+	}
+
+	return command, nil
+}
+
+func buildV3GoFlags(cfg *build.Config) string {
+	if cfg == nil {
+		return ""
+	}
+
+	var flags []string
+	if !containsString(cfg.Flags, "-trimpath") {
+		flags = append(flags, "-trimpath")
+	}
+	flags = append(flags, cfg.Flags...)
+
+	if len(cfg.BuildTags) > 0 {
+		flags = append(flags, "-tags="+core.Join(",", cfg.BuildTags...))
+	}
+
+	ldflags := append([]string{}, cfg.LDFlags...)
+	if cfg.Version != "" && !hasVersionLDFlag(ldflags) {
+		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+	}
+	if len(ldflags) > 0 {
+		flags = append(flags, "-ldflags="+core.Join(" ", ldflags...))
+	}
+
+	return core.Join(" ", flags...)
 }
 
 // resolveDenoCli returns the executable path for the deno CLI.

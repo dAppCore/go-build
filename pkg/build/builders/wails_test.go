@@ -112,6 +112,49 @@ chmod +x "$output_dir/$binary_name"
 	require.NoError(t, err)
 }
 
+func setupFakeWails3Toolchain(t *testing.T, binDir string) {
+	t.Helper()
+
+	wails3Script := `#!/bin/sh
+set -eu
+
+log_file="${WAILS_BUILD_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+	printf '%s\n' "GOFLAGS=${GOFLAGS:-}" >> "$log_file"
+fi
+
+verb="${1:-build}"
+shift || true
+
+goos=""
+goarch=""
+for arg in "$@"; do
+	case "$arg" in
+		GOOS=*) goos="${arg#GOOS=}" ;;
+		GOARCH=*) goarch="${arg#GOARCH=}" ;;
+	esac
+done
+
+	name="${NAME:-testapp}"
+	if [ "$verb" = "package" ] && [ "$goos" = "windows" ]; then
+		mkdir -p "build/windows/nsis"
+		printf 'fake wails3 installer\n' > "build/windows/nsis/${name}-installer.exe"
+		chmod +x "build/windows/nsis/${name}-installer.exe"
+		exit 0
+	fi
+
+	mkdir -p "bin"
+	if [ "$goos" = "windows" ]; then
+		name="${name}.exe"
+	fi
+	printf 'fake wails3 binary\n' > "bin/${name}"
+	chmod +x "bin/${name}"
+`
+
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, "wails3"), []byte(wails3Script), 0o755))
+}
+
 func setupFakeFrontendCommand(t *testing.T, binDir, name string) {
 	t.Helper()
 
@@ -916,6 +959,87 @@ func TestWails_WailsBuilderBuild_Good(t *testing.T) {
 		assert.Equal(t, runtime.GOOS, artifact.OS)
 		assert.Equal(t, runtime.GOARCH, artifact.Arch)
 	})
+}
+
+func TestWails_WailsBuilderBuildV3Fallback_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeWails3Toolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := setupWailsTestProject(t)
+	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+
+	logPath := ax.Join(t.TempDir(), "wails3.log")
+	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  t.TempDir(),
+		Name:       "testapp",
+		Version:    "v1.2.3",
+		BuildTags:  []string{"integration"},
+		LDFlags:    []string{"-s", "-w"},
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.FileExists(t, artifacts[0].Path)
+	assert.Equal(t, "testapp", ax.Base(artifacts[0].Path))
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.GreaterOrEqual(t, len(lines), 4)
+	assert.Equal(t, "build", lines[0])
+	assert.Contains(t, lines, "GOOS=linux")
+	assert.Contains(t, lines, "GOARCH=amd64")
+	assert.Contains(t, strings.Join(lines, "\n"), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
+}
+
+func TestWails_WailsBuilderBuildV3NSIS_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeWails3Toolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := setupWailsTestProject(t)
+	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+
+	logPath := ax.Join(t.TempDir(), "wails3-package.log")
+	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  t.TempDir(),
+		Name:       "testapp",
+		NSIS:       true,
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.FileExists(t, artifacts[0].Path)
+	assert.Equal(t, "testapp-installer.exe", ax.Base(artifacts[0].Path))
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.GreaterOrEqual(t, len(lines), 3)
+	assert.Equal(t, "package", lines[0])
+	assert.Contains(t, lines, "GOOS=windows")
+	assert.Contains(t, lines, "GOARCH=amd64")
 }
 
 func TestWails_WailsBuilderInterface_Good(t *testing.T) {
