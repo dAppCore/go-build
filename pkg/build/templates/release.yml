@@ -33,6 +33,11 @@ on:
         required: false
         type: string
         default: ""
+      build-cache:
+        description: Restore and save build cache directories across workflow runs.
+        required: false
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       working-directory:
@@ -65,6 +70,11 @@ on:
         required: false
         type: string
         default: ""
+      build-cache:
+        description: Restore and save build cache directories across workflow runs.
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -118,6 +128,19 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install conan
+
+      - name: Restore build cache
+        if: inputs.build-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ inputs.working-directory }}/.core/cache
+            ${{ inputs.working-directory }}/cache
+          key: >-
+            core-build-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles(format('{0}/.core/build.yaml', inputs.working-directory), format('{0}/**/go.sum', inputs.working-directory), format('{0}/**/go.work.sum', inputs.working-directory), format('{0}/**/package-lock.json', inputs.working-directory), format('{0}/**/pnpm-lock.yaml', inputs.working-directory), format('{0}/**/yarn.lock', inputs.working-directory), format('{0}/**/bun.lock', inputs.working-directory), format('{0}/**/bun.lockb', inputs.working-directory), format('{0}/**/deno.lock', inputs.working-directory), format('{0}/**/composer.lock', inputs.working-directory), format('{0}/**/poetry.lock', inputs.working-directory), format('{0}/**/requirements.txt', inputs.working-directory), format('{0}/**/Cargo.lock', inputs.working-directory)) }}
+          restore-keys: |
+            core-build-${{ runner.os }}-${{ matrix.target }}-
+            core-build-${{ runner.os }}-
 
       - name: Install Linux Wails dependencies
         if: runner.os == 'Linux'
