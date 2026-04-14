@@ -13,6 +13,21 @@ on:
         required: false
         type: string
         default: latest
+      go-version:
+        description: Go version to install for Go, Wails, and toolchain-backed builds.
+        required: false
+        type: string
+        default: "1.26"
+      node-version:
+        description: Node.js version to install for Node and Wails frontend builds.
+        required: false
+        type: string
+        default: "22.x"
+      wails-version:
+        description: Wails CLI version to install when a Wails project is detected.
+        required: false
+        type: string
+        default: latest
       version:
         description: Release version override.
         required: false
@@ -77,6 +92,21 @@ on:
         default: .
       core-version:
         description: Core CLI version to install.
+        required: false
+        type: string
+        default: latest
+      go-version:
+        description: Go version to install for Go, Wails, and toolchain-backed builds.
+        required: false
+        type: string
+        default: "1.26"
+      node-version:
+        description: Node.js version to install for Node and Wails frontend builds.
+        required: false
+        type: string
+        default: "22.x"
+      wails-version:
+        description: Wails CLI version to install when a Wails project is detected.
         required: false
         type: string
         default: latest
@@ -167,6 +197,68 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup Go
+        if: hashFiles(format('{0}/go.mod', inputs.working-directory), format('{0}/go.work', inputs.working-directory), format('{0}/**/go.mod', inputs.working-directory), format('{0}/**/go.work', inputs.working-directory)) != ''
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Setup Node
+        if: hashFiles(format('{0}/**/package.json', inputs.working-directory)) != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Enable Corepack
+        if: hashFiles(format('{0}/**/package.json', inputs.working-directory)) != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+
+      - name: Install Wails CLI
+        working-directory: ${{ inputs.working-directory }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v go >/dev/null 2>&1; then
+            echo "Go is not available; skipping Wails CLI installation."
+            exit 0
+          fi
+
+          has_wails_frontend=false
+
+          if [ -f wails.json ]; then
+            has_wails_frontend=true
+          elif [ -f go.mod ] || [ -f go.work ]; then
+            if [ -f package.json ] || [ -f deno.json ] || [ -f deno.jsonc ] || [ -f frontend/package.json ] || [ -f frontend/deno.json ] || [ -f frontend/deno.jsonc ]; then
+              has_wails_frontend=true
+            elif find . -maxdepth 3 \( -name package.json -o -name deno.json -o -name deno.jsonc \) \
+              -not -path './package.json' \
+              -not -path './deno.json' \
+              -not -path './deno.jsonc' \
+              -not -path './frontend/package.json' \
+              -not -path './frontend/deno.json' \
+              -not -path './frontend/deno.jsonc' \
+              -not -path '*/node_modules/*' | grep -q .; then
+              has_wails_frontend=true
+            fi
+          fi
+
+          if [ "$has_wails_frontend" != "true" ]; then
+            echo "No Wails project detected; skipping Wails CLI installation."
+            exit 0
+          fi
+
+          package='github.com/wailsapp/wails/v2/cmd/wails'
+          if [ -f go.mod ] && grep -q 'github.com/wailsapp/wails/v3' go.mod; then
+            package='github.com/wailsapp/wails/v3/cmd/wails3'
+          fi
+
+          go install "${package}@${{ inputs.wails-version }}"
+          echo "$(go env GOPATH)/bin" >> "${GITHUB_PATH}"
 
       - name: Install Core CLI
         uses: dAppCore/build@v3
