@@ -6,26 +6,12 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/cmdutil"
 	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
+	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
-)
-
-var (
-	appleArch        string
-	appleSign        bool
-	appleNotarise    bool
-	appleDMG         bool
-	appleTestFlight  bool
-	appleAppStore    bool
-	appleTeamID      string
-	appleBundleID    string
-	appleVersion     string
-	appleBuildNumber string
-	appleConfigPath  string
-	appleOutputDir   string
 )
 
 var buildAppleFn = build.BuildApple
@@ -53,59 +39,35 @@ type appleCLIOptions struct {
 	OutputDir         string
 }
 
-var appleCmd = &cli.Command{
-	Use: "apple",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runAppleBuild(cmd.Context(), appleCLIOptions{
-			Arch:              appleArch,
-			ArchChanged:       cmd.Flags().Changed("arch"),
-			Sign:              appleSign,
-			SignChanged:       cmd.Flags().Changed("sign"),
-			Notarise:          appleNotarise,
-			NotariseChanged:   cmd.Flags().Changed("notarise"),
-			DMG:               appleDMG,
-			DMGChanged:        cmd.Flags().Changed("dmg"),
-			TestFlight:        appleTestFlight,
-			TestFlightChanged: cmd.Flags().Changed("testflight"),
-			AppStore:          appleAppStore,
-			AppStoreChanged:   cmd.Flags().Changed("appstore"),
-			TeamID:            appleTeamID,
-			TeamIDChanged:     cmd.Flags().Changed("team-id"),
-			BundleID:          appleBundleID,
-			BundleIDChanged:   cmd.Flags().Changed("bundle-id"),
-			Version:           appleVersion,
-			BuildNumber:       appleBuildNumber,
-			ConfigPath:        appleConfigPath,
-			OutputDir:         appleOutputDir,
-		})
-	},
-}
-
-func setAppleI18n() {
-	appleCmd.Short = i18n.T("cmd.build.apple.short")
-	appleCmd.Long = i18n.T("cmd.build.apple.long")
-}
-
-func initAppleFlags() {
-	appleCmd.Flags().StringVar(&appleArch, "arch", "universal", i18n.T("cmd.build.apple.flag.arch"))
-	appleCmd.Flags().BoolVar(&appleSign, "sign", true, i18n.T("cmd.build.apple.flag.sign"))
-	appleCmd.Flags().BoolVar(&appleNotarise, "notarise", true, i18n.T("cmd.build.apple.flag.notarise"))
-	appleCmd.Flags().BoolVar(&appleDMG, "dmg", false, i18n.T("cmd.build.apple.flag.dmg"))
-	appleCmd.Flags().BoolVar(&appleTestFlight, "testflight", false, i18n.T("cmd.build.apple.flag.testflight"))
-	appleCmd.Flags().BoolVar(&appleAppStore, "appstore", false, i18n.T("cmd.build.apple.flag.appstore"))
-	appleCmd.Flags().StringVar(&appleTeamID, "team-id", "", i18n.T("cmd.build.apple.flag.team_id"))
-	appleCmd.Flags().StringVar(&appleBundleID, "bundle-id", "", i18n.T("cmd.build.apple.flag.bundle_id"))
-	appleCmd.Flags().StringVar(&appleVersion, "version", "", i18n.T("cmd.build.apple.flag.version"))
-	appleCmd.Flags().StringVar(&appleBuildNumber, "build-number", "", i18n.T("cmd.build.apple.flag.build_number"))
-	appleCmd.Flags().StringVar(&appleConfigPath, "config", "", i18n.T("cmd.build.flag.config"))
-	appleCmd.Flags().StringVar(&appleOutputDir, "output", "", i18n.T("cmd.build.flag.output"))
-}
-
 // AddAppleCommand adds the Apple build subcommand to the build command.
-func AddAppleCommand(buildCmd *cli.Command) {
-	setAppleI18n()
-	initAppleFlags()
-	buildCmd.AddCommand(appleCmd)
+func AddAppleCommand(c *core.Core) {
+	c.Command("build/apple", core.Command{
+		Description: "cmd.build.apple.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runAppleBuild(cmdutil.ContextOrBackground(), appleCLIOptions{
+				Arch:              cmdutil.OptionString(opts, "arch"),
+				ArchChanged:       opts.Has("arch"),
+				Sign:              cmdutil.OptionBoolDefault(opts, true, "sign"),
+				SignChanged:       opts.Has("sign"),
+				Notarise:          cmdutil.OptionBoolDefault(opts, true, "notarise"),
+				NotariseChanged:   opts.Has("notarise"),
+				DMG:               cmdutil.OptionBool(opts, "dmg"),
+				DMGChanged:        opts.Has("dmg"),
+				TestFlight:        cmdutil.OptionBool(opts, "testflight"),
+				TestFlightChanged: opts.Has("testflight"),
+				AppStore:          cmdutil.OptionBool(opts, "appstore"),
+				AppStoreChanged:   opts.Has("appstore"),
+				TeamID:            cmdutil.OptionString(opts, "team-id"),
+				TeamIDChanged:     opts.Has("team-id"),
+				BundleID:          cmdutil.OptionString(opts, "bundle-id"),
+				BundleIDChanged:   opts.Has("bundle-id"),
+				Version:           cmdutil.OptionString(opts, "version"),
+				BuildNumber:       cmdutil.OptionString(opts, "build-number"),
+				ConfigPath:        cmdutil.OptionString(opts, "config"),
+				OutputDir:         cmdutil.OptionString(opts, "output"),
+			}))
+		},
+	})
 }
 
 func runAppleBuild(ctx context.Context, opts appleCLIOptions) error {

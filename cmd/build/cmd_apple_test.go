@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/signing"
-	"dappco.re/go/core/cli/pkg/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -83,19 +83,16 @@ func TestBuildCmd_resolveAppleBuildNumber_Good(t *testing.T) {
 }
 
 func TestBuildCmd_AddAppleCommand_Good(t *testing.T) {
-	buildCommand := &cli.Command{Use: "build"}
-	AddAppleCommand(buildCommand)
+	c := core.New()
+	AddAppleCommand(c)
 
-	assert.NotNil(t, appleCmd.Flags().Lookup("arch"))
-	assert.NotNil(t, appleCmd.Flags().Lookup("sign"))
-	assert.NotNil(t, appleCmd.Flags().Lookup("notarise"))
-	assert.NotNil(t, appleCmd.Flags().Lookup("dmg"))
-	assert.NotNil(t, appleCmd.Flags().Lookup("testflight"))
-	assert.NotNil(t, appleCmd.Flags().Lookup("appstore"))
-	assert.NotNil(t, appleCmd.Flags().Lookup("team-id"))
-	assert.NotNil(t, appleCmd.Flags().Lookup("bundle-id"))
-	assert.NotNil(t, appleCmd.Flags().Lookup("version"))
-	assert.NotNil(t, appleCmd.Flags().Lookup("build-number"))
+	result := c.Command("build/apple")
+	require.True(t, result.OK)
+
+	command, ok := result.Value.(*core.Command)
+	require.True(t, ok)
+	assert.Equal(t, "build/apple", command.Path)
+	assert.Equal(t, "cmd.build.apple.long", command.Description)
 }
 
 func TestBuildCmd_runAppleBuildInDir_Good(t *testing.T) {

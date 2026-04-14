@@ -3,8 +3,7 @@ package buildcmd
 import (
 	"testing"
 
-	"dappco.re/go/core/cli/pkg/cli"
-
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
@@ -160,67 +159,17 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "command: ci")
 	})
 
-	t.Run("registers both path and output flags", func(t *testing.T) {
-		buildCmd := &cli.Command{Use: "build"}
-		AddWorkflowCommand(buildCmd)
+	t.Run("registers the build/workflow command", func(t *testing.T) {
+		c := core.New()
+		AddWorkflowCommand(c)
 
-		pathFlag := releaseWorkflowCmd.Flags().Lookup("path")
-		workflowPathCamelFlag := releaseWorkflowCmd.Flags().Lookup("workflowPath")
-		workflowPathFlag := releaseWorkflowCmd.Flags().Lookup("workflow-path")
-		workflowPathSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_path")
-		outputPathCamelFlag := releaseWorkflowCmd.Flags().Lookup("outputPath")
-		outputPathFlag := releaseWorkflowCmd.Flags().Lookup("output-path")
-		outputPathSnakeFlag := releaseWorkflowCmd.Flags().Lookup("output_path")
-		outputFlag := releaseWorkflowCmd.Flags().Lookup("output")
-		workflowOutputPathCamelFlag := releaseWorkflowCmd.Flags().Lookup("workflowOutputPath")
-		workflowOutputPathFlag := releaseWorkflowCmd.Flags().Lookup("workflow-output-path")
-		workflowOutputPathSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_output_path")
-		workflowOutputFlag := releaseWorkflowCmd.Flags().Lookup("workflow-output")
-		workflowOutputSnakeFlag := releaseWorkflowCmd.Flags().Lookup("workflow_output")
+		result := c.Command("build/workflow")
+		require.True(t, result.OK)
 
-		assert.NotNil(t, pathFlag)
-		assert.NotNil(t, workflowPathCamelFlag)
-		assert.NotNil(t, workflowPathFlag)
-		assert.NotNil(t, workflowPathSnakeFlag)
-		assert.NotNil(t, outputPathCamelFlag)
-		assert.NotNil(t, outputPathFlag)
-		assert.NotNil(t, outputPathSnakeFlag)
-		assert.NotNil(t, outputFlag)
-		assert.NotNil(t, workflowOutputPathFlag)
-		assert.NotNil(t, workflowOutputPathSnakeFlag)
-		assert.NotEmpty(t, pathFlag.Usage)
-		assert.NotEmpty(t, workflowPathCamelFlag.Usage)
-		assert.NotEmpty(t, workflowPathFlag.Usage)
-		assert.NotEmpty(t, workflowPathSnakeFlag.Usage)
-		assert.NotEmpty(t, outputPathCamelFlag.Usage)
-		assert.NotEmpty(t, outputPathFlag.Usage)
-		assert.NotEmpty(t, outputPathSnakeFlag.Usage)
-		assert.NotEmpty(t, outputFlag.Usage)
-		assert.NotNil(t, workflowOutputPathCamelFlag)
-		assert.NotEmpty(t, workflowOutputPathFlag.Usage)
-		assert.NotEmpty(t, workflowOutputPathSnakeFlag.Usage)
-		assert.NotNil(t, workflowOutputFlag)
-		assert.NotNil(t, workflowOutputSnakeFlag)
-		assert.NotEmpty(t, workflowOutputFlag.Usage)
-		assert.NotEmpty(t, workflowOutputSnakeFlag.Usage)
-		assert.NotEqual(t, pathFlag.Usage, outputFlag.Usage)
-		assert.Equal(t, pathFlag.Usage, workflowPathCamelFlag.Usage)
-		assert.Equal(t, pathFlag.Usage, workflowPathFlag.Usage)
-		assert.Equal(t, workflowPathFlag.Usage, workflowPathSnakeFlag.Usage)
-		assert.Equal(t, outputPathFlag.Usage, outputPathCamelFlag.Usage)
-		assert.NotEqual(t, outputPathFlag.Usage, outputFlag.Usage)
-		assert.Equal(t, outputPathFlag.Usage, outputPathSnakeFlag.Usage)
-		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputPathCamelFlag.Usage)
-		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputPathSnakeFlag.Usage)
-		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputFlag.Usage)
-		assert.Equal(t, workflowOutputPathFlag.Usage, workflowOutputSnakeFlag.Usage)
-
-		helpText, err := io.Local.Read("/workspace/locales/en.json")
-		require.NoError(t, err)
-		assert.Contains(t, helpText, "--workflowPath/")
-		assert.Contains(t, helpText, "--outputPath/")
-		assert.Contains(t, helpText, "--workflow-output/")
-		assert.Contains(t, helpText, "--workflow_output/")
+		command, ok := result.Value.(*core.Command)
+		require.True(t, ok)
+		assert.Equal(t, "build/workflow", command.Path)
+		assert.Equal(t, "cmd.build.workflow.long", command.Description)
 	})
 
 	t.Run("writes to a custom relative path", func(t *testing.T) {

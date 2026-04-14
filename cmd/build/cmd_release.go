@@ -5,49 +5,32 @@ package buildcmd
 import (
 	"context"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/cmdutil"
 	"dappco.re/go/core/build/pkg/release"
+	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
-	"dappco.re/go/core/cli/pkg/cli"
 )
-
-// Flag variables for release command.
-var (
-	releaseVersion       string
-	releaseDraft         bool
-	releasePrerelease    bool
-	releaseLaunchMode    bool
-	releaseArchiveFormat string
-)
-
-var releaseCmd = &cli.Command{
-	Use: "release",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runRelease(cmd.Context(), !releaseLaunchMode, releaseVersion, releaseDraft, releasePrerelease, releaseArchiveFormat)
-	},
-}
-
-func setReleaseI18n() {
-	releaseCmd.Short = i18n.T("cmd.build.release.short")
-	releaseCmd.Long = i18n.T("cmd.build.release.long")
-}
-
-func initReleaseFlags() {
-	releaseCmd.Flags().BoolVar(&releaseLaunchMode, "we-are-go-for-launch", false, i18n.T("cmd.build.release.flag.go_for_launch"))
-	releaseCmd.Flags().StringVar(&releaseVersion, "version", "", i18n.T("cmd.build.release.flag.version"))
-	releaseCmd.Flags().BoolVar(&releaseDraft, "draft", false, i18n.T("cmd.build.release.flag.draft"))
-	releaseCmd.Flags().BoolVar(&releasePrerelease, "prerelease", false, i18n.T("cmd.build.release.flag.prerelease"))
-	releaseCmd.Flags().StringVar(&releaseArchiveFormat, "archive-format", "", i18n.T("cmd.build.flag.archive_format"))
-}
 
 // AddReleaseCommand adds the release subcommand to the build command.
 //
 // buildcmd.AddReleaseCommand(buildCmd)
-func AddReleaseCommand(buildCmd *cli.Command) {
-	setReleaseI18n()
-	initReleaseFlags()
-	buildCmd.AddCommand(releaseCmd)
+func AddReleaseCommand(c *core.Core) {
+	c.Command("build/release", core.Command{
+		Description: "cmd.build.release.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runRelease(
+				cmdutil.ContextOrBackground(),
+				!cmdutil.OptionBool(opts, "we-are-go-for-launch"),
+				cmdutil.OptionString(opts, "version"),
+				cmdutil.OptionBool(opts, "draft"),
+				cmdutil.OptionBool(opts, "prerelease"),
+				cmdutil.OptionString(opts, "archive-format"),
+			))
+		},
+	})
 }
 
 // runRelease executes the full release workflow: build + archive + checksum + publish.

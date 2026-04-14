@@ -5,10 +5,11 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/cmdutil"
 	"dappco.re/go/core/build/pkg/release"
+	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
-	"dappco.re/go/core/cli/pkg/cli"
 )
 
 // Style aliases used by CI command output.
@@ -20,75 +21,45 @@ var (
 	valueStyle   = cli.ValueStyle
 )
 
-// Flag variables for ci command.
-var (
-	ciLaunchMode bool
-	ciVersion    string
-	ciDraft      bool
-	ciPrerelease bool
-)
+func registerCICommands(c *core.Core) {
+	c.Command("ci", core.Command{
+		Description: "cmd.ci.long",
+		Action: func(opts core.Options) core.Result {
+			dryRun := !cmdutil.OptionBool(opts, "we-are-go-for-launch")
+			return cmdutil.ResultFromError(runCIPublish(
+				cmdutil.ContextOrBackground(),
+				dryRun,
+				cmdutil.OptionString(opts, "version"),
+				cmdutil.OptionBool(opts, "draft"),
+				cmdutil.OptionBool(opts, "prerelease"),
+			))
+		},
+	})
 
-// Flag variables for changelog subcommand.
-var (
-	changelogFromRef string
-	changelogToRef   string
-)
+	c.Command("ci/init", core.Command{
+		Description: "cmd.ci.init.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runCIReleaseInit())
+		},
+	})
 
-var ciCmd = &cli.Command{
-	Use: "ci",
-	RunE: func(cmd *cli.Command, args []string) error {
-		dryRun := !ciLaunchMode
-		return runCIPublish(cmd.Context(), dryRun, ciVersion, ciDraft, ciPrerelease)
-	},
-}
+	c.Command("ci/changelog", core.Command{
+		Description: "cmd.ci.changelog.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runChangelog(
+				cmdutil.ContextOrBackground(),
+				cmdutil.OptionString(opts, "from"),
+				cmdutil.OptionString(opts, "to"),
+			))
+		},
+	})
 
-var ciInitCmd = &cli.Command{
-	Use: "init",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runCIReleaseInit()
-	},
-}
-
-var ciChangelogCmd = &cli.Command{
-	Use: "changelog",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runChangelog(cmd.Context(), changelogFromRef, changelogToRef)
-	},
-}
-
-var ciVersionCmd = &cli.Command{
-	Use: "version",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runCIReleaseVersion(cmd.Context())
-	},
-}
-
-func setCII18n() {
-	ciCmd.Short = i18n.T("cmd.ci.short")
-	ciCmd.Long = i18n.T("cmd.ci.long")
-	ciInitCmd.Short = i18n.T("cmd.ci.init.short")
-	ciInitCmd.Long = i18n.T("cmd.ci.init.long")
-	ciChangelogCmd.Short = i18n.T("cmd.ci.changelog.short")
-	ciChangelogCmd.Long = i18n.T("cmd.ci.changelog.long")
-	ciVersionCmd.Short = i18n.T("cmd.ci.version.short")
-	ciVersionCmd.Long = i18n.T("cmd.ci.version.long")
-}
-
-func initCIFlags() {
-	// Main ci command flags
-	ciCmd.Flags().BoolVar(&ciLaunchMode, "we-are-go-for-launch", false, i18n.T("cmd.ci.flag.go_for_launch"))
-	ciCmd.Flags().StringVar(&ciVersion, "version", "", i18n.T("cmd.ci.flag.version"))
-	ciCmd.Flags().BoolVar(&ciDraft, "draft", false, i18n.T("cmd.ci.flag.draft"))
-	ciCmd.Flags().BoolVar(&ciPrerelease, "prerelease", false, i18n.T("cmd.ci.flag.prerelease"))
-
-	// Changelog subcommand flags
-	ciChangelogCmd.Flags().StringVar(&changelogFromRef, "from", "", i18n.T("cmd.ci.changelog.flag.from"))
-	ciChangelogCmd.Flags().StringVar(&changelogToRef, "to", "", i18n.T("cmd.ci.changelog.flag.to"))
-
-	// Add subcommands
-	ciCmd.AddCommand(ciInitCmd)
-	ciCmd.AddCommand(ciChangelogCmd)
-	ciCmd.AddCommand(ciVersionCmd)
+	c.Command("ci/version", core.Command{
+		Description: "cmd.ci.version.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runCIReleaseVersion(cmdutil.ContextOrBackground()))
+		},
+	})
 }
 
 // runCIPublish publishes pre-built artifacts from dist/.
@@ -154,7 +125,7 @@ func runCIPublish(ctx context.Context, dryRun bool, version string, draft, prere
 func runCIReleaseInit() error {
 	cwd, err := ax.Getwd()
 	if err != nil {
-		return cli.Err("%s: %w", i18n.T("i18n.fail.get", "working directory"), err)
+		return cli.Wrap(err, i18n.T("i18n.fail.get", "working directory"))
 	}
 
 	return runCIReleaseInitInDir(cwd)
@@ -170,7 +141,7 @@ func runCIReleaseInitInDir(cwd string) error {
 
 	cfg := release.ScaffoldConfig()
 	if err := release.WriteConfig(cfg, cwd); err != nil {
-		return cli.Err("%s: %w", i18n.T("i18n.fail.create", "config"), err)
+		return cli.Wrap(err, i18n.T("i18n.fail.create", "config"))
 	}
 
 	cli.Blank()
@@ -187,7 +158,7 @@ func runCIReleaseInitInDir(cwd string) error {
 func runChangelog(ctx context.Context, fromRef, toRef string) error {
 	cwd, err := ax.Getwd()
 	if err != nil {
-		return cli.Err("%s: %w", i18n.T("i18n.fail.get", "working directory"), err)
+		return cli.Wrap(err, i18n.T("i18n.fail.get", "working directory"))
 	}
 
 	if fromRef == "" || toRef == "" {
@@ -212,7 +183,7 @@ func runChangelog(ctx context.Context, fromRef, toRef string) error {
 
 	changelog, err := release.GenerateWithContext(ctx, cwd, fromRef, toRef)
 	if err != nil {
-		return cli.Err("%s: %w", i18n.T("i18n.fail.generate", "changelog"), err)
+		return cli.Wrap(err, i18n.T("i18n.fail.generate", "changelog"))
 	}
 
 	cli.Text(changelog)

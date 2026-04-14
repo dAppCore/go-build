@@ -9,11 +9,14 @@ package sdkcmd
 
 import (
 	"context"
+
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/cmdutil"
 	"dappco.re/go/core/build/pkg/sdk"
+	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
-	"dappco.re/go/core/cli/pkg/cli"
 )
 
 func init() {
@@ -28,56 +31,32 @@ var (
 	sdkDimStyle     = cli.DimStyle
 )
 
-var sdkCmd = &cli.Command{
-	Use: "sdk",
-}
-
-var diffBasePath string
-var diffSpecPath string
-
-var sdkDiffCmd = &cli.Command{
-	Use: "diff",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runSDKDiff(diffBasePath, diffSpecPath)
-	},
-}
-
-var validateSpecPath string
-
-var sdkValidateCmd = &cli.Command{
-	Use: "validate",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runSDKValidate(validateSpecPath)
-	},
-}
-
-func setSDKI18n() {
-	sdkCmd.Short = i18n.T("cmd.sdk.short")
-	sdkCmd.Long = i18n.T("cmd.sdk.long")
-	sdkDiffCmd.Short = i18n.T("cmd.sdk.diff.short")
-	sdkDiffCmd.Long = i18n.T("cmd.sdk.diff.long")
-	sdkValidateCmd.Short = i18n.T("cmd.sdk.validate.short")
-	sdkValidateCmd.Long = i18n.T("cmd.sdk.validate.long")
-}
-
 // AddSDKCommands registers the 'sdk' command and all subcommands.
 //
 // sdkcmd.AddSDKCommands(root)
-func AddSDKCommands(root *cli.Command) {
-	setSDKI18n()
+func AddSDKCommands(c *core.Core) {
+	c.Command("sdk", core.Command{
+		Description: "cmd.sdk.long",
+	})
 
-	// sdk diff flags
-	sdkDiffCmd.Flags().StringVar(&diffBasePath, "base", "", i18n.T("cmd.sdk.diff.flag.base"))
-	sdkDiffCmd.Flags().StringVar(&diffSpecPath, "spec", "", i18n.T("cmd.sdk.diff.flag.spec"))
+	c.Command("sdk/diff", core.Command{
+		Description: "cmd.sdk.diff.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runSDKDiff(
+				cmdutil.OptionString(opts, "base"),
+				cmdutil.OptionString(opts, "spec"),
+			))
+		},
+	})
 
-	// sdk validate flags
-	sdkValidateCmd.Flags().StringVar(&validateSpecPath, "spec", "", i18n.T("common.flag.spec"))
-
-	// Add subcommands
-	sdkCmd.AddCommand(sdkDiffCmd)
-	sdkCmd.AddCommand(sdkValidateCmd)
-
-	root.AddCommand(sdkCmd)
+	c.Command("sdk/validate", core.Command{
+		Description: "cmd.sdk.validate.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runSDKValidate(
+				cmdutil.OptionString(opts, "spec"),
+			))
+		},
+	})
 }
 
 func runSDKDiff(basePath, specPath string) error {

@@ -859,6 +859,31 @@ func TestProvider_GenerateReleaseWorkflow_InvalidJSON_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestProvider_GenerateReleaseWorkflow_EmptyBody_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+	p.medium = io.Local
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release/workflow", nil)
+	request.Header.Set("Content-Type", "application/json")
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.generateReleaseWorkflow(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	path := build.ReleaseWorkflowPath(projectDir)
+	content, err := io.Local.Read(path)
+	require.NoError(t, err)
+	assert.Contains(t, content, "workflow_call:")
+	assert.Contains(t, content, "workflow_dispatch:")
+}
+
 func TestProvider_DiscoverProject_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

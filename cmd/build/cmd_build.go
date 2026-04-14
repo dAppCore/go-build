@@ -4,9 +4,10 @@ package buildcmd
 import (
 	"embed"
 
+	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/cmdutil"
 	_ "dappco.re/go/core/build/locales" // registers locale translations
 	"dappco.re/go/core/cli/pkg/cli"
-	"dappco.re/go/core/i18n"
 )
 
 func init() {
@@ -25,148 +26,69 @@ var (
 //go:embed all:tmpl/gui
 var guiTemplate embed.FS
 
-// Flags for the main build command
-var (
-	buildType      string
-	ciMode         bool
-	targets        string
-	outputDir      string
-	archiveOutput  bool
-	checksumOutput bool
-	archiveFormat  string
-	verbose        bool
-
-	// Docker/LinuxKit specific flags
-	configPath string
-	format     string
-	push       bool
-	imageName  string
-
-	// Signing flags
-	noSign   bool
-	notarize bool
-
-	// from-path subcommand
-	fromPath string
-
-	// pwa subcommand
-	pwaURL string
-
-	// sdk subcommand
-	sdkSpec    string
-	sdkLang    string
-	sdkVersion string
-	sdkDryRun  bool
-)
-
-var buildCmd = &cli.Command{
-	Use: "build",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runProjectBuild(ProjectBuildRequest{
-			Context:        cmd.Context(),
-			BuildType:      buildType,
-			CIMode:         ciMode,
-			TargetsFlag:    targets,
-			OutputDir:      outputDir,
-			ArchiveOutput:  archiveOutput,
-			ChecksumOutput: checksumOutput,
-			ArchiveFormat:  archiveFormat,
-			ConfigPath:     configPath,
-			Format:         format,
-			Push:           push,
-			ImageName:      imageName,
-			NoSign:         noSign,
-			Notarize:       notarize,
-			Verbose:        verbose,
-		})
-	},
-}
-
-var fromPathCmd = &cli.Command{
-	Use: "from-path",
-	RunE: func(cmd *cli.Command, args []string) error {
-		if fromPath == "" {
-			return errPathRequired
-		}
-		return runBuild(cmd.Context(), fromPath)
-	},
-}
-
-var pwaCmd = &cli.Command{
-	Use: "pwa",
-	RunE: func(cmd *cli.Command, args []string) error {
-		if pwaURL == "" {
-			return errURLRequired
-		}
-		return runPwaBuild(cmd.Context(), pwaURL)
-	},
-}
-
-var sdkBuildCmd = &cli.Command{
-	Use: "sdk",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runBuildSDK(cmd.Context(), sdkSpec, sdkLang, sdkVersion, sdkDryRun)
-	},
-}
-
-func setBuildI18n() {
-	buildCmd.Short = i18n.T("cmd.build.short")
-	buildCmd.Long = i18n.T("cmd.build.long")
-	fromPathCmd.Short = i18n.T("cmd.build.from_path.short")
-	pwaCmd.Short = i18n.T("cmd.build.pwa.short")
-	sdkBuildCmd.Short = i18n.T("cmd.build.sdk.short")
-	sdkBuildCmd.Long = i18n.T("cmd.build.sdk.long")
-}
-
-func initBuildFlags() {
-	// Main build command flags
-	buildCmd.Flags().StringVar(&buildType, "type", "", i18n.T("cmd.build.flag.type"))
-	buildCmd.Flags().BoolVar(&ciMode, "ci", false, i18n.T("cmd.build.flag.ci"))
-	buildCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, i18n.T("common.flag.verbose"))
-	buildCmd.Flags().StringVar(&targets, "targets", "", i18n.T("cmd.build.flag.targets"))
-	buildCmd.Flags().StringVar(&outputDir, "output", "", i18n.T("cmd.build.flag.output"))
-	buildCmd.Flags().BoolVar(&archiveOutput, "archive", true, i18n.T("cmd.build.flag.archive"))
-	buildCmd.Flags().BoolVar(&checksumOutput, "checksum", true, i18n.T("cmd.build.flag.checksum"))
-	buildCmd.Flags().StringVar(&archiveFormat, "archive-format", "", i18n.T("cmd.build.flag.archive_format"))
-
-	// Build config override.
-	buildCmd.Flags().StringVar(&configPath, "config", "", i18n.T("cmd.build.flag.config"))
-
-	// Docker/LinuxKit specific
-	buildCmd.Flags().StringVar(&format, "format", "", i18n.T("cmd.build.flag.format"))
-	buildCmd.Flags().BoolVar(&push, "push", false, i18n.T("cmd.build.flag.push"))
-	buildCmd.Flags().StringVar(&imageName, "image", "", i18n.T("cmd.build.flag.image"))
-
-	// Signing flags
-	buildCmd.Flags().BoolVar(&noSign, "no-sign", false, i18n.T("cmd.build.flag.no_sign"))
-	buildCmd.Flags().BoolVar(&notarize, "notarize", false, i18n.T("cmd.build.flag.notarize"))
-
-	// from-path subcommand flags
-	fromPathCmd.Flags().StringVar(&fromPath, "path", "", i18n.T("cmd.build.from_path.flag.path"))
-
-	// pwa subcommand flags
-	pwaCmd.Flags().StringVar(&pwaURL, "url", "", i18n.T("cmd.build.pwa.flag.url"))
-
-	// sdk subcommand flags
-	sdkBuildCmd.Flags().StringVar(&sdkSpec, "spec", "", i18n.T("common.flag.spec"))
-	sdkBuildCmd.Flags().StringVar(&sdkLang, "lang", "", i18n.T("cmd.build.sdk.flag.lang"))
-	sdkBuildCmd.Flags().StringVar(&sdkVersion, "version", "", i18n.T("cmd.build.sdk.flag.version"))
-	sdkBuildCmd.Flags().BoolVar(&sdkDryRun, "dry-run", false, i18n.T("cmd.build.sdk.flag.dry_run"))
-
-	// Add subcommands
-	buildCmd.AddCommand(fromPathCmd)
-	buildCmd.AddCommand(pwaCmd)
-	buildCmd.AddCommand(sdkBuildCmd)
-}
-
 // AddBuildCommands registers the 'build' command and all subcommands.
 //
 // buildcmd.AddBuildCommands(root)
-func AddBuildCommands(root *cli.Command) {
-	setBuildI18n()
-	initBuildFlags()
-	AddAppleCommand(buildCmd)
-	AddReleaseCommand(buildCmd)
-	AddWorkflowCommand(buildCmd)
-	root.AddCommand(buildCmd)
+func AddBuildCommands(c *core.Core) {
+	c.Command("build", core.Command{
+		Description: "cmd.build.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runProjectBuild(ProjectBuildRequest{
+				Context:        cmdutil.ContextOrBackground(),
+				BuildType:      cmdutil.OptionString(opts, "type"),
+				CIMode:         cmdutil.OptionBool(opts, "ci"),
+				TargetsFlag:    cmdutil.OptionString(opts, "targets"),
+				OutputDir:      cmdutil.OptionString(opts, "output"),
+				ArchiveOutput:  cmdutil.OptionBoolDefault(opts, true, "archive"),
+				ChecksumOutput: cmdutil.OptionBoolDefault(opts, true, "checksum"),
+				ArchiveFormat:  cmdutil.OptionString(opts, "archive-format"),
+				ConfigPath:     cmdutil.OptionString(opts, "config"),
+				Format:         cmdutil.OptionString(opts, "format"),
+				Push:           cmdutil.OptionBool(opts, "push"),
+				ImageName:      cmdutil.OptionString(opts, "image"),
+				NoSign:         cmdutil.OptionBool(opts, "no-sign"),
+				Notarize:       cmdutil.OptionBool(opts, "notarize"),
+				Verbose:        cmdutil.OptionBool(opts, "verbose", "v"),
+			}))
+		},
+	})
+
+	c.Command("build/from-path", core.Command{
+		Description: "cmd.build.from_path.short",
+		Action: func(opts core.Options) core.Result {
+			fromPath := cmdutil.OptionString(opts, "path")
+			if fromPath == "" {
+				return cmdutil.ResultFromError(errPathRequired)
+			}
+			return cmdutil.ResultFromError(runBuild(cmdutil.ContextOrBackground(), fromPath))
+		},
+	})
+
+	c.Command("build/pwa", core.Command{
+		Description: "cmd.build.pwa.short",
+		Action: func(opts core.Options) core.Result {
+			pwaURL := cmdutil.OptionString(opts, "url")
+			if pwaURL == "" {
+				return cmdutil.ResultFromError(errURLRequired)
+			}
+			return cmdutil.ResultFromError(runPwaBuild(cmdutil.ContextOrBackground(), pwaURL))
+		},
+	})
+
+	c.Command("build/sdk", core.Command{
+		Description: "cmd.build.sdk.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runBuildSDK(
+				cmdutil.ContextOrBackground(),
+				cmdutil.OptionString(opts, "spec"),
+				cmdutil.OptionString(opts, "lang"),
+				cmdutil.OptionString(opts, "version"),
+				cmdutil.OptionBool(opts, "dry-run"),
+			))
+		},
+	})
+
+	AddAppleCommand(c)
+	AddReleaseCommand(c)
+	AddWorkflowCommand(c)
 }

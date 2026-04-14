@@ -4,6 +4,7 @@
 package ci
 
 import (
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 )
 
@@ -14,8 +15,6 @@ func init() {
 // AddCICommands registers the 'ci' command and all subcommands.
 //
 // ci.AddCICommands(root)
-func AddCICommands(root *cli.Command) {
-	setCII18n()
-	initCIFlags()
-	root.AddCommand(ciCmd)
+func AddCICommands(c *core.Core) {
+	registerCICommands(c)
 }
