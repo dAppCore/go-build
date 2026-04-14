@@ -1127,10 +1127,11 @@ func UploadTestFlight(ctx context.Context, cfg TestFlightConfig) error {
 		return err
 	}
 
-	uploadPath, env, err := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyPath)
+	uploadPath, env, cleanup, err := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyID, cfg.APIKeyPath)
 	if err != nil {
 		return err
 	}
+	defer cleanup()
 
 	xcrunCommand, err := resolveXcrunCli()
 	if err != nil {
@@ -1162,10 +1163,11 @@ func SubmitAppStore(ctx context.Context, cfg AppStoreConfig) error {
 		return err
 	}
 
-	uploadPath, env, err := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyPath)
+	uploadPath, env, cleanup, err := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyID, cfg.APIKeyPath)
 	if err != nil {
 		return err
 	}
+	defer cleanup()
 
 	xcrunCommand, err := resolveXcrunCli()
 	if err != nil {
@@ -1863,28 +1865,61 @@ func parseNotaryStatus(output string) string {
 	return ""
 }
 
-func packageForASCUpload(ctx context.Context, appPath, certIdentity, apiKeyPath string) (string, []string, error) {
+func packageForASCUpload(ctx context.Context, appPath, certIdentity, apiKeyID, apiKeyPath string) (string, []string, func(), error) {
 	if core.HasSuffix(appPath, ".pkg") {
-		return appPath, ascAPIKeyEnv(apiKeyPath), nil
+		env, cleanup, err := prepareASCAPIKeyEnv(apiKeyID, apiKeyPath)
+		if err != nil {
+			return "", nil, nil, err
+		}
+		return appPath, env, cleanup, nil
 	}
 
 	if !core.HasSuffix(appPath, ".app") {
-		return "", nil, coreerr.E("build.packageForASCUpload", "App Store Connect uploads require a .app or .pkg input", nil)
+		return "", nil, nil, coreerr.E("build.packageForASCUpload", "App Store Connect uploads require a .app or .pkg input", nil)
 	}
 
 	outputPath := ax.Join(ax.Dir(appPath), core.TrimSuffix(ax.Base(appPath), ".app")+".pkg")
 	if err := createDistributionPackage(ctx, appPath, certIdentity, outputPath); err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 
-	return outputPath, ascAPIKeyEnv(apiKeyPath), nil
+	env, cleanup, err := prepareASCAPIKeyEnv(apiKeyID, apiKeyPath)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	return outputPath, env, cleanup, nil
 }
 
-func ascAPIKeyEnv(apiKeyPath string) []string {
+func prepareASCAPIKeyEnv(apiKeyID, apiKeyPath string) ([]string, func(), error) {
 	if apiKeyPath == "" {
-		return nil
+		return nil, func() {}, nil
 	}
-	return []string{"API_PRIVATE_KEYS_DIR=" + ax.Dir(apiKeyPath)}
+
+	expectedName := core.Sprintf("AuthKey_%s.p8", apiKeyID)
+	if expectedName == "AuthKey_.p8" || ax.Base(apiKeyPath) == expectedName {
+		return []string{"API_PRIVATE_KEYS_DIR=" + ax.Dir(apiKeyPath)}, func() {}, nil
+	}
+
+	content, err := io.Local.Read(apiKeyPath)
+	if err != nil {
+		return nil, nil, coreerr.E("build.prepareASCAPIKeyEnv", "failed to read App Store Connect API key", err)
+	}
+
+	tempDir, err := ax.TempDir("core-build-asc-key-*")
+	if err != nil {
+		return nil, nil, coreerr.E("build.prepareASCAPIKeyEnv", "failed to create App Store Connect key staging directory", err)
+	}
+
+	stagedPath := ax.Join(tempDir, expectedName)
+	if err := io.Local.WriteMode(stagedPath, content, 0o600); err != nil {
+		_ = ax.RemoveAll(tempDir)
+		return nil, nil, coreerr.E("build.prepareASCAPIKeyEnv", "failed to stage App Store Connect API key", err)
+	}
+
+	return []string{"API_PRIVATE_KEYS_DIR=" + tempDir}, func() {
+		_ = ax.RemoveAll(tempDir)
+	}, nil
 }
 
 func createDistributionPackage(ctx context.Context, appPath, certIdentity, outputPath string) error {

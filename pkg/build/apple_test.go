@@ -509,6 +509,45 @@ func TestApple_SubmitAppStore_Bad(t *testing.T) {
 	assert.ErrorContains(t, err, "api_key_path")
 }
 
+func TestApple_PackageForASCUpload_StagesAPIKeyWithCanonicalName_Good(t *testing.T) {
+	keyPath := ax.Join(t.TempDir(), "lethean-app-store-key.p8")
+	require.NoError(t, ax.WriteFile(keyPath, []byte("private-key"), 0o600))
+	pkgPath := ax.Join(t.TempDir(), "Core.pkg")
+
+	uploadPath, env, cleanup, err := packageForASCUpload(context.Background(), pkgPath, "", "KEY123", keyPath)
+	require.NoError(t, err)
+	require.NotNil(t, cleanup)
+	assert.Equal(t, pkgPath, uploadPath)
+	require.Len(t, env, 1)
+
+	stagedDir := envDirValue(t, env, "API_PRIVATE_KEYS_DIR")
+	stagedPath := ax.Join(stagedDir, "AuthKey_KEY123.p8")
+	content, err := io.Local.Read(stagedPath)
+	require.NoError(t, err)
+	assert.Equal(t, "private-key", content)
+
+	cleanup()
+	assert.False(t, io.Local.Exists(stagedDir))
+}
+
+func TestApple_PackageForASCUpload_UsesExistingCanonicalKeyPath_Good(t *testing.T) {
+	keyDir := t.TempDir()
+	keyPath := ax.Join(keyDir, "AuthKey_KEY123.p8")
+	require.NoError(t, ax.WriteFile(keyPath, []byte("private-key"), 0o600))
+	pkgPath := ax.Join(t.TempDir(), "Core.pkg")
+
+	uploadPath, env, cleanup, err := packageForASCUpload(context.Background(), pkgPath, "", "KEY123", keyPath)
+	require.NoError(t, err)
+	require.NotNil(t, cleanup)
+	assert.Equal(t, pkgPath, uploadPath)
+	require.Len(t, env, 1)
+	assert.Equal(t, keyDir, envDirValue(t, env, "API_PRIVATE_KEYS_DIR"))
+
+	cleanup()
+	assert.True(t, io.Local.Exists(keyDir))
+	assert.True(t, io.Local.Exists(keyPath))
+}
+
 func writeDummyAppBundle(t *testing.T, appPath, executableName, marker string) {
 	t.Helper()
 
@@ -544,4 +583,25 @@ func writeAppStoreMetadata(t *testing.T, projectDir string) string {
 	require.NoError(t, ax.WriteFile(ax.Join(metadataPath, "screenshots", "shot-1.png"), []byte("png"), 0o644))
 
 	return metadataPath
+}
+
+func envDirValue(t *testing.T, env []string, key string) string {
+	t.Helper()
+
+	prefix := key + "="
+	for _, entry := range env {
+		if value, ok := assertEnvEntry(entry, prefix); ok {
+			return value
+		}
+	}
+
+	t.Fatalf("environment variable %s not found", key)
+	return ""
+}
+
+func assertEnvEntry(entry, prefix string) (string, bool) {
+	if len(entry) <= len(prefix) || entry[:len(prefix)] != prefix {
+		return "", false
+	}
+	return entry[len(prefix):], true
 }
