@@ -323,6 +323,7 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		"dir":             dir,
 		"has_frontend":    discovery.HasFrontend,
 		"has_subtree_npm": discovery.HasSubtreeNpm,
+		"linux_packages":  discovery.LinuxPackages,
 		"markers":         discovery.Markers,
 		"distro":          discovery.Distro,
 	}))

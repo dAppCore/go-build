@@ -224,6 +224,16 @@ func TestWails_WailsBuilderResolveFrontendDir_Good(t *testing.T) {
 		got := builder.resolveFrontendDir(fs, projectDir)
 		assert.Equal(t, frontendDir, got)
 	})
+
+	t.Run("ignores frontends deeper than depth 2", func(t *testing.T) {
+		projectDir := t.TempDir()
+		frontendDir := ax.Join(projectDir, "apps", "marketing", "web")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644))
+
+		got := builder.resolveFrontendDir(fs, projectDir)
+		assert.Empty(t, got)
+	})
 }
 
 func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {

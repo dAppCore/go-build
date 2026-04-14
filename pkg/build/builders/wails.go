@@ -217,11 +217,16 @@ func (b *WailsBuilder) hasDenoConfig(fs io.Medium, dir string) bool {
 // This supports monorepo layouts such as apps/web/package.json or apps/web/deno.json
 // when frontend/ is absent.
 func (b *WailsBuilder) resolveSubtreeFrontendDir(fs io.Medium, projectDir string) string {
-	return b.findFrontendDir(fs, projectDir)
+	return b.findFrontendDir(fs, projectDir, 0)
 }
 
 // findFrontendDir walks nested directories until it finds a frontend manifest.
-func (b *WailsBuilder) findFrontendDir(fs io.Medium, dir string) string {
+// The v3 discovery contract only scans to depth 2 for monorepo frontends.
+func (b *WailsBuilder) findFrontendDir(fs io.Medium, dir string, depth int) string {
+	if depth >= 2 {
+		return ""
+	}
+
 	entries, err := fs.List(dir)
 	if err != nil {
 		return ""
@@ -242,7 +247,7 @@ func (b *WailsBuilder) findFrontendDir(fs io.Medium, dir string) string {
 			return candidateDir
 		}
 
-		if nested := b.findFrontendDir(fs, candidateDir); nested != "" {
+		if nested := b.findFrontendDir(fs, candidateDir, depth+1); nested != "" {
 			return nested
 		}
 	}

@@ -24,6 +24,16 @@ func setupTestDir(t *testing.T, markers ...string) string {
 
 func TestDiscovery_Discover_Good(t *testing.T) {
 	fs := io.Local
+	t.Run("prefers configured build type from .core/build.yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocker}, types)
+	})
+
 	t.Run("detects Go project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
 		types, err := Discover(fs, dir)
@@ -225,6 +235,13 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeGo, ProjectTypeDocker, ProjectTypeTaskfile}, types)
 	})
 
+	t.Run("prefers C++ ahead of Docker and Taskfile in fallback detection", func(t *testing.T) {
+		dir := setupTestDir(t, "CMakeLists.txt", "Dockerfile", "Taskfile.yml")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeCPP, ProjectTypeDocker, ProjectTypeTaskfile}, types)
+	})
+
 	t.Run("empty directory returns empty slice", func(t *testing.T) {
 		dir := t.TempDir()
 		types, err := Discover(fs, dir)
@@ -255,6 +272,16 @@ func TestDiscovery_Discover_Bad(t *testing.T) {
 
 func TestDiscovery_PrimaryType_Good(t *testing.T) {
 	fs := io.Local
+	t.Run("returns configured build type from .core/build.yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: taskfile\n"), 0o644))
+
+		primary, err := PrimaryType(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, ProjectTypeTaskfile, primary)
+	})
+
 	t.Run("returns wails for wails project", func(t *testing.T) {
 		dir := setupTestDir(t, "wails.json", "go.mod")
 		primary, err := PrimaryType(fs, dir)
@@ -759,6 +786,31 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.True(t, result.Markers["frontend/deno.jsonc"])
 	})
 
+	t.Run("records the build config marker and prefers configured type", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: cpp\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "Dockerfile"), []byte("FROM alpine\n"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeCPP, ProjectTypeDocker}, result.Types)
+		assert.Equal(t, "cpp", result.PrimaryStack)
+		assert.True(t, result.Markers[".core/build.yaml"])
+	})
+
+	t.Run("reports distro-aware Linux packages for Wails projects", func(t *testing.T) {
+		mock := io.NewMockMedium()
+		require.NoError(t, mock.EnsureDir("/project"))
+		require.NoError(t, mock.Write("/project/go.mod", "module example"))
+		require.NoError(t, mock.Write("/project/package.json", "{}"))
+		require.NoError(t, mock.Write("/etc/os-release", "ID=ubuntu\nVERSION_ID=\"24.04\"\n"))
+
+		result, err := DiscoverFull(mock, "/project")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"libwebkit2gtk-4.1-dev"}, result.LinuxPackages)
+	})
+
 	t.Run("empty directory returns empty result", func(t *testing.T) {
 		dir := t.TempDir()
 		result, err := DiscoverFull(fs, dir)
@@ -898,6 +950,23 @@ func TestDiscovery_DiscoverFull_Ugly(t *testing.T) {
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
 		assert.NotNil(t, result.Markers)
+	})
+}
+
+func TestDiscovery_ResolveLinuxPackages_Good(t *testing.T) {
+	t.Run("returns Ubuntu 24.04 WebKit package for Wails", func(t *testing.T) {
+		packages := ResolveLinuxPackages([]ProjectType{ProjectTypeWails}, "24.04")
+		assert.Equal(t, []string{"libwebkit2gtk-4.1-dev"}, packages)
+	})
+
+	t.Run("returns Ubuntu 22.04 WebKit package for Wails", func(t *testing.T) {
+		packages := ResolveLinuxPackages([]ProjectType{ProjectTypeWails}, "22.04")
+		assert.Equal(t, []string{"libwebkit2gtk-4.0-dev"}, packages)
+	})
+
+	t.Run("returns no Linux packages for non-Wails stacks", func(t *testing.T) {
+		packages := ResolveLinuxPackages([]ProjectType{ProjectTypeGo}, "24.04")
+		assert.Empty(t, packages)
 	})
 }
 

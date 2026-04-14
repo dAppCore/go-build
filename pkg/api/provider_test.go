@@ -879,11 +879,12 @@ func TestProvider_DiscoverProject_Good(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	body := recorder.Body.String()
-	assert.Contains(t, body, `"types":["go","node"]`)
-	assert.Contains(t, body, `"primary":"go"`)
-	assert.Contains(t, body, `"primary_stack":"go"`)
+	assert.Contains(t, body, `"types":["wails","go","node"]`)
+	assert.Contains(t, body, `"primary":"wails"`)
+	assert.Contains(t, body, `"primary_stack":"wails"`)
 	assert.Contains(t, body, `"has_frontend":true`)
 	assert.Contains(t, body, `"has_subtree_npm":true`)
+	assert.Contains(t, body, `"linux_packages":`)
 	assert.Contains(t, body, `"go.mod":true`)
 	assert.Contains(t, body, `"frontend/package.json":true`)
 }

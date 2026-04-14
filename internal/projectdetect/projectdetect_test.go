@@ -13,6 +13,16 @@ import (
 func TestDetectProjectType_Good(t *testing.T) {
 	fs := io.Local
 
+	t.Run("prefers configured build type from .core/build.yaml even without markers", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644))
+
+		projectType, err := DetectProjectType(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeDocker, projectType)
+	})
+
 	t.Run("prefers core marker types over fallback builders", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))

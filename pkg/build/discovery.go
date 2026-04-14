@@ -8,6 +8,7 @@ import (
 
 // Marker files for project type detection.
 const (
+	markerBuildConfig        = ".core/build.yaml"
 	markerGoMod              = "go.mod"
 	markerGoWork             = "go.work"
 	markerWails              = "wails.json"
@@ -66,6 +67,10 @@ var markers = []projectMarker{
 func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 	var detected []ProjectType
 
+	if configuredType, ok := configuredProjectType(fs, dir); ok {
+		detected = append(detected, configuredType)
+	}
+
 	if IsWailsProject(fs, dir) {
 		detected = append(detected, ProjectTypeWails)
 	}
@@ -86,9 +91,9 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 	}{
 		{ProjectTypeNode, IsNodeProject(fs, dir) || HasSubtreeNpm(fs, dir)},
 		{ProjectTypeDocs, IsMkDocsProject(fs, dir)},
+		{ProjectTypeCPP, IsCPPProject(fs, dir)},
 		{ProjectTypeDocker, IsDockerProject(fs, dir)},
 		{ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir)},
-		{ProjectTypeCPP, IsCPPProject(fs, dir)},
 		{ProjectTypeTaskfile, IsTaskfileProject(fs, dir)},
 	}
 	for _, candidate := range additionalTypes {
@@ -265,6 +270,8 @@ type DiscoveryResult struct {
 	HasFrontend bool
 	// HasSubtreeNpm is true when a nested package.json exists within depth 2.
 	HasSubtreeNpm bool
+	// LinuxPackages lists distro-aware system dependencies needed by the detected stack.
+	LinuxPackages []string
 	// Markers records the presence of each raw marker file checked.
 	Markers map[string]bool
 	// Distro holds the detected Linux distribution version (e.g., "24.04").
@@ -289,6 +296,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	// Record raw marker presence
 	allMarkers := []string{
+		markerBuildConfig,
 		markerGoMod, markerGoWork, markerWails, markerNodePackage, markerComposer,
 		markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
 		markerPyProject, markerRequirements, markerCargo,
@@ -319,6 +327,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	// Linux distro detection: used for distro-sensitive build flags.
 	result.Distro = detectDistroVersion(fs)
+	result.LinuxPackages = ResolveLinuxPackages(result.Types, result.Distro)
 
 	// Primary stack: first detected type as string, or empty
 	if len(types) > 0 {
@@ -326,6 +335,75 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	}
 
 	return result, nil
+}
+
+func configuredProjectType(fs io.Medium, dir string) (ProjectType, bool) {
+	if fs == nil || !ConfigExists(fs, dir) {
+		return "", false
+	}
+
+	cfg, err := LoadConfig(fs, dir)
+	if err != nil || cfg == nil {
+		return "", false
+	}
+
+	projectType, ok := parseProjectType(cfg.Build.Type)
+	if !ok {
+		return "", false
+	}
+
+	return projectType, true
+}
+
+func parseProjectType(value string) (ProjectType, bool) {
+	projectType := ProjectType(core.Lower(core.Trim(value)))
+
+	switch projectType {
+	case ProjectTypeGo,
+		ProjectTypeWails,
+		ProjectTypeNode,
+		ProjectTypePHP,
+		ProjectTypeCPP,
+		ProjectTypeDocker,
+		ProjectTypeLinuxKit,
+		ProjectTypeTaskfile,
+		ProjectTypeDocs,
+		ProjectTypePython,
+		ProjectTypeRust:
+		return projectType, true
+	default:
+		return "", false
+	}
+}
+
+// ResolveLinuxPackages returns distro-aware system dependencies for the detected stack.
+//
+//	packages := build.ResolveLinuxPackages([]build.ProjectType{build.ProjectTypeWails}, "24.04")
+//	// []string{"libwebkit2gtk-4.1-dev"}
+func ResolveLinuxPackages(types []ProjectType, distro string) []string {
+	if len(types) == 0 || distro == "" {
+		return nil
+	}
+
+	var packages []string
+	if containsProjectType(types, ProjectTypeWails) {
+		if isUbuntu2404OrNewer(distro) {
+			packages = append(packages, "libwebkit2gtk-4.1-dev")
+		} else {
+			packages = append(packages, "libwebkit2gtk-4.0-dev")
+		}
+	}
+
+	return deduplicateStrings(packages)
+}
+
+func containsProjectType(types []ProjectType, projectType ProjectType) bool {
+	for _, candidate := range types {
+		if candidate == projectType {
+			return true
+		}
+	}
+	return false
 }
 
 // hasFrontendManifest reports whether a frontend directory contains a supported manifest.
