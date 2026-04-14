@@ -24,15 +24,15 @@ import (
 //	}
 type CacheConfig struct {
 	// Enabled turns cache setup on for the build.
-	Enabled bool `yaml:"enabled"`
+	Enabled bool `json:"enabled" yaml:"enabled"`
 	// Directory is where cache metadata is stored.
-	Directory string `yaml:"dir,omitempty"`
+	Directory string `json:"dir,omitempty" yaml:"dir,omitempty"`
 	// KeyPrefix prefixes the generated cache key.
-	KeyPrefix string `yaml:"key_prefix,omitempty"`
+	KeyPrefix string `json:"key_prefix,omitempty" yaml:"key_prefix,omitempty"`
 	// Paths are cache directories that should exist before the build starts.
-	Paths []string `yaml:"paths,omitempty"`
+	Paths []string `json:"paths,omitempty" yaml:"paths,omitempty"`
 	// RestoreKeys are fallback prefixes used when the exact cache key is not present.
-	RestoreKeys []string `yaml:"restore_keys,omitempty"`
+	RestoreKeys []string `json:"restore_keys,omitempty" yaml:"restore_keys,omitempty"`
 }
 
 // UnmarshalYAML accepts both the concise build config keys and the longer aliases.

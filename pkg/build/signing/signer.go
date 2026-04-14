@@ -25,36 +25,36 @@ type Signer interface {
 //
 // cfg := signing.DefaultSignConfig()
 type SignConfig struct {
-	Enabled bool          `yaml:"enabled"`
-	GPG     GPGConfig     `yaml:"gpg,omitempty"`
-	MacOS   MacOSConfig   `yaml:"macos,omitempty"`
-	Windows WindowsConfig `yaml:"windows,omitempty"`
+	Enabled bool          `json:"enabled" yaml:"enabled"`
+	GPG     GPGConfig     `json:"gpg,omitempty" yaml:"gpg,omitempty"`
+	MacOS   MacOSConfig   `json:"macos,omitempty" yaml:"macos,omitempty"`
+	Windows WindowsConfig `json:"windows,omitempty" yaml:"windows,omitempty"`
 }
 
 // GPGConfig holds GPG signing configuration.
 //
 // cfg := signing.GPGConfig{Key: "ABCD1234"}
 type GPGConfig struct {
-	Key string `yaml:"key"` // Key ID or fingerprint, supports $ENV
+	Key string `json:"key" yaml:"key"` // Key ID or fingerprint, supports $ENV
 }
 
 // MacOSConfig holds macOS codesign configuration.
 //
 // cfg := signing.MacOSConfig{Identity: "Developer ID Application: Acme Inc (TEAM123)"}
 type MacOSConfig struct {
-	Identity    string `yaml:"identity"`     // Developer ID Application: ...
-	Notarize    bool   `yaml:"notarize"`     // Submit to Apple for notarization
-	AppleID     string `yaml:"apple_id"`     // Apple account email
-	TeamID      string `yaml:"team_id"`      // Team ID
-	AppPassword string `yaml:"app_password"` // App-specific password
+	Identity    string `json:"identity" yaml:"identity"`         // Developer ID Application: ...
+	Notarize    bool   `json:"notarize" yaml:"notarize"`         // Submit to Apple for notarization
+	AppleID     string `json:"apple_id" yaml:"apple_id"`         // Apple account email
+	TeamID      string `json:"team_id" yaml:"team_id"`           // Team ID
+	AppPassword string `json:"app_password" yaml:"app_password"` // App-specific password
 }
 
 // WindowsConfig holds Windows signtool configuration.
 //
 // cfg := signing.WindowsConfig{Certificate: "cert.pfx", Password: "secret"}
 type WindowsConfig struct {
-	Certificate string `yaml:"certificate"` // Path to .pfx
-	Password    string `yaml:"password"`    // Certificate password
+	Certificate string `json:"certificate" yaml:"certificate"` // Path to .pfx
+	Password    string `json:"password" yaml:"password"`       // Certificate password
 }
 
 // DefaultSignConfig returns sensible defaults.

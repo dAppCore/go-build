@@ -29,17 +29,17 @@ const ConfigDir = ".core"
 // cfg, err := build.LoadConfig(io.Local, ".")
 type BuildConfig struct {
 	// Version is the config file format version.
-	Version int `yaml:"version"`
+	Version int `json:"version" yaml:"version"`
 	// Project contains project metadata.
-	Project Project `yaml:"project"`
+	Project Project `json:"project" yaml:"project"`
 	// Build contains build settings.
-	Build Build `yaml:"build"`
+	Build Build `json:"build" yaml:"build"`
 	// Apple contains macOS Apple pipeline settings.
-	Apple AppleConfig `yaml:"apple,omitempty"`
+	Apple AppleConfig `json:"apple,omitempty" yaml:"apple,omitempty"`
 	// Targets defines the build targets.
-	Targets []TargetConfig `yaml:"targets"`
+	Targets []TargetConfig `json:"targets" yaml:"targets"`
 	// Sign contains code signing configuration.
-	Sign signing.SignConfig `yaml:"sign,omitempty"`
+	Sign signing.SignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
 }
 
 // Project holds project metadata.
@@ -47,13 +47,13 @@ type BuildConfig struct {
 // cfg.Project.Binary = "core-build"
 type Project struct {
 	// Name is the project name.
-	Name string `yaml:"name"`
+	Name string `json:"name" yaml:"name"`
 	// Description is a brief description of the project.
-	Description string `yaml:"description"`
+	Description string `json:"description" yaml:"description"`
 	// Main is the path to the main package (e.g., ./cmd/core).
-	Main string `yaml:"main"`
+	Main string `json:"main" yaml:"main"`
 	// Binary is the output binary name.
-	Binary string `yaml:"binary"`
+	Binary string `json:"binary" yaml:"binary"`
 }
 
 // Build holds build-time settings.
@@ -61,96 +61,96 @@ type Project struct {
 // cfg.Build.LDFlags = []string{"-s", "-w", "-X main.version=" + version}
 type Build struct {
 	// Type overrides project type auto-detection (e.g., "go", "wails", "docker").
-	Type string `yaml:"type"`
+	Type string `json:"type" yaml:"type"`
 	// CGO enables CGO for the build.
-	CGO bool `yaml:"cgo"`
+	CGO bool `json:"cgo" yaml:"cgo"`
 	// Obfuscate uses garble instead of go build for binary obfuscation.
-	Obfuscate bool `yaml:"obfuscate"`
+	Obfuscate bool `json:"obfuscate" yaml:"obfuscate"`
 	// DenoBuild overrides the default `deno task build` invocation for Deno-backed builds.
-	DenoBuild string `yaml:"deno_build,omitempty"`
+	DenoBuild string `json:"deno_build,omitempty" yaml:"deno_build,omitempty"`
 	// NSIS enables Windows NSIS installer generation (Wails projects only).
-	NSIS bool `yaml:"nsis"`
+	NSIS bool `json:"nsis" yaml:"nsis"`
 	// WebView2 sets the WebView2 delivery method: download|embed|browser|error.
-	WebView2 string `yaml:"webview2,omitempty"`
+	WebView2 string `json:"webview2,omitempty" yaml:"webview2,omitempty"`
 	// Flags are additional build flags (e.g., ["-trimpath"]).
-	Flags []string `yaml:"flags"`
+	Flags []string `json:"flags" yaml:"flags"`
 	// LDFlags are linker flags (e.g., ["-s", "-w"]).
-	LDFlags []string `yaml:"ldflags"`
+	LDFlags []string `json:"ldflags" yaml:"ldflags"`
 	// BuildTags are Go build tags passed through to `go build`.
-	BuildTags []string `yaml:"build_tags,omitempty"`
+	BuildTags []string `json:"build_tags,omitempty" yaml:"build_tags,omitempty"`
 	// ArchiveFormat selects the archive compression format for build outputs.
 	// Supported values are "gz", "xz", and "zip"; empty uses gzip.
-	ArchiveFormat string `yaml:"archive_format,omitempty"`
+	ArchiveFormat string `json:"archive_format,omitempty" yaml:"archive_format,omitempty"`
 	// Env are additional environment variables.
-	Env []string `yaml:"env"`
+	Env []string `json:"env" yaml:"env"`
 	// Cache controls build cache setup.
-	Cache CacheConfig `yaml:"cache,omitempty"`
+	Cache CacheConfig `json:"cache,omitempty" yaml:"cache,omitempty"`
 	// Dockerfile is the path to the Dockerfile used by Docker builds.
-	Dockerfile string `yaml:"dockerfile,omitempty"`
+	Dockerfile string `json:"dockerfile,omitempty" yaml:"dockerfile,omitempty"`
 	// Registry is the container registry used for Docker image references.
-	Registry string `yaml:"registry,omitempty"`
+	Registry string `json:"registry,omitempty" yaml:"registry,omitempty"`
 	// Image is the image name used for Docker builds.
-	Image string `yaml:"image,omitempty"`
+	Image string `json:"image,omitempty" yaml:"image,omitempty"`
 	// Tags are Docker image tags to apply.
-	Tags []string `yaml:"tags,omitempty"`
+	Tags []string `json:"tags,omitempty" yaml:"tags,omitempty"`
 	// BuildArgs are Docker build arguments.
-	BuildArgs map[string]string `yaml:"build_args,omitempty"`
+	BuildArgs map[string]string `json:"build_args,omitempty" yaml:"build_args,omitempty"`
 	// Push enables pushing Docker images after build.
-	Push bool `yaml:"push,omitempty"`
+	Push bool `json:"push,omitempty" yaml:"push,omitempty"`
 	// Load loads a single-platform Docker image into the local daemon after build.
-	Load bool `yaml:"load,omitempty"`
+	Load bool `json:"load,omitempty" yaml:"load,omitempty"`
 	// LinuxKitConfig is the path to the LinuxKit config file.
-	LinuxKitConfig string `yaml:"linuxkit_config,omitempty"`
+	LinuxKitConfig string `json:"linuxkit_config,omitempty" yaml:"linuxkit_config,omitempty"`
 	// Formats is the list of LinuxKit output formats.
 	// Supported values include iso, raw, qcow2, vmdk, vhd, gcp, aws, docker, tar, and kernel+initrd.
-	Formats []string `yaml:"formats,omitempty"`
+	Formats []string `json:"formats,omitempty" yaml:"formats,omitempty"`
 }
 
 // AppleConfig holds macOS Apple pipeline settings loaded from .core/build.yaml.
 // Pointer booleans preserve the difference between an explicit false and an unset field.
 type AppleConfig struct {
-	TeamID       string `yaml:"team_id,omitempty"`
-	BundleID     string `yaml:"bundle_id,omitempty"`
-	Arch         string `yaml:"arch,omitempty"`
-	CertIdentity string `yaml:"cert_identity,omitempty"`
-	ProfilePath  string `yaml:"profile_path,omitempty"`
-	KeychainPath string `yaml:"keychain_path,omitempty"`
-	MetadataPath string `yaml:"metadata_path,omitempty"`
+	TeamID       string `json:"team_id,omitempty" yaml:"team_id,omitempty"`
+	BundleID     string `json:"bundle_id,omitempty" yaml:"bundle_id,omitempty"`
+	Arch         string `json:"arch,omitempty" yaml:"arch,omitempty"`
+	CertIdentity string `json:"cert_identity,omitempty" yaml:"cert_identity,omitempty"`
+	ProfilePath  string `json:"profile_path,omitempty" yaml:"profile_path,omitempty"`
+	KeychainPath string `json:"keychain_path,omitempty" yaml:"keychain_path,omitempty"`
+	MetadataPath string `json:"metadata_path,omitempty" yaml:"metadata_path,omitempty"`
 
-	Sign       *bool `yaml:"sign,omitempty"`
-	Notarise   *bool `yaml:"notarise,omitempty"`
-	DMG        *bool `yaml:"dmg,omitempty"`
-	TestFlight *bool `yaml:"testflight,omitempty"`
-	AppStore   *bool `yaml:"appstore,omitempty"`
+	Sign       *bool `json:"sign,omitempty" yaml:"sign,omitempty"`
+	Notarise   *bool `json:"notarise,omitempty" yaml:"notarise,omitempty"`
+	DMG        *bool `json:"dmg,omitempty" yaml:"dmg,omitempty"`
+	TestFlight *bool `json:"testflight,omitempty" yaml:"testflight,omitempty"`
+	AppStore   *bool `json:"appstore,omitempty" yaml:"appstore,omitempty"`
 
-	APIKeyID       string `yaml:"api_key_id,omitempty"`
-	APIKeyIssuerID string `yaml:"api_key_issuer_id,omitempty"`
-	APIKeyPath     string `yaml:"api_key_path,omitempty"`
-	AppleID        string `yaml:"apple_id,omitempty"`
-	Password       string `yaml:"password,omitempty"`
+	APIKeyID       string `json:"api_key_id,omitempty" yaml:"api_key_id,omitempty"`
+	APIKeyIssuerID string `json:"api_key_issuer_id,omitempty" yaml:"api_key_issuer_id,omitempty"`
+	APIKeyPath     string `json:"api_key_path,omitempty" yaml:"api_key_path,omitempty"`
+	AppleID        string `json:"apple_id,omitempty" yaml:"apple_id,omitempty"`
+	Password       string `json:"password,omitempty" yaml:"password,omitempty"`
 
-	BundleDisplayName string           `yaml:"bundle_display_name,omitempty"`
-	MinSystemVersion  string           `yaml:"min_system_version,omitempty"`
-	Category          string           `yaml:"category,omitempty"`
-	Copyright         string           `yaml:"copyright,omitempty"`
-	PrivacyPolicyURL  string           `yaml:"privacy_policy_url,omitempty"`
-	DMGBackground     string           `yaml:"dmg_background,omitempty"`
-	DMGVolumeName     string           `yaml:"dmg_volume_name,omitempty"`
-	EntitlementsPath  string           `yaml:"entitlements_path,omitempty"`
-	XcodeCloud        XcodeCloudConfig `yaml:"xcode_cloud,omitempty"`
+	BundleDisplayName string           `json:"bundle_display_name,omitempty" yaml:"bundle_display_name,omitempty"`
+	MinSystemVersion  string           `json:"min_system_version,omitempty" yaml:"min_system_version,omitempty"`
+	Category          string           `json:"category,omitempty" yaml:"category,omitempty"`
+	Copyright         string           `json:"copyright,omitempty" yaml:"copyright,omitempty"`
+	PrivacyPolicyURL  string           `json:"privacy_policy_url,omitempty" yaml:"privacy_policy_url,omitempty"`
+	DMGBackground     string           `json:"dmg_background,omitempty" yaml:"dmg_background,omitempty"`
+	DMGVolumeName     string           `json:"dmg_volume_name,omitempty" yaml:"dmg_volume_name,omitempty"`
+	EntitlementsPath  string           `json:"entitlements_path,omitempty" yaml:"entitlements_path,omitempty"`
+	XcodeCloud        XcodeCloudConfig `json:"xcode_cloud,omitempty" yaml:"xcode_cloud,omitempty"`
 }
 
 // XcodeCloudConfig defines the Xcode Cloud workflow metadata stored in build config.
 type XcodeCloudConfig struct {
-	Workflow string              `yaml:"workflow,omitempty"`
-	Triggers []XcodeCloudTrigger `yaml:"triggers,omitempty"`
+	Workflow string              `json:"workflow,omitempty" yaml:"workflow,omitempty"`
+	Triggers []XcodeCloudTrigger `json:"triggers,omitempty" yaml:"triggers,omitempty"`
 }
 
 // XcodeCloudTrigger defines a single Xcode Cloud trigger rule.
 type XcodeCloudTrigger struct {
-	Branch string `yaml:"branch,omitempty"`
-	Tag    string `yaml:"tag,omitempty"`
-	Action string `yaml:"action,omitempty"`
+	Branch string `json:"branch,omitempty" yaml:"branch,omitempty"`
+	Tag    string `json:"tag,omitempty" yaml:"tag,omitempty"`
+	Action string `json:"action,omitempty" yaml:"action,omitempty"`
 }
 
 // TargetConfig defines a build target in the config file.
@@ -159,9 +159,9 @@ type XcodeCloudTrigger struct {
 // cfg.Targets = []build.TargetConfig{{OS: "linux", Arch: "amd64"}, {OS: "darwin", Arch: "arm64"}}
 type TargetConfig struct {
 	// OS is the target operating system (e.g., "linux", "darwin", "windows").
-	OS string `yaml:"os"`
+	OS string `json:"os" yaml:"os"`
 	// Arch is the target architecture (e.g., "amd64", "arm64").
-	Arch string `yaml:"arch"`
+	Arch string `json:"arch" yaml:"arch"`
 }
 
 // LoadConfig loads build configuration from the .core/build.yaml file in the given directory.

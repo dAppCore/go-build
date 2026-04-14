@@ -248,6 +248,63 @@ func TestProvider_BuildProviderMediumSet_Good(t *testing.T) {
 	assert.NotNil(t, p.medium, "medium should be set to io.Local")
 }
 
+func TestProvider_GetConfig_UsesSnakeCaseJSONKeys_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	require.NoError(t, io.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+version: 1
+project:
+  name: Demo
+  binary: demo
+build:
+  type: go
+  cgo: true
+  cache:
+    enabled: true
+    dir: cache-meta
+    key_prefix: demo
+    paths:
+      - cache/go-build
+apple:
+  bundle_id: ai.lthn.demo
+  xcode_cloud:
+    workflow: Release
+sign:
+  enabled: true
+  macos:
+    identity: "Developer ID Application: Demo"
+`), 0o644))
+
+	p := NewProvider(projectDir, nil)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/config", nil)
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.getConfig(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	body := recorder.Body.String()
+	assert.Contains(t, body, `"config":`)
+	assert.Contains(t, body, `"version":1`)
+	assert.Contains(t, body, `"project":{"name":"Demo"`)
+	assert.Contains(t, body, `"build":{"type":"go","cgo":true`)
+	assert.Contains(t, body, `"cache":{"enabled":true,"dir":"cache-meta","key_prefix":"demo","paths":["`)
+	assert.Contains(t, body, `"apple":{"bundle_id":"ai.lthn.demo"`)
+	assert.Contains(t, body, `"xcode_cloud":{"workflow":"Release"`)
+	assert.Contains(t, body, `"sign":{"enabled":true`)
+	assert.Contains(t, body, `"macos":{"identity":"Developer ID Application: Demo"`)
+	assert.NotContains(t, body, `"Version":`)
+	assert.NotContains(t, body, `"Project":`)
+	assert.NotContains(t, body, `"XcodeCloud":`)
+	assert.NotContains(t, body, `"MacOS":`)
+}
+
 func TestProvider_ResolveProjectType_Good(t *testing.T) {
 	t.Run("honours explicit build type override", func(t *testing.T) {
 		dir := t.TempDir()
