@@ -153,6 +153,69 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 	assert.Equal(t, ax.Join(projectDir, "dist", "apple", "Core.app"), result.Value)
 }
 
+func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t *testing.T) {
+	projectDir := t.TempDir()
+
+	oldLoadConfig := loadConfigFn
+	oldBuildApple := buildAppleFn
+	oldDetermineVersion := determineVersion
+	oldGetwd := getwdFn
+	oldRunDir := runDirFn
+	t.Cleanup(func() {
+		loadConfigFn = oldLoadConfig
+		buildAppleFn = oldBuildApple
+		determineVersion = oldDetermineVersion
+		getwdFn = oldGetwd
+		runDirFn = oldRunDir
+	})
+
+	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+		require.Equal(t, projectDir, dir)
+		return &build.BuildConfig{
+			Project: build.Project{
+				Name:   "Core",
+				Binary: "Core",
+			},
+			Apple: build.AppleConfig{
+				BundleID: "ai.lthn.core",
+				DMG:      boolPtr(true),
+			},
+			Sign: signing.SignConfig{
+				MacOS: signing.MacOSConfig{
+					Identity: "Developer ID Application: Lethean CIC (ABC123DEF4)",
+					TeamID:   "ABC123DEF4",
+				},
+			},
+		}, nil
+	}
+	determineVersion = func(ctx context.Context, dir string) (string, error) {
+		return "v1.2.3", nil
+	}
+	getwdFn = func() (string, error) {
+		return projectDir, nil
+	}
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
+		return "42", nil
+	}
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+		assert.Equal(t, "ai.lthn.override", options.BundleID)
+		assert.True(t, options.Sign)
+		assert.True(t, options.Notarise)
+		assert.True(t, options.DMG)
+		assert.False(t, options.TestFlight)
+		assert.False(t, options.AppStore)
+		return &build.AppleBuildResult{
+			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
+		}, nil
+	}
+
+	result := New().Build(context.Background(), &AppleOptions{
+		BundleID: "ai.lthn.override",
+	})
+	require.True(t, result.OK)
+	assert.Equal(t, ax.Join(projectDir, "dist", "apple", "Core.app"), result.Value)
+}
+
 func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
@@ -216,6 +279,27 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 	result := New().Build(context.Background(), nil)
 	require.True(t, result.OK)
 	assert.Equal(t, ax.Join(projectDir, "dist", "apple", "Core.app"), result.Value)
+}
+
+func TestAppleBuilder_resolveOptions_BoolOnlyRuntimeOverride_Good(t *testing.T) {
+	builder := New()
+
+	options := builder.resolveOptions(&build.BuildConfig{
+		Apple: build.AppleConfig{
+			BundleID: "ai.lthn.core",
+			DMG:      boolPtr(true),
+		},
+	}, &AppleOptions{
+		Sign:     false,
+		Notarise: false,
+		DMG:      false,
+		AppStore: true,
+	})
+
+	assert.False(t, options.Sign)
+	assert.False(t, options.Notarise)
+	assert.False(t, options.DMG)
+	assert.True(t, options.AppStore)
 }
 
 func TestApple_BuildWailsApp_UsesCurrentDirectoryAndStringLDFlags_Good(t *testing.T) {

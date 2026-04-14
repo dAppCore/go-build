@@ -430,15 +430,69 @@ func (b *AppleBuilder) resolveOptions(buildConfig *build.BuildConfig, runtime *A
 		if override.EntitlementsPath != "" {
 			options.EntitlementsPath = override.EntitlementsPath
 		}
-
-		options.Sign = override.Sign
-		options.Notarise = override.Notarise
-		options.DMG = override.DMG
-		options.TestFlight = override.TestFlight
-		options.AppStore = override.AppStore
+		applyRuntimePipelineOverrides(&options, override)
 	}
 
 	return options
+}
+
+func applyRuntimePipelineOverrides(options *AppleOptions, override AppleOptions) {
+	if options == nil {
+		return
+	}
+
+	// Partial runtime overrides often only provide identity/metadata fields.
+	// Treat all-zero booleans in that case as "unspecified" so the builder keeps
+	// config/default pipeline behavior instead of disabling sign/notarise by
+	// accident. Bool-only runtime structs still override everything explicitly.
+	hasNonBooleanOverrides := hasNonBooleanRuntimeOverrides(override)
+
+	if override.Sign || !hasNonBooleanOverrides {
+		options.Sign = override.Sign
+	}
+	if override.Notarise || !hasNonBooleanOverrides {
+		options.Notarise = override.Notarise
+	}
+	if override.DMG || !hasNonBooleanOverrides {
+		options.DMG = override.DMG
+	}
+	if override.TestFlight || !hasNonBooleanOverrides {
+		options.TestFlight = override.TestFlight
+	}
+	if override.AppStore || !hasNonBooleanOverrides {
+		options.AppStore = override.AppStore
+	}
+}
+
+func hasNonBooleanRuntimeOverrides(options AppleOptions) bool {
+	for _, value := range []string{
+		options.TeamID,
+		options.BundleID,
+		options.Arch,
+		options.CertIdentity,
+		options.ProfilePath,
+		options.KeychainPath,
+		options.MetadataPath,
+		options.APIKeyID,
+		options.APIKeyIssuerID,
+		options.APIKeyPath,
+		options.AppleID,
+		options.Password,
+		options.BundleDisplayName,
+		options.MinSystemVersion,
+		options.Category,
+		options.Copyright,
+		options.PrivacyPolicyURL,
+		options.DMGBackground,
+		options.DMGVolumeName,
+		options.EntitlementsPath,
+	} {
+		if core.Trim(value) != "" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func resolveBundleName(cfg *build.BuildConfig, projectDir string) string {
