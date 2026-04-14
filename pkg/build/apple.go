@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -77,6 +78,7 @@ type WailsBuildConfig struct {
 	OutputDir  string   `json:"output_dir" yaml:"output_dir"`
 	Version    string   `json:"version" yaml:"version"`
 	Env        []string `json:"env" yaml:"env"`
+	DenoBuild  string   `json:"deno_build" yaml:"deno_build"`
 }
 
 // SignConfig defines the codesign inputs for a macOS app bundle.
@@ -383,6 +385,7 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			OutputDir:  arm64Dir,
 			Version:    version,
 			Env:        BuildEnvironment(cfg),
+			DenoBuild:  cfg.DenoBuild,
 		})
 		if err != nil {
 			return nil, coreerr.E("build.BuildApple", "failed to build arm64 bundle", err)
@@ -397,6 +400,7 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			OutputDir:  amd64Dir,
 			Version:    version,
 			Env:        BuildEnvironment(cfg),
+			DenoBuild:  cfg.DenoBuild,
 		})
 		if err != nil {
 			return nil, coreerr.E("build.BuildApple", "failed to build amd64 bundle", err)
@@ -417,6 +421,7 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			OutputDir:  outputDir,
 			Version:    version,
 			Env:        BuildEnvironment(cfg),
+			DenoBuild:  cfg.DenoBuild,
 		})
 		if err != nil {
 			return nil, coreerr.E("build.BuildApple", "failed to build app bundle", err)
@@ -572,6 +577,10 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) (string, error) {
 		return "", coreerr.E("build.BuildWailsApp", "arch is required", nil)
 	}
 
+	if err := prepareWailsFrontend(ctx, cfg); err != nil {
+		return "", err
+	}
+
 	wailsCommand, err := resolveWails3Cli()
 	if err != nil {
 		return "", err
@@ -592,7 +601,10 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) (string, error) {
 		args = append(args, "-ldflags", core.Join(" ", ldflags...))
 	}
 
-	output, err := appleCombinedOutput(ctx, cfg.ProjectDir, cfg.Env, wailsCommand, args...)
+	env := append([]string{}, cfg.Env...)
+	env = appendEnvIfMissing(env, "CGO_ENABLED", "1")
+
+	output, err := appleCombinedOutput(ctx, cfg.ProjectDir, env, wailsCommand, args...)
 	if err != nil {
 		return "", coreerr.E("build.BuildWailsApp", "wails build failed: "+output, err)
 	}
@@ -621,6 +633,264 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) (string, error) {
 	}
 
 	return destPath, nil
+}
+
+func prepareWailsFrontend(ctx context.Context, cfg WailsBuildConfig) error {
+	frontendDir, command, args, err := resolveWailsFrontendBuild(cfg)
+	if err != nil {
+		return err
+	}
+	if command == "" {
+		return nil
+	}
+
+	output, err := appleCombinedOutput(ctx, frontendDir, cfg.Env, command, args...)
+	if err != nil {
+		return coreerr.E("build.prepareWailsFrontend", command+" build failed: "+output, err)
+	}
+
+	return nil
+}
+
+func resolveWailsFrontendBuild(cfg WailsBuildConfig) (string, string, []string, error) {
+	frontendDir := resolveFrontendDir(io.Local, cfg.ProjectDir)
+	if frontendDir == "" {
+		return "", "", nil, nil
+	}
+
+	if hasDenoConfig(io.Local, frontendDir) {
+		command, args, err := resolveDenoBuildCommand(cfg)
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, args, nil
+	}
+
+	if io.Local.IsFile(ax.Join(frontendDir, "package.json")) {
+		return resolvePackageManagerBuild(frontendDir, detectPackageManager(io.Local, frontendDir))
+	}
+
+	return "", "", nil, nil
+}
+
+func resolveFrontendDir(filesystem io.Medium, projectDir string) string {
+	frontendDir := ax.Join(projectDir, "frontend")
+	if filesystem.IsDir(frontendDir) && (hasDenoConfig(filesystem, frontendDir) || filesystem.IsFile(ax.Join(frontendDir, "package.json"))) {
+		return frontendDir
+	}
+
+	if hasDenoConfig(filesystem, projectDir) || filesystem.IsFile(ax.Join(projectDir, "package.json")) {
+		return projectDir
+	}
+
+	return resolveSubtreeFrontendDir(filesystem, projectDir)
+}
+
+func hasDenoConfig(filesystem io.Medium, dir string) bool {
+	return filesystem.IsFile(ax.Join(dir, "deno.json")) || filesystem.IsFile(ax.Join(dir, "deno.jsonc"))
+}
+
+func resolveSubtreeFrontendDir(filesystem io.Medium, projectDir string) string {
+	return findFrontendDir(filesystem, projectDir, 0)
+}
+
+func findFrontendDir(filesystem io.Medium, dir string, depth int) string {
+	if depth >= 2 {
+		return ""
+	}
+
+	entries, err := filesystem.List(dir)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if name == "node_modules" || core.HasPrefix(name, ".") {
+			continue
+		}
+
+		candidateDir := ax.Join(dir, name)
+		if hasDenoConfig(filesystem, candidateDir) || filesystem.IsFile(ax.Join(candidateDir, "package.json")) {
+			return candidateDir
+		}
+
+		if nested := findFrontendDir(filesystem, candidateDir, depth+1); nested != "" {
+			return nested
+		}
+	}
+
+	return ""
+}
+
+func resolvePackageManagerBuild(frontendDir, packageManager string) (string, string, []string, error) {
+	switch packageManager {
+	case "bun":
+		command, err := resolveBunCli()
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, []string{"run", "build"}, nil
+	case "pnpm":
+		command, err := resolvePnpmCli()
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, []string{"run", "build"}, nil
+	case "yarn":
+		command, err := resolveYarnCli()
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, []string{"build"}, nil
+	default:
+		command, err := resolveNpmCli()
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, []string{"run", "build"}, nil
+	}
+}
+
+func detectPackageManager(filesystem io.Medium, dir string) string {
+	if declared := detectDeclaredPackageManager(filesystem, dir); declared != "" {
+		return declared
+	}
+
+	lockFiles := []struct {
+		file    string
+		manager string
+	}{
+		{"bun.lock", "bun"},
+		{"bun.lockb", "bun"},
+		{"pnpm-lock.yaml", "pnpm"},
+		{"yarn.lock", "yarn"},
+		{"package-lock.json", "npm"},
+	}
+
+	for _, lockFile := range lockFiles {
+		if filesystem.IsFile(ax.Join(dir, lockFile.file)) {
+			return lockFile.manager
+		}
+	}
+
+	return "npm"
+}
+
+type packageJSONManifest struct {
+	PackageManager string `json:"packageManager"`
+}
+
+func detectDeclaredPackageManager(filesystem io.Medium, dir string) string {
+	content, err := filesystem.Read(ax.Join(dir, "package.json"))
+	if err != nil {
+		return ""
+	}
+
+	var manifest packageJSONManifest
+	if err := ax.JSONUnmarshal([]byte(content), &manifest); err != nil {
+		return ""
+	}
+
+	return normalisePackageManager(manifest.PackageManager)
+}
+
+func normalisePackageManager(value string) string {
+	value = core.Trim(value)
+	if value == "" {
+		return ""
+	}
+
+	parts := core.SplitN(value, "@", 2)
+	manager := parts[0]
+
+	switch manager {
+	case "bun", "pnpm", "yarn", "npm":
+		return manager
+	default:
+		return ""
+	}
+}
+
+func resolveDenoBuildCommand(cfg WailsBuildConfig) (string, []string, error) {
+	override := core.Trim(core.Env("DENO_BUILD"))
+	if override == "" {
+		override = core.Trim(cfg.DenoBuild)
+	}
+	if override != "" {
+		args, err := splitCommandLine(override)
+		if err != nil {
+			return "", nil, coreerr.E("build.resolveDenoBuildCommand", "invalid DENO_BUILD command", err)
+		}
+		if len(args) == 0 {
+			return "", nil, coreerr.E("build.resolveDenoBuildCommand", "DENO_BUILD command is empty", nil)
+		}
+		return args[0], args[1:], nil
+	}
+
+	command, err := resolveDenoCli()
+	if err != nil {
+		return "", nil, err
+	}
+	return command, []string{"task", "build"}, nil
+}
+
+func splitCommandLine(command string) ([]string, error) {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return nil, nil
+	}
+
+	var (
+		args    []string
+		current strings.Builder
+		quote   rune
+		escape  bool
+	)
+
+	flush := func() {
+		if current.Len() == 0 {
+			return
+		}
+		args = append(args, current.String())
+		current.Reset()
+	}
+
+	for _, r := range command {
+		switch {
+		case escape:
+			current.WriteRune(r)
+			escape = false
+		case r == '\\' && quote != '\'':
+			escape = true
+		case quote != 0:
+			if r == quote {
+				quote = 0
+				continue
+			}
+			current.WriteRune(r)
+		case r == '"' || r == '\'':
+			quote = r
+		case unicode.IsSpace(r):
+			flush()
+		default:
+			current.WriteRune(r)
+		}
+	}
+
+	if escape {
+		current.WriteRune('\\')
+	}
+	if quote != 0 {
+		return nil, coreerr.E("build.splitCommandLine", "unterminated quote in command", nil)
+	}
+
+	flush()
+	return args, nil
 }
 
 // CreateUniversal merges two architecture-specific app bundles into a universal app.
@@ -1681,6 +1951,16 @@ func encodePlist(values map[string]any) (string, error) {
 	return buf.String(), nil
 }
 
+func appendEnvIfMissing(env []string, key, value string) []string {
+	prefix := key + "="
+	for _, entry := range env {
+		if core.HasPrefix(entry, prefix) {
+			return env
+		}
+	}
+	return append(env, prefix+value)
+}
+
 func resolveWails3Cli() (string, error) {
 	paths := []string{
 		"/usr/local/bin/wails3",
@@ -1704,6 +1984,46 @@ func resolveWails3Cli() (string, error) {
 	command, fallbackErr := appleResolveCommand("wails", fallbacks...)
 	if fallbackErr != nil {
 		return "", coreerr.E("build.resolveWails3Cli", "wails3 CLI not found. Install Wails v3 or expose it on PATH.", err)
+	}
+	return command, nil
+}
+
+func resolveDenoCli() (string, error) {
+	command, err := appleResolveCommand("deno", "/usr/local/bin/deno", "/opt/homebrew/bin/deno")
+	if err != nil {
+		return "", coreerr.E("build.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", err)
+	}
+	return command, nil
+}
+
+func resolveNpmCli() (string, error) {
+	command, err := appleResolveCommand("npm", "/usr/local/bin/npm", "/opt/homebrew/bin/npm")
+	if err != nil {
+		return "", coreerr.E("build.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", err)
+	}
+	return command, nil
+}
+
+func resolveBunCli() (string, error) {
+	command, err := appleResolveCommand("bun", "/usr/local/bin/bun", "/opt/homebrew/bin/bun")
+	if err != nil {
+		return "", coreerr.E("build.resolveBunCli", "bun CLI not found. Install it from https://bun.sh/", err)
+	}
+	return command, nil
+}
+
+func resolvePnpmCli() (string, error) {
+	command, err := appleResolveCommand("pnpm", "/usr/local/bin/pnpm", "/opt/homebrew/bin/pnpm")
+	if err != nil {
+		return "", coreerr.E("build.resolvePnpmCli", "pnpm CLI not found. Install it from https://pnpm.io/installation", err)
+	}
+	return command, nil
+}
+
+func resolveYarnCli() (string, error) {
+	command, err := appleResolveCommand("yarn", "/usr/local/bin/yarn", "/opt/homebrew/bin/yarn")
+	if err != nil {
+		return "", coreerr.E("build.resolveYarnCli", "yarn CLI not found. Install it from https://yarnpkg.com/getting-started/install", err)
 	}
 	return command, nil
 }

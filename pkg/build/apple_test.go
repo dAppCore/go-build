@@ -163,6 +163,73 @@ func TestApple_BuildWailsApp_AddsMLXBuildTag_Good(t *testing.T) {
 	assert.Equal(t, bundlePath, result)
 }
 
+func TestApple_BuildWailsApp_PreBuildsFrontendAndForcesCGO_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	frontendDir := ax.Join(projectDir, "frontend")
+	bundlePath := ax.Join(projectDir, "build", "bin", "Core.app")
+
+	require.NoError(t, io.Local.EnsureDir(frontendDir))
+	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644))
+
+	oldResolve := appleResolveCommand
+	oldCombined := appleCombinedOutput
+	t.Cleanup(func() {
+		appleResolveCommand = oldResolve
+		appleCombinedOutput = oldCombined
+	})
+
+	var calls []struct {
+		dir     string
+		command string
+		args    []string
+		env     []string
+	}
+
+	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
+		return name, nil
+	}
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+		calls = append(calls, struct {
+			dir     string
+			command string
+			args    []string
+			env     []string
+		}{
+			dir:     dir,
+			command: command,
+			args:    append([]string{}, args...),
+			env:     append([]string{}, env...),
+		})
+
+		switch command {
+		case "deno-build":
+			assert.Equal(t, frontendDir, dir)
+			assert.Equal(t, []string{"--target", "release"}, args)
+		case "wails3":
+			assert.Equal(t, projectDir, dir)
+			assert.Contains(t, env, "CGO_ENABLED=1")
+			writeDummyAppBundle(t, bundlePath, "Core", "built")
+		default:
+			t.Fatalf("unexpected command: %s", command)
+		}
+
+		return "", nil
+	}
+
+	result, err := BuildWailsApp(context.Background(), WailsBuildConfig{
+		ProjectDir: projectDir,
+		Name:       "Core",
+		Arch:       "arm64",
+		OutputDir:  ax.Join(projectDir, "dist"),
+		DenoBuild:  "deno-build --target release",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, ax.Join(projectDir, "dist", "Core.app"), result)
+	require.Len(t, calls, 2)
+	assert.Equal(t, "deno-build", calls[0].command)
+	assert.Equal(t, "wails3", calls[1].command)
+}
+
 func TestApple_BuildApple_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist", "apple")

@@ -27,6 +27,7 @@ type WailsBuildConfig struct {
 	OutputDir  string   `json:"output_dir" yaml:"output_dir"`
 	Version    string   `json:"version" yaml:"version"`
 	Env        []string `json:"env" yaml:"env"`
+	DenoBuild  string   `json:"deno_build" yaml:"deno_build"`
 }
 
 // SignConfig aliases the codesign configuration.
@@ -270,6 +271,7 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) core.Result {
 		OutputDir:  cfg.OutputDir,
 		Version:    cfg.Version,
 		Env:        append([]string{}, cfg.Env...),
+		DenoBuild:  cfg.DenoBuild,
 	}
 	if core.Trim(cfg.LDFlags) != "" {
 		buildCfg.LDFlags = []string{cfg.LDFlags}
