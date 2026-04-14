@@ -1014,6 +1014,7 @@ build:
   type: go
   cgo: true
   obfuscate: true
+  archive_format: xz
   flags:
     - -mod=readonly
   ldflags:
@@ -1098,6 +1099,40 @@ targets:
 	assert.True(t, capturedCfg.FS.Exists(ax.Join(projectDir, "cache", "go-build")))
 	assert.True(t, capturedCfg.FS.Exists(ax.Join(projectDir, "cache", "go-mod")))
 	assert.Equal(t, []build.Target{{OS: "linux", Arch: "amd64"}}, capturedTargets)
+	assert.Contains(t, recorder.Body.String(), `"archive_format":"xz"`)
+	assert.Contains(t, recorder.Body.String(), `.tar.xz`)
+	assert.True(t, io.Local.Exists(ax.Join(projectDir, "dist", "api-build_linux_amd64.tar.xz")))
+	assert.True(t, io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")))
+
+	checksums, err := io.Local.Read(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))
+	require.NoError(t, err)
+	assert.Contains(t, checksums, "api-build_linux_amd64.tar.xz")
+}
+
+func TestProvider_ListArtifacts_RecursesIntoPlatformDirectories_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	distDir := ax.Join(projectDir, "dist")
+	require.NoError(t, io.Local.EnsureDir(ax.Join(distDir, "linux_amd64")))
+	require.NoError(t, io.Local.Write(ax.Join(distDir, "CHECKSUMS.txt"), "checksums"))
+	require.NoError(t, io.Local.Write(ax.Join(distDir, "linux_amd64", "demo.tar.xz"), "archive"))
+
+	p := NewProvider(projectDir, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/artifacts", nil)
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.listArtifacts(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	body := recorder.Body.String()
+	assert.Contains(t, body, `"exists":true`)
+	assert.Contains(t, body, `"name":"CHECKSUMS.txt"`)
+	assert.Contains(t, body, `"name":"linux_amd64/demo.tar.xz"`)
+	assert.Contains(t, body, ax.Join(distDir, "linux_amd64", "demo.tar.xz"))
 }
 
 type capturingBuilder struct {

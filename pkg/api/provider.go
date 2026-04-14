@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"runtime"
+	"sort"
 
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
@@ -17,6 +19,7 @@ import (
 	"dappco.re/go/core/build/internal/projectdetect"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
+	"dappco.re/go/core/build/pkg/build/signing"
 	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/io"
@@ -40,6 +43,9 @@ var (
 	providerResolveProjectType = resolveProjectType
 	providerGetBuilder         = getBuilder
 	providerDetermineVersion   = release.DetermineVersionWithContext
+	providerSignBinaries       = signing.SignBinaries
+	providerNotarizeBinaries   = signing.NotarizeBinaries
+	providerSignChecksums      = signing.SignChecksums
 )
 
 // compile-time interface checks
@@ -435,8 +441,40 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		return
 	}
 
-	// Archive and checksum
-	archived, err := build.ArchiveAll(p.medium, artifacts)
+	signCfg := cfg.Sign
+	if signCfg.Enabled && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
+		signingArtifacts := make([]signing.Artifact, len(artifacts))
+		for i, artifact := range artifacts {
+			signingArtifacts[i] = signing.Artifact{
+				Path: artifact.Path,
+				OS:   artifact.OS,
+				Arch: artifact.Arch,
+			}
+		}
+
+		if err := providerSignBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts); err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, api.Fail("sign_failed", err.Error()))
+			return
+		}
+
+		if runtime.GOOS == "darwin" && signCfg.MacOS.Notarize {
+			if err := providerNotarizeBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts); err != nil {
+				p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+				c.JSON(http.StatusInternalServerError, api.Fail("notarize_failed", err.Error()))
+				return
+			}
+		}
+	}
+
+	archiveFormat, err := build.ParseArchiveFormat(cfg.Build.ArchiveFormat)
+	if err != nil {
+		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, api.Fail("archive_format_invalid", err.Error()))
+		return
+	}
+
+	archived, err := build.ArchiveAllWithFormat(p.medium, artifacts, archiveFormat)
 	if err != nil {
 		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
 		c.JSON(http.StatusInternalServerError, api.Fail("archive_failed", err.Error()))
@@ -450,14 +488,29 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		return
 	}
 
+	checksumPath := ax.Join(outputDir, "CHECKSUMS.txt")
+	if err := build.WriteChecksumFile(p.medium, checksummed, checksumPath); err != nil {
+		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, api.Fail("checksum_write_failed", err.Error()))
+		return
+	}
+
+	if err := providerSignChecksums(c.Request.Context(), p.medium, signCfg, checksumPath); err != nil {
+		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, api.Fail("checksum_sign_failed", err.Error()))
+		return
+	}
+
 	p.emitEvent("build.complete", map[string]any{
 		"artifact_count": len(checksummed),
 		"version":        version,
 	})
 
 	c.JSON(http.StatusOK, api.OK(map[string]any{
-		"artifacts": checksummed,
-		"version":   version,
+		"artifacts":      checksummed,
+		"checksum_file":  checksumPath,
+		"archive_format": string(archiveFormat),
+		"version":        version,
 	}))
 }
 
@@ -493,27 +546,15 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 		return
 	}
 
-	entries, err := p.medium.List(distDir)
+	artifacts, err := p.collectArtifacts(distDir, distDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("list_failed", err.Error()))
 		return
 	}
 
-	var artifacts []artifactInfo
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-		artifacts = append(artifacts, artifactInfo{
-			Name: entry.Name(),
-			Path: ax.Join(distDir, entry.Name()),
-			Size: info.Size(),
-		})
-	}
+	sort.Slice(artifacts, func(i, j int) bool {
+		return artifacts[i].Name < artifacts[j].Name
+	})
 
 	if artifacts == nil {
 		artifacts = []artifactInfo{}
@@ -523,6 +564,44 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 		"artifacts": artifacts,
 		"exists":    true,
 	}))
+}
+
+func (p *BuildProvider) collectArtifacts(distDir, currentDir string) ([]artifactInfo, error) {
+	entries, err := p.medium.List(currentDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var artifacts []artifactInfo
+	for _, entry := range entries {
+		path := ax.Join(currentDir, entry.Name())
+		if entry.IsDir() {
+			nested, err := p.collectArtifacts(distDir, path)
+			if err != nil {
+				return nil, err
+			}
+			artifacts = append(artifacts, nested...)
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		name, err := ax.Rel(distDir, path)
+		if err != nil {
+			name = entry.Name()
+		}
+
+		artifacts = append(artifacts, artifactInfo{
+			Name: name,
+			Path: path,
+			Size: info.Size(),
+		})
+	}
+
+	return artifacts, nil
 }
 
 // -- Release Handlers ---------------------------------------------------------
