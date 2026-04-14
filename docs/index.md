@@ -66,7 +66,7 @@ Monorepo frontend discovery scans subtree manifests to depth 2 and ignores `node
 `core build workflow` writes a reusable release workflow that:
 
 1. Detects the required toolchains from the repository contents.
-2. Installs Go, Node, Python, Conan, MkDocs, Deno, and Wails only when needed.
+2. Installs Go, Node, Python, Conan, MkDocs, Deno, and Wails only when needed, plus frontend package dependencies and optional garble for obfuscated builds.
 3. Restores build caches under `.core/cache` and `cache/`.
 4. Applies Ubuntu 24.04 WebKit 4.1 handling for Wails Linux builds.
 5. Runs `core build --archive --checksum`.

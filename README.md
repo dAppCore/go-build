@@ -16,7 +16,7 @@
 The generated reusable workflow mirrors the `dAppCore/build@v3` action architecture:
 
 - Auto-detects stack markers including subtree frontend manifests and MkDocs projects
-- Installs Go, Node, Python, Conan, MkDocs, Deno, and Wails when required
+- Installs Go, Node, Python, Conan, MkDocs, Deno, and Wails when required, plus frontend package dependencies and optional garble for obfuscated builds
 - Applies distro-aware Linux WebKit dependencies for Wails builds
 - Supports obfuscation, NSIS packaging, WebView2 modes, Deno frontend overrides, and build cache restore/save
 - Uploads workflow artifacts using the action-style naming shape: `{build-name}_{os}_{arch}_{tag|shortsha}`

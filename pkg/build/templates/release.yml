@@ -240,6 +240,25 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
 
+      - name: Install Garble
+        if: inputs.build-obfuscate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v go >/dev/null 2>&1; then
+            echo "Go is not available; skipping Garble installation."
+            exit 0
+          fi
+
+          go install mvdan.cc/garble@latest
+
+          gobin="$(go env GOBIN)"
+          if [ -z "$gobin" ]; then
+            gobin="$(go env GOPATH)/bin"
+          fi
+          echo "$gobin" >> "${GITHUB_PATH}"
+
       - name: Setup Node
         if: hashFiles(format('{0}/**/package.json', inputs.working-directory)) != ''
         uses: actions/setup-node@v4
@@ -252,6 +271,64 @@ jobs:
         run: |
           set -euo pipefail
           corepack enable
+
+      - name: Install frontend dependencies
+        if: hashFiles(format('{0}/**/package.json', inputs.working-directory)) != ''
+        working-directory: ${{ inputs.working-directory }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          install_node_package_dir() {
+            local dir="$1"
+            if [ ! -f "$dir/package.json" ]; then
+              return 0
+            fi
+
+            if [ -f "$dir/pnpm-lock.yaml" ]; then
+              corepack enable pnpm
+              (cd "$dir" && pnpm install --frozen-lockfile)
+              return 0
+            fi
+
+            if [ -f "$dir/yarn.lock" ]; then
+              corepack enable yarn
+              (cd "$dir" && yarn install --immutable)
+              return 0
+            fi
+
+            if [ -f "$dir/bun.lockb" ] || [ -f "$dir/bun.lock" ]; then
+              if ! command -v bun >/dev/null 2>&1; then
+                curl -fsSL https://bun.sh/install | bash
+                export PATH="${HOME}/.bun/bin:${PATH}"
+              fi
+              (cd "$dir" && bun install --frozen-lockfile)
+              return 0
+            fi
+
+            if [ -f "$dir/package-lock.json" ]; then
+              (cd "$dir" && npm ci)
+              return 0
+            fi
+
+            (cd "$dir" && npm install)
+          }
+
+          install_node_package_dir "."
+
+          if [ -d frontend ]; then
+            install_node_package_dir "./frontend"
+          fi
+
+          while IFS= read -r manifest; do
+            dir="$(dirname "$manifest")"
+            case "$dir" in
+              "."|"./frontend")
+                continue
+                ;;
+            esac
+            install_node_package_dir "$dir"
+          done < <(find . -maxdepth 3 -name package.json -not -path '*/node_modules/*' | sort)
 
       - name: Install Wails CLI
         working-directory: ${{ inputs.working-directory }}

@@ -66,7 +66,7 @@ Current implementations:
 
 1. Checkout
 2. Discovery by file markers through `hashFiles(...)`
-3. Toolchain setup for Go, Node, Python, Conan, MkDocs, Deno, and Wails
+3. Toolchain setup for Go, Node, Python, Conan, MkDocs, Deno, and Wails, including frontend dependency installation and optional garble when obfuscation is enabled
 4. Linux distro-aware WebKit dependency setup for Wails
 5. Cache restore under `.core/cache` and `cache/`
 6. `core build --archive --checksum`
