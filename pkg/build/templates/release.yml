@@ -517,16 +517,64 @@ jobs:
 
           "${args[@]}"
 
+      - name: Resolve build name
+        id: build_name
+        working-directory: ${{ inputs.working-directory }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          build_name="${{ inputs.build-name }}"
+
+          if [ -z "$build_name" ] && [ -f .core/build.yaml ]; then
+            build_name="$(python - <<'PY'
+from pathlib import Path
+import re
+
+path = Path(".core/build.yaml")
+in_project = False
+binary = ""
+name = ""
+
+for raw_line in path.read_text().splitlines():
+    line = raw_line.rstrip()
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        continue
+
+    if not line.startswith((" ", "\t")):
+        in_project = stripped == "project:"
+        continue
+
+    if not in_project:
+        continue
+
+    binary_match = re.match(r"^\s*binary:\s*(.+?)\s*$", line)
+    if binary_match and not binary:
+        binary = binary_match.group(1).strip().strip("\"'")
+
+    name_match = re.match(r"^\s*name:\s*(.+?)\s*$", line)
+    if name_match and not name:
+        name = name_match.group(1).strip().strip("\"'")
+
+print(binary or name, end="")
+PY
+)"
+          fi
+
+          if [ -z "$build_name" ]; then
+            build_name="${GITHUB_REPOSITORY##*/}"
+          fi
+
+          echo "value=${build_name}" >> "${GITHUB_OUTPUT}"
+
       - name: Compute artifact upload name
         id: artifact-name
         shell: bash
         run: |
           set -euo pipefail
 
-          build_name="${{ inputs.build-name }}"
-          if [ -z "$build_name" ]; then
-            build_name="${GITHUB_REPOSITORY##*/}"
-          fi
+          build_name="${{ steps.build_name.outputs.value }}"
 
           target="${{ matrix.target }}"
           target_os="${target%%/*}"
