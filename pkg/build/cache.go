@@ -78,6 +78,12 @@ func SetupCache(fs io.Medium, dir string, cfg *CacheConfig) error {
 		cfg.Directory = ax.Join(dir, ConfigDir, "cache")
 	}
 	cfg.Directory = normaliseCachePath(dir, cfg.Directory)
+	if len(cfg.Paths) == 0 {
+		cfg.Paths = []string{
+			ax.Join("cache", "go-build"),
+			ax.Join("cache", "go-mod"),
+		}
+	}
 
 	if err := fs.EnsureDir(cfg.Directory); err != nil {
 		return coreerr.E("build.SetupCache", "failed to create cache directory", err)

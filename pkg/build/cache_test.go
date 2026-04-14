@@ -56,6 +56,50 @@ func TestCache_SetupBuildCache_Good(t *testing.T) {
 	assert.True(t, fs.Exists("/workspace/project/cache/go-build"))
 }
 
+func TestCache_SetupCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
+	fs := io.NewMockMedium()
+	cfg := &CacheConfig{
+		Enabled: true,
+	}
+
+	err := SetupCache(fs, "/workspace/project", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, "/workspace/project/.core/cache", cfg.Directory)
+	assert.Equal(t, []string{
+		"/workspace/project/cache/go-build",
+		"/workspace/project/cache/go-mod",
+	}, cfg.Paths)
+	assert.True(t, fs.Exists("/workspace/project/.core/cache"))
+	assert.True(t, fs.Exists("/workspace/project/cache/go-build"))
+	assert.True(t, fs.Exists("/workspace/project/cache/go-mod"))
+}
+
+func TestCache_SetupBuildCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
+	fs := io.NewMockMedium()
+	cfg := &BuildConfig{
+		Build: Build{
+			Cache: CacheConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	err := SetupBuildCache(fs, "/workspace/project", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, "/workspace/project/.core/cache", cfg.Build.Cache.Directory)
+	assert.Equal(t, []string{
+		"/workspace/project/cache/go-build",
+		"/workspace/project/cache/go-mod",
+	}, cfg.Build.Cache.Paths)
+	assert.True(t, fs.Exists("/workspace/project/.core/cache"))
+	assert.True(t, fs.Exists("/workspace/project/cache/go-build"))
+	assert.True(t, fs.Exists("/workspace/project/cache/go-mod"))
+}
+
 func TestCache_SetupCache_Good_Disabled(t *testing.T) {
 	fs := io.NewMockMedium()
 	cfg := &CacheConfig{
