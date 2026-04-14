@@ -79,6 +79,7 @@ Discovery preserves the richer `dAppCore/build@v3` action model:
 - Linux distro detection feeds Ubuntu-aware WebKit dependency selection.
 - Stack suggestions preserve action naming such as `wails2`, `cpp`, `docs`, and `node`.
 - Git metadata is surfaced for artifact naming and release behavior.
+- The generated workflow exports root marker outputs for `go.mod`, `go.work`, `main.go`, `wails.json`, `CMakeLists.txt`, plus subtree package and Deno flags for downstream setup decisions.
 
 ## Action Parity
 

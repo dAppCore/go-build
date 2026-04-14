@@ -19,7 +19,7 @@ go-build has four major surfaces that share types but can be used independently:
 They record:
 
 - detected project types in priority order
-- raw marker presence
+- raw marker presence, including root Go/Wails/CMake markers and subtree frontend manifests
 - whether a frontend exists at the root, in `frontend/`, or in a subtree up to depth 2
 - distro-aware Linux package requirements
 - an action-facing stack suggestion (`wails2`, `cpp`, `docs`, `node`, `go`)
