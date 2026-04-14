@@ -110,6 +110,7 @@ targets:
 		t.Setenv("APP_ROOT", "./cmd/demo")
 		t.Setenv("APP_BINARY", "demo-bin")
 		t.Setenv("BUILD_TYPE", "wails")
+		t.Setenv("DENO_BUILD", "deno task bundle")
 		t.Setenv("WEBVIEW2", "embed")
 		t.Setenv("ARCHIVE_FORMAT", "xz")
 		t.Setenv("APP_VERSION", "v1.2.3")
@@ -127,6 +128,7 @@ project:
   binary: ${APP_BINARY}
 build:
   type: ${BUILD_TYPE}
+  deno_build: ${DENO_BUILD}
   webview2: ${WEBVIEW2}
   archive_format: ${ARCHIVE_FORMAT}
   flags:
@@ -166,6 +168,7 @@ sign:
 		assert.Equal(t, "./cmd/demo", cfg.Project.Main)
 		assert.Equal(t, "demo-bin", cfg.Project.Binary)
 		assert.Equal(t, "wails", cfg.Build.Type)
+		assert.Equal(t, "deno task bundle", cfg.Build.DenoBuild)
 		assert.Equal(t, "embed", cfg.Build.WebView2)
 		assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
 		assert.Equal(t, []string{"-trimpath", "-X", "main.version=v1.2.3"}, cfg.Build.Flags)

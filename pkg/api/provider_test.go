@@ -892,6 +892,18 @@ func TestProvider_DiscoverProject_Good(t *testing.T) {
 	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example"), 0o644))
 	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, "frontend"), 0o755))
 	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "frontend", "package.json"), []byte("{}"), 0o644))
+	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+build:
+  obfuscate: true
+  nsis: true
+  webview2: embed
+  build_tags:
+    - release
+  ldflags:
+    - -s
+    - -w
+`), 0o644))
 
 	p := NewProvider(projectDir, nil)
 
@@ -911,6 +923,9 @@ func TestProvider_DiscoverProject_Good(t *testing.T) {
 	assert.Contains(t, body, `"has_frontend":true`)
 	assert.Contains(t, body, `"has_subtree_npm":true`)
 	assert.Contains(t, body, `"linux_packages":`)
+	assert.Contains(t, body, `"build_options":"`)
+	assert.Contains(t, body, `"-obfuscated`)
+	assert.Contains(t, body, `"options":{"ldflags":["-s","-w"],"nsis":true,"obfuscate":true`)
 	assert.Contains(t, body, `"go.mod":true`)
 	assert.Contains(t, body, `"frontend/package.json":true`)
 }

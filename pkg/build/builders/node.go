@@ -65,7 +65,7 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		projectDir = cfg.ProjectDir
 	}
 
-	command, args, err := b.resolveBuildCommand(cfg.FS, projectDir)
+	command, args, err := b.resolveBuildCommand(cfg, cfg.FS, projectDir)
 	if err != nil {
 		return nil, err
 	}
@@ -181,13 +181,9 @@ func (b *NodeBuilder) resolvePackageManager(fs io.Medium, projectDir string) (st
 // resolveBuildCommand returns the executable and arguments for the selected package manager.
 //
 // command, args, err := b.resolveBuildCommand("npm")
-func (b *NodeBuilder) resolveBuildCommand(fs io.Medium, projectDir string) (string, []string, error) {
+func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, projectDir string) (string, []string, error) {
 	if b.hasDenoConfig(fs, projectDir) {
-		command, err := b.resolveDenoCli()
-		if err != nil {
-			return "", nil, err
-		}
-		return command, []string{"task", "build"}, nil
+		return resolveDenoBuildCommand(cfg, b.resolveDenoCli)
 	}
 
 	packageManager, err := b.resolvePackageManager(fs, projectDir)

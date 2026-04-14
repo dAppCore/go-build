@@ -38,6 +38,7 @@ func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
 			Env:            []string{"FOO=bar"},
 			CGO:            true,
 			Obfuscate:      true,
+			DenoBuild:      "deno task bundle",
 			NSIS:           true,
 			WebView2:       "embed",
 			Dockerfile:     "Dockerfile.custom",
@@ -60,6 +61,7 @@ func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
 	assert.Equal(t, []string{"FOO=bar"}, cfg.Env)
 	assert.True(t, cfg.CGO)
 	assert.True(t, cfg.Obfuscate)
+	assert.Equal(t, "deno task bundle", cfg.DenoBuild)
 	assert.True(t, cfg.NSIS)
 	assert.Equal(t, "embed", cfg.WebView2)
 	assert.Equal(t, "Dockerfile.custom", cfg.Dockerfile)

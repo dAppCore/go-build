@@ -95,6 +95,8 @@ type Config struct {
 	CGO bool
 	// Obfuscate uses garble instead of go build for binary obfuscation.
 	Obfuscate bool
+	// DenoBuild overrides the default `deno task build` invocation for Deno-backed builds.
+	DenoBuild string
 	// NSIS enables Windows NSIS installer generation (Wails projects only).
 	NSIS bool
 	// WebView2 sets the WebView2 delivery method: download|embed|browser|error.

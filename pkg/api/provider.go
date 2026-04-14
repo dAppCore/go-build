@@ -306,11 +306,18 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		return
 	}
 
+	cfg, err := build.LoadConfig(p.medium, dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		return
+	}
+
 	discovery, err := build.DiscoverFull(p.medium, dir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
 		return
 	}
+	options := build.ComputeOptions(cfg, discovery)
 
 	// Convert to string slice for JSON
 	typeStrings := make([]string, len(discovery.Types))
@@ -331,8 +338,16 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		"has_frontend":    discovery.HasFrontend,
 		"has_subtree_npm": discovery.HasSubtreeNpm,
 		"linux_packages":  discovery.LinuxPackages,
-		"markers":         discovery.Markers,
-		"distro":          discovery.Distro,
+		"build_options":   options.String(),
+		"options": map[string]any{
+			"obfuscate": options.Obfuscate,
+			"tags":      options.Tags,
+			"nsis":      options.NSIS,
+			"webview2":  options.WebView2,
+			"ldflags":   options.LDFlags,
+		},
+		"markers": discovery.Markers,
+		"distro":  discovery.Distro,
 	}))
 }
 

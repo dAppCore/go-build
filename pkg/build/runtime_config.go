@@ -24,6 +24,7 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 		Cache:          buildDefaults.Cache,
 		CGO:            buildDefaults.CGO,
 		Obfuscate:      buildDefaults.Obfuscate,
+		DenoBuild:      buildDefaults.DenoBuild,
 		NSIS:           buildDefaults.NSIS,
 		WebView2:       buildDefaults.WebView2,
 		Dockerfile:     buildDefaults.Dockerfile,

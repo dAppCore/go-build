@@ -66,6 +66,8 @@ type Build struct {
 	CGO bool `yaml:"cgo"`
 	// Obfuscate uses garble instead of go build for binary obfuscation.
 	Obfuscate bool `yaml:"obfuscate"`
+	// DenoBuild overrides the default `deno task build` invocation for Deno-backed builds.
+	DenoBuild string `yaml:"deno_build,omitempty"`
 	// NSIS enables Windows NSIS installer generation (Wails projects only).
 	NSIS bool `yaml:"nsis"`
 	// WebView2 sets the WebView2 delivery method: download|embed|browser|error.
@@ -272,6 +274,7 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.Project.Binary = expandEnv(cfg.Project.Binary)
 
 	cfg.Build.Type = expandEnv(cfg.Build.Type)
+	cfg.Build.DenoBuild = expandEnv(cfg.Build.DenoBuild)
 	cfg.Build.WebView2 = expandEnv(cfg.Build.WebView2)
 	cfg.Build.ArchiveFormat = expandEnv(cfg.Build.ArchiveFormat)
 	cfg.Build.Dockerfile = expandEnv(cfg.Build.Dockerfile)

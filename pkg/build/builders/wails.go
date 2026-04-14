@@ -188,7 +188,7 @@ func (b *WailsBuilder) PreBuild(ctx context.Context, cfg *build.Config) error {
 		return coreerr.E("WailsBuilder.PreBuild", "config is nil", nil)
 	}
 
-	frontendDir, command, args, err := b.resolveFrontendBuild(cfg.FS, cfg.ProjectDir)
+	frontendDir, command, args, err := b.resolveFrontendBuild(cfg)
 	if err != nil {
 		return err
 	}
@@ -216,19 +216,28 @@ func (b *WailsBuilder) isWailsV3(fs io.Medium, dir string) bool {
 
 // resolveFrontendBuild selects the frontend directory and build command.
 //
-// dir, command, args, err := b.resolveFrontendBuild(io.Local, ".")
-func (b *WailsBuilder) resolveFrontendBuild(fs io.Medium, projectDir string) (string, string, []string, error) {
+// dir, command, args, err := b.resolveFrontendBuild(cfg)
+func (b *WailsBuilder) resolveFrontendBuild(cfg *build.Config) (string, string, []string, error) {
+	if cfg == nil {
+		return "", "", nil, coreerr.E("WailsBuilder.resolveFrontendBuild", "config is nil", nil)
+	}
+
+	fs := cfg.FS
+	if fs == nil {
+		fs = io.Local
+	}
+	projectDir := cfg.ProjectDir
 	frontendDir := b.resolveFrontendDir(fs, projectDir)
 	if frontendDir == "" {
 		return "", "", nil, nil
 	}
 
 	if b.hasDenoConfig(fs, frontendDir) {
-		command, err := b.resolveDenoCli()
+		command, args, err := resolveDenoBuildCommand(cfg, b.resolveDenoCli)
 		if err != nil {
 			return "", "", nil, err
 		}
-		return frontendDir, command, []string{"task", "build"}, nil
+		return frontendDir, command, args, nil
 	}
 
 	if fs.IsFile(ax.Join(frontendDir, "package.json")) {

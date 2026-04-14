@@ -18,6 +18,7 @@ func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {
 		Build: Build{
 			CGO:            true,
 			Obfuscate:      true,
+			DenoBuild:      "deno task bundle",
 			NSIS:           true,
 			WebView2:       "embed",
 			Flags:          []string{"-mod=readonly"},
@@ -53,6 +54,7 @@ func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {
 	assert.Equal(t, CacheConfig{Enabled: true, Paths: []string{"/tmp/go-build"}}, cfg.Cache)
 	assert.True(t, cfg.CGO)
 	assert.True(t, cfg.Obfuscate)
+	assert.Equal(t, "deno task bundle", cfg.DenoBuild)
 	assert.True(t, cfg.NSIS)
 	assert.Equal(t, "embed", cfg.WebView2)
 	assert.Equal(t, "build/Dockerfile", cfg.Dockerfile)
