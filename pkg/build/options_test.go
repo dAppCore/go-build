@@ -44,7 +44,9 @@ func TestOptions_ComputeOptions_Good(t *testing.T) {
 			},
 		}
 		discovery := &DiscoveryResult{
-			Distro: "22.04",
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "22.04",
 		}
 
 		opts := ComputeOptions(cfg, discovery)
@@ -54,14 +56,31 @@ func TestOptions_ComputeOptions_Good(t *testing.T) {
 	})
 
 	t.Run("discovery with 25.10 distro injects webkit tag", func(t *testing.T) {
-		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{Distro: "25.10"})
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "25.10",
+		})
 		assert.Contains(t, opts.Tags, "webkit2_41")
+	})
+
+	t.Run("non-Wails stacks do not inject webkit tag", func(t *testing.T) {
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeGo},
+			PrimaryStack: "go",
+			Distro:       "24.04",
+		})
+		assert.NotContains(t, opts.Tags, "webkit2_41")
 	})
 }
 
 func TestOptions_ComputeOptions_Bad(t *testing.T) {
 	t.Run("nil config returns safe defaults", func(t *testing.T) {
-		discovery := &DiscoveryResult{Distro: "24.04"}
+		discovery := &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "24.04",
+		}
 
 		opts := ComputeOptions(nil, discovery)
 
@@ -70,7 +89,7 @@ func TestOptions_ComputeOptions_Bad(t *testing.T) {
 		assert.False(t, opts.NSIS)
 		assert.Empty(t, opts.WebView2)
 		assert.Empty(t, opts.LDFlags)
-		// webkit2_41 still injected from discovery
+		// webkit2_41 still injected for Wails discovery
 		assert.Contains(t, opts.Tags, "webkit2_41")
 	})
 
@@ -109,6 +128,8 @@ func TestOptions_ComputeOptions_Ugly(t *testing.T) {
 			},
 		}
 		discovery := &DiscoveryResult{Distro: "24.04"}
+		discovery.Types = []ProjectType{ProjectTypeWails}
+		discovery.PrimaryStack = "wails"
 
 		opts := ComputeOptions(cfg, discovery)
 
@@ -124,7 +145,11 @@ func TestOptions_ComputeOptions_Ugly(t *testing.T) {
 	})
 
 	t.Run("empty distro in discovery produces no webkit tag", func(t *testing.T) {
-		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{Distro: ""})
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "",
+		})
 		assert.Empty(t, opts.Tags)
 	})
 
@@ -137,7 +162,11 @@ func TestOptions_ComputeOptions_Ugly(t *testing.T) {
 				LDFlags:   []string{"-s", "-w", "-X main.version=v1.0.0"},
 			},
 		}
-		discovery := &DiscoveryResult{Distro: "24.04"}
+		discovery := &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "24.04",
+		}
 
 		opts := ComputeOptions(cfg, discovery)
 

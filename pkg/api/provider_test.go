@@ -921,7 +921,7 @@ build:
 	assert.Contains(t, body, `"primary":"wails"`)
 	assert.Contains(t, body, `"primary_stack":"wails"`)
 	assert.Contains(t, body, `"has_frontend":true`)
-	assert.Contains(t, body, `"has_subtree_npm":true`)
+	assert.Contains(t, body, `"has_subtree_npm":false`)
 	assert.Contains(t, body, `"linux_packages":`)
 	assert.Contains(t, body, `"build_options":"`)
 	assert.Contains(t, body, `"-obfuscated`)

@@ -121,7 +121,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 
 		types, err := Discover(fs, dir)
 		assert.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo}, types)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
 	})
 
 	t.Run("detects PHP project", func(t *testing.T) {
@@ -585,6 +585,14 @@ func TestDiscovery_HasSubtreeNpm_Good(t *testing.T) {
 		assert.False(t, HasSubtreeNpm(fs, dir))
 	})
 
+	t.Run("false with only frontend package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		frontendDir := ax.Join(dir, "frontend")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644))
+		assert.False(t, HasSubtreeNpm(fs, dir))
+	})
+
 	t.Run("false with empty directory", func(t *testing.T) {
 		dir := t.TempDir()
 		assert.False(t, HasSubtreeNpm(fs, dir))
@@ -615,6 +623,14 @@ func TestDiscovery_HasSubtreeNpm_Bad(t *testing.T) {
 		err = ax.WriteFile(ax.Join(nmDir, "package.json"), []byte("{}"), 0644)
 		require.NoError(t, err)
 		// Also need the apps dir to be listable — it is since we created nmDir inside it
+		assert.False(t, HasSubtreeNpm(fs, dir))
+	})
+
+	t.Run("ignores hidden directories", func(t *testing.T) {
+		dir := t.TempDir()
+		hiddenDir := ax.Join(dir, ".turbo", "web")
+		require.NoError(t, ax.MkdirAll(hiddenDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(hiddenDir, "package.json"), []byte("{}"), 0o644))
 		assert.False(t, HasSubtreeNpm(fs, dir))
 	})
 }
@@ -757,6 +773,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		assert.Equal(t, "wails", result.PrimaryStack)
 		assert.True(t, result.HasFrontend)
+		assert.False(t, result.HasSubtreeNpm)
 		assert.True(t, result.Markers["wails.json"])
 		assert.True(t, result.Markers["go.mod"])
 	})
@@ -825,7 +842,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo}, result.Types)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		assert.Equal(t, "wails", result.PrimaryStack)
 		assert.True(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)

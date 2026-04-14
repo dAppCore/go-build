@@ -26,7 +26,7 @@ type BuildOptions struct {
 }
 
 // ComputeOptions merges config + discovery into build flags.
-// Handles distro-aware webkit tag injection (Ubuntu 24.04 → webkit2_41).
+// Handles distro-aware WebKit tag injection for Ubuntu 24.04+ Wails builds.
 // Returns safe defaults when cfg or discovery is nil.
 //
 //	opts := build.ComputeOptions(cfg, result)
@@ -42,8 +42,8 @@ func ComputeOptions(cfg *BuildConfig, discovery *DiscoveryResult) *BuildOptions 
 		options.Tags = append(options.Tags, cfg.Build.BuildTags...)
 	}
 
-	// Inject webkit2_41 tag for Ubuntu 24.04+ when discovery provides distro info
-	if discovery != nil && discovery.Distro != "" {
+	// Inject webkit2_41 for Ubuntu 24.04+ Wails builds.
+	if shouldInjectWebKitTag(discovery) {
 		options.Tags = InjectWebKitTag(options.Tags, discovery.Distro)
 	}
 
@@ -136,6 +136,24 @@ func (o *BuildOptions) String() string {
 	}
 
 	return core.Join(" ", parts...)
+}
+
+func shouldInjectWebKitTag(discovery *DiscoveryResult) bool {
+	if discovery == nil || discovery.Distro == "" {
+		return false
+	}
+
+	if discovery.PrimaryStack == string(ProjectTypeWails) {
+		return true
+	}
+
+	for _, projectType := range discovery.Types {
+		if projectType == ProjectTypeWails {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isUbuntu2404OrNewer checks if the distro version string represents Ubuntu 24.04+.

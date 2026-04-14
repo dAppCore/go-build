@@ -93,7 +93,7 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		projectType ProjectType
 		detected    bool
 	}{
-		{ProjectTypeNode, IsNodeProject(fs, dir) || HasSubtreeNpm(fs, dir)},
+		{ProjectTypeNode, IsNodeProject(fs, dir) || hasFrontendManifest(fs, ax.Join(dir, "frontend")) || HasSubtreeNpm(fs, dir)},
 		{ProjectTypeDocs, IsMkDocsProject(fs, dir)},
 		{ProjectTypeCPP, IsCPPProject(fs, dir)},
 		{ProjectTypeDocker, IsDockerProject(fs, dir)},
@@ -198,7 +198,8 @@ func ResolveMkDocsConfigPath(fs io.Medium, dir string) string {
 }
 
 // HasSubtreeNpm checks for package.json within depth 2 subdirectories.
-// Ignores root package.json and node_modules directories.
+// Ignores root package.json, the conventional frontend/ directory, hidden
+// directories, and node_modules directories.
 // Returns true when a monorepo-style nested package.json is found.
 //
 //	ok := build.HasSubtreeNpm(io.Local, ".") // true if apps/web/package.json exists
@@ -214,7 +215,7 @@ func HasSubtreeNpm(fs io.Medium, dir string) bool {
 			continue
 		}
 		name := entry.Name()
-		if name == "node_modules" {
+		if shouldSkipSubtreeDir(name) || name == "frontend" {
 			continue
 		}
 
@@ -234,7 +235,7 @@ func HasSubtreeNpm(fs io.Medium, dir string) bool {
 			if !subEntry.IsDir() {
 				continue
 			}
-			if subEntry.Name() == "node_modules" {
+			if shouldSkipSubtreeDir(subEntry.Name()) {
 				continue
 			}
 			nested := ax.Join(subdir, subEntry.Name())
@@ -431,7 +432,7 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 			continue
 		}
 		name := entry.Name()
-		if name == "node_modules" || core.HasPrefix(name, ".") {
+		if shouldSkipSubtreeDir(name) || name == "frontend" {
 			continue
 		}
 
@@ -448,7 +449,7 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 			if !subEntry.IsDir() {
 				continue
 			}
-			if subEntry.Name() == "node_modules" || core.HasPrefix(subEntry.Name(), ".") {
+			if shouldSkipSubtreeDir(subEntry.Name()) {
 				continue
 			}
 			nested := ax.Join(subdir, subEntry.Name())
@@ -470,6 +471,10 @@ func hasGoRootMarker(fs io.Medium, dir string) bool {
 // fileExists checks if a file exists and is not a directory.
 func fileExists(fs io.Medium, path string) bool {
 	return fs.IsFile(path)
+}
+
+func shouldSkipSubtreeDir(name string) bool {
+	return name == "node_modules" || core.HasPrefix(name, ".")
 }
 
 // ResolveDockerfilePath returns the first Docker manifest path that exists.
