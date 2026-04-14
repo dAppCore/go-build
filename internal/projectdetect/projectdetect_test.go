@@ -102,6 +102,16 @@ func TestDetectProjectType_Good(t *testing.T) {
 		assert.Equal(t, build.ProjectTypeNode, projectType)
 	})
 
+	t.Run("prefers docs over generic Node markers", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
+
+		projectType, err := DetectProjectType(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeDocs, projectType)
+	})
+
 	t.Run("detects Wails projects from go.mod and root package.json", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))

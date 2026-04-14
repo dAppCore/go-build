@@ -80,8 +80,8 @@ type explicitOptions struct {
 	appStore   bool
 }
 
-// Option configures an AppleBuilder.
-type Option func(*AppleBuilder)
+// Option configures Apple pipeline defaults for a new AppleBuilder.
+type Option func(*AppleOptions)
 
 var (
 	loadConfigFn      = build.LoadConfig
@@ -123,9 +123,7 @@ func New(opts ...Option) *AppleBuilder {
 		options: build.DefaultAppleOptions(),
 	}
 	for _, opt := range opts {
-		if opt != nil {
-			opt(builder)
-		}
+		builder.applyOption(opt)
 	}
 	builder.ServiceRuntime = core.NewServiceRuntime[AppleOptions](nil, builder.options)
 	return builder
@@ -133,67 +131,61 @@ func New(opts ...Option) *AppleBuilder {
 
 // WithArch sets the target architecture.
 func WithArch(arch string) Option {
-	return func(builder *AppleBuilder) {
-		if builder == nil {
+	return func(options *AppleOptions) {
+		if options == nil {
 			return
 		}
-		builder.options.Arch = arch
-		builder.explicit.arch = true
+		options.Arch = arch
 	}
 }
 
 // WithSign enables or disables code signing.
 func WithSign(sign bool) Option {
-	return func(builder *AppleBuilder) {
-		if builder == nil {
+	return func(options *AppleOptions) {
+		if options == nil {
 			return
 		}
-		builder.options.Sign = sign
-		builder.explicit.sign = true
+		options.Sign = sign
 	}
 }
 
 // WithNotarise enables or disables notarisation.
 func WithNotarise(notarise bool) Option {
-	return func(builder *AppleBuilder) {
-		if builder == nil {
+	return func(options *AppleOptions) {
+		if options == nil {
 			return
 		}
-		builder.options.Notarise = notarise
-		builder.explicit.notarise = true
+		options.Notarise = notarise
 	}
 }
 
 // WithDMG enables or disables DMG creation.
 func WithDMG(dmg bool) Option {
-	return func(builder *AppleBuilder) {
-		if builder == nil {
+	return func(options *AppleOptions) {
+		if options == nil {
 			return
 		}
-		builder.options.DMG = dmg
-		builder.explicit.dmg = true
+		options.DMG = dmg
 	}
 }
 
 // WithTestFlight enables or disables TestFlight upload.
 func WithTestFlight(tf bool) Option {
-	return func(builder *AppleBuilder) {
-		if builder == nil {
+	return func(options *AppleOptions) {
+		if options == nil {
 			return
 		}
-		builder.options.TestFlight = tf
-		builder.explicit.testFlight = true
+		options.TestFlight = tf
 	}
 }
 
 // WithAppStore enables or disables App Store submission.
 func WithAppStore(appStore bool) Option {
-	return func(builder *AppleBuilder) {
-		if builder == nil {
+	return func(options *AppleOptions) {
+		if options == nil {
 			return
 		}
-		builder.options.AppStore = appStore
-		builder.explicit.appStore = true
+		options.AppStore = appStore
 	}
 }
 
@@ -308,6 +300,41 @@ func UploadTestFlight(ctx context.Context, cfg TestFlightConfig) core.Result {
 // SubmitAppStore uploads the packaged build to App Store Connect.
 func SubmitAppStore(ctx context.Context, cfg AppStoreConfig) core.Result {
 	return core.Result{}.New(cfg.AppPath, submitASFn(ctx, cfg))
+}
+
+func (b *AppleBuilder) applyOption(opt Option) {
+	if b == nil || opt == nil {
+		return
+	}
+
+	var zeroBefore AppleOptions
+	zeroAfter := zeroBefore
+	opt(&zeroAfter)
+
+	defaultBefore := build.DefaultAppleOptions()
+	defaultAfter := defaultBefore
+	opt(&defaultAfter)
+
+	if zeroAfter.Arch != zeroBefore.Arch || defaultAfter.Arch != defaultBefore.Arch {
+		b.explicit.arch = true
+	}
+	if zeroAfter.Sign != zeroBefore.Sign || defaultAfter.Sign != defaultBefore.Sign {
+		b.explicit.sign = true
+	}
+	if zeroAfter.Notarise != zeroBefore.Notarise || defaultAfter.Notarise != defaultBefore.Notarise {
+		b.explicit.notarise = true
+	}
+	if zeroAfter.DMG != zeroBefore.DMG || defaultAfter.DMG != defaultBefore.DMG {
+		b.explicit.dmg = true
+	}
+	if zeroAfter.TestFlight != zeroBefore.TestFlight || defaultAfter.TestFlight != defaultBefore.TestFlight {
+		b.explicit.testFlight = true
+	}
+	if zeroAfter.AppStore != zeroBefore.AppStore || defaultAfter.AppStore != defaultBefore.AppStore {
+		b.explicit.appStore = true
+	}
+
+	opt(&b.options)
 }
 
 func (b *AppleBuilder) resolveOptions(buildConfig *build.BuildConfig, runtime *AppleOptions) AppleOptions {

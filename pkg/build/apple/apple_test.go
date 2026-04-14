@@ -41,6 +41,22 @@ func TestAppleBuilder_New_Good(t *testing.T) {
 	assert.True(t, builder.explicit.appStore)
 }
 
+func TestAppleBuilder_New_PreservesExplicitDefaultValuedOptions_Good(t *testing.T) {
+	builder := New(
+		WithArch("universal"),
+		WithSign(true),
+		WithNotarise(true),
+	)
+
+	require.NotNil(t, builder)
+	assert.Equal(t, "universal", builder.options.Arch)
+	assert.True(t, builder.options.Sign)
+	assert.True(t, builder.options.Notarise)
+	assert.True(t, builder.explicit.arch)
+	assert.True(t, builder.explicit.sign)
+	assert.True(t, builder.explicit.notarise)
+}
+
 func TestAppleBuilder_Register_Good(t *testing.T) {
 	c := core.New()
 
