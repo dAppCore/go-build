@@ -212,6 +212,49 @@ done
 	require.NoError(t, ax.WriteFile(ax.Join(binDir, "wails3"), []byte(wails3Script), 0o755))
 }
 
+func setupFakeWails3GoBuildToolchain(t *testing.T, binDir string) {
+	t.Helper()
+
+	wails3Script := `#!/bin/sh
+set -eu
+
+name="${NAME:-testapp}"
+mkdir -p "bin"
+go build -o "bin/${name}" .
+`
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, "wails3"), []byte(wails3Script), 0o755))
+
+	garbleScript := `#!/bin/sh
+set -eu
+
+log_file="${GARBLE_LOG_FILE:-}"
+if [ -n "$log_file" ]; then
+	printf '%s\n' "$@" > "$log_file"
+fi
+
+output=""
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		-o)
+			shift
+			output="${1:-}"
+			;;
+	esac
+	shift || true
+done
+
+if [ -z "$output" ]; then
+	echo "missing -o output path" >&2
+	exit 1
+fi
+
+mkdir -p "$(dirname "$output")"
+printf 'fake garbled binary\n' > "$output"
+chmod +x "$output"
+`
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755))
+}
+
 func setupFakeFrontendCommand(t *testing.T, binDir, name string) {
 	t.Helper()
 
@@ -1180,9 +1223,48 @@ func TestWails_WailsBuilderBuildV3Fallback_Good(t *testing.T) {
 	assert.Equal(t, "build", lines[0])
 	assert.Contains(t, lines, "GOOS=linux")
 	assert.Contains(t, lines, "GOARCH=amd64")
+	assert.Contains(t, lines, "EXTRA_TAGS=integration")
+	assert.Contains(t, strings.Join(lines, "\n"), `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -X main.version=v1.2.3"`)
 	assert.Contains(t, strings.Join(lines, "\n"), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
 	assert.Contains(t, lines, "GOCACHE="+goCacheDir)
 	assert.Contains(t, lines, "GOMODCACHE="+goModCacheDir)
+}
+
+func TestWails_WailsBuilderBuildV3Fallback_Obfuscate_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeWails3GoBuildToolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := setupWailsTestProject(t)
+	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+
+	logPath := ax.Join(t.TempDir(), "garble.log")
+	t.Setenv("GARBLE_LOG_FILE", logPath)
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  t.TempDir(),
+		Name:       "testapp",
+		Obfuscate:  true,
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.FileExists(t, artifacts[0].Path)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.GreaterOrEqual(t, len(lines), 1)
+	assert.Equal(t, "build", lines[0])
+	assert.Contains(t, strings.Join(lines, "\n"), "-o")
 }
 
 func TestWails_WailsBuilderBuildV3Fallback_PreBuild_Good(t *testing.T) {
@@ -1268,6 +1350,68 @@ func TestWails_WailsBuilderBuildV3NSIS_Good(t *testing.T) {
 	assert.Equal(t, "package", lines[0])
 	assert.Contains(t, lines, "GOOS=windows")
 	assert.Contains(t, lines, "GOARCH=amd64")
+}
+
+func TestWails_WailsBuilderBuildV3NSISWebView2Download_Good(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeWails3Toolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := setupWailsTestProject(t)
+	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+
+	logPath := ax.Join(t.TempDir(), "wails3-package-webview2.log")
+	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  t.TempDir(),
+		Name:       "testapp",
+		NSIS:       true,
+		WebView2:   "download",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.FileExists(t, artifacts[0].Path)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "WEBVIEW2_MODE=download")
+}
+
+func TestWails_WailsBuilderBuildV3NSISWebView2Unsupported_Bad(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeWails3Toolchain(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := setupWailsTestProject(t)
+	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  t.TempDir(),
+		Name:       "testapp",
+		NSIS:       true,
+		WebView2:   "embed",
+	}
+
+	_, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "only supports webview2=download")
 }
 
 func TestWails_WailsBuilderInterface_Good(t *testing.T) {

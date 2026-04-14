@@ -3,6 +3,8 @@ package builders
 
 import (
 	"context"
+	"os"
+	"runtime"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -136,6 +138,11 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 		verb = "package"
 		args[0] = verb
 	}
+	taskVars, err := buildV3TaskVars(cfg, target)
+	if err != nil {
+		return build.Artifact{}, err
+	}
+	args = append(args, taskVars...)
 
 	env := appendConfiguredEnv(cfg,
 		core.Sprintf("GOOS=%s", target.OS),
@@ -155,6 +162,14 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 	}
 	if cfg.CGO {
 		env = append(env, "CGO_ENABLED=1")
+	}
+	cleanup := func() {}
+	if cfg.Obfuscate {
+		env, cleanup, err = b.prepareV3Obfuscation(env)
+		if err != nil {
+			return build.Artifact{}, err
+		}
+		defer cleanup()
 	}
 
 	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, wailsCommand, args...)
@@ -638,6 +653,196 @@ func buildV3GoFlags(cfg *build.Config) string {
 	}
 
 	return core.Join(" ", flags...)
+}
+
+func buildV3TaskVars(cfg *build.Config, target build.Target) ([]string, error) {
+	if cfg == nil {
+		return nil, nil
+	}
+
+	var taskVars []string
+	if buildFlags := buildV3BuildFlags(cfg, target); buildFlags != "" {
+		taskVars = append(taskVars, "BUILD_FLAGS="+buildFlags)
+	}
+	if len(cfg.BuildTags) > 0 {
+		taskVars = append(taskVars, "EXTRA_TAGS="+core.Join(",", deduplicateStrings(append([]string{}, cfg.BuildTags...))...))
+	}
+
+	if target.OS == "windows" && cfg.WebView2 != "" {
+		if err := validateWebView2Mode(cfg.WebView2); err != nil {
+			return nil, err
+		}
+		switch cfg.WebView2 {
+		case "download":
+			// Wails v3 fallback packaging already uses the bootstrapper-based runtime installer.
+			taskVars = append(taskVars, "WEBVIEW2_MODE=download")
+		case "embed", "browser", "error":
+			return nil, coreerr.E("WailsBuilder.buildV3TaskVars", "wails v3 fallback only supports webview2=download on Windows", nil)
+		}
+	}
+
+	return taskVars, nil
+}
+
+func buildV3BuildFlags(cfg *build.Config, target build.Target) string {
+	if cfg == nil {
+		return ""
+	}
+
+	var flags []string
+
+	tags := deduplicateStrings(append([]string{"production"}, cfg.BuildTags...))
+	if len(tags) > 0 {
+		flags = append(flags, "-tags", core.Join(",", tags...))
+	}
+
+	if !containsString(cfg.Flags, "-trimpath") {
+		flags = append(flags, "-trimpath")
+	}
+	flags = append(flags, cfg.Flags...)
+	if !hasFlagPrefix(cfg.Flags, "-buildvcs") {
+		flags = append(flags, "-buildvcs=false")
+	}
+
+	ldflags := append([]string{}, cfg.LDFlags...)
+	if target.OS == "windows" && !hasWindowsGUIFlag(ldflags) {
+		ldflags = append(ldflags, "-H windowsgui")
+	}
+	if cfg.Version != "" && !hasVersionLDFlag(ldflags) {
+		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+	}
+	if len(ldflags) > 0 {
+		flags = append(flags, `-ldflags="`+core.Join(" ", ldflags...)+`"`)
+	}
+
+	return core.Join(" ", flags...)
+}
+
+func (b *WailsBuilder) prepareV3Obfuscation(env []string) ([]string, func(), error) {
+	garbleCommand, err := (&GoBuilder{}).resolveGarbleCli()
+	if err != nil {
+		return nil, nil, err
+	}
+	goCommand, err := resolveGoCli()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	shimDir, err := ax.TempDir("core-build-wails3-go-*")
+	if err != nil {
+		return nil, nil, coreerr.E("WailsBuilder.prepareV3Obfuscation", "failed to create garble shim directory", err)
+	}
+
+	if err := writeGoShim(shimDir, goCommand, garbleCommand); err != nil {
+		_ = ax.RemoveAll(shimDir)
+		return nil, nil, err
+	}
+
+	return prependPathEnv(env, shimDir), func() {
+		_ = ax.RemoveAll(shimDir)
+	}, nil
+}
+
+func resolveGoCli() (string, error) {
+	paths := []string{
+		"/usr/local/go/bin/go",
+		"/opt/homebrew/bin/go",
+	}
+
+	if goroot := core.Env("GOROOT"); goroot != "" {
+		paths = append(paths, ax.Join(goroot, "bin", "go"))
+	}
+
+	command, err := ax.ResolveCommand("go", paths...)
+	if err != nil {
+		return "", coreerr.E("WailsBuilder.resolveGoCli", "go CLI not found. Install Go from https://go.dev/dl/", err)
+	}
+
+	return command, nil
+}
+
+func writeGoShim(dir, goCommand, garbleCommand string) error {
+	switch runtime.GOOS {
+	case "windows":
+		content := "@echo off\r\n" +
+			"if \"%1\"==\"build\" (\r\n" +
+			"  \"" + garbleCommand + "\" %*\r\n" +
+			"  exit /b %errorlevel%\r\n" +
+			")\r\n" +
+			"\"" + goCommand + "\" %*\r\n"
+		for _, name := range []string{"go.bat", "go.cmd"} {
+			if err := ax.WriteFile(ax.Join(dir, name), []byte(content), 0o755); err != nil {
+				return coreerr.E("WailsBuilder.writeGoShim", "failed to write Windows go shim", err)
+			}
+		}
+	default:
+		content := "#!/bin/sh\nset -eu\nif [ \"${1:-}\" = \"build\" ]; then\n  exec \"" + garbleCommand + "\" \"$@\"\nfi\nexec \"" + goCommand + "\" \"$@\"\n"
+		if err := ax.WriteFile(ax.Join(dir, "go"), []byte(content), 0o755); err != nil {
+			return coreerr.E("WailsBuilder.writeGoShim", "failed to write go shim", err)
+		}
+	}
+
+	return nil
+}
+
+func prependPathEnv(env []string, dir string) []string {
+	pathSeparator := string(os.PathListSeparator)
+	for i, entry := range env {
+		if core.HasPrefix(entry, "PATH=") {
+			current := core.TrimPrefix(entry, "PATH=")
+			if current == "" {
+				env[i] = "PATH=" + dir
+			} else {
+				env[i] = "PATH=" + dir + pathSeparator + current
+			}
+			return env
+		}
+	}
+
+	currentPath := core.Env("PATH")
+	if currentPath == "" {
+		return append(env, "PATH="+dir)
+	}
+
+	return append(env, "PATH="+dir+pathSeparator+currentPath)
+}
+
+func hasFlagPrefix(flags []string, prefix string) bool {
+	for _, flag := range flags {
+		if core.HasPrefix(flag, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasWindowsGUIFlag(ldflags []string) bool {
+	for _, flag := range ldflags {
+		if core.Contains(flag, "-H windowsgui") || core.Contains(flag, "-H=windowsgui") {
+			return true
+		}
+	}
+	return false
+}
+
+func deduplicateStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 func validateWebView2Mode(mode string) error {
