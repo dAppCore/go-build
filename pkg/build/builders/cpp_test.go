@@ -1,6 +1,9 @@
 package builders
 
 import (
+	"context"
+	"os"
+	"runtime"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -10,6 +13,28 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func setupFakeCPPCommand(t *testing.T, binDir, name, script string) {
+	t.Helper()
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755))
+}
+
+func cppCrossTarget() build.Target {
+	switch runtime.GOOS {
+	case "darwin":
+		if runtime.GOARCH == "arm64" {
+			return build.Target{OS: "darwin", Arch: "amd64"}
+		}
+		return build.Target{OS: "darwin", Arch: "arm64"}
+	case "linux":
+		if runtime.GOARCH == "arm64" {
+			return build.Target{OS: "linux", Arch: "amd64"}
+		}
+		return build.Target{OS: "linux", Arch: "arm64"}
+	default:
+		return build.Target{OS: "linux", Arch: "amd64"}
+	}
+}
 
 func TestCPP_CPPBuilderName_Good(t *testing.T) {
 	builder := NewCPPBuilder()
@@ -58,6 +83,194 @@ func TestCPP_CPPBuilderBuild_Bad(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, artifacts)
 		assert.Contains(t, err.Error(), "config is nil")
+	})
+}
+
+func TestCPP_CPPBuilderBuild_Good(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("C++ builder command fixtures use POSIX shell scripts")
+	}
+
+	t.Run("preserves the managed Makefile pipeline when present", func(t *testing.T) {
+		projectDir := t.TempDir()
+		binDir := t.TempDir()
+		logPath := ax.Join(t.TempDir(), "make.log")
+
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Makefile"), []byte("all:\n\t@true\n"), 0o644))
+
+		setupFakeCPPCommand(t, binDir, "make", `#!/bin/sh
+set -eu
+printf 'make %s\n' "$*" >> "${CPP_BUILD_LOG_FILE}"
+case "${1:-}" in
+  configure|build)
+    exit 0
+    ;;
+  package)
+    mkdir -p build/packages
+    printf 'pkg\n' > build/packages/test-1.0.tar.gz
+    exit 0
+    ;;
+esac
+exit 1
+`)
+		setupFakeCPPCommand(t, binDir, "conan", `#!/bin/sh
+set -eu
+printf 'conan %s\n' "$*" >> "${CPP_BUILD_LOG_FILE}"
+exit 0
+`)
+
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		t.Setenv("CPP_BUILD_LOG_FILE", logPath)
+
+		builder := NewCPPBuilder()
+		artifacts, err := builder.Build(context.Background(), &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  ax.Join(projectDir, "dist"),
+			Name:       "testapp",
+		}, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, ax.Join(projectDir, "build", "packages", "test-1.0.tar.gz"), artifacts[0].Path)
+
+		content, err := io.Local.Read(logPath)
+		require.NoError(t, err)
+		assert.Contains(t, content, "make configure")
+		assert.Contains(t, content, "make build")
+		assert.Contains(t, content, "make package")
+		assert.NotContains(t, content, "cmake ")
+	})
+
+	t.Run("falls back to plain cmake for generic CMake projects", func(t *testing.T) {
+		projectDir := t.TempDir()
+		binDir := t.TempDir()
+		logPath := ax.Join(t.TempDir(), "cmake.log")
+		statePath := ax.Join(t.TempDir(), "cmake-state")
+
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)\nproject(demo)\n"), 0o644))
+
+		setupFakeCPPCommand(t, binDir, "cmake", `#!/bin/sh
+set -eu
+printf 'cmake %s\n' "$*" >> "${CPP_BUILD_LOG_FILE}"
+if [ "${1:-}" = "-S" ]; then
+  for arg in "$@"; do
+    case "$arg" in
+      -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=*)
+        printf '%s\n' "${arg#*=}" > "${CPP_CMAKE_STATE_FILE}"
+        ;;
+    esac
+  done
+  exit 0
+fi
+if [ "${1:-}" = "--build" ]; then
+  runtime_dir="$(cat "${CPP_CMAKE_STATE_FILE}")"
+  mkdir -p "${runtime_dir}"
+  printf 'binary\n' > "${runtime_dir}/${NAME:-testapp}"
+  chmod +x "${runtime_dir}/${NAME:-testapp}"
+  exit 0
+fi
+exit 1
+`)
+
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		t.Setenv("CPP_BUILD_LOG_FILE", logPath)
+		t.Setenv("CPP_CMAKE_STATE_FILE", statePath)
+
+		target := build.Target{OS: runtime.GOOS, Arch: runtime.GOARCH}
+		builder := NewCPPBuilder()
+		artifacts, err := builder.Build(context.Background(), &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  ax.Join(projectDir, "dist"),
+			Name:       "testapp",
+		}, []build.Target{target})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path)
+
+		content, err := io.Local.Read(logPath)
+		require.NoError(t, err)
+		assert.Contains(t, content, "cmake -S")
+		assert.Contains(t, content, "cmake --build")
+		assert.NotContains(t, content, "conan ")
+		assert.NotContains(t, content, "make configure")
+		assert.NotContains(t, content, "make build")
+		assert.NotContains(t, content, "make package")
+	})
+
+	t.Run("uses conan plus cmake for generic cross-builds when a conanfile exists", func(t *testing.T) {
+		projectDir := t.TempDir()
+		binDir := t.TempDir()
+		logPath := ax.Join(t.TempDir(), "conan-cmake.log")
+		statePath := ax.Join(t.TempDir(), "conan-cmake-state")
+
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)\nproject(demo)\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "conanfile.txt"), []byte("[requires]\n"), 0o644))
+
+		setupFakeCPPCommand(t, binDir, "conan", `#!/bin/sh
+set -eu
+printf 'conan %s\n' "$*" >> "${CPP_BUILD_LOG_FILE}"
+output_dir=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--output-folder" ]; then
+    output_dir="$2"
+    shift 2
+    continue
+  fi
+  shift
+done
+mkdir -p "${output_dir}"
+printf '# toolchain\n' > "${output_dir}/conan_toolchain.cmake"
+`)
+		setupFakeCPPCommand(t, binDir, "cmake", `#!/bin/sh
+set -eu
+printf 'cmake %s\n' "$*" >> "${CPP_BUILD_LOG_FILE}"
+if [ "${1:-}" = "-S" ]; then
+  for arg in "$@"; do
+    case "$arg" in
+      -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=*)
+        printf '%s\n' "${arg#*=}" > "${CPP_CMAKE_STATE_FILE}"
+        ;;
+    esac
+  done
+  exit 0
+fi
+if [ "${1:-}" = "--build" ]; then
+  runtime_dir="$(cat "${CPP_CMAKE_STATE_FILE}")"
+  mkdir -p "${runtime_dir}"
+  printf 'binary\n' > "${runtime_dir}/${NAME:-testapp}"
+  chmod +x "${runtime_dir}/${NAME:-testapp}"
+  exit 0
+fi
+exit 1
+`)
+
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		t.Setenv("CPP_BUILD_LOG_FILE", logPath)
+		t.Setenv("CPP_CMAKE_STATE_FILE", statePath)
+
+		target := cppCrossTarget()
+		builder := NewCPPBuilder()
+		artifacts, err := builder.Build(context.Background(), &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  ax.Join(projectDir, "dist"),
+			Name:       "testapp",
+		}, []build.Target{target})
+		require.NoError(t, err)
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path)
+
+		content, err := io.Local.Read(logPath)
+		require.NoError(t, err)
+		assert.Contains(t, content, "conan install . --output-folder "+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch)+" --build=missing --profile:host "+builder.targetToProfile(target))
+		assert.Contains(t, content, "cmake -S")
+		assert.Contains(t, content, "-DCMAKE_TOOLCHAIN_FILE="+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch, "conan_toolchain.cmake"))
+		assert.Contains(t, content, "cmake --build")
+		assert.NotContains(t, content, "make configure")
+		assert.NotContains(t, content, "make build")
+		assert.NotContains(t, content, "make package")
 	})
 }
 
