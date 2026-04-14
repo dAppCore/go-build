@@ -186,6 +186,8 @@ sign:
 		t.Setenv("APPLE_BUNDLE_ID", "ai.lthn.core")
 		t.Setenv("APPLE_CERT_ID", "Developer ID Application: Lethean CIC (ABC123DEF4)")
 		t.Setenv("APPLE_KEY_PATH", "/tmp/AuthKey_TEST.p8")
+		t.Setenv("APPLE_METADATA_PATH", ".core/apple/appstore")
+		t.Setenv("APPLE_PRIVACY_URL", "https://lthn.ai/privacy")
 		t.Setenv("APPLE_BG", "assets/dmg-background.png")
 		t.Setenv("XCLOUD_WORKFLOW", "CoreGUI Release")
 		t.Setenv("XCLOUD_BRANCH", "main")
@@ -200,6 +202,8 @@ apple:
   sign: false
   notarise: true
   dmg: true
+  metadata_path: ${APPLE_METADATA_PATH}
+  privacy_policy_url: ${APPLE_PRIVACY_URL}
   api_key_path: ${APPLE_KEY_PATH}
   dmg_background: ${APPLE_BG}
   xcode_cloud:
@@ -226,6 +230,8 @@ apple:
 		assert.True(t, *cfg.Apple.Notarise)
 		require.NotNil(t, cfg.Apple.DMG)
 		assert.True(t, *cfg.Apple.DMG)
+		assert.Equal(t, ".core/apple/appstore", cfg.Apple.MetadataPath)
+		assert.Equal(t, "https://lthn.ai/privacy", cfg.Apple.PrivacyPolicyURL)
 		assert.Equal(t, "/tmp/AuthKey_TEST.p8", cfg.Apple.APIKeyPath)
 		assert.Equal(t, "assets/dmg-background.png", cfg.Apple.DMGBackground)
 		assert.Equal(t, "CoreGUI Release", cfg.Apple.XcodeCloud.Workflow)

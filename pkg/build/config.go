@@ -113,6 +113,7 @@ type AppleConfig struct {
 	CertIdentity string `yaml:"cert_identity,omitempty"`
 	ProfilePath  string `yaml:"profile_path,omitempty"`
 	KeychainPath string `yaml:"keychain_path,omitempty"`
+	MetadataPath string `yaml:"metadata_path,omitempty"`
 
 	Sign       *bool `yaml:"sign,omitempty"`
 	Notarise   *bool `yaml:"notarise,omitempty"`
@@ -130,6 +131,7 @@ type AppleConfig struct {
 	MinSystemVersion  string           `yaml:"min_system_version,omitempty"`
 	Category          string           `yaml:"category,omitempty"`
 	Copyright         string           `yaml:"copyright,omitempty"`
+	PrivacyPolicyURL  string           `yaml:"privacy_policy_url,omitempty"`
 	DMGBackground     string           `yaml:"dmg_background,omitempty"`
 	DMGVolumeName     string           `yaml:"dmg_volume_name,omitempty"`
 	EntitlementsPath  string           `yaml:"entitlements_path,omitempty"`
@@ -283,6 +285,7 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.Apple.CertIdentity = expandEnv(cfg.Apple.CertIdentity)
 	cfg.Apple.ProfilePath = expandEnv(cfg.Apple.ProfilePath)
 	cfg.Apple.KeychainPath = expandEnv(cfg.Apple.KeychainPath)
+	cfg.Apple.MetadataPath = expandEnv(cfg.Apple.MetadataPath)
 	cfg.Apple.APIKeyID = expandEnv(cfg.Apple.APIKeyID)
 	cfg.Apple.APIKeyIssuerID = expandEnv(cfg.Apple.APIKeyIssuerID)
 	cfg.Apple.APIKeyPath = expandEnv(cfg.Apple.APIKeyPath)
@@ -292,6 +295,7 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.Apple.MinSystemVersion = expandEnv(cfg.Apple.MinSystemVersion)
 	cfg.Apple.Category = expandEnv(cfg.Apple.Category)
 	cfg.Apple.Copyright = expandEnv(cfg.Apple.Copyright)
+	cfg.Apple.PrivacyPolicyURL = expandEnv(cfg.Apple.PrivacyPolicyURL)
 	cfg.Apple.DMGBackground = expandEnv(cfg.Apple.DMGBackground)
 	cfg.Apple.DMGVolumeName = expandEnv(cfg.Apple.DMGVolumeName)
 	cfg.Apple.EntitlementsPath = expandEnv(cfg.Apple.EntitlementsPath)

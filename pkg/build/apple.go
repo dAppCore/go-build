@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -30,6 +31,7 @@ type AppleOptions struct {
 	CertIdentity string `json:"cert_identity" yaml:"cert_identity"`
 	ProfilePath  string `json:"profile_path" yaml:"profile_path"`
 	KeychainPath string `json:"keychain_path" yaml:"keychain_path"`
+	MetadataPath string `json:"metadata_path" yaml:"metadata_path"`
 
 	Sign       bool `json:"sign" yaml:"sign"`
 	Notarise   bool `json:"notarise" yaml:"notarise"`
@@ -47,6 +49,7 @@ type AppleOptions struct {
 	MinSystemVersion  string `json:"min_system_version" yaml:"min_system_version"`
 	Category          string `json:"category" yaml:"category"`
 	Copyright         string `json:"copyright" yaml:"copyright"`
+	PrivacyPolicyURL  string `json:"privacy_policy_url" yaml:"privacy_policy_url"`
 	DMGBackground     string `json:"dmg_background" yaml:"dmg_background"`
 	DMGVolumeName     string `json:"dmg_volume_name" yaml:"dmg_volume_name"`
 	EntitlementsPath  string `json:"entitlements_path" yaml:"entitlements_path"`
@@ -201,6 +204,9 @@ func (cfg AppleConfig) Resolve() AppleOptions {
 	if cfg.KeychainPath != "" {
 		options.KeychainPath = cfg.KeychainPath
 	}
+	if cfg.MetadataPath != "" {
+		options.MetadataPath = cfg.MetadataPath
+	}
 	if cfg.Sign != nil {
 		options.Sign = *cfg.Sign
 	}
@@ -242,6 +248,9 @@ func (cfg AppleConfig) Resolve() AppleOptions {
 	}
 	if cfg.Copyright != "" {
 		options.Copyright = cfg.Copyright
+	}
+	if cfg.PrivacyPolicyURL != "" {
+		options.PrivacyPolicyURL = cfg.PrivacyPolicyURL
 	}
 	if cfg.DMGBackground != "" {
 		options.DMGBackground = cfg.DMGBackground
@@ -300,6 +309,10 @@ func validateAppleBuildOptions(options AppleOptions) error {
 
 		if !core.Contains(core.Lower(options.Copyright), "eupl-1.2") {
 			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions must declare EUPL-1.2 in copyright metadata", nil)
+		}
+
+		if err := validatePrivacyPolicyURL(options.PrivacyPolicyURL); err != nil {
+			return err
 		}
 	}
 
@@ -517,6 +530,10 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 	}
 
 	if options.AppStore {
+		if err := validateAppStorePreflight(cfg.FS, cfg.ProjectDir, bundlePath, options); err != nil {
+			return nil, err
+		}
+
 		if err := appleSubmitAppStoreFn(ctx, AppStoreConfig{
 			AppPath:        bundlePath,
 			APIKeyID:       options.APIKeyID,
@@ -1218,6 +1235,190 @@ func validateAppStoreConnectAPIKey(apiKeyID, apiKeyIssuerID, apiKeyPath, op stri
 
 func isDeveloperIDIdentity(identity string) bool {
 	return core.Contains(core.Lower(identity), "developer id")
+}
+
+func validateAppStorePreflight(filesystem io.Medium, projectDir, bundlePath string, options AppleOptions) error {
+	if filesystem == nil {
+		filesystem = io.Local
+	}
+
+	if err := validateAppStoreMetadata(filesystem, projectDir, options.MetadataPath); err != nil {
+		return err
+	}
+	if err := scanBundleForPrivateAPIUsage(filesystem, bundlePath); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateAppStoreMetadata(filesystem io.Medium, projectDir, configuredPath string) error {
+	metadataPath := resolveAppStoreMetadataPath(filesystem, projectDir, configuredPath)
+	if metadataPath == "" {
+		return coreerr.E("build.validateAppStoreMetadata", "App Store submissions require metadata_path or a standard metadata directory (.core/apple/appstore, .core/appstore, or appstore)", nil)
+	}
+
+	if !hasAppStoreDescription(filesystem, metadataPath) {
+		return coreerr.E("build.validateAppStoreMetadata", "App Store submissions require a description file in metadata_path", nil)
+	}
+	if !hasAppStoreScreenshots(filesystem, metadataPath) {
+		return coreerr.E("build.validateAppStoreMetadata", "App Store submissions require at least one screenshot in metadata_path/screenshots", nil)
+	}
+
+	return nil
+}
+
+func resolveAppStoreMetadataPath(filesystem io.Medium, projectDir, configuredPath string) string {
+	candidates := []string{}
+	if configuredPath != "" {
+		if ax.IsAbs(configuredPath) {
+			candidates = append(candidates, configuredPath)
+		} else {
+			candidates = append(candidates, ax.Join(projectDir, configuredPath))
+		}
+	}
+	candidates = append(candidates,
+		ax.Join(projectDir, ".core", "apple", "appstore"),
+		ax.Join(projectDir, ".core", "appstore"),
+		ax.Join(projectDir, "appstore"),
+	)
+
+	for _, candidate := range candidates {
+		if candidate != "" && filesystem.IsDir(candidate) {
+			return candidate
+		}
+	}
+
+	return ""
+}
+
+func hasAppStoreDescription(filesystem io.Medium, metadataPath string) bool {
+	for _, name := range []string{"description.txt", "description.md", "description.markdown"} {
+		if filesystem.IsFile(ax.Join(metadataPath, name)) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAppStoreScreenshots(filesystem io.Medium, metadataPath string) bool {
+	screenshotsDir := ax.Join(metadataPath, "screenshots")
+	if !filesystem.IsDir(screenshotsDir) {
+		return false
+	}
+
+	entries, err := filesystem.List(screenshotsDir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := core.Lower(entry.Name())
+		if core.HasSuffix(name, ".png") ||
+			core.HasSuffix(name, ".jpg") ||
+			core.HasSuffix(name, ".jpeg") ||
+			core.HasSuffix(name, ".heic") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func validatePrivacyPolicyURL(raw string) error {
+	value := core.Trim(raw)
+	if value == "" {
+		return coreerr.E("build.validatePrivacyPolicyURL", "App Store submissions require privacy_policy_url (for example https://lthn.ai/privacy)", nil)
+	}
+
+	normalised := value
+	if !strings.Contains(normalised, "://") {
+		normalised = "https://" + normalised
+	}
+
+	parsed, err := url.Parse(normalised)
+	if err != nil {
+		return coreerr.E("build.validatePrivacyPolicyURL", "privacy_policy_url must be a valid URL", err)
+	}
+	if core.Trim(parsed.Host) == "" || parsed.Path == "" || parsed.Path == "/" {
+		return coreerr.E("build.validatePrivacyPolicyURL", "privacy_policy_url must include a host and non-root path", nil)
+	}
+
+	return nil
+}
+
+func scanBundleForPrivateAPIUsage(filesystem io.Medium, bundlePath string) error {
+	if bundlePath == "" {
+		return coreerr.E("build.scanBundleForPrivateAPIUsage", "bundle path is required", nil)
+	}
+
+	for _, root := range privateAPIScanRoots(bundlePath) {
+		for _, path := range collectBundleFiles(filesystem, root) {
+			content, err := filesystem.Read(path)
+			if err != nil {
+				continue
+			}
+			if indicator := detectPrivateAPIIndicator(content); indicator != "" {
+				return coreerr.E("build.scanBundleForPrivateAPIUsage", "private API usage detected in "+path+": "+indicator, nil)
+			}
+		}
+	}
+
+	return nil
+}
+
+func privateAPIScanRoots(bundlePath string) []string {
+	return []string{
+		ax.Join(bundlePath, "Contents", "MacOS"),
+		ax.Join(bundlePath, "Contents", "Frameworks"),
+	}
+}
+
+func collectBundleFiles(filesystem io.Medium, root string) []string {
+	if filesystem == nil || !filesystem.Exists(root) {
+		return nil
+	}
+	if !filesystem.IsDir(root) {
+		return []string{root}
+	}
+
+	entries, err := filesystem.List(root)
+	if err != nil {
+		return nil
+	}
+
+	var paths []string
+	for _, entry := range entries {
+		path := ax.Join(root, entry.Name())
+		if entry.IsDir() {
+			paths = append(paths, collectBundleFiles(filesystem, path)...)
+			continue
+		}
+		paths = append(paths, path)
+	}
+
+	return paths
+}
+
+func detectPrivateAPIIndicator(content string) string {
+	for _, indicator := range []string{
+		"/System/Library/PrivateFrameworks/",
+		"PrivateFrameworks/",
+		"com.apple.private.",
+		"LSApplicationWorkspace",
+		"MobileInstallation",
+		"SpringBoardServices",
+	} {
+		if strings.Contains(content, indicator) {
+			return indicator
+		}
+	}
+
+	return ""
 }
 
 func compareAppleVersion(left, right string) int {

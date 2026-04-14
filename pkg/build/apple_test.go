@@ -215,6 +215,98 @@ func TestApple_BuildApple_AppStorePreflight_Bad(t *testing.T) {
 	assert.ErrorContains(t, err, "distribution certificate")
 }
 
+func TestApple_BuildApple_AppStorePreflight_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	outputDir := ax.Join(projectDir, "dist", "apple")
+	profilePath := ax.Join(projectDir, "Core.provisionprofile")
+	require.NoError(t, ax.WriteFile(profilePath, []byte("profile"), 0o644))
+	metadataPath := writeAppStoreMetadata(t, projectDir)
+
+	oldBuildWails := appleBuildWailsAppFn
+	oldSign := appleSignFn
+	oldSubmit := appleSubmitAppStoreFn
+	t.Cleanup(func() {
+		appleBuildWailsAppFn = oldBuildWails
+		appleSignFn = oldSign
+		appleSubmitAppStoreFn = oldSubmit
+	})
+
+	appleBuildWailsAppFn = func(ctx context.Context, cfg WailsBuildConfig) (string, error) {
+		appPath := ax.Join(cfg.OutputDir, cfg.Name+".app")
+		writeDummyAppBundle(t, appPath, cfg.Name, "safe")
+		return appPath, nil
+	}
+	appleSignFn = func(ctx context.Context, cfg SignConfig) error {
+		return nil
+	}
+
+	var submitCfg AppStoreConfig
+	var submitCalled bool
+	appleSubmitAppStoreFn = func(ctx context.Context, cfg AppStoreConfig) error {
+		submitCalled = true
+		submitCfg = cfg
+		return nil
+	}
+
+	result, err := BuildApple(context.Background(), &Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Name:       "Core",
+		Version:    "v1.2.3",
+	}, AppleOptions{
+		BundleID:         "ai.lthn.core",
+		Arch:             "arm64",
+		Sign:             true,
+		AppStore:         true,
+		CertIdentity:     "Apple Distribution: Lethean CIC (ABC123DEF4)",
+		APIKeyID:         "KEY123",
+		APIKeyIssuerID:   "ISSUER456",
+		APIKeyPath:       "/tmp/AuthKey_KEY123.p8",
+		ProfilePath:      profilePath,
+		MetadataPath:     metadataPath,
+		PrivacyPolicyURL: "https://lthn.ai/privacy",
+		Category:         "public.app-category.developer-tools",
+		Copyright:        "Copyright 2026 Lethean CIC. EUPL-1.2.",
+	}, "42")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, submitCalled)
+	assert.Equal(t, result.BundlePath, submitCfg.AppPath)
+	assert.Equal(t, "1.2.3", submitCfg.Version)
+	assert.Equal(t, "manual", submitCfg.ReleaseType)
+}
+
+func TestApple_ValidatePrivacyPolicyURL_Bad(t *testing.T) {
+	err := validatePrivacyPolicyURL("")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "privacy_policy_url")
+
+	err = validatePrivacyPolicyURL("https://example.com")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "non-root path")
+}
+
+func TestApple_ValidateAppStoreMetadata_Bad(t *testing.T) {
+	projectDir := t.TempDir()
+	metadataPath := ax.Join(projectDir, ".core", "apple", "appstore")
+	require.NoError(t, io.Local.EnsureDir(ax.Join(metadataPath, "screenshots")))
+	require.NoError(t, ax.WriteFile(ax.Join(metadataPath, "screenshots", "shot.png"), []byte("png"), 0o644))
+
+	err := validateAppStoreMetadata(io.Local, projectDir, metadataPath)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "description")
+}
+
+func TestApple_ScanBundleForPrivateAPIUsage_Bad(t *testing.T) {
+	appPath := ax.Join(t.TempDir(), "Core.app")
+	writeDummyAppBundle(t, appPath, "Core", "/System/Library/PrivateFrameworks/Example.framework")
+
+	err := scanBundleForPrivateAPIUsage(io.Local, appPath)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "private API usage detected")
+}
+
 func TestApple_UploadTestFlight_Bad(t *testing.T) {
 	err := UploadTestFlight(context.Background(), TestFlightConfig{
 		AppPath:        "build/Core.app",
@@ -253,4 +345,15 @@ func writeDummyAppBundle(t *testing.T, appPath, executableName, marker string) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ax.WriteFile(ax.Join(appPath, "Contents", "MacOS", executableName), []byte(marker), 0o755))
+}
+
+func writeAppStoreMetadata(t *testing.T, projectDir string) string {
+	t.Helper()
+
+	metadataPath := ax.Join(projectDir, ".core", "apple", "appstore")
+	require.NoError(t, io.Local.EnsureDir(ax.Join(metadataPath, "screenshots")))
+	require.NoError(t, ax.WriteFile(ax.Join(metadataPath, "description.txt"), []byte("Core App Store description"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(metadataPath, "screenshots", "shot-1.png"), []byte("png"), 0o644))
+
+	return metadataPath
 }

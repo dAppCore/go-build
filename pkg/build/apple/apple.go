@@ -319,6 +319,9 @@ func (b *AppleBuilder) resolveOptions(buildConfig *build.BuildConfig, runtime *A
 		if override.KeychainPath != "" {
 			options.KeychainPath = override.KeychainPath
 		}
+		if override.MetadataPath != "" {
+			options.MetadataPath = override.MetadataPath
+		}
 		if override.APIKeyID != "" {
 			options.APIKeyID = override.APIKeyID
 		}
@@ -345,6 +348,9 @@ func (b *AppleBuilder) resolveOptions(buildConfig *build.BuildConfig, runtime *A
 		}
 		if override.Copyright != "" {
 			options.Copyright = override.Copyright
+		}
+		if override.PrivacyPolicyURL != "" {
+			options.PrivacyPolicyURL = override.PrivacyPolicyURL
 		}
 		if override.DMGBackground != "" {
 			options.DMGBackground = override.DMGBackground
