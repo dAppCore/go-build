@@ -234,8 +234,166 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Discovery
+        id: discovery
+        working-directory: ${{ inputs.working-directory }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          has_root_package_json=false
+          [ -f package.json ] && has_root_package_json=true
+
+          has_frontend_package_json=false
+          [ -f frontend/package.json ] && has_frontend_package_json=true
+
+          has_root_go_mod=false
+          [ -f go.mod ] && has_root_go_mod=true
+
+          has_root_go_work=false
+          [ -f go.work ] && has_root_go_work=true
+
+          has_root_main_go=false
+          [ -f main.go ] && has_root_main_go=true
+
+          has_root_cmakelists=false
+          [ -f CMakeLists.txt ] && has_root_cmakelists=true
+
+          has_root_wails_json=false
+          [ -f wails.json ] && has_root_wails_json=true
+
+          has_docs_config=false
+          if [ -f mkdocs.yml ] || [ -f mkdocs.yaml ] || [ -f docs/mkdocs.yml ] || [ -f docs/mkdocs.yaml ]; then
+            has_docs_config=true
+          fi
+
+          has_subtree_package_json=false
+          if find . -maxdepth 3 -name package.json \
+            -not -path './package.json' \
+            -not -path './frontend/package.json' \
+            -not -path '*/node_modules/*' | grep -q .; then
+            has_subtree_package_json=true
+          fi
+
+          has_subtree_deno_manifest=false
+          if find . -maxdepth 3 \( -name deno.json -o -name deno.jsonc \) \
+            -not -path './deno.json' \
+            -not -path './deno.jsonc' \
+            -not -path './frontend/deno.json' \
+            -not -path './frontend/deno.jsonc' \
+            -not -path '*/node_modules/*' | grep -q .; then
+            has_subtree_deno_manifest=true
+          fi
+
+          has_package_json=false
+          if [ "$has_root_package_json" = "true" ] || [ "$has_frontend_package_json" = "true" ] || [ "$has_subtree_package_json" = "true" ]; then
+            has_package_json=true
+          fi
+
+          has_deno_manifest=false
+          if [ -f deno.json ] || [ -f deno.jsonc ] || [ -f frontend/deno.json ] || [ -f frontend/deno.jsonc ] || [ "$has_subtree_deno_manifest" = "true" ]; then
+            has_deno_manifest=true
+          fi
+
+          has_frontend=false
+          if [ "$has_package_json" = "true" ] || [ "$has_deno_manifest" = "true" ]; then
+            has_frontend=true
+          fi
+
+          has_go_toolchain=false
+          if [ "$has_root_go_mod" = "true" ] || [ "$has_root_go_work" = "true" ]; then
+            has_go_toolchain=true
+          elif find . -maxdepth 4 \( -name go.mod -o -name go.work \) \
+            -not -path './go.mod' \
+            -not -path './go.work' \
+            -not -path '*/node_modules/*' | grep -q .; then
+            has_go_toolchain=true
+          fi
+
+          primary_stack_suggestion=unknown
+          if [ "$has_root_wails_json" = "true" ]; then
+            primary_stack_suggestion=wails2
+          elif { [ "$has_root_go_mod" = "true" ] || [ "$has_root_go_work" = "true" ]; } && [ "$has_frontend" = "true" ]; then
+            primary_stack_suggestion=wails2
+          elif [ "$has_root_cmakelists" = "true" ]; then
+            primary_stack_suggestion=cpp
+          elif [ "$has_docs_config" = "true" ] && [ "$has_go_toolchain" != "true" ]; then
+            primary_stack_suggestion=docs
+          elif [ "$has_frontend" = "true" ] && [ "$has_go_toolchain" != "true" ]; then
+            primary_stack_suggestion=node
+          elif [ "$has_go_toolchain" = "true" ]; then
+            primary_stack_suggestion=go
+          elif [ "$has_docs_config" = "true" ]; then
+            primary_stack_suggestion=docs
+          elif [ "$has_frontend" = "true" ]; then
+            primary_stack_suggestion=node
+          fi
+
+          ref="${GITHUB_REF:-}"
+          branch=""
+          tag=""
+          is_tag=false
+          case "$ref" in
+            refs/heads/*)
+              branch="${GITHUB_REF_NAME:-${ref#refs/heads/}}"
+              ;;
+            refs/tags/*)
+              tag="${GITHUB_REF_NAME:-${ref#refs/tags/}}"
+              is_tag=true
+              ;;
+          esac
+
+          sha="${GITHUB_SHA:-}"
+          short_sha=""
+          if [ -n "$sha" ]; then
+            short_sha="${sha:0:7}"
+          fi
+
+          repo="${GITHUB_REPOSITORY:-}"
+          owner=""
+          if [ -n "$repo" ]; then
+            owner="${repo%%/*}"
+          fi
+
+          distro=""
+          webkit_package=""
+          if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            if [ "${ID:-}" = "ubuntu" ]; then
+              distro="${VERSION_ID:-}"
+              webkit_package=libwebkit2gtk-4.0-dev
+              if command -v dpkg >/dev/null 2>&1 && dpkg --compare-versions "${VERSION_ID:-0}" ge "24.04"; then
+                webkit_package=libwebkit2gtk-4.1-dev
+              fi
+            fi
+          fi
+
+          {
+            echo "ref=$ref"
+            echo "branch=$branch"
+            echo "tag=$tag"
+            echo "is_tag=$is_tag"
+            echo "sha=$sha"
+            echo "short_sha=$short_sha"
+            echo "repo=$repo"
+            echo "owner=$owner"
+            echo "has_root_package_json=$has_root_package_json"
+            echo "has_frontend_package_json=$has_frontend_package_json"
+            echo "has_root_go_mod=$has_root_go_mod"
+            echo "has_root_main_go=$has_root_main_go"
+            echo "has_root_cmakelists=$has_root_cmakelists"
+            echo "has_package_json=$has_package_json"
+            echo "has_deno_manifest=$has_deno_manifest"
+            echo "has_frontend=$has_frontend"
+            echo "has_go_toolchain=$has_go_toolchain"
+            echo "has_docs_config=$has_docs_config"
+            echo "primary_stack_suggestion=$primary_stack_suggestion"
+            echo "distro=$distro"
+            echo "webkit_package=$webkit_package"
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Setup Go
-        if: hashFiles(format('{0}/go.mod', inputs.working-directory), format('{0}/go.work', inputs.working-directory), format('{0}/**/go.mod', inputs.working-directory), format('{0}/**/go.work', inputs.working-directory)) != ''
+        if: steps.discovery.outputs.has_go_toolchain == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: ${{ inputs.go-version }}
@@ -260,20 +418,20 @@ jobs:
           echo "$gobin" >> "${GITHUB_PATH}"
 
       - name: Setup Node
-        if: hashFiles(format('{0}/**/package.json', inputs.working-directory)) != ''
+        if: steps.discovery.outputs.has_package_json == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
 
       - name: Enable Corepack
-        if: hashFiles(format('{0}/**/package.json', inputs.working-directory)) != ''
+        if: steps.discovery.outputs.has_package_json == 'true'
         shell: bash
         run: |
           set -euo pipefail
           corepack enable
 
       - name: Install frontend dependencies
-        if: hashFiles(format('{0}/**/package.json', inputs.working-directory)) != ''
+        if: steps.discovery.outputs.has_package_json == 'true'
         working-directory: ${{ inputs.working-directory }}
         shell: bash
         run: |
@@ -331,6 +489,7 @@ jobs:
           done < <(find . -maxdepth 3 -name package.json -not -path '*/node_modules/*' | sort)
 
       - name: Install Wails CLI
+        if: steps.discovery.outputs.primary_stack_suggestion == 'wails2'
         working-directory: ${{ inputs.working-directory }}
         shell: bash
         run: |
@@ -338,30 +497,6 @@ jobs:
 
           if ! command -v go >/dev/null 2>&1; then
             echo "Go is not available; skipping Wails CLI installation."
-            exit 0
-          fi
-
-          has_wails_frontend=false
-
-          if [ -f wails.json ]; then
-            has_wails_frontend=true
-          elif [ -f go.mod ] || [ -f go.work ]; then
-            if [ -f package.json ] || [ -f deno.json ] || [ -f deno.jsonc ] || [ -f frontend/package.json ] || [ -f frontend/deno.json ] || [ -f frontend/deno.jsonc ]; then
-              has_wails_frontend=true
-            elif find . -maxdepth 3 \( -name package.json -o -name deno.json -o -name deno.jsonc \) \
-              -not -path './package.json' \
-              -not -path './deno.json' \
-              -not -path './deno.jsonc' \
-              -not -path './frontend/package.json' \
-              -not -path './frontend/deno.json' \
-              -not -path './frontend/deno.jsonc' \
-              -not -path '*/node_modules/*' | grep -q .; then
-              has_wails_frontend=true
-            fi
-          fi
-
-          if [ "$has_wails_frontend" != "true" ]; then
-            echo "No Wails project detected; skipping Wails CLI installation."
             exit 0
           fi
 
@@ -381,13 +516,13 @@ jobs:
           core-version: ${{ inputs.core-version }}
 
       - name: Setup Python for Conan and MkDocs
-        if: hashFiles(format('{0}/CMakeLists.txt', inputs.working-directory), format('{0}/mkdocs.yml', inputs.working-directory), format('{0}/mkdocs.yaml', inputs.working-directory), format('{0}/docs/mkdocs.yml', inputs.working-directory), format('{0}/docs/mkdocs.yaml', inputs.working-directory)) != ''
+        if: steps.discovery.outputs.has_root_cmakelists == 'true' || steps.discovery.outputs.has_docs_config == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       - name: Install Conan
-        if: hashFiles(format('{0}/CMakeLists.txt', inputs.working-directory)) != ''
+        if: steps.discovery.outputs.has_root_cmakelists == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -395,7 +530,7 @@ jobs:
           python -m pip install conan
 
       - name: Install MkDocs
-        if: hashFiles(format('{0}/mkdocs.yml', inputs.working-directory), format('{0}/mkdocs.yaml', inputs.working-directory), format('{0}/docs/mkdocs.yml', inputs.working-directory), format('{0}/docs/mkdocs.yaml', inputs.working-directory)) != ''
+        if: steps.discovery.outputs.has_docs_config == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -403,7 +538,7 @@ jobs:
           python -m pip install mkdocs
 
       - name: Setup Deno
-        if: env.DENO_ENABLE == 'true' || env.DENO_ENABLE == '1' || env.DENO_ENABLE == 'yes' || env.DENO_ENABLE == 'on' || inputs.deno-build != '' || hashFiles(format('{0}/**/deno.json', inputs.working-directory), format('{0}/**/deno.jsonc', inputs.working-directory)) != ''
+        if: env.DENO_ENABLE == 'true' || env.DENO_ENABLE == '1' || env.DENO_ENABLE == 'yes' || env.DENO_ENABLE == 'on' || inputs.deno-build != '' || steps.discovery.outputs.has_deno_manifest == 'true'
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -422,42 +557,15 @@ jobs:
             core-build-${{ runner.os }}-
 
       - name: Install Linux Wails dependencies
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && steps.discovery.outputs.primary_stack_suggestion == 'wails2'
         working-directory: ${{ inputs.working-directory }}
         shell: bash
         run: |
           set -euo pipefail
 
-          has_wails_frontend=false
-
-          if [ -f wails.json ]; then
-            has_wails_frontend=true
-          elif [ -f go.mod ] || [ -f go.work ]; then
-            if [ -f package.json ] || [ -f deno.json ] || [ -f deno.jsonc ] || [ -f frontend/package.json ] || [ -f frontend/deno.json ] || [ -f frontend/deno.jsonc ]; then
-              has_wails_frontend=true
-            elif find . -maxdepth 3 \( -name package.json -o -name deno.json -o -name deno.jsonc \) \
-              -not -path './package.json' \
-              -not -path './deno.json' \
-              -not -path './deno.jsonc' \
-              -not -path './frontend/package.json' \
-              -not -path './frontend/deno.json' \
-              -not -path './frontend/deno.jsonc' \
-              -not -path '*/node_modules/*' | grep -q .; then
-              has_wails_frontend=true
-            fi
-          fi
-
-          if [ "$has_wails_frontend" != "true" ]; then
-            echo "No Wails frontend detected; skipping Linux system dependencies."
-            exit 0
-          fi
-
-          webkit_pkg=libwebkit2gtk-4.0-dev
-          if [ -f /etc/os-release ]; then
-            . /etc/os-release
-            if [ "${ID:-}" = "ubuntu" ] && dpkg --compare-versions "${VERSION_ID:-0}" ge "24.04"; then
-              webkit_pkg=libwebkit2gtk-4.1-dev
-            fi
+          webkit_pkg="${{ steps.discovery.outputs.webkit_package }}"
+          if [ -z "$webkit_pkg" ]; then
+            webkit_pkg=libwebkit2gtk-4.0-dev
           fi
 
           sudo apt-get update
@@ -580,9 +688,9 @@ PY
           target_os="${target%%/*}"
           target_arch="${target#*/}"
 
-          suffix="${GITHUB_SHA::7}"
-          if [ "${GITHUB_REF:-}" != "${GITHUB_REF#refs/tags/}" ] && [ -n "${GITHUB_REF_NAME:-}" ]; then
-            suffix="${GITHUB_REF_NAME}"
+          suffix="${{ steps.discovery.outputs.short_sha }}"
+          if [ "${{ steps.discovery.outputs.is_tag }}" = "true" ] && [ -n "${{ steps.discovery.outputs.tag }}" ]; then
+            suffix="${{ steps.discovery.outputs.tag }}"
           fi
 
           artifact_name="${build_name}_${target_os}_${target_arch}"

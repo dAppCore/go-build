@@ -77,7 +77,7 @@ Current implementations:
 `core build workflow` writes `.github/workflows/release.yml`. The generated workflow mirrors the modular `dAppCore/build@v3` action pipeline:
 
 1. Checkout
-2. Discovery by file markers through `hashFiles(...)`
+2. Discovery by repository markers and Git metadata, exported as workflow step outputs
 3. Toolchain setup for Go, Node, Python, Conan, MkDocs, Deno, and Wails, including frontend dependency installation and optional garble when obfuscation is enabled
 4. Linux distro-aware WebKit dependency setup for Wails
 5. Cache restore under `.core/cache` and `cache/`
