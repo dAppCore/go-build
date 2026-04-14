@@ -92,6 +92,11 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 	if err := build.SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
 		return coreerr.E("build.apple", "failed to set up build cache", err)
 	}
+	if build.HasXcodeCloudConfig(buildConfig) {
+		if _, err := build.WriteXcodeCloudScripts(filesystem, projectDir, buildConfig); err != nil {
+			return coreerr.E("build.apple", "failed to write Xcode Cloud scripts", err)
+		}
+	}
 
 	version := opts.Version
 	if version == "" {

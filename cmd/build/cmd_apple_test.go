@@ -193,6 +193,46 @@ apple:
 	require.NoError(t, err)
 }
 
+func TestBuildCmd_runAppleBuildInDir_WritesXcodeCloudScripts_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	coreDir := ax.Join(projectDir, ".core")
+	require.NoError(t, ax.MkdirAll(coreDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
+project:
+  name: Core
+  binary: Core
+apple:
+  bundle_id: ai.lthn.core
+  sign: false
+  xcode_cloud:
+    workflow: CoreGUI Release
+`), 0o644))
+
+	oldBuildApple := buildAppleFn
+	t.Cleanup(func() {
+		buildAppleFn = oldBuildApple
+	})
+
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+		return &build.AppleBuildResult{
+			BundlePath:  ax.Join(cfg.OutputDir, "Core.app"),
+			Version:     "1.2.3",
+			BuildNumber: buildNumber,
+		}, nil
+	}
+
+	err := runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
+		Version:     "v1.2.3",
+		BuildNumber: "42",
+	})
+	require.NoError(t, err)
+
+	preScriptPath := ax.Join(projectDir, build.XcodeCloudScriptsDir, build.XcodeCloudPreXcodebuildScriptName)
+	preScript, err := ax.ReadFile(preScriptPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(preScript), `core build apple --arch "universal" --config ".core/build.yaml"`)
+}
+
 func boolPtr(value bool) *bool {
 	return &value
 }
