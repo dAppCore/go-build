@@ -18,6 +18,36 @@ on:
         required: false
         type: string
         default: ""
+      build-name:
+        description: Override the build output name passed to `core build`.
+        required: false
+        type: string
+        default: ""
+      build-tags:
+        description: Comma- or space-separated Go build tags forwarded to `core build`.
+        required: false
+        type: string
+        default: ""
+      build-obfuscate:
+        description: Enable garble-backed obfuscation for Go and Wails builds.
+        required: false
+        type: boolean
+        default: false
+      nsis:
+        description: Enable NSIS packaging for Windows Wails builds.
+        required: false
+        type: boolean
+        default: false
+      deno-build:
+        description: Override the Deno frontend build command.
+        required: false
+        type: string
+        default: ""
+      wails-build-webview2:
+        description: Set the WebView2 delivery mode for Windows Wails builds.
+        required: false
+        type: string
+        default: ""
       draft:
         description: Mark the release as a draft.
         required: false
@@ -52,6 +82,36 @@ on:
         default: latest
       version:
         description: Release version override.
+        required: false
+        type: string
+        default: ""
+      build-name:
+        description: Override the build output name passed to `core build`.
+        required: false
+        type: string
+        default: ""
+      build-tags:
+        description: Comma- or space-separated Go build tags forwarded to `core build`.
+        required: false
+        type: string
+        default: ""
+      build-obfuscate:
+        description: Enable garble-backed obfuscation for Go and Wails builds.
+        required: false
+        type: boolean
+        default: false
+      nsis:
+        description: Enable NSIS packaging for Windows Wails builds.
+        required: false
+        type: boolean
+        default: false
+      deno-build:
+        description: Override the Deno frontend build command.
+        required: false
+        type: string
+        default: ""
+      wails-build-webview2:
+        description: Set the WebView2 delivery mode for Windows Wails builds.
         required: false
         type: string
         default: ""
@@ -201,7 +261,46 @@ jobs:
       - name: Build release artefacts
         working-directory: ${{ inputs.working-directory }}
         shell: bash
-        run: core build --targets "${{ matrix.target }}" --archive --checksum --archive-format "${{ inputs.archive-format }}"
+        run: |
+          set -euo pipefail
+
+          args=(core build --targets "${{ matrix.target }}" --archive --checksum)
+
+          if [ -n "${{ inputs.archive-format }}" ]; then
+            args+=(--archive-format "${{ inputs.archive-format }}")
+          fi
+
+          if [ -n "${{ inputs.build-name }}" ]; then
+            args+=(--build-name "${{ inputs.build-name }}")
+          fi
+
+          if [ -n "${{ inputs.build-tags }}" ]; then
+            args+=(--build-tags "${{ inputs.build-tags }}")
+          fi
+
+          if [ "${{ inputs.build-obfuscate }}" = "true" ]; then
+            args+=(--build-obfuscate)
+          fi
+
+          if [ "${{ inputs.nsis }}" = "true" ]; then
+            args+=(--nsis)
+          fi
+
+          if [ -n "${{ inputs.deno-build }}" ]; then
+            args+=(--deno-build "${{ inputs.deno-build }}")
+          fi
+
+          if [ -n "${{ inputs.wails-build-webview2 }}" ]; then
+            args+=(--wails-build-webview2 "${{ inputs.wails-build-webview2 }}")
+          fi
+
+          if [ "${{ inputs.build-cache }}" = "true" ]; then
+            args+=(--build-cache)
+          else
+            args+=(--build-cache=false)
+          fi
+
+          "${args[@]}"
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4

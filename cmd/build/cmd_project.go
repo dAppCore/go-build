@@ -11,6 +11,7 @@ package buildcmd
 import (
 	"context"
 	"runtime"
+	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -38,6 +39,18 @@ type ProjectBuildRequest struct {
 	CIMode         bool
 	TargetsFlag    string
 	OutputDir      string
+	BuildName      string
+	BuildTagsFlag  string
+	Obfuscate      bool
+	ObfuscateSet   bool
+	NSIS           bool
+	NSISSet        bool
+	WebView2       string
+	WebView2Set    bool
+	DenoBuild      string
+	DenoBuildSet   bool
+	BuildCache     bool
+	BuildCacheSet  bool
 	ArchiveOutput  bool
 	ChecksumOutput bool
 	ArchiveFormat  string
@@ -101,6 +114,8 @@ func runProjectBuild(req ProjectBuildRequest) error {
 		return runLocalPwaBuild(ctx, projectDir)
 	}
 
+	applyProjectBuildOverrides(buildConfig, req)
+
 	if err := build.SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
 		return coreerr.E("build.Run", "failed to set up build cache", err)
 	}
@@ -151,13 +166,7 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	outputDir = ax.Clean(outputDir)
 
 	// Determine binary name
-	binaryName := buildConfig.Project.Binary
-	if binaryName == "" {
-		binaryName = buildConfig.Project.Name
-	}
-	if binaryName == "" {
-		binaryName = ax.Base(projectDir)
-	}
+	binaryName := resolveProjectBuildName(projectDir, buildConfig, req.BuildName)
 
 	// Print build info (verbose mode only)
 	if req.Verbose && !req.CIMode {
@@ -331,6 +340,96 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	}
 
 	return nil
+}
+
+func applyProjectBuildOverrides(cfg *build.BuildConfig, req ProjectBuildRequest) {
+	if cfg == nil {
+		return
+	}
+
+	if tags := parseBuildTagsFlag(req.BuildTagsFlag); len(tags) > 0 {
+		cfg.Build.BuildTags = tags
+	}
+
+	if req.ObfuscateSet {
+		cfg.Build.Obfuscate = req.Obfuscate
+	}
+	if req.NSISSet {
+		cfg.Build.NSIS = req.NSIS
+	}
+	if req.WebView2Set {
+		cfg.Build.WebView2 = req.WebView2
+	}
+	if req.DenoBuildSet {
+		cfg.Build.DenoBuild = req.DenoBuild
+	}
+	if req.BuildCacheSet {
+		if req.BuildCache {
+			enableDefaultBuildCache(&cfg.Build.Cache)
+		} else {
+			cfg.Build.Cache.Enabled = false
+		}
+	}
+}
+
+func parseBuildTagsFlag(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var tags []string
+	for _, part := range strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || unicodeIsSpace(r)
+	}) {
+		tag := strings.TrimSpace(part)
+		if tag == "" {
+			continue
+		}
+		if _, ok := seen[tag]; ok {
+			continue
+		}
+		seen[tag] = struct{}{}
+		tags = append(tags, tag)
+	}
+
+	return tags
+}
+
+func enableDefaultBuildCache(cfg *build.CacheConfig) {
+	if cfg == nil {
+		return
+	}
+
+	cfg.Enabled = true
+	if cfg.Directory == "" {
+		cfg.Directory = ax.Join(build.ConfigDir, "cache")
+	}
+	if len(cfg.Paths) == 0 {
+		cfg.Paths = []string{
+			ax.Join("cache", "go-build"),
+			ax.Join("cache", "go-mod"),
+		}
+	}
+}
+
+func resolveProjectBuildName(projectDir string, buildConfig *build.BuildConfig, override string) string {
+	if override != "" {
+		return override
+	}
+	if buildConfig != nil {
+		if buildConfig.Project.Binary != "" {
+			return buildConfig.Project.Binary
+		}
+		if buildConfig.Project.Name != "" {
+			return buildConfig.Project.Name
+		}
+	}
+	return ax.Base(projectDir)
+}
+
+func unicodeIsSpace(r rune) bool {
+	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
 }
 
 // selectOutputArtifacts chooses the final artifact list for CI output.

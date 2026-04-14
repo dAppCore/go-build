@@ -66,6 +66,17 @@ func OptionBool(opts core.Options, keys ...string) bool {
 	return OptionBoolDefault(opts, false, keys...)
 }
 
+// OptionHas reports whether any of the provided keys was supplied.
+func OptionHas(opts core.Options, keys ...string) bool {
+	for _, key := range keys {
+		if opts.Has(key) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ResultFromError adapts a Go error into a Core result.
 func ResultFromError(err error) core.Result {
 	if err != nil {

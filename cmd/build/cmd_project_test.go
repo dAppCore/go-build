@@ -104,6 +104,99 @@ func TestBuildCmd_buildRuntimeConfig_ClonesBuildArgs_Good(t *testing.T) {
 	assert.Equal(t, "v1.2.3", buildConfig.Build.BuildArgs["VERSION"])
 }
 
+func TestBuildCmd_applyProjectBuildOverrides_Good(t *testing.T) {
+	t.Run("applies action-style build overrides and enables default cache", func(t *testing.T) {
+		cfg := build.DefaultConfig()
+
+		applyProjectBuildOverrides(cfg, ProjectBuildRequest{
+			BuildTagsFlag: "mlx, debug release,mlx",
+			Obfuscate:     true,
+			ObfuscateSet:  true,
+			NSIS:          true,
+			NSISSet:       true,
+			WebView2:      "download",
+			WebView2Set:   true,
+			DenoBuild:     "deno task bundle",
+			DenoBuildSet:  true,
+			BuildCache:    true,
+			BuildCacheSet: true,
+		})
+
+		assert.Equal(t, []string{"mlx", "debug", "release"}, cfg.Build.BuildTags)
+		assert.True(t, cfg.Build.Obfuscate)
+		assert.True(t, cfg.Build.NSIS)
+		assert.Equal(t, "download", cfg.Build.WebView2)
+		assert.Equal(t, "deno task bundle", cfg.Build.DenoBuild)
+		assert.True(t, cfg.Build.Cache.Enabled)
+		assert.Equal(t, ax.Join(build.ConfigDir, "cache"), cfg.Build.Cache.Directory)
+		assert.Equal(t, []string{ax.Join("cache", "go-build"), ax.Join("cache", "go-mod")}, cfg.Build.Cache.Paths)
+	})
+
+	t.Run("preserves configured cache paths when enabling cache from the CLI", func(t *testing.T) {
+		cfg := build.DefaultConfig()
+		cfg.Build.Cache = build.CacheConfig{
+			Directory: "custom/cache",
+			Paths:     []string{"custom/go-build"},
+		}
+
+		applyProjectBuildOverrides(cfg, ProjectBuildRequest{
+			BuildCache:    true,
+			BuildCacheSet: true,
+		})
+
+		assert.True(t, cfg.Build.Cache.Enabled)
+		assert.Equal(t, "custom/cache", cfg.Build.Cache.Directory)
+		assert.Equal(t, []string{"custom/go-build"}, cfg.Build.Cache.Paths)
+	})
+
+	t.Run("can disable build cache without discarding the configured paths", func(t *testing.T) {
+		cfg := build.DefaultConfig()
+		cfg.Build.Cache = build.CacheConfig{
+			Enabled:   true,
+			Directory: "custom/cache",
+			Paths:     []string{"custom/go-build", "custom/go-mod"},
+		}
+
+		applyProjectBuildOverrides(cfg, ProjectBuildRequest{
+			BuildCache:    false,
+			BuildCacheSet: true,
+		})
+
+		assert.False(t, cfg.Build.Cache.Enabled)
+		assert.Equal(t, "custom/cache", cfg.Build.Cache.Directory)
+		assert.Equal(t, []string{"custom/go-build", "custom/go-mod"}, cfg.Build.Cache.Paths)
+	})
+}
+
+func TestBuildCmd_resolveProjectBuildName_Good(t *testing.T) {
+	t.Run("prefers the CLI build name override", func(t *testing.T) {
+		cfg := &build.BuildConfig{
+			Project: build.Project{
+				Name:   "project-name",
+				Binary: "project-binary",
+			},
+		}
+
+		assert.Equal(t, "cli-name", resolveProjectBuildName("/tmp/project", cfg, "cli-name"))
+	})
+
+	t.Run("falls back to project binary, then project name, then directory name", func(t *testing.T) {
+		cfg := &build.BuildConfig{
+			Project: build.Project{
+				Name:   "project-name",
+				Binary: "project-binary",
+			},
+		}
+		assert.Equal(t, "project-binary", resolveProjectBuildName("/tmp/project", cfg, ""))
+
+		cfg.Project.Binary = ""
+		assert.Equal(t, "project-name", resolveProjectBuildName("/tmp/project", cfg, ""))
+
+		cfg.Project.Name = ""
+		assert.Equal(t, "project", resolveProjectBuildName("/tmp/project", cfg, ""))
+	})
+}
+
 func TestBuildCmd_resolveArchiveFormat_Good(t *testing.T) {
 	t.Run("uses cli override when present", func(t *testing.T) {
 		format, err := resolveArchiveFormat("gz", "xz")
