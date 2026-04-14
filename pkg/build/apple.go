@@ -1047,20 +1047,14 @@ func Notarise(ctx context.Context, cfg NotariseConfig) error {
 	submitArgs = append(submitArgs, authArgs...)
 	output, err = appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, submitArgs...)
 	if err != nil {
-		requestID := extractNotaryRequestID(output)
-		if requestID != "" {
-			logArgs := []string{"notarytool", "log", requestID}
-			logArgs = append(logArgs, authArgs...)
-			if logOutput, logErr := appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, logArgs...); logErr == nil && logOutput != "" {
-				output = core.Join("\n", output, logOutput)
-			}
-		}
+		output = appendNotaryLog(notariseCtx, xcrunCommand, authArgs, output)
 		return coreerr.E("build.Notarise", "notarisation failed: "+output, err)
 	}
 
 	status := parseNotaryStatus(output)
 	if status != "" && core.Lower(status) != "accepted" {
-		return coreerr.E("build.Notarise", "Apple rejected notarisation request with status "+status, nil)
+		output = appendNotaryLog(notariseCtx, xcrunCommand, authArgs, output)
+		return coreerr.E("build.Notarise", "Apple rejected notarisation request with status "+status+": "+output, nil)
 	}
 
 	output, err = appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, "stapler", "staple", cfg.AppPath)
@@ -2061,6 +2055,22 @@ func parseNotaryStatus(output string) string {
 		return payload.Status
 	}
 	return ""
+}
+
+func appendNotaryLog(ctx context.Context, xcrunCommand string, authArgs []string, output string) string {
+	requestID := extractNotaryRequestID(output)
+	if requestID == "" {
+		return output
+	}
+
+	logArgs := []string{"notarytool", "log", requestID}
+	logArgs = append(logArgs, authArgs...)
+	logOutput, err := appleCombinedOutput(ctx, "", nil, xcrunCommand, logArgs...)
+	if err != nil || logOutput == "" {
+		return output
+	}
+
+	return core.Join("\n", output, logOutput)
 }
 
 func packageForASCUpload(ctx context.Context, appPath, certIdentity, apiKeyID, apiKeyPath string) (string, []string, func(), error) {

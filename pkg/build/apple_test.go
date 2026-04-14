@@ -533,6 +533,50 @@ func TestApple_NotariseAuthArgs_Good(t *testing.T) {
 	assert.Equal(t, []string{"--apple-id", "dev@example.com", "--password", "app-password", "--team-id", "ABC123DEF4"}, args)
 }
 
+func TestApple_Notarise_AppendsNotaryLogOnRejectedStatus_Bad(t *testing.T) {
+	oldResolve := appleResolveCommand
+	oldCombined := appleCombinedOutput
+	t.Cleanup(func() {
+		appleResolveCommand = oldResolve
+		appleCombinedOutput = oldCombined
+	})
+
+	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
+		return name, nil
+	}
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+		switch command {
+		case "ditto":
+			return "", nil
+		case "xcrun":
+			require.GreaterOrEqual(t, len(args), 2)
+			require.Equal(t, "notarytool", args[0])
+			switch args[1] {
+			case "submit":
+				return `{"id":"request-123","status":"Invalid"}`, nil
+			case "log":
+				return "notary log details", nil
+			default:
+				t.Fatalf("unexpected xcrun invocation: %v", args)
+			}
+		default:
+			t.Fatalf("unexpected command: %s", command)
+		}
+
+		return "", nil
+	}
+
+	err := Notarise(context.Background(), NotariseConfig{
+		AppPath:        ax.Join(t.TempDir(), "Core.app"),
+		APIKeyID:       "KEY123",
+		APIKeyIssuerID: "ISSUER456",
+		APIKeyPath:     "/tmp/AuthKey_KEY123.p8",
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "status Invalid")
+	assert.ErrorContains(t, err, "notary log details")
+}
+
 func TestApple_BuildApple_AppStorePreflight_Bad(t *testing.T) {
 	_, err := BuildApple(context.Background(), &Config{
 		FS:         io.Local,
