@@ -219,19 +219,14 @@ jobs:
       matrix:
         include:
           - target: linux/amd64
-            artifact_name: linux-amd64
             runner: ubuntu-latest
           - target: linux/arm64
-            artifact_name: linux-arm64
             runner: ubuntu-latest
           - target: darwin/amd64
-            artifact_name: darwin-amd64
             runner: macos-13
           - target: darwin/arm64
-            artifact_name: darwin-arm64
             runner: macos-14
           - target: windows/amd64
-            artifact_name: windows-amd64
             runner: windows-latest
     steps:
       - name: Checkout repository
@@ -445,11 +440,38 @@ jobs:
 
           "${args[@]}"
 
+      - name: Compute artifact upload name
+        id: artifact-name
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          build_name="${{ inputs.build-name }}"
+          if [ -z "$build_name" ]; then
+            build_name="${GITHUB_REPOSITORY##*/}"
+          fi
+
+          target="${{ matrix.target }}"
+          target_os="${target%%/*}"
+          target_arch="${target#*/}"
+
+          suffix="${GITHUB_SHA::7}"
+          if [ "${GITHUB_REF:-}" != "${GITHUB_REF#refs/tags/}" ] && [ -n "${GITHUB_REF_NAME:-}" ]; then
+            suffix="${GITHUB_REF_NAME}"
+          fi
+
+          artifact_name="${build_name}_${target_os}_${target_arch}"
+          if [ -n "$suffix" ]; then
+            artifact_name="${artifact_name}_${suffix}"
+          fi
+
+          echo "value=release-${artifact_name}" >> "${GITHUB_OUTPUT}"
+
       - name: Upload artefacts
         if: ${{ inputs.package }}
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.artifact_name }}
+          name: ${{ steps.artifact-name.outputs.value }}
           path: ${{ inputs.working-directory }}/dist/**
           if-no-files-found: error
 
