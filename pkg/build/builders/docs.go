@@ -84,7 +84,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 			return artifacts, coreerr.E("DocsBuilder.Build", "failed to create site directory", err)
 		}
 
-		env := appendConfiguredEnv(cfg.Env,
+		env := appendConfiguredEnv(cfg,
 			core.Sprintf("GOOS=%s", target.OS),
 			core.Sprintf("GOARCH=%s", target.Arch),
 			core.Sprintf("TARGET_OS=%s", target.OS),

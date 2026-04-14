@@ -369,7 +369,7 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			LDFlags:    ldflags,
 			OutputDir:  arm64Dir,
 			Version:    version,
-			Env:        cfg.Env,
+			Env:        BuildEnvironment(cfg),
 		})
 		if err != nil {
 			return nil, coreerr.E("build.BuildApple", "failed to build arm64 bundle", err)
@@ -383,7 +383,7 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			LDFlags:    ldflags,
 			OutputDir:  amd64Dir,
 			Version:    version,
-			Env:        cfg.Env,
+			Env:        BuildEnvironment(cfg),
 		})
 		if err != nil {
 			return nil, coreerr.E("build.BuildApple", "failed to build amd64 bundle", err)
@@ -403,7 +403,7 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			LDFlags:    ldflags,
 			OutputDir:  outputDir,
 			Version:    version,
-			Env:        cfg.Env,
+			Env:        BuildEnvironment(cfg),
 		})
 		if err != nil {
 			return nil, coreerr.E("build.BuildApple", "failed to build app bundle", err)

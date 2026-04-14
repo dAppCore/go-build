@@ -88,8 +88,10 @@ func TestApple_BuildApple_Good(t *testing.T) {
 	})
 
 	var builtArches []string
+	var buildEnvs [][]string
 	appleBuildWailsAppFn = func(ctx context.Context, cfg WailsBuildConfig) (string, error) {
 		builtArches = append(builtArches, cfg.Arch)
+		buildEnvs = append(buildEnvs, append([]string{}, cfg.Env...))
 		appPath := ax.Join(cfg.OutputDir, cfg.Name+".app")
 		writeDummyAppBundle(t, appPath, cfg.Name, cfg.Arch)
 		return appPath, nil
@@ -125,6 +127,13 @@ func TestApple_BuildApple_Good(t *testing.T) {
 		Version:    "v1.2.3",
 		BuildTags:  []string{"integration"},
 		LDFlags:    []string{"-s", "-w"},
+		Cache: CacheConfig{
+			Enabled: true,
+			Paths: []string{
+				ax.Join(outputDir, "cache", "go-build"),
+				ax.Join(outputDir, "cache", "go-mod"),
+			},
+		},
 	}, AppleOptions{
 		BundleID:     "ai.lthn.core",
 		Arch:         "universal",
@@ -139,6 +148,9 @@ func TestApple_BuildApple_Good(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"arm64", "amd64"}, builtArches)
+	require.Len(t, buildEnvs, 2)
+	assert.Contains(t, buildEnvs[0], "GOCACHE="+ax.Join(outputDir, "cache", "go-build"))
+	assert.Contains(t, buildEnvs[0], "GOMODCACHE="+ax.Join(outputDir, "cache", "go-mod"))
 	assert.Equal(t, ax.Join(outputDir, "Core.app"), result.BundlePath)
 	assert.Equal(t, ax.Join(outputDir, "Core-1.2.3.dmg"), result.DMGPath)
 	assert.Equal(t, result.DMGPath, notarisedPath)

@@ -90,6 +90,12 @@ set -eu
 log_file="${WAILS_BUILD_LOG_FILE:-}"
 if [ -n "$log_file" ]; then
 	printf '%s\n' "$@" > "$log_file"
+	if [ -n "${GOCACHE:-}" ]; then
+		printf '%s\n' "GOCACHE=${GOCACHE}" >> "$log_file"
+	fi
+	if [ -n "${GOMODCACHE:-}" ]; then
+		printf '%s\n' "GOMODCACHE=${GOMODCACHE}" >> "$log_file"
+	fi
 fi
 
 sequence_file="${BUILD_SEQUENCE_FILE:-}"
@@ -122,6 +128,12 @@ log_file="${WAILS_BUILD_LOG_FILE:-}"
 if [ -n "$log_file" ]; then
 	printf '%s\n' "$@" > "$log_file"
 	printf '%s\n' "GOFLAGS=${GOFLAGS:-}" >> "$log_file"
+	if [ -n "${GOCACHE:-}" ]; then
+		printf '%s\n' "GOCACHE=${GOCACHE}" >> "$log_file"
+	fi
+	if [ -n "${GOMODCACHE:-}" ]; then
+		printf '%s\n' "GOMODCACHE=${GOMODCACHE}" >> "$log_file"
+	fi
 fi
 
 verb="${1:-build}"
@@ -346,6 +358,9 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 	logPath := ax.Join(logDir, "wails.log")
 	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
 
+	goCacheDir := ax.Join(outputDir, "cache", "go-build")
+	goModCacheDir := ax.Join(outputDir, "cache", "go-mod")
+
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
 		FS:         io.Local,
@@ -355,8 +370,16 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 		Version:    "v1.2.3",
 		BuildTags:  []string{"integration", "webkit2_41"},
 		LDFlags:    []string{"-s", "-w"},
+		Obfuscate:  true,
 		NSIS:       true,
 		WebView2:   "embed",
+		Cache: build.CacheConfig{
+			Enabled: true,
+			Paths: []string{
+				goCacheDir,
+				goModCacheDir,
+			},
+		},
 	}
 	targets := []build.Target{
 		{OS: runtime.GOOS, Arch: runtime.GOARCH},
@@ -376,9 +399,12 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 	assert.Contains(t, args, "integration,webkit2_41")
 	assert.Contains(t, args, "-ldflags")
 	assert.Contains(t, args, "-s -w -X main.version=v1.2.3")
+	assert.Contains(t, args, "-obfuscated")
 	assert.Contains(t, args, "-nsis")
 	assert.Contains(t, args, "-webview2")
 	assert.Contains(t, args, "embed")
+	assert.Contains(t, args, "GOCACHE="+goCacheDir)
+	assert.Contains(t, args, "GOMODCACHE="+goModCacheDir)
 }
 
 func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
@@ -977,6 +1003,8 @@ func TestWails_WailsBuilderBuildV3Fallback_Good(t *testing.T) {
 	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
 
 	builder := NewWailsBuilder()
+	goCacheDir := ax.Join(t.TempDir(), "cache", "go-build")
+	goModCacheDir := ax.Join(t.TempDir(), "cache", "go-mod")
 	cfg := &build.Config{
 		FS:         io.Local,
 		ProjectDir: projectDir,
@@ -985,6 +1013,13 @@ func TestWails_WailsBuilderBuildV3Fallback_Good(t *testing.T) {
 		Version:    "v1.2.3",
 		BuildTags:  []string{"integration"},
 		LDFlags:    []string{"-s", "-w"},
+		Cache: build.CacheConfig{
+			Enabled: true,
+			Paths: []string{
+				goCacheDir,
+				goModCacheDir,
+			},
+		},
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
@@ -1001,6 +1036,8 @@ func TestWails_WailsBuilderBuildV3Fallback_Good(t *testing.T) {
 	assert.Contains(t, lines, "GOOS=linux")
 	assert.Contains(t, lines, "GOARCH=amd64")
 	assert.Contains(t, strings.Join(lines, "\n"), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
+	assert.Contains(t, lines, "GOCACHE="+goCacheDir)
+	assert.Contains(t, lines, "GOMODCACHE="+goModCacheDir)
 }
 
 func TestWails_WailsBuilderBuildV3NSIS_Good(t *testing.T) {

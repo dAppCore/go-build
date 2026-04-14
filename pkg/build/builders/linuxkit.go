@@ -149,7 +149,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 			args := b.buildLinuxKitArgs(configPath, format, outputName, outputDir, target.Arch)
 
 			core.Print(nil, "Building LinuxKit image: %s (%s, %s)", outputName, format, target.Arch)
-			if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, cfg.Env, linuxkitCommand, args...); err != nil {
+			if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), linuxkitCommand, args...); err != nil {
 				return nil, coreerr.E("LinuxKitBuilder.Build", "build failed for "+target.Arch+"/"+format, err)
 			}
 

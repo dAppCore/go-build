@@ -136,7 +136,7 @@ func (b *CPPBuilder) runMake(ctx context.Context, cfg *build.Config, target stri
 		return err
 	}
 
-	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, cfg.Env, makeCommand, target); err != nil {
+	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), makeCommand, target); err != nil {
 		return coreerr.E("CPPBuilder.runMake", "make "+target+" failed", err)
 	}
 	return nil

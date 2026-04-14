@@ -75,7 +75,7 @@ func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 			return artifacts, coreerr.E("RustBuilder.Build", "failed to create platform directory", err)
 		}
 
-		env := appendConfiguredEnv(cfg.Env,
+		env := appendConfiguredEnv(cfg,
 			core.Sprintf("CARGO_TARGET_DIR=%s", platformDir),
 			core.Sprintf("TARGET_OS=%s", target.OS),
 			core.Sprintf("TARGET_ARCH=%s", target.Arch),

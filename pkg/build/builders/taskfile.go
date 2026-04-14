@@ -98,7 +98,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand string, outputDir string, target build.Target) error {
 	// Build task command
 	args := []string{"build"}
-	env := append([]string{}, cfg.Env...)
+	env := build.BuildEnvironment(cfg)
 	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 
 	// Pass variables if targets are specified

@@ -133,7 +133,7 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 		args[0] = verb
 	}
 
-	env := appendConfiguredEnv(cfg.Env,
+	env := appendConfiguredEnv(cfg,
 		core.Sprintf("GOOS=%s", target.OS),
 		core.Sprintf("GOARCH=%s", target.Arch),
 		core.Sprintf("TARGET_OS=%s", target.OS),
@@ -196,7 +196,7 @@ func (b *WailsBuilder) PreBuild(ctx context.Context, cfg *build.Config) error {
 		return nil
 	}
 
-	output, err := ax.CombinedOutput(ctx, frontendDir, cfg.Env, command, args...)
+	output, err := ax.CombinedOutput(ctx, frontendDir, build.BuildEnvironment(cfg), command, args...)
 	if err != nil {
 		return coreerr.E("WailsBuilder.PreBuild", command+" build failed: "+output, err)
 	}
@@ -362,6 +362,10 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 		args = append(args, "-ldflags", core.Join(" ", ldflags...))
 	}
 
+	if cfg.Obfuscate {
+		args = append(args, "-obfuscated")
+	}
+
 	if cfg.NSIS {
 		args = append(args, "-nsis")
 	}
@@ -379,7 +383,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// For now, let's try to let Wails do its thing and find the artifact.
 
 	// Capture output for error messages
-	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, cfg.Env, wailsCommand, args...)
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), wailsCommand, args...)
 	if err != nil {
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "wails build failed: "+output, err)
 	}
