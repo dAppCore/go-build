@@ -91,6 +91,17 @@ func TestDetectProjectType_Good(t *testing.T) {
 		assert.Equal(t, build.ProjectTypeNode, projectType)
 	})
 
+	t.Run("detects nested Deno projects", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "apps", "site")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "deno.jsonc"), []byte("{}"), 0o644))
+
+		projectType, err := DetectProjectType(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, build.ProjectTypeNode, projectType)
+	})
+
 	t.Run("detects Wails projects from go.mod and root package.json", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))

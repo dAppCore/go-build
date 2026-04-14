@@ -75,6 +75,10 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		return []ProjectType{configuredType}, nil
 	}
 
+	hasRootFrontend := hasFrontendManifest(fs, dir)
+	hasFrontendDir := hasFrontendManifest(fs, ax.Join(dir, "frontend"))
+	hasNestedFrontend := hasSubtreeFrontendManifest(fs, dir)
+
 	if IsWailsProject(fs, dir) {
 		detected = append(detected, ProjectTypeWails)
 	}
@@ -93,7 +97,7 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		projectType ProjectType
 		detected    bool
 	}{
-		{ProjectTypeNode, IsNodeProject(fs, dir) || hasFrontendManifest(fs, ax.Join(dir, "frontend")) || HasSubtreeNpm(fs, dir)},
+		{ProjectTypeNode, hasRootFrontend || hasFrontendDir || hasNestedFrontend},
 		{ProjectTypeDocs, IsMkDocsProject(fs, dir)},
 		{ProjectTypeCPP, IsCPPProject(fs, dir)},
 		{ProjectTypeDocker, IsDockerProject(fs, dir)},

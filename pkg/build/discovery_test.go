@@ -93,6 +93,17 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeNode}, types)
 	})
 
+	t.Run("detects nested Deno project", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "apps", "site")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "deno.jsonc"), []byte("{}"), 0o644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeNode}, types)
+	})
+
 	t.Run("detects Wails project from go.mod and root package.json", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod", "package.json")
 		types, err := Discover(fs, dir)
@@ -118,6 +129,18 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		frontend := ax.Join(dir, "frontend")
 		require.NoError(t, ax.MkdirAll(frontend, 0o755))
 		require.NoError(t, ax.WriteFile(ax.Join(frontend, "deno.json"), []byte("{}"), 0o644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
+	})
+
+	t.Run("detects Wails project from go.mod and nested frontend deno.jsonc", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
+		nested := ax.Join(dir, "apps", "site")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "deno.jsonc"), []byte("{}"), 0o644))
 
 		types, err := Discover(fs, dir)
 		assert.NoError(t, err)
@@ -864,8 +887,23 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo}, result.Types)
+		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		assert.Equal(t, "wails", result.PrimaryStack)
+		assert.True(t, result.HasFrontend)
+		assert.False(t, result.HasSubtreeNpm)
+	})
+
+	t.Run("detects nested deno project as node", func(t *testing.T) {
+		dir := t.TempDir()
+		frontendDir := ax.Join(dir, "apps", "site")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.jsonc"), []byte("{}"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeNode}, result.Types)
+		assert.Equal(t, "node", result.PrimaryStack)
+		assert.Equal(t, "node", result.SuggestedStack)
 		assert.True(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)
 	})
