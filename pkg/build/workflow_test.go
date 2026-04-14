@@ -47,6 +47,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "actions/download-artifact@v4")
 		assert.Contains(t, content, "command: ci")
 		assert.Contains(t, content, "we-are-go-for-launch: true")
+		assert.Contains(t, content, "uses: dAppCore/build@v3")
 	})
 
 	t.Run("writes to a custom path", func(t *testing.T) {

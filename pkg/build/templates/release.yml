@@ -109,7 +109,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Core CLI
-        uses: dAppCore/build@v4
+        uses: dAppCore/build@v3
         with:
           command: build
           working-directory: ${{ inputs.working-directory }}
@@ -228,7 +228,7 @@ jobs:
           merge-multiple: true
 
       - name: Install Core CLI
-        uses: dAppCore/build@v4
+        uses: dAppCore/build@v3
         with:
           command: ci
           working-directory: ${{ inputs.working-directory }}
