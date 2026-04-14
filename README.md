@@ -27,6 +27,8 @@ The generated reusable workflow mirrors the `dAppCore/build@v3` action architect
 core build
 core build apple
 core build workflow
+core release
+core sdk
 core build sdk
 core ci
 ```

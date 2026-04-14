@@ -31,6 +31,27 @@ func TestRunSDKValidate_Good(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestRunSDKGenerateInDir_ValidSpecDryRun_Good(t *testing.T) {
+	tmpDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(validOpenAPISpec), 0o644))
+
+	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "go", "", true)
+	assert.NoError(t, err)
+}
+
+func TestRunSDKGenerateInDir_InvalidDocument_Bad(t *testing.T) {
+	tmpDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(`openapi: "3.0.0"
+info:
+  title: Test API
+paths: {}
+`), 0o644))
+
+	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "", "", true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid OpenAPI spec")
+}
+
 func TestRunSDKValidate_InvalidDocument_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(`openapi: "3.0.0"

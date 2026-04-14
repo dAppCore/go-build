@@ -22,9 +22,10 @@ description: Build, release, Apple packaging, SDK generation, and GitHub workflo
 core build
 core build apple
 core build workflow
+core release
+core sdk
 core build sdk
 core ci
-core sdk
 ```
 
 ## Build Surfaces
@@ -38,9 +39,9 @@ core sdk
 | `pkg/release/` | Versioning, changelog generation, publishing orchestration |
 | `pkg/release/publishers/` | GitHub, Docker, npm, Homebrew, Scoop, AUR, Chocolatey, LinuxKit |
 | `pkg/sdk/` | Spec detection, diffing, and SDK generation |
-| `cmd/build/` | `core build`, `core build apple`, `core build workflow`, `core build sdk`, `core build release` |
+| `cmd/build/` | `core build`, `core build apple`, `core build workflow`, `core build sdk`, `core release` |
 | `cmd/ci/` | `core ci` publish/version/changelog commands |
-| `cmd/sdk/` | `core sdk diff` and `core sdk validate` |
+| `cmd/sdk/` | `core sdk`, `core sdk diff`, and `core sdk validate` |
 
 See also: [Architecture](architecture.md) and [Stacks](stacks.md).
 
