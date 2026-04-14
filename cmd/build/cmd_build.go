@@ -5,8 +5,8 @@ import (
 	"embed"
 
 	_ "dappco.re/go/core/build/locales" // registers locale translations
-	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/cli/pkg/cli"
+	"dappco.re/go/core/i18n"
 )
 
 func init() {
@@ -165,6 +165,7 @@ func initBuildFlags() {
 func AddBuildCommands(root *cli.Command) {
 	setBuildI18n()
 	initBuildFlags()
+	AddAppleCommand(buildCmd)
 	AddReleaseCommand(buildCmd)
 	AddWorkflowCommand(buildCmd)
 	root.AddCommand(buildCmd)

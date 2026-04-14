@@ -1,0 +1,154 @@
+package buildcmd
+
+import (
+	"context"
+	"testing"
+
+	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/build/pkg/build/signing"
+	"dappco.re/go/core/cli/pkg/cli"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestBuildCmd_resolveAppleCommandOptions_Good(t *testing.T) {
+	cfg := &build.BuildConfig{
+		Apple: build.AppleConfig{
+			BundleID: "ai.lthn.core",
+			Arch:     "arm64",
+			Sign:     boolPtr(false),
+		},
+		Sign: signing.SignConfig{
+			MacOS: signing.MacOSConfig{
+				Identity:    "Developer ID Application: Lethean CIC (ABC123DEF4)",
+				TeamID:      "ABC123DEF4",
+				AppleID:     "dev@example.com",
+				AppPassword: "secret",
+			},
+		},
+	}
+
+	options := resolveAppleCommandOptions(cfg, appleCLIOptions{})
+	assert.Equal(t, "ai.lthn.core", options.BundleID)
+	assert.Equal(t, "arm64", options.Arch)
+	assert.False(t, options.Sign)
+	assert.Equal(t, "Developer ID Application: Lethean CIC (ABC123DEF4)", options.CertIdentity)
+	assert.Equal(t, "ABC123DEF4", options.TeamID)
+	assert.Equal(t, "dev@example.com", options.AppleID)
+	assert.Equal(t, "secret", options.Password)
+
+	options = resolveAppleCommandOptions(cfg, appleCLIOptions{
+		Arch:              "universal",
+		ArchChanged:       true,
+		Sign:              true,
+		SignChanged:       true,
+		BundleID:          "ai.lthn.core.preview",
+		BundleIDChanged:   true,
+		TeamID:            "ZZZ9876543",
+		TeamIDChanged:     true,
+		TestFlight:        true,
+		TestFlightChanged: true,
+	})
+	assert.Equal(t, "universal", options.Arch)
+	assert.True(t, options.Sign)
+	assert.Equal(t, "ai.lthn.core.preview", options.BundleID)
+	assert.Equal(t, "ZZZ9876543", options.TeamID)
+	assert.True(t, options.TestFlight)
+}
+
+func TestBuildCmd_resolveAppleBuildNumber_Good(t *testing.T) {
+	t.Run("prefers github run number when valid", func(t *testing.T) {
+		t.Setenv("GITHUB_RUN_NUMBER", "77")
+		value, err := resolveAppleBuildNumber(context.Background(), t.TempDir())
+		require.NoError(t, err)
+		assert.Equal(t, "77", value)
+	})
+
+	t.Run("falls back to git commit count", func(t *testing.T) {
+		dir := t.TempDir()
+		runGit(t, dir, "init")
+		runGit(t, dir, "config", "user.email", "test@example.com")
+		runGit(t, dir, "config", "user.name", "Test User")
+
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644))
+		runGit(t, dir, "add", ".")
+		runGit(t, dir, "commit", "-m", "feat: initial commit")
+
+		t.Setenv("GITHUB_RUN_NUMBER", "")
+		value, err := resolveAppleBuildNumber(context.Background(), dir)
+		require.NoError(t, err)
+		assert.Equal(t, "1", value)
+	})
+}
+
+func TestBuildCmd_AddAppleCommand_Good(t *testing.T) {
+	buildCommand := &cli.Command{Use: "build"}
+	AddAppleCommand(buildCommand)
+
+	assert.NotNil(t, appleCmd.Flags().Lookup("arch"))
+	assert.NotNil(t, appleCmd.Flags().Lookup("sign"))
+	assert.NotNil(t, appleCmd.Flags().Lookup("notarise"))
+	assert.NotNil(t, appleCmd.Flags().Lookup("dmg"))
+	assert.NotNil(t, appleCmd.Flags().Lookup("testflight"))
+	assert.NotNil(t, appleCmd.Flags().Lookup("appstore"))
+	assert.NotNil(t, appleCmd.Flags().Lookup("team-id"))
+	assert.NotNil(t, appleCmd.Flags().Lookup("bundle-id"))
+	assert.NotNil(t, appleCmd.Flags().Lookup("version"))
+	assert.NotNil(t, appleCmd.Flags().Lookup("build-number"))
+}
+
+func TestBuildCmd_runAppleBuildInDir_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	coreDir := ax.Join(projectDir, ".core")
+	require.NoError(t, ax.MkdirAll(coreDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
+project:
+  name: Core
+  binary: Core
+apple:
+  bundle_id: ai.lthn.core
+  sign: false
+sign:
+  macos:
+    identity: "Developer ID Application: Lethean CIC (ABC123DEF4)"
+    team_id: ABC123DEF4
+    apple_id: dev@example.com
+    app_password: secret
+`), 0o644))
+
+	oldBuildApple := buildAppleFn
+	t.Cleanup(func() {
+		buildAppleFn = oldBuildApple
+	})
+
+	var called bool
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+		called = true
+		assert.Equal(t, ax.Join(projectDir, "out"), cfg.OutputDir)
+		assert.Equal(t, "Core", cfg.Name)
+		assert.Equal(t, "v1.2.3", cfg.Version)
+		assert.Equal(t, "42", buildNumber)
+		assert.Equal(t, "ai.lthn.core", options.BundleID)
+		assert.True(t, options.Sign)
+		return &build.AppleBuildResult{
+			BundlePath:  ax.Join(cfg.OutputDir, "Core.app"),
+			Version:     "1.2.3",
+			BuildNumber: buildNumber,
+		}, nil
+	}
+
+	err := runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
+		Sign:        true,
+		SignChanged: true,
+		Version:     "v1.2.3",
+		BuildNumber: "42",
+		OutputDir:   "out",
+	})
+	require.NoError(t, err)
+	assert.True(t, called)
+}
+
+func boolPtr(value bool) *bool {
+	return &value
+}

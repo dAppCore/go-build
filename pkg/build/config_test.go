@@ -181,6 +181,61 @@ sign:
 		assert.Equal(t, "ABCD1234", cfg.Sign.GPG.Key)
 	})
 
+	t.Run("loads apple pipeline config with env expansion", func(t *testing.T) {
+		t.Setenv("APPLE_TEAM_ID", "ABC123DEF4")
+		t.Setenv("APPLE_BUNDLE_ID", "ai.lthn.core")
+		t.Setenv("APPLE_CERT_ID", "Developer ID Application: Lethean CIC (ABC123DEF4)")
+		t.Setenv("APPLE_KEY_PATH", "/tmp/AuthKey_TEST.p8")
+		t.Setenv("APPLE_BG", "assets/dmg-background.png")
+		t.Setenv("XCLOUD_WORKFLOW", "CoreGUI Release")
+		t.Setenv("XCLOUD_BRANCH", "main")
+
+		content := `
+version: 1
+apple:
+  team_id: ${APPLE_TEAM_ID}
+  bundle_id: ${APPLE_BUNDLE_ID}
+  arch: universal
+  cert_identity: ${APPLE_CERT_ID}
+  sign: false
+  notarise: true
+  dmg: true
+  api_key_path: ${APPLE_KEY_PATH}
+  dmg_background: ${APPLE_BG}
+  xcode_cloud:
+    workflow: ${XCLOUD_WORKFLOW}
+    triggers:
+      - branch: ${XCLOUD_BRANCH}
+        action: testflight
+      - tag: v*
+        action: appstore
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "ABC123DEF4", cfg.Apple.TeamID)
+		assert.Equal(t, "ai.lthn.core", cfg.Apple.BundleID)
+		assert.Equal(t, "universal", cfg.Apple.Arch)
+		assert.Equal(t, "Developer ID Application: Lethean CIC (ABC123DEF4)", cfg.Apple.CertIdentity)
+		require.NotNil(t, cfg.Apple.Sign)
+		assert.False(t, *cfg.Apple.Sign)
+		require.NotNil(t, cfg.Apple.Notarise)
+		assert.True(t, *cfg.Apple.Notarise)
+		require.NotNil(t, cfg.Apple.DMG)
+		assert.True(t, *cfg.Apple.DMG)
+		assert.Equal(t, "/tmp/AuthKey_TEST.p8", cfg.Apple.APIKeyPath)
+		assert.Equal(t, "assets/dmg-background.png", cfg.Apple.DMGBackground)
+		assert.Equal(t, "CoreGUI Release", cfg.Apple.XcodeCloud.Workflow)
+		require.Len(t, cfg.Apple.XcodeCloud.Triggers, 2)
+		assert.Equal(t, "main", cfg.Apple.XcodeCloud.Triggers[0].Branch)
+		assert.Equal(t, "testflight", cfg.Apple.XcodeCloud.Triggers[0].Action)
+		assert.Equal(t, "v*", cfg.Apple.XcodeCloud.Triggers[1].Tag)
+		assert.Equal(t, "appstore", cfg.Apple.XcodeCloud.Triggers[1].Action)
+	})
+
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
 		dir := t.TempDir()
 

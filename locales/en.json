@@ -45,6 +45,29 @@
         "targets": "Comma-separated build targets (os/arch)",
         "type": "Project type override (go, docker, pwa)"
       },
+      "apple": {
+        "short": "Build the macOS Apple target",
+        "long": "Build, sign, notarise, package, and optionally upload the macOS Apple target for the current project.",
+        "completed": "Apple build completed",
+        "flag": {
+          "arch": "Target architecture (arm64, amd64, or universal)",
+          "sign": "Code sign the app bundle",
+          "notarise": "Submit the result for Apple notarisation",
+          "dmg": "Create a DMG for direct distribution",
+          "testflight": "Upload the signed build to TestFlight",
+          "appstore": "Submit the signed build to App Store Connect",
+          "team_id": "Apple Developer Team ID",
+          "bundle_id": "Application bundle identifier",
+          "version": "Version string to embed in the app bundle",
+          "build_number": "Build number to embed in the app bundle"
+        },
+        "label": {
+          "bundle": "Bundle:",
+          "version": "Version:",
+          "build_number": "Build number:",
+          "dmg": "DMG:"
+        }
+      },
       "from_path": {
         "short": "Build a Go binary from a local path",
         "compiling": "Compiling...",

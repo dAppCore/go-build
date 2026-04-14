@@ -34,6 +34,8 @@ type BuildConfig struct {
 	Project Project `yaml:"project"`
 	// Build contains build settings.
 	Build Build `yaml:"build"`
+	// Apple contains macOS Apple pipeline settings.
+	Apple AppleConfig `yaml:"apple,omitempty"`
 	// Targets defines the build targets.
 	Targets []TargetConfig `yaml:"targets"`
 	// Sign contains code signing configuration.
@@ -100,6 +102,51 @@ type Build struct {
 	// Formats is the list of LinuxKit output formats.
 	// Supported values include iso, raw, qcow2, vmdk, vhd, gcp, aws, docker, tar, and kernel+initrd.
 	Formats []string `yaml:"formats,omitempty"`
+}
+
+// AppleConfig holds macOS Apple pipeline settings loaded from .core/build.yaml.
+// Pointer booleans preserve the difference between an explicit false and an unset field.
+type AppleConfig struct {
+	TeamID       string `yaml:"team_id,omitempty"`
+	BundleID     string `yaml:"bundle_id,omitempty"`
+	Arch         string `yaml:"arch,omitempty"`
+	CertIdentity string `yaml:"cert_identity,omitempty"`
+	ProfilePath  string `yaml:"profile_path,omitempty"`
+	KeychainPath string `yaml:"keychain_path,omitempty"`
+
+	Sign       *bool `yaml:"sign,omitempty"`
+	Notarise   *bool `yaml:"notarise,omitempty"`
+	DMG        *bool `yaml:"dmg,omitempty"`
+	TestFlight *bool `yaml:"testflight,omitempty"`
+	AppStore   *bool `yaml:"appstore,omitempty"`
+
+	APIKeyID       string `yaml:"api_key_id,omitempty"`
+	APIKeyIssuerID string `yaml:"api_key_issuer_id,omitempty"`
+	APIKeyPath     string `yaml:"api_key_path,omitempty"`
+	AppleID        string `yaml:"apple_id,omitempty"`
+	Password       string `yaml:"password,omitempty"`
+
+	BundleDisplayName string           `yaml:"bundle_display_name,omitempty"`
+	MinSystemVersion  string           `yaml:"min_system_version,omitempty"`
+	Category          string           `yaml:"category,omitempty"`
+	Copyright         string           `yaml:"copyright,omitempty"`
+	DMGBackground     string           `yaml:"dmg_background,omitempty"`
+	DMGVolumeName     string           `yaml:"dmg_volume_name,omitempty"`
+	EntitlementsPath  string           `yaml:"entitlements_path,omitempty"`
+	XcodeCloud        XcodeCloudConfig `yaml:"xcode_cloud,omitempty"`
+}
+
+// XcodeCloudConfig defines the Xcode Cloud workflow metadata stored in build config.
+type XcodeCloudConfig struct {
+	Workflow string              `yaml:"workflow,omitempty"`
+	Triggers []XcodeCloudTrigger `yaml:"triggers,omitempty"`
+}
+
+// XcodeCloudTrigger defines a single Xcode Cloud trigger rule.
+type XcodeCloudTrigger struct {
+	Branch string `yaml:"branch,omitempty"`
+	Tag    string `yaml:"tag,omitempty"`
+	Action string `yaml:"action,omitempty"`
 }
 
 // TargetConfig defines a build target in the config file.
@@ -230,12 +277,33 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.Build.Image = expandEnv(cfg.Build.Image)
 	cfg.Build.LinuxKitConfig = expandEnv(cfg.Build.LinuxKitConfig)
 
+	cfg.Apple.TeamID = expandEnv(cfg.Apple.TeamID)
+	cfg.Apple.BundleID = expandEnv(cfg.Apple.BundleID)
+	cfg.Apple.Arch = expandEnv(cfg.Apple.Arch)
+	cfg.Apple.CertIdentity = expandEnv(cfg.Apple.CertIdentity)
+	cfg.Apple.ProfilePath = expandEnv(cfg.Apple.ProfilePath)
+	cfg.Apple.KeychainPath = expandEnv(cfg.Apple.KeychainPath)
+	cfg.Apple.APIKeyID = expandEnv(cfg.Apple.APIKeyID)
+	cfg.Apple.APIKeyIssuerID = expandEnv(cfg.Apple.APIKeyIssuerID)
+	cfg.Apple.APIKeyPath = expandEnv(cfg.Apple.APIKeyPath)
+	cfg.Apple.AppleID = expandEnv(cfg.Apple.AppleID)
+	cfg.Apple.Password = expandEnv(cfg.Apple.Password)
+	cfg.Apple.BundleDisplayName = expandEnv(cfg.Apple.BundleDisplayName)
+	cfg.Apple.MinSystemVersion = expandEnv(cfg.Apple.MinSystemVersion)
+	cfg.Apple.Category = expandEnv(cfg.Apple.Category)
+	cfg.Apple.Copyright = expandEnv(cfg.Apple.Copyright)
+	cfg.Apple.DMGBackground = expandEnv(cfg.Apple.DMGBackground)
+	cfg.Apple.DMGVolumeName = expandEnv(cfg.Apple.DMGVolumeName)
+	cfg.Apple.EntitlementsPath = expandEnv(cfg.Apple.EntitlementsPath)
+	cfg.Apple.XcodeCloud.Workflow = expandEnv(cfg.Apple.XcodeCloud.Workflow)
+
 	cfg.Build.Flags = expandEnvSlice(cfg.Build.Flags)
 	cfg.Build.LDFlags = expandEnvSlice(cfg.Build.LDFlags)
 	cfg.Build.BuildTags = expandEnvSlice(cfg.Build.BuildTags)
 	cfg.Build.Env = expandEnvSlice(cfg.Build.Env)
 	cfg.Build.Tags = expandEnvSlice(cfg.Build.Tags)
 	cfg.Build.Formats = expandEnvSlice(cfg.Build.Formats)
+	cfg.Apple.XcodeCloud.Triggers = expandXcodeCloudTriggers(cfg.Apple.XcodeCloud.Triggers)
 
 	cfg.Build.Cache.Directory = expandEnv(cfg.Build.Cache.Directory)
 	cfg.Build.Cache.KeyPrefix = expandEnv(cfg.Build.Cache.KeyPrefix)
@@ -282,6 +350,22 @@ func expandTargetConfigs(values []TargetConfig) []TargetConfig {
 		result[i] = TargetConfig{
 			OS:   expandEnv(value.OS),
 			Arch: expandEnv(value.Arch),
+		}
+	}
+	return result
+}
+
+func expandXcodeCloudTriggers(values []XcodeCloudTrigger) []XcodeCloudTrigger {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make([]XcodeCloudTrigger, len(values))
+	for i, value := range values {
+		result[i] = XcodeCloudTrigger{
+			Branch: expandEnv(value.Branch),
+			Tag:    expandEnv(value.Tag),
+			Action: expandEnv(value.Action),
 		}
 	}
 	return result
