@@ -104,6 +104,50 @@ func TestBuildCmd_buildRuntimeConfig_ClonesBuildArgs_Good(t *testing.T) {
 	assert.Equal(t, "v1.2.3", buildConfig.Build.BuildArgs["VERSION"])
 }
 
+func TestBuildCmd_resolveNoSign_Good(t *testing.T) {
+	t.Run("keeps signing enabled by default", func(t *testing.T) {
+		assert.False(t, resolveNoSign(false, true, false))
+	})
+
+	t.Run("disables signing when no-sign is set", func(t *testing.T) {
+		assert.True(t, resolveNoSign(true, true, false))
+	})
+
+	t.Run("disables signing when sign=false is set", func(t *testing.T) {
+		assert.True(t, resolveNoSign(false, false, true))
+	})
+
+	t.Run("keeps signing enabled when sign=true is set", func(t *testing.T) {
+		assert.False(t, resolveNoSign(false, true, true))
+	})
+}
+
+func TestBuildCmd_resolvePackageOutputs_Good(t *testing.T) {
+	t.Run("leaves archive and checksum defaults alone when package is unset", func(t *testing.T) {
+		archiveOutput, checksumOutput := resolvePackageOutputs(true, false, true, false, true, false)
+		assert.True(t, archiveOutput)
+		assert.True(t, checksumOutput)
+	})
+
+	t.Run("disables archive and checksum when package=false and neither output flag is explicit", func(t *testing.T) {
+		archiveOutput, checksumOutput := resolvePackageOutputs(false, true, true, false, true, false)
+		assert.False(t, archiveOutput)
+		assert.False(t, checksumOutput)
+	})
+
+	t.Run("enables archive and checksum when package=true and neither output flag is explicit", func(t *testing.T) {
+		archiveOutput, checksumOutput := resolvePackageOutputs(true, true, false, false, false, false)
+		assert.True(t, archiveOutput)
+		assert.True(t, checksumOutput)
+	})
+
+	t.Run("preserves explicit archive and checksum overrides over package=false", func(t *testing.T) {
+		archiveOutput, checksumOutput := resolvePackageOutputs(false, true, true, true, false, true)
+		assert.True(t, archiveOutput)
+		assert.False(t, checksumOutput)
+	})
+}
+
 func TestBuildCmd_applyProjectBuildOverrides_Good(t *testing.T) {
 	t.Run("applies action-style build overrides and enables default cache", func(t *testing.T) {
 		cfg := build.DefaultConfig()

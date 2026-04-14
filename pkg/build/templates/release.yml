@@ -33,8 +33,18 @@ on:
         required: false
         type: string
         default: ""
+      build:
+        description: Run the build matrix job.
+        required: false
+        type: boolean
+        default: true
       build-name:
         description: Override the build output name passed to `core build`.
+        required: false
+        type: string
+        default: ""
+      build-platform:
+        description: Limit the build matrix to a single GOOS/GOARCH target.
         required: false
         type: string
         default: ""
@@ -48,6 +58,16 @@ on:
         required: false
         type: boolean
         default: false
+      sign:
+        description: Enable platform signing after build.
+        required: false
+        type: boolean
+        default: true
+      package:
+        description: Upload artifacts and publish the release.
+        required: false
+        type: boolean
+        default: true
       nsis:
         description: Enable NSIS packaging for Windows Wails builds.
         required: false
@@ -115,8 +135,18 @@ on:
         required: false
         type: string
         default: ""
+      build:
+        description: Run the build matrix job.
+        required: false
+        type: boolean
+        default: true
       build-name:
         description: Override the build output name passed to `core build`.
+        required: false
+        type: string
+        default: ""
+      build-platform:
+        description: Limit the build matrix to a single GOOS/GOARCH target.
         required: false
         type: string
         default: ""
@@ -130,6 +160,16 @@ on:
         required: false
         type: boolean
         default: false
+      sign:
+        description: Enable platform signing after build.
+        required: false
+        type: boolean
+        default: true
+      package:
+        description: Upload artifacts and publish the release.
+        required: false
+        type: boolean
+        default: true
       nsis:
         description: Enable NSIS packaging for Windows Wails builds.
         required: false
@@ -172,6 +212,7 @@ permissions:
 jobs:
   build:
     name: Build ${{ matrix.target }}
+    if: ${{ inputs.build && (inputs.build-platform == '' || inputs.build-platform == matrix.target) }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -374,6 +415,16 @@ jobs:
             args+=(--build-obfuscate)
           fi
 
+          if [ "${{ inputs.sign }}" = "false" ]; then
+            args+=(--sign=false)
+          fi
+
+          if [ "${{ inputs.package }}" = "true" ]; then
+            args+=(--package)
+          else
+            args+=(--package=false)
+          fi
+
           if [ "${{ inputs.nsis }}" = "true" ]; then
             args+=(--nsis)
           fi
@@ -395,6 +446,7 @@ jobs:
           "${args[@]}"
 
       - name: Upload artefacts
+        if: ${{ inputs.package }}
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.artifact_name }}
@@ -403,6 +455,7 @@ jobs:
 
   release:
     name: Publish release
+    if: ${{ inputs.build && inputs.package }}
     needs: build
     runs-on: ubuntu-latest
     steps:

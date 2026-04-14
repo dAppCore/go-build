@@ -33,6 +33,21 @@ func AddBuildCommands(c *core.Core) {
 	c.Command("build", core.Command{
 		Description: "cmd.build.long",
 		Action: func(opts core.Options) core.Result {
+			archiveOutput := cmdutil.OptionBoolDefault(opts, true, "archive")
+			archiveOutputSet := cmdutil.OptionHas(opts, "archive")
+			checksumOutput := cmdutil.OptionBoolDefault(opts, true, "checksum")
+			checksumOutputSet := cmdutil.OptionHas(opts, "checksum")
+			packageEnabled := cmdutil.OptionBoolDefault(opts, true, "package")
+			packageSet := cmdutil.OptionHas(opts, "package")
+			archiveOutput, checksumOutput = resolvePackageOutputs(
+				packageEnabled,
+				packageSet,
+				archiveOutput,
+				archiveOutputSet,
+				checksumOutput,
+				checksumOutputSet,
+			)
+
 			return cmdutil.ResultFromError(runProjectBuild(ProjectBuildRequest{
 				Context:        cmdutil.ContextOrBackground(),
 				BuildType:      cmdutil.OptionString(opts, "type"),
@@ -51,16 +66,20 @@ func AddBuildCommands(c *core.Core) {
 				DenoBuildSet:   cmdutil.OptionHas(opts, "deno-build", "deno_build"),
 				BuildCache:     cmdutil.OptionBool(opts, "build-cache", "build_cache"),
 				BuildCacheSet:  cmdutil.OptionHas(opts, "build-cache", "build_cache"),
-				ArchiveOutput:  cmdutil.OptionBoolDefault(opts, true, "archive"),
-				ChecksumOutput: cmdutil.OptionBoolDefault(opts, true, "checksum"),
+				ArchiveOutput:  archiveOutput,
+				ChecksumOutput: checksumOutput,
 				ArchiveFormat:  cmdutil.OptionString(opts, "archive-format"),
 				ConfigPath:     cmdutil.OptionString(opts, "config"),
 				Format:         cmdutil.OptionString(opts, "format"),
 				Push:           cmdutil.OptionBool(opts, "push"),
 				ImageName:      cmdutil.OptionString(opts, "image"),
-				NoSign:         cmdutil.OptionBool(opts, "no-sign"),
-				Notarize:       cmdutil.OptionBool(opts, "notarize"),
-				Verbose:        cmdutil.OptionBool(opts, "verbose", "v"),
+				NoSign: resolveNoSign(
+					cmdutil.OptionBool(opts, "no-sign"),
+					cmdutil.OptionBoolDefault(opts, true, "sign"),
+					cmdutil.OptionHas(opts, "sign"),
+				),
+				Notarize: cmdutil.OptionBool(opts, "notarize"),
+				Verbose:  cmdutil.OptionBool(opts, "verbose", "v"),
 			}))
 		},
 	})
@@ -103,4 +122,29 @@ func AddBuildCommands(c *core.Core) {
 	AddAppleCommand(c)
 	AddReleaseCommand(c)
 	AddWorkflowCommand(c)
+}
+
+func resolveNoSign(noSign bool, signEnabled bool, signSet bool) bool {
+	if noSign {
+		return true
+	}
+	if signSet && !signEnabled {
+		return true
+	}
+	return false
+}
+
+func resolvePackageOutputs(packageEnabled bool, packageSet bool, archiveOutput bool, archiveOutputSet bool, checksumOutput bool, checksumOutputSet bool) (bool, bool) {
+	if !packageSet {
+		return archiveOutput, checksumOutput
+	}
+
+	if !archiveOutputSet {
+		archiveOutput = packageEnabled
+	}
+	if !checksumOutputSet {
+		checksumOutput = packageEnabled
+	}
+
+	return archiveOutput, checksumOutput
 }
