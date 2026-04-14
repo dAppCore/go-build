@@ -31,13 +31,13 @@ export class BuildArtifacts extends LitElement {
 
     .toolbar-info {
       font-size: 0.8125rem;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     button.build {
       padding: 0.5rem 1.25rem;
       background: #6366f1;
-      colour: #fff;
+      color: #fff;
       border: none;
       border-radius: 0.375rem;
       font-size: 0.875rem;
@@ -69,13 +69,13 @@ export class BuildArtifacts extends LitElement {
 
     .confirm-text {
       flex: 1;
-      colour: #92400e;
+      color: #92400e;
     }
 
     button.confirm-yes {
       padding: 0.375rem 1rem;
       background: #dc2626;
-      colour: #fff;
+      color: #fff;
       border: none;
       border-radius: 0.375rem;
       font-size: 0.8125rem;
@@ -115,29 +115,29 @@ export class BuildArtifacts extends LitElement {
       font-size: 0.875rem;
       font-family: monospace;
       font-weight: 500;
-      colour: #111827;
+      color: #111827;
     }
 
     .artifact-size {
       font-size: 0.75rem;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     .empty {
       text-align: center;
       padding: 2rem;
-      colour: #9ca3af;
+      color: #9ca3af;
       font-size: 0.875rem;
     }
 
     .loading {
       text-align: center;
       padding: 2rem;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     .error {
-      colour: #dc2626;
+      color: #dc2626;
       padding: 0.75rem;
       background: #fef2f2;
       border-radius: 0.375rem;
@@ -151,7 +151,7 @@ export class BuildArtifacts extends LitElement {
       border: 1px solid #bbf7d0;
       border-radius: 0.375rem;
       font-size: 0.875rem;
-      colour: #166534;
+      color: #166534;
       margin-bottom: 1rem;
     }
   `;
