@@ -290,6 +290,37 @@ jobs:
             has_taskfile=true
           fi
 
+          configured_build_type=""
+          if [ -f .core/build.yaml ]; then
+            configured_build_type="$(python - <<'PY'
+from pathlib import Path
+import re
+
+path = Path(".core/build.yaml")
+in_build = False
+
+for raw_line in path.read_text().splitlines():
+    line = raw_line.rstrip()
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        continue
+
+    if not line.startswith((" ", "\t")):
+        in_build = stripped == "build:"
+        continue
+
+    if not in_build:
+        continue
+
+    match = re.match(r"^\s*type:\s*(.+?)\s*$", line)
+    if match:
+        print(match.group(1).strip().strip("\"'"), end="")
+        break
+PY
+)"
+            configured_build_type="$(printf '%s' "$configured_build_type" | tr '[:upper:]' '[:lower:]')"
+          fi
+
           has_docs_config=false
           if [ -f mkdocs.yml ] || [ -f mkdocs.yaml ] || [ -f docs/mkdocs.yml ] || [ -f docs/mkdocs.yaml ]; then
             has_docs_config=true
@@ -338,7 +369,25 @@ jobs:
           fi
 
           primary_stack_suggestion=unknown
-          if [ "$has_root_wails_json" = "true" ]; then
+          if [ -n "$configured_build_type" ]; then
+            case "$configured_build_type" in
+              wails)
+                primary_stack_suggestion=wails2
+                ;;
+              cpp)
+                primary_stack_suggestion=cpp
+                ;;
+              docs)
+                primary_stack_suggestion=docs
+                ;;
+              node)
+                primary_stack_suggestion=node
+                ;;
+              *)
+                primary_stack_suggestion="$configured_build_type"
+                ;;
+            esac
+          elif [ "$has_root_wails_json" = "true" ]; then
             primary_stack_suggestion=wails2
           elif { [ "$has_root_go_mod" = "true" ] || [ "$has_root_go_work" = "true" ]; } && [ "$has_frontend" = "true" ]; then
             primary_stack_suggestion=wails2
@@ -416,6 +465,7 @@ jobs:
             echo "has_root_main_go=$has_root_main_go"
             echo "has_root_cmakelists=$has_root_cmakelists"
             echo "has_taskfile=$has_taskfile"
+            echo "configured_build_type=$configured_build_type"
             echo "has_package_json=$has_package_json"
             echo "has_deno_manifest=$has_deno_manifest"
             echo "deno_requested=$deno_requested"
@@ -428,7 +478,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Setup Go
-        if: steps.discovery.outputs.has_go_toolchain == 'true' || steps.discovery.outputs.has_taskfile == 'true'
+        if: steps.discovery.outputs.has_go_toolchain == 'true' || steps.discovery.outputs.has_taskfile == 'true' || steps.discovery.outputs.configured_build_type == 'go' || steps.discovery.outputs.configured_build_type == 'wails' || steps.discovery.outputs.configured_build_type == 'taskfile'
         uses: actions/setup-go@v5
         with:
           go-version: ${{ inputs.go-version }}
@@ -453,7 +503,7 @@ jobs:
           echo "$gobin" >> "${GITHUB_PATH}"
 
       - name: Install Task CLI
-        if: steps.discovery.outputs.has_taskfile == 'true'
+        if: steps.discovery.outputs.has_taskfile == 'true' || steps.discovery.outputs.configured_build_type == 'taskfile'
         shell: bash
         run: |
           set -euo pipefail
@@ -472,20 +522,20 @@ jobs:
           echo "$gobin" >> "${GITHUB_PATH}"
 
       - name: Setup Node
-        if: steps.discovery.outputs.has_package_json == 'true'
+        if: steps.discovery.outputs.has_package_json == 'true' || steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'node'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
 
       - name: Enable Corepack
-        if: steps.discovery.outputs.has_package_json == 'true'
+        if: steps.discovery.outputs.has_package_json == 'true' || steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'node'
         shell: bash
         run: |
           set -euo pipefail
           corepack enable
 
       - name: Install frontend dependencies
-        if: steps.discovery.outputs.has_package_json == 'true'
+        if: steps.discovery.outputs.has_package_json == 'true' || steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'node'
         working-directory: ${{ inputs.working-directory }}
         shell: bash
         run: |
@@ -614,7 +664,7 @@ try {
           done < <(find_visible_files 3 -name package.json | sort)
 
       - name: Install Wails CLI
-        if: steps.discovery.outputs.primary_stack_suggestion == 'wails2'
+        if: steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'wails'
         working-directory: ${{ inputs.working-directory }}
         shell: bash
         run: |
@@ -641,13 +691,13 @@ try {
           core-version: ${{ inputs.core-version }}
 
       - name: Setup Python for Conan and MkDocs
-        if: steps.discovery.outputs.has_root_cmakelists == 'true' || steps.discovery.outputs.has_docs_config == 'true'
+        if: steps.discovery.outputs.has_root_cmakelists == 'true' || steps.discovery.outputs.has_docs_config == 'true' || steps.discovery.outputs.configured_build_type == 'cpp' || steps.discovery.outputs.configured_build_type == 'docs'
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       - name: Setup PHP and Composer
-        if: steps.discovery.outputs.has_root_composer_json == 'true'
+        if: steps.discovery.outputs.has_root_composer_json == 'true' || steps.discovery.outputs.configured_build_type == 'php'
         shell: bash
         run: |
           set -euo pipefail
@@ -668,7 +718,7 @@ try {
           echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
 
       - name: Setup Rust
-        if: steps.discovery.outputs.has_root_cargo_toml == 'true'
+        if: steps.discovery.outputs.has_root_cargo_toml == 'true' || steps.discovery.outputs.configured_build_type == 'rust'
         shell: bash
         run: |
           set -euo pipefail
@@ -695,7 +745,7 @@ try {
           esac
 
       - name: Install Conan
-        if: steps.discovery.outputs.has_root_cmakelists == 'true'
+        if: steps.discovery.outputs.has_root_cmakelists == 'true' || steps.discovery.outputs.configured_build_type == 'cpp'
         shell: bash
         run: |
           set -euo pipefail
@@ -703,7 +753,7 @@ try {
           python -m pip install conan
 
       - name: Install MkDocs
-        if: steps.discovery.outputs.has_docs_config == 'true'
+        if: steps.discovery.outputs.has_docs_config == 'true' || steps.discovery.outputs.configured_build_type == 'docs'
         shell: bash
         run: |
           set -euo pipefail
@@ -730,7 +780,7 @@ try {
             core-build-${{ runner.os }}-
 
       - name: Install Linux Wails dependencies
-        if: runner.os == 'Linux' && steps.discovery.outputs.primary_stack_suggestion == 'wails2'
+        if: runner.os == 'Linux' && (steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'wails')
         working-directory: ${{ inputs.working-directory }}
         shell: bash
         run: |

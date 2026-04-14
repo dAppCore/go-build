@@ -338,6 +338,7 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 
 	c.JSON(http.StatusOK, api.OK(map[string]any{
 		"types":                     typeStrings,
+		"configured_type":           discovery.ConfiguredType,
 		"os":                        discovery.OS,
 		"arch":                      discovery.Arch,
 		"primary":                   primary,

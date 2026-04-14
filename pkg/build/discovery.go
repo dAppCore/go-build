@@ -277,6 +277,8 @@ func IsRustProject(fs io.Medium, dir string) bool {
 type DiscoveryResult struct {
 	// Types lists all detected project types in priority order.
 	Types []ProjectType
+	// ConfiguredType is the explicit build.type override from .core/build.yaml when present.
+	ConfiguredType string
 	// OS is the current host operating system for the discovery run.
 	OS string
 	// Arch is the current host architecture for the discovery run.
@@ -409,6 +411,9 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	result.HasGoToolchain = result.HasRootGoMod || result.HasRootGoWork || hasNestedGoToolchain(fs, dir, 0)
 
 	result.Types = types
+	if configuredType, ok := configuredProjectType(fs, dir); ok {
+		result.ConfiguredType = string(configuredType)
+	}
 
 	// Linux distro detection: used for distro-sensitive build flags.
 	result.Distro = detectDistroVersion(fs)
@@ -629,6 +634,9 @@ func hasSubtreeManifest(fs io.Medium, dir string, depth int, match func(io.Mediu
 func resolvePrimaryStackSuggestion(result *DiscoveryResult) string {
 	if result == nil {
 		return "unknown"
+	}
+	if result.ConfiguredType != "" {
+		return SuggestStack([]ProjectType{ProjectType(result.ConfiguredType)})
 	}
 
 	switch {

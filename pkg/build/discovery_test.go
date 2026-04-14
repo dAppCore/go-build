@@ -768,8 +768,10 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeDocker}, result.Types)
+		assert.Equal(t, "docker", result.ConfiguredType)
 		assert.Equal(t, "docker", result.PrimaryStack)
 		assert.Equal(t, "docker", result.SuggestedStack)
+		assert.Equal(t, "docker", result.PrimaryStackSuggestion)
 		assert.True(t, result.Markers["go.mod"])
 		assert.True(t, result.Markers["wails.json"])
 	})
@@ -990,9 +992,24 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeCPP}, result.Types)
+		assert.Equal(t, "cpp", result.ConfiguredType)
 		assert.Equal(t, "cpp", result.PrimaryStack)
+		assert.Equal(t, "cpp", result.PrimaryStackSuggestion)
 		assert.True(t, result.Markers[".core/build.yaml"])
 		assert.True(t, result.Markers["Dockerfile"])
+	})
+
+	t.Run("maps configured wails type to the action stack suggestion", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: wails\n"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeWails}, result.Types)
+		assert.Equal(t, "wails", result.ConfiguredType)
+		assert.Equal(t, "wails2", result.SuggestedStack)
+		assert.Equal(t, "wails2", result.PrimaryStackSuggestion)
 	})
 
 	t.Run("reports distro-aware Linux packages for Wails projects", func(t *testing.T) {
