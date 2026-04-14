@@ -920,6 +920,7 @@ build:
 	assert.Contains(t, body, `"types":["wails","go","node"]`)
 	assert.Contains(t, body, `"primary":"wails"`)
 	assert.Contains(t, body, `"primary_stack":"wails"`)
+	assert.Contains(t, body, `"suggested_stack":"wails2"`)
 	assert.Contains(t, body, `"has_frontend":true`)
 	assert.Contains(t, body, `"has_subtree_npm":false`)
 	assert.Contains(t, body, `"linux_packages":`)

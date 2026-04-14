@@ -285,8 +285,8 @@ T.elementStyles = [], T.shadowRootOptions = { mode: "open" }, T[W("elementProper
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const L = globalThis, ue = (s) => s, Q = L.trustedTypes, pe = Q ? Q.createPolicy("lit-html", { createHTML: (s) => s }) : void 0, _e = "$lit$", A = `lit$${Math.random().toFixed(9).slice(2)}$`, ke = "?" + A, Te = `<${ke}>`, z = document, q = () => z.createComment(""), I = (s) => s === null || typeof s != "object" && typeof s != "function", ne = Array.isArray, je = (s) => ne(s) || typeof (s == null ? void 0 : s[Symbol.iterator]) == "function", te = `[ 	
-\f\r]`, M = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, ge = /-->/g, me = />/g, O = RegExp(`>|${te}(?:([^\\s"'>=/]+)(${te}*=${te}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), be = /'/g, ve = /"/g, xe = /^(?:script|style|textarea|title)$/i, Be = (s) => (e, ...t) => ({ _$litType$: s, strings: e, values: t }), l = Be(1), j = Symbol.for("lit-noChange"), c = Symbol.for("lit-nothing"), $e = /* @__PURE__ */ new WeakMap(), R = z.createTreeWalker(z, 129);
+\f\r]`, M = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, ge = /-->/g, be = />/g, O = RegExp(`>|${te}(?:([^\\s"'>=/]+)(${te}*=${te}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), me = /'/g, ve = /"/g, xe = /^(?:script|style|textarea|title)$/i, Be = (s) => (e, ...t) => ({ _$litType$: s, strings: e, values: t }), l = Be(1), j = Symbol.for("lit-noChange"), c = Symbol.for("lit-nothing"), $e = /* @__PURE__ */ new WeakMap(), R = z.createTreeWalker(z, 129);
 function Ae(s, e) {
   if (!ne(s) || !s.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return pe !== void 0 ? pe.createHTML(e) : e;
@@ -296,8 +296,8 @@ const Ne = (s, e) => {
   let i, o = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", a = M;
   for (let d = 0; d < t; d++) {
     const n = s[d];
-    let u, p, h = -1, m = 0;
-    for (; m < n.length && (a.lastIndex = m, p = a.exec(n), p !== null); ) m = a.lastIndex, a === M ? p[1] === "!--" ? a = ge : p[1] !== void 0 ? a = me : p[2] !== void 0 ? (xe.test(p[2]) && (i = RegExp("</" + p[2], "g")), a = O) : p[3] !== void 0 && (a = O) : a === O ? p[0] === ">" ? (a = i ?? M, h = -1) : p[1] === void 0 ? h = -2 : (h = a.lastIndex - p[2].length, u = p[1], a = p[3] === void 0 ? O : p[3] === '"' ? ve : be) : a === ve || a === be ? a = O : a === ge || a === me ? a = M : (a = O, i = void 0);
+    let u, p, h = -1, b = 0;
+    for (; b < n.length && (a.lastIndex = b, p = a.exec(n), p !== null); ) b = a.lastIndex, a === M ? p[1] === "!--" ? a = ge : p[1] !== void 0 ? a = be : p[2] !== void 0 ? (xe.test(p[2]) && (i = RegExp("</" + p[2], "g")), a = O) : p[3] !== void 0 && (a = O) : a === O ? p[0] === ">" ? (a = i ?? M, h = -1) : p[1] === void 0 ? h = -2 : (h = a.lastIndex - p[2].length, u = p[1], a = p[3] === void 0 ? O : p[3] === '"' ? ve : me) : a === ve || a === me ? a = O : a === ge || a === be ? a = M : (a = O, i = void 0);
     const $ = a === O && s[d + 1].startsWith("/>") ? " " : "";
     o += a === M ? n + Te : h >= 0 ? (r.push(u), n.slice(0, h) + _e + n.slice(h) + A + $) : n + A + (h === -2 ? d : $);
   }
@@ -316,15 +316,15 @@ class G {
     for (; (i = R.nextNode()) !== null && n.length < d; ) {
       if (i.nodeType === 1) {
         if (i.hasAttributes()) for (const h of i.getAttributeNames()) if (h.endsWith(_e)) {
-          const m = p[a++], $ = i.getAttribute(h).split(A), _ = /([.?@])?(.*)/.exec(m);
+          const b = p[a++], $ = i.getAttribute(h).split(A), _ = /([.?@])?(.*)/.exec(b);
           n.push({ type: 1, index: o, name: _[2], strings: $, ctor: _[1] === "." ? Me : _[1] === "?" ? We : _[1] === "@" ? Le : X }), i.removeAttribute(h);
         } else h.startsWith(A) && (n.push({ type: 6, index: o }), i.removeAttribute(h));
         if (xe.test(i.tagName)) {
-          const h = i.textContent.split(A), m = h.length - 1;
-          if (m > 0) {
+          const h = i.textContent.split(A), b = h.length - 1;
+          if (b > 0) {
             i.textContent = Q ? Q.emptyScript : "";
-            for (let $ = 0; $ < m; $++) i.append(h[$], q()), R.nextNode(), n.push({ type: 2, index: ++o });
-            i.append(h[m], q());
+            for (let $ = 0; $ < b; $++) i.append(h[$], q()), R.nextNode(), n.push({ type: 2, index: ++o });
+            i.append(h[b], q());
           }
         }
       } else if (i.nodeType === 8) if (i.data === ke) n.push({ type: 2, index: o });
@@ -604,10 +604,10 @@ function f(s) {
 function Ve(s, e) {
   const t = new WebSocket(s);
   return t.onmessage = (r) => {
-    var i, o, a, d, n, u, p, h, m, $, _, le;
+    var i, o, a, d, n, u, p, h, b, $, _, le;
     try {
       const C = JSON.parse(r.data);
-      ((o = (i = C.type) == null ? void 0 : i.startsWith) != null && o.call(i, "build.") || (d = (a = C.type) == null ? void 0 : a.startsWith) != null && d.call(a, "release.") || (u = (n = C.type) == null ? void 0 : n.startsWith) != null && u.call(n, "sdk.") || (h = (p = C.channel) == null ? void 0 : p.startsWith) != null && h.call(p, "build.") || ($ = (m = C.channel) == null ? void 0 : m.startsWith) != null && $.call(m, "release.") || (le = (_ = C.channel) == null ? void 0 : _.startsWith) != null && le.call(_, "sdk.")) && e(C);
+      ((o = (i = C.type) == null ? void 0 : i.startsWith) != null && o.call(i, "build.") || (d = (a = C.type) == null ? void 0 : a.startsWith) != null && d.call(a, "release.") || (u = (n = C.type) == null ? void 0 : n.startsWith) != null && u.call(n, "sdk.") || (h = (p = C.channel) == null ? void 0 : p.startsWith) != null && h.call(p, "build.") || ($ = (b = C.channel) == null ? void 0 : b.startsWith) != null && $.call(b, "release.") || (le = (_ = C.channel) == null ? void 0 : _.startsWith) != null && le.call(_, "sdk.")) && e(C);
     } catch {
     }
   }, t;
@@ -723,10 +723,34 @@ let P = class extends k {
                 <span class="field-label">Primary type</span>
                 <span class="badge type-${e.primary || "unknown"}">${e.primary || "none"}</span>
               </div>
+              <div class="field">
+                <span class="field-label">Suggested stack</span>
+                <span class="field-value">${e.suggested_stack || e.primary_stack || e.primary || "none"}</span>
+              </div>
               ${e.types.length > 1 ? l`
                     <div class="field">
                       <span class="field-label">Detected types</span>
                       <span class="field-value">${e.types.join(", ")}</span>
+                    </div>
+                  ` : c}
+              <div class="field">
+                <span class="field-label">Frontend</span>
+                <span class="badge ${e.has_frontend ? "present" : "absent"}">
+                  ${e.has_frontend ? "Detected" : "None"}
+                </span>
+              </div>
+              <div class="field">
+                <span class="field-label">Nested frontend</span>
+                <span class="badge ${e.has_subtree_npm ? "present" : "absent"}">
+                  ${e.has_subtree_npm ? "Depth 2" : "None"}
+                </span>
+              </div>
+              ${e.linux_packages && e.linux_packages.length > 0 ? l`
+                    <div class="field">
+                      <span class="field-label">Linux packages</span>
+                      <div class="flags">
+                        ${e.linux_packages.map((t) => l`<span class="flag">${t}</span>`)}
+                      </div>
                     </div>
                   ` : c}
               <div class="field">
@@ -1657,7 +1681,7 @@ var et = Object.defineProperty, tt = Object.getOwnPropertyDescriptor, w = (s, e,
     (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
   return r && i && et(e, t, i), i;
 };
-let b = class extends k {
+let m = class extends k {
   constructor() {
     super(...arguments), this.apiUrl = "", this.basePath = "", this.revisionPath = "", this.diffResult = null, this.diffing = !1, this.diffError = "", this.selectedLanguage = "", this.generating = !1, this.generateError = "", this.generateSuccess = "";
   }
@@ -1771,7 +1795,7 @@ let b = class extends k {
     `;
   }
 };
-b.styles = F`
+m.styles = F`
     :host {
       display: block;
       font-family: system-ui, -apple-system, sans-serif;
@@ -1946,37 +1970,37 @@ b.styles = F`
   `;
 w([
   D({ attribute: "api-url" })
-], b.prototype, "apiUrl", 2);
+], m.prototype, "apiUrl", 2);
 w([
   f()
-], b.prototype, "basePath", 2);
+], m.prototype, "basePath", 2);
 w([
   f()
-], b.prototype, "revisionPath", 2);
+], m.prototype, "revisionPath", 2);
 w([
   f()
-], b.prototype, "diffResult", 2);
+], m.prototype, "diffResult", 2);
 w([
   f()
-], b.prototype, "diffing", 2);
+], m.prototype, "diffing", 2);
 w([
   f()
-], b.prototype, "diffError", 2);
+], m.prototype, "diffError", 2);
 w([
   f()
-], b.prototype, "selectedLanguage", 2);
+], m.prototype, "selectedLanguage", 2);
 w([
   f()
-], b.prototype, "generating", 2);
+], m.prototype, "generating", 2);
 w([
   f()
-], b.prototype, "generateError", 2);
+], m.prototype, "generateError", 2);
 w([
   f()
-], b.prototype, "generateSuccess", 2);
-b = w([
+], m.prototype, "generateSuccess", 2);
+m = w([
   K("core-build-sdk")
-], b);
+], m);
 var st = Object.defineProperty, it = Object.getOwnPropertyDescriptor, H = (s, e, t, r) => {
   for (var i = r > 1 ? void 0 : r ? it(e, t) : e, o = s.length - 1, a; o >= 0; o--)
     (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
@@ -2202,6 +2226,6 @@ export {
   P as BuildConfig,
   E as BuildPanel,
   g as BuildRelease,
-  b as BuildSdk,
+  m as BuildSdk,
   Ve as connectBuildEvents
 };

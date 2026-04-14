@@ -334,6 +334,7 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		"types":           typeStrings,
 		"primary":         primary,
 		"primary_stack":   discovery.PrimaryStack,
+		"suggested_stack": discovery.SuggestedStack,
 		"dir":             dir,
 		"has_frontend":    discovery.HasFrontend,
 		"has_subtree_npm": discovery.HasSubtreeNpm,

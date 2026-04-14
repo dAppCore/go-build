@@ -105,6 +105,48 @@ jobs:
           working-directory: ${{ inputs.working-directory }}
           core-version: ${{ inputs.core-version }}
 
+      - name: Install Linux Wails dependencies
+        if: runner.os == 'Linux'
+        working-directory: ${{ inputs.working-directory }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          has_wails_frontend=false
+
+          if [ -f wails.json ]; then
+            has_wails_frontend=true
+          elif [ -f go.mod ] || [ -f go.work ]; then
+            if [ -f package.json ] || [ -f deno.json ] || [ -f deno.jsonc ] || [ -f frontend/package.json ] || [ -f frontend/deno.json ] || [ -f frontend/deno.jsonc ]; then
+              has_wails_frontend=true
+            elif find . -maxdepth 3 \( -name package.json -o -name deno.json -o -name deno.jsonc \) \
+              -not -path './package.json' \
+              -not -path './deno.json' \
+              -not -path './deno.jsonc' \
+              -not -path './frontend/package.json' \
+              -not -path './frontend/deno.json' \
+              -not -path './frontend/deno.jsonc' \
+              -not -path '*/node_modules/*' | grep -q .; then
+              has_wails_frontend=true
+            fi
+          fi
+
+          if [ "$has_wails_frontend" != "true" ]; then
+            echo "No Wails frontend detected; skipping Linux system dependencies."
+            exit 0
+          fi
+
+          webkit_pkg=libwebkit2gtk-4.0-dev
+          if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            if [ "${ID:-}" = "ubuntu" ] && dpkg --compare-versions "${VERSION_ID:-0}" ge "24.04"; then
+              webkit_pkg=libwebkit2gtk-4.1-dev
+            fi
+          fi
+
+          sudo apt-get update
+          sudo apt-get install -y "$webkit_pkg"
+
       - name: Build release artefacts
         working-directory: ${{ inputs.working-directory }}
         shell: bash

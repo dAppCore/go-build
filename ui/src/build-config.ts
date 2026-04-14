@@ -35,7 +35,12 @@ interface BuildConfigData {
 interface DiscoverData {
   types: string[];
   primary: string;
+  primary_stack?: string;
+  suggested_stack?: string;
   dir: string;
+  has_frontend?: boolean;
+  has_subtree_npm?: boolean;
+  linux_packages?: string[];
 }
 
 /**
@@ -249,11 +254,37 @@ export class BuildConfig extends LitElement {
                 <span class="field-label">Primary type</span>
                 <span class="badge type-${disc.primary || 'unknown'}">${disc.primary || 'none'}</span>
               </div>
+              <div class="field">
+                <span class="field-label">Suggested stack</span>
+                <span class="field-value">${disc.suggested_stack || disc.primary_stack || disc.primary || 'none'}</span>
+              </div>
               ${disc.types.length > 1
                 ? html`
                     <div class="field">
                       <span class="field-label">Detected types</span>
                       <span class="field-value">${disc.types.join(', ')}</span>
+                    </div>
+                  `
+                : nothing}
+              <div class="field">
+                <span class="field-label">Frontend</span>
+                <span class="badge ${disc.has_frontend ? 'present' : 'absent'}">
+                  ${disc.has_frontend ? 'Detected' : 'None'}
+                </span>
+              </div>
+              <div class="field">
+                <span class="field-label">Nested frontend</span>
+                <span class="badge ${disc.has_subtree_npm ? 'present' : 'absent'}">
+                  ${disc.has_subtree_npm ? 'Depth 2' : 'None'}
+                </span>
+              </div>
+              ${disc.linux_packages && disc.linux_packages.length > 0
+                ? html`
+                    <div class="field">
+                      <span class="field-label">Linux packages</span>
+                      <div class="flags">
+                        ${disc.linux_packages.map((pkg: string) => html`<span class="flag">${pkg}</span>`)}
+                      </div>
                     </div>
                   `
                 : nothing}
