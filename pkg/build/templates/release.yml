@@ -465,7 +465,7 @@ jobs:
             artifact_name="${artifact_name}_${suffix}"
           fi
 
-          echo "value=release-${artifact_name}" >> "${GITHUB_OUTPUT}"
+          echo "value=${artifact_name}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload artefacts
         if: ${{ inputs.package }}
@@ -477,7 +477,7 @@ jobs:
 
   release:
     name: Publish release
-    if: ${{ inputs.build && inputs.package }}
+    if: ${{ inputs.build && inputs.package && startsWith(github.ref, 'refs/tags/') }}
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -489,7 +489,6 @@ jobs:
       - name: Download build artefacts
         uses: actions/download-artifact@v4
         with:
-          pattern: release-*
           path: ${{ inputs.working-directory }}/dist
           merge-multiple: true
 

@@ -195,8 +195,11 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "suffix=\"${GITHUB_SHA::7}\"")
 		assert.Contains(t, content, "name: ${{ steps.artifact-name.outputs.value }}")
 		assert.Contains(t, content, "if: ${{ inputs.package }}")
-		assert.Contains(t, content, "if: ${{ inputs.build && inputs.package }}")
+		assert.Contains(t, content, "echo \"value=${artifact_name}\" >> \"${GITHUB_OUTPUT}\"")
+		assert.NotContains(t, content, "release-${artifact_name}")
+		assert.Contains(t, content, "if: ${{ inputs.build && inputs.package && startsWith(github.ref, 'refs/tags/') }}")
 		assert.Contains(t, content, "actions/download-artifact@v4")
+		assert.NotContains(t, content, "pattern: release-*")
 		assert.Contains(t, content, "command: ci")
 	})
 
@@ -249,7 +252,10 @@ func TestBuildCmd_RunReleaseWorkflow_Good(t *testing.T) {
 		assert.Contains(t, content, "--archive-format")
 		assert.Contains(t, content, "Compute artifact upload name")
 		assert.Contains(t, content, "name: ${{ steps.artifact-name.outputs.value }}")
+		assert.Contains(t, content, "echo \"value=${artifact_name}\" >> \"${GITHUB_OUTPUT}\"")
+		assert.NotContains(t, content, "release-${artifact_name}")
 		assert.Contains(t, content, "actions/download-artifact@v4")
+		assert.NotContains(t, content, "pattern: release-*")
 		assert.Contains(t, content, "command: ci")
 	})
 
