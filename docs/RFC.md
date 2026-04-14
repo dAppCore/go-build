@@ -25,6 +25,36 @@ The runtime flow is:
 4. Builders own stack-specific execution.
 5. Signing, checksums, archiving, release publishing, and workflow packaging happen last.
 
+## GitHub Action Surface
+
+The public action surface remains `dAppCore/build@v3`.
+
+Its main responsibilities are:
+
+- install Go, Node, Wails, and optional Deno or Conan tooling
+- detect the stack from repository markers and distro hints
+- compute action-style build options such as obfuscation, NSIS, and WebView2
+- run the build and signing phases
+- upload workflow artifacts and publish releases on tags
+
+The generated workflow in this repo preserves the action-style input model:
+
+- `core-version`
+- `go-version`
+- `node-version`
+- `wails-version`
+- `build`
+- `sign`
+- `package`
+- `build-name`
+- `build-platform`
+- `build-tags`
+- `build-obfuscate`
+- `nsis`
+- `deno-build`
+- `wails-build-webview2`
+- `build-cache`
+
 ## Builders
 
 | Builder | Detects | Notes |
@@ -67,6 +97,13 @@ The Go implementation intentionally ports the high-signal action features:
 
 `core build workflow` writes `.github/workflows/release.yml` to mirror that action pipeline.
 
+The local docs in this repo track the architecture docs from the public action:
+
+- discovery runs first and exports marker, git, and distro context downstream
+- option computation is deterministic and side-effect free
+- setup stays thin and conditional instead of becoming a monolithic shell script
+- stack wrappers own full pipeline execution for Wails, Docs, C++, Docker, LinuxKit, and Taskfile builds
+
 ## Publishers
 
 Release publishing currently covers:
@@ -86,12 +123,19 @@ The Apple surface provides:
 
 - `core build apple`
 - arm64, amd64, and universal macOS app builds
+- the RFC-facing `pkg/build/apple/` wrapper with `core.Result`-based `Builder`, `AppleBuilder`, and functional options such as `WithArch`, `WithSign`, `WithNotarise`, `WithDMG`, `WithTestFlight`, and `WithAppStore`
 - generated `Info.plist` and entitlements
 - codesign and notarisation
 - DMG creation for direct distribution
 - TestFlight and App Store upload flows
 - App Store preflight checks for metadata, privacy policy URL, minimum macOS version, licence declaration, and private API scanning
 - Xcode Cloud helper script generation from `.core/build.yaml`
+
+Xcode Cloud generation writes the checked-in scripts expected by the spec:
+
+- `ci_scripts/ci_post_clone.sh`
+- `ci_scripts/ci_pre_xcodebuild.sh`
+- `ci_scripts/ci_post_xcodebuild.sh`
 
 The RFC-facing wrapper lives in `pkg/build/apple/` and exposes `core.Result`-based contracts for Apple builder APIs.
 
