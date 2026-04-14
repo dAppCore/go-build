@@ -905,7 +905,13 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		assert.Equal(t, "wails", result.PrimaryStack)
+		assert.Equal(t, "wails2", result.PrimaryStackSuggestion)
 		assert.True(t, result.HasFrontend)
+		assert.True(t, result.HasPackageJSON)
+		assert.False(t, result.HasDenoManifest)
+		assert.True(t, result.HasGoToolchain)
+		assert.False(t, result.HasRootGoWork)
+		assert.False(t, result.HasRootWailsJSON)
 		assert.False(t, result.HasSubtreeNpm)
 	})
 
@@ -921,7 +927,10 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		assert.Equal(t, "wails", result.PrimaryStack)
+		assert.Equal(t, "wails2", result.PrimaryStackSuggestion)
 		assert.True(t, result.HasFrontend)
+		assert.False(t, result.HasPackageJSON)
+		assert.True(t, result.HasDenoManifest)
 		assert.False(t, result.HasSubtreeNpm)
 		assert.True(t, result.Markers["frontend/deno.json"])
 		assert.False(t, result.Markers["frontend/package.json"])
@@ -996,6 +1005,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		result, err := DiscoverFull(mock, "/project")
 		require.NoError(t, err)
 		assert.Equal(t, []string{"libwebkit2gtk-4.1-dev"}, result.LinuxPackages)
+		assert.Equal(t, "libwebkit2gtk-4.1-dev", result.WebKitPackage)
 	})
 
 	t.Run("empty directory returns empty result", func(t *testing.T) {
@@ -1008,10 +1018,19 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.False(t, result.HasFrontend)
 		assert.False(t, result.HasRootPackageJSON)
 		assert.False(t, result.HasFrontendPackageJSON)
+		assert.False(t, result.HasPackageJSON)
+		assert.False(t, result.HasDenoManifest)
 		assert.False(t, result.HasRootGoMod)
+		assert.False(t, result.HasRootGoWork)
 		assert.False(t, result.HasRootMainGo)
 		assert.False(t, result.HasRootCMakeLists)
+		assert.False(t, result.HasRootWailsJSON)
 		assert.False(t, result.HasSubtreeNpm)
+		assert.False(t, result.HasSubtreeDenoManifest)
+		assert.False(t, result.HasDocsConfig)
+		assert.False(t, result.HasGoToolchain)
+		assert.Equal(t, "unknown", result.PrimaryStackSuggestion)
+		assert.Empty(t, result.WebKitPackage)
 	})
 
 	t.Run("detects docs project markers", func(t *testing.T) {
@@ -1020,6 +1039,8 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeDocs}, result.Types)
 		assert.Equal(t, "docs", result.PrimaryStack)
+		assert.Equal(t, "docs", result.PrimaryStackSuggestion)
+		assert.True(t, result.HasDocsConfig)
 		assert.True(t, result.Markers["mkdocs.yml"])
 	})
 
@@ -1123,6 +1144,21 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeTaskfile}, result.Types)
 		assert.Equal(t, "taskfile", result.PrimaryStack)
 		assert.True(t, result.Markers["Taskfile.yaml"])
+	})
+
+	t.Run("reports nested Go toolchains for action parity even when root detection is empty", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "services", "api")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "go.mod"), []byte("module example/api\n"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Empty(t, result.Types)
+		assert.Empty(t, result.PrimaryStack)
+		assert.Equal(t, "unknown", result.SuggestedStack)
+		assert.True(t, result.HasGoToolchain)
+		assert.Equal(t, "go", result.PrimaryStackSuggestion)
 	})
 }
 

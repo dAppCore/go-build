@@ -295,14 +295,36 @@ type DiscoveryResult struct {
 	HasFrontendPackageJSON bool
 	// HasRootGoMod reports whether go.mod exists at the project root.
 	HasRootGoMod bool
+	// HasRootGoWork reports whether go.work exists at the project root.
+	HasRootGoWork bool
 	// HasRootMainGo reports whether main.go exists at the project root.
 	HasRootMainGo bool
 	// HasRootCMakeLists reports whether CMakeLists.txt exists at the project root.
 	HasRootCMakeLists bool
+	// HasRootWailsJSON reports whether wails.json exists at the project root.
+	HasRootWailsJSON bool
+	// HasPackageJSON reports whether package.json exists at the root, in frontend/,
+	// or in a supported nested subtree.
+	HasPackageJSON bool
+	// HasDenoManifest reports whether deno.json or deno.jsonc exists at the root,
+	// in frontend/, or in a supported nested subtree.
+	HasDenoManifest bool
 	// HasSubtreeNpm is true when a nested package.json exists within depth 2.
 	HasSubtreeNpm bool
+	// HasSubtreeDenoManifest is true when a nested Deno manifest exists within depth 2.
+	HasSubtreeDenoManifest bool
+	// HasDocsConfig reports whether MkDocs config exists at the root or under docs/.
+	HasDocsConfig bool
+	// HasGoToolchain reports whether Go markers exist at the root or in a visible
+	// nested subtree, mirroring the action discovery contract used for setup.
+	HasGoToolchain bool
+	// PrimaryStackSuggestion mirrors the richer action output name and marker-based
+	// precedence used by the generated workflow discovery step.
+	PrimaryStackSuggestion string
 	// LinuxPackages lists distro-aware system dependencies needed by the detected stack.
 	LinuxPackages []string
+	// WebKitPackage is the Ubuntu-aware WebKit dependency selected for Wails builds.
+	WebKitPackage string
 	// Markers records the presence of each raw marker file checked.
 	Markers map[string]bool
 	// Distro holds the detected Linux distribution version (e.g., "24.04").
@@ -362,8 +384,11 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	result.HasRootPackageJSON = result.Markers[markerNodePackage]
 	result.HasFrontendPackageJSON = result.Markers[markerFrontendPackage]
 	result.HasRootGoMod = result.Markers[markerGoMod]
+	result.HasRootGoWork = result.Markers[markerGoWork]
 	result.HasRootMainGo = result.Markers[markerMainGo]
 	result.HasRootCMakeLists = result.Markers["CMakeLists.txt"]
+	result.HasRootWailsJSON = result.Markers[markerWails]
+	result.HasDocsConfig = IsMkDocsProject(fs, dir)
 
 	// Pattern-based marker: LinuxKit configs may live in .core/linuxkit/*.yml or *.yaml.
 	result.Markers[markerLinuxKitNestedYML] = hasYAMLInDir(fs, ax.Join(dir, ".core", "linuxkit"))
@@ -371,18 +396,24 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	// Subtree npm detection
 	result.HasSubtreeNpm = HasSubtreeNpm(fs, dir)
+	result.HasSubtreeDenoManifest = hasSubtreeDenoManifest(fs, dir)
+	result.HasPackageJSON = result.HasRootPackageJSON || result.HasFrontendPackageJSON || result.HasSubtreeNpm
+	result.HasDenoManifest = result.Markers[markerDenoJSON] ||
+		result.Markers[markerDenoJSONC] ||
+		result.Markers[markerFrontendDenoJSON] ||
+		result.Markers[markerFrontendDenoJSONC] ||
+		result.HasSubtreeDenoManifest
 
 	// Frontend detection: root manifests, frontend/ manifests, or nested frontend trees.
-	result.HasFrontend = hasFrontendManifest(fs, dir) ||
-		hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
-		hasSubtreeFrontendManifest(fs, dir) ||
-		result.HasSubtreeNpm
+	result.HasFrontend = result.HasPackageJSON || result.HasDenoManifest
+	result.HasGoToolchain = result.HasRootGoMod || result.HasRootGoWork || hasNestedGoToolchain(fs, dir, 0)
 
 	result.Types = types
 
 	// Linux distro detection: used for distro-sensitive build flags.
 	result.Distro = detectDistroVersion(fs)
 	result.LinuxPackages = ResolveLinuxPackages(result.Types, result.Distro)
+	result.WebKitPackage = firstString(result.LinuxPackages)
 	if git := DetectGitHubMetadata(); git != nil {
 		result.Ref = git.Ref
 		result.Branch = git.Branch
@@ -399,6 +430,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 		result.PrimaryStack = string(types[0])
 	}
 	result.SuggestedStack = SuggestStack(types)
+	result.PrimaryStackSuggestion = resolvePrimaryStackSuggestion(result)
 
 	return result, nil
 }
@@ -543,6 +575,89 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 	}
 
 	return false
+}
+
+func hasSubtreeDenoManifest(fs io.Medium, dir string) bool {
+	return hasSubtreeManifest(fs, dir, 0, func(fs io.Medium, candidate string) bool {
+		return fs.IsFile(ax.Join(candidate, markerDenoJSON)) || fs.IsFile(ax.Join(candidate, markerDenoJSONC))
+	})
+}
+
+func hasNestedGoToolchain(fs io.Medium, dir string, depth int) bool {
+	return hasSubtreeManifest(fs, dir, depth, func(fs io.Medium, candidate string) bool {
+		return fs.IsFile(ax.Join(candidate, markerGoMod)) || fs.IsFile(ax.Join(candidate, markerGoWork))
+	}, 4)
+}
+
+func hasSubtreeManifest(fs io.Medium, dir string, depth int, match func(io.Medium, string) bool, maxDepth ...int) bool {
+	limit := 2
+	if len(maxDepth) > 0 {
+		limit = maxDepth[0]
+	}
+	if depth >= limit {
+		return false
+	}
+
+	entries, err := fs.List(dir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if shouldSkipSubtreeDir(name) || name == "frontend" {
+			continue
+		}
+
+		candidateDir := ax.Join(dir, name)
+		if match(fs, candidateDir) {
+			return true
+		}
+
+		if hasSubtreeManifest(fs, candidateDir, depth+1, match, limit) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func resolvePrimaryStackSuggestion(result *DiscoveryResult) string {
+	if result == nil {
+		return "unknown"
+	}
+
+	switch {
+	case result.HasRootWailsJSON:
+		return "wails2"
+	case (result.HasRootGoMod || result.HasRootGoWork) && result.HasFrontend:
+		return "wails2"
+	case result.HasRootCMakeLists:
+		return "cpp"
+	case result.HasDocsConfig && !result.HasGoToolchain:
+		return "docs"
+	case result.HasFrontend && !result.HasGoToolchain:
+		return "node"
+	case result.HasGoToolchain:
+		return "go"
+	case result.HasDocsConfig:
+		return "docs"
+	case result.HasFrontend:
+		return "node"
+	default:
+		return "unknown"
+	}
+}
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 // hasGoRootMarker reports whether the project root contains a Go module or workspace marker.
