@@ -70,6 +70,59 @@ func TestApple_CreateUniversal_Good(t *testing.T) {
 	assert.Equal(t, "universal", string(content))
 }
 
+func TestApple_CreateUniversal_MergesHelpersAndFrameworks_Good(t *testing.T) {
+	dir := t.TempDir()
+	arm64Path := ax.Join(dir, "arm64", "Core.app")
+	amd64Path := ax.Join(dir, "amd64", "Core.app")
+	outputPath := ax.Join(dir, "universal", "Core.app")
+
+	writeDummyAppBundle(t, arm64Path, "Core", "arm64-main")
+	writeDummyAppBundle(t, amd64Path, "Core", "amd64-main")
+	writeDummyExecutable(t, ax.Join(arm64Path, "Contents", "MacOS", "Core Helper"), "arm64-helper")
+	writeDummyExecutable(t, ax.Join(amd64Path, "Contents", "MacOS", "Core Helper"), "amd64-helper")
+	writeDummyExecutable(t, ax.Join(arm64Path, "Contents", "Frameworks", "Example.framework", "Example"), "arm64-framework")
+	writeDummyExecutable(t, ax.Join(amd64Path, "Contents", "Frameworks", "Example.framework", "Example"), "amd64-framework")
+	writeDummyExecutable(t, ax.Join(arm64Path, "Contents", "Frameworks", "libSupport.dylib"), "arm64-dylib")
+	writeDummyExecutable(t, ax.Join(amd64Path, "Contents", "Frameworks", "libSupport.dylib"), "amd64-dylib")
+
+	oldResolve := appleResolveCommand
+	oldCombined := appleCombinedOutput
+	t.Cleanup(func() {
+		appleResolveCommand = oldResolve
+		appleCombinedOutput = oldCombined
+	})
+
+	var mergedOutputs []string
+	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
+		return name, nil
+	}
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+		require.Equal(t, "lipo", command)
+		require.Len(t, args, 5)
+		require.Equal(t, "-create", args[0])
+		require.Equal(t, "-output", args[1])
+		mergedOutputs = append(mergedOutputs, args[2])
+		require.NoError(t, ax.WriteFile(args[2], []byte("universal"), 0o755))
+		return "", nil
+	}
+
+	err := CreateUniversal(arm64Path, amd64Path, outputPath)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		ax.Join(outputPath, "Contents", "Frameworks", "Example.framework", "Example"),
+		ax.Join(outputPath, "Contents", "Frameworks", "libSupport.dylib"),
+		ax.Join(outputPath, "Contents", "MacOS", "Core"),
+		ax.Join(outputPath, "Contents", "MacOS", "Core Helper"),
+	}, mergedOutputs)
+
+	for _, path := range mergedOutputs {
+		content, readErr := ax.ReadFile(path)
+		require.NoError(t, readErr)
+		assert.Equal(t, "universal", string(content))
+	}
+}
+
 func TestApple_BuildWailsApp_AddsMLXBuildTag_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	bundlePath := ax.Join(projectDir, "build", "bin", "Core.app")
@@ -255,6 +308,28 @@ func TestApple_BuildApple_AppStorePreflight_Bad(t *testing.T) {
 	assert.ErrorContains(t, err, "distribution certificate")
 }
 
+func TestApple_BuildApple_TestFlightRequiresDistributionCertificate_Bad(t *testing.T) {
+	_, err := BuildApple(context.Background(), &Config{
+		FS:         io.Local,
+		ProjectDir: t.TempDir(),
+		OutputDir:  ax.Join(t.TempDir(), "dist", "apple"),
+		Name:       "Core",
+		Version:    "v1.2.3",
+	}, AppleOptions{
+		BundleID:       "ai.lthn.core",
+		Arch:           "arm64",
+		Sign:           true,
+		TestFlight:     true,
+		CertIdentity:   "Developer ID Application: Lethean CIC (ABC123DEF4)",
+		APIKeyID:       "KEY123",
+		APIKeyIssuerID: "ISSUER456",
+		APIKeyPath:     "/tmp/AuthKey_KEY123.p8",
+		ProfilePath:    "/tmp/Core.provisionprofile",
+	}, "42")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "distribution certificate")
+}
+
 func TestApple_BuildApple_AppStorePreflight_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist", "apple")
@@ -385,6 +460,12 @@ func writeDummyAppBundle(t *testing.T, appPath, executableName, marker string) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ax.WriteFile(ax.Join(appPath, "Contents", "MacOS", executableName), []byte(marker), 0o755))
+}
+
+func writeDummyExecutable(t *testing.T, path, marker string) {
+	t.Helper()
+	require.NoError(t, io.Local.EnsureDir(ax.Dir(path)))
+	require.NoError(t, ax.WriteFile(path, []byte(marker), 0o755))
 }
 
 func writeAppStoreMetadata(t *testing.T, projectDir string) string {

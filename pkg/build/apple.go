@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -291,13 +292,12 @@ func validateAppleBuildOptions(options AppleOptions) error {
 		if core.Trim(options.ProfilePath) == "" {
 			return coreerr.E("build.validateAppleBuildOptions", "profile_path is required for App Store Connect uploads", nil)
 		}
+		if isDeveloperIDIdentity(options.CertIdentity) {
+			return coreerr.E("build.validateAppleBuildOptions", "TestFlight and App Store uploads require an Apple distribution certificate, not Developer ID", nil)
+		}
 	}
 
 	if options.AppStore {
-		if isDeveloperIDIdentity(options.CertIdentity) {
-			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions require an Apple distribution certificate, not Developer ID", nil)
-		}
-
 		minSystemVersion := firstNonEmpty(options.MinSystemVersion, defaultAppleMinSystemVersion)
 		if compareAppleVersion(minSystemVersion, defaultAppleMinSystemVersion) < 0 {
 			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions require min_system_version 13.0 or newer", nil)
@@ -642,18 +642,19 @@ func CreateUniversal(arm64Path, amd64Path, outputPath string) error {
 		return coreerr.E("build.CreateUniversal", "failed to copy arm64 bundle", err)
 	}
 
-	armBinary := bundleExecutablePath(arm64Path)
-	amdBinary := bundleExecutablePath(amd64Path)
-	outputBinary := bundleExecutablePath(outputPath)
-
 	lipoCommand, err := resolveLipoCli()
 	if err != nil {
 		return err
 	}
 
-	output, err := appleCombinedOutput(context.Background(), "", nil, lipoCommand, "-create", "-output", outputBinary, armBinary, amdBinary)
-	if err != nil {
-		return coreerr.E("build.CreateUniversal", "lipo failed: "+output, err)
+	for _, candidate := range universalMergeCandidates(io.Local, arm64Path, amd64Path) {
+		armCandidate := ax.Join(arm64Path, candidate)
+		amdCandidate := ax.Join(amd64Path, candidate)
+		outputCandidate := ax.Join(outputPath, candidate)
+		output, err := appleCombinedOutput(context.Background(), "", nil, lipoCommand, "-create", "-output", outputCandidate, armCandidate, amdCandidate)
+		if err != nil {
+			return coreerr.E("build.CreateUniversal", "lipo failed for "+candidate+": "+output, err)
+		}
 	}
 
 	return nil
@@ -714,6 +715,16 @@ func Notarise(ctx context.Context, cfg NotariseConfig) error {
 	if cfg.AppPath == "" {
 		return coreerr.E("build.Notarise", "app_path is required", nil)
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	notariseCtx := ctx
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		notariseCtx, cancel = context.WithTimeout(ctx, 30*time.Minute)
+		defer cancel()
+	}
 
 	authArgs, err := notariseAuthArgs(cfg)
 	if err != nil {
@@ -736,20 +747,20 @@ func Notarise(ctx context.Context, cfg NotariseConfig) error {
 	defer func() { _ = ax.RemoveAll(tempDir) }()
 
 	zipPath := ax.Join(tempDir, ax.Base(cfg.AppPath)+".zip")
-	output, err := appleCombinedOutput(ctx, "", nil, dittoCommand, "-c", "-k", "--keepParent", cfg.AppPath, zipPath)
+	output, err := appleCombinedOutput(notariseCtx, "", nil, dittoCommand, "-c", "-k", "--keepParent", cfg.AppPath, zipPath)
 	if err != nil {
 		return coreerr.E("build.Notarise", "failed to create notarisation archive: "+output, err)
 	}
 
 	submitArgs := []string{"notarytool", "submit", zipPath, "--wait", "--output-format", "json"}
 	submitArgs = append(submitArgs, authArgs...)
-	output, err = appleCombinedOutput(ctx, "", nil, xcrunCommand, submitArgs...)
+	output, err = appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, submitArgs...)
 	if err != nil {
 		requestID := extractNotaryRequestID(output)
 		if requestID != "" {
 			logArgs := []string{"notarytool", "log", requestID}
 			logArgs = append(logArgs, authArgs...)
-			if logOutput, logErr := appleCombinedOutput(ctx, "", nil, xcrunCommand, logArgs...); logErr == nil && logOutput != "" {
+			if logOutput, logErr := appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, logArgs...); logErr == nil && logOutput != "" {
 				output = core.Join("\n", output, logOutput)
 			}
 		}
@@ -761,7 +772,7 @@ func Notarise(ctx context.Context, cfg NotariseConfig) error {
 		return coreerr.E("build.Notarise", "Apple rejected notarisation request with status "+status, nil)
 	}
 
-	output, err = appleCombinedOutput(ctx, "", nil, xcrunCommand, "stapler", "staple", cfg.AppPath)
+	output, err = appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, "stapler", "staple", cfg.AppPath)
 	if err != nil {
 		return coreerr.E("build.Notarise", "failed to staple notarisation ticket: "+output, err)
 	}
@@ -771,7 +782,7 @@ func Notarise(ctx context.Context, cfg NotariseConfig) error {
 		if err != nil {
 			return err
 		}
-		output, err = appleCombinedOutput(ctx, "", nil, spctlCommand, "--assess", "--type", "execute", cfg.AppPath)
+		output, err = appleCombinedOutput(notariseCtx, "", nil, spctlCommand, "--assess", "--type", "execute", cfg.AppPath)
 		if err != nil {
 			return coreerr.E("build.Notarise", "Gatekeeper assessment failed: "+output, err)
 		}
@@ -1071,6 +1082,72 @@ func bundleExecutablePath(appPath string) string {
 		}
 	}
 	return ax.Join(appPath, "Contents", "MacOS", executableName)
+}
+
+func universalMergeCandidates(filesystem io.Medium, arm64Path, amd64Path string) []string {
+	candidates := map[string]struct{}{}
+	seedUniversalMergeCandidates(filesystem, arm64Path, amd64Path, "", candidates)
+
+	paths := make([]string, 0, len(candidates))
+	for path := range candidates {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func seedUniversalMergeCandidates(filesystem io.Medium, arm64Path, amd64Path, relativePath string, candidates map[string]struct{}) {
+	currentPath := arm64Path
+	if relativePath != "" {
+		currentPath = ax.Join(arm64Path, relativePath)
+	}
+
+	entries, err := filesystem.List(currentPath)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		entryRelativePath := entry.Name()
+		if relativePath != "" {
+			entryRelativePath = ax.Join(relativePath, entry.Name())
+		}
+
+		armEntryPath := ax.Join(arm64Path, entryRelativePath)
+		amdEntryPath := ax.Join(amd64Path, entryRelativePath)
+		if entry.IsDir() {
+			if filesystem.IsDir(amdEntryPath) {
+				seedUniversalMergeCandidates(filesystem, arm64Path, amd64Path, entryRelativePath, candidates)
+			}
+			continue
+		}
+
+		if !filesystem.IsFile(amdEntryPath) || !shouldMergeUniversalPath(filesystem, armEntryPath, entryRelativePath) {
+			continue
+		}
+		candidates[entryRelativePath] = struct{}{}
+	}
+}
+
+func shouldMergeUniversalPath(filesystem io.Medium, path, relativePath string) bool {
+	info, err := filesystem.Stat(path)
+	if err == nil && info.Mode()&0o111 != 0 {
+		return true
+	}
+
+	lowerRelativePath := core.Lower(relativePath)
+	if core.HasSuffix(lowerRelativePath, ".dylib") || core.HasSuffix(lowerRelativePath, ".so") {
+		return true
+	}
+
+	for currentDir := ax.Dir(relativePath); currentDir != "." && currentDir != "" && currentDir != string(os.PathSeparator); currentDir = ax.Dir(currentDir) {
+		base := ax.Base(currentDir)
+		if core.HasSuffix(base, ".framework") {
+			return ax.Base(relativePath) == core.TrimSuffix(base, ".framework")
+		}
+	}
+
+	return false
 }
 
 func plistStringValue(content, key string) string {
