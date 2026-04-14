@@ -775,7 +775,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	})
 
 	t.Run("returns complete result for Go project", func(t *testing.T) {
-		dir := setupTestDir(t, "go.mod")
+		dir := setupTestDir(t, "go.mod", "main.go")
 		result, err := DiscoverFull(fs, dir)
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeGo}, result.Types)
@@ -784,8 +784,14 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, "go", result.PrimaryStack)
 		assert.Equal(t, "go", result.SuggestedStack)
 		assert.False(t, result.HasFrontend)
+		assert.False(t, result.HasRootPackageJSON)
+		assert.False(t, result.HasFrontendPackageJSON)
+		assert.True(t, result.HasRootGoMod)
+		assert.True(t, result.HasRootMainGo)
+		assert.False(t, result.HasRootCMakeLists)
 		assert.False(t, result.HasSubtreeNpm)
 		assert.True(t, result.Markers["go.mod"])
+		assert.True(t, result.Markers["main.go"])
 		assert.False(t, result.Markers["wails.json"])
 	})
 
@@ -833,6 +839,11 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, "wails", result.PrimaryStack)
 		assert.Equal(t, "wails2", result.SuggestedStack)
 		assert.True(t, result.HasFrontend)
+		assert.False(t, result.HasRootPackageJSON)
+		assert.True(t, result.HasFrontendPackageJSON)
+		assert.True(t, result.HasRootGoMod)
+		assert.False(t, result.HasRootMainGo)
+		assert.False(t, result.HasRootCMakeLists)
 		assert.False(t, result.HasSubtreeNpm)
 		assert.True(t, result.Markers["wails.json"])
 		assert.True(t, result.Markers["go.mod"])
@@ -866,6 +877,11 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, "node", result.PrimaryStack)
 		assert.Equal(t, "node", result.SuggestedStack)
 		assert.True(t, result.HasFrontend)
+		assert.True(t, result.HasRootPackageJSON)
+		assert.False(t, result.HasFrontendPackageJSON)
+		assert.False(t, result.HasRootGoMod)
+		assert.False(t, result.HasRootMainGo)
+		assert.False(t, result.HasRootCMakeLists)
 		assert.False(t, result.HasSubtreeNpm)
 	})
 
@@ -988,7 +1004,13 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, result.Types)
 		assert.Empty(t, result.PrimaryStack)
+		assert.Equal(t, "unknown", result.SuggestedStack)
 		assert.False(t, result.HasFrontend)
+		assert.False(t, result.HasRootPackageJSON)
+		assert.False(t, result.HasFrontendPackageJSON)
+		assert.False(t, result.HasRootGoMod)
+		assert.False(t, result.HasRootMainGo)
+		assert.False(t, result.HasRootCMakeLists)
 		assert.False(t, result.HasSubtreeNpm)
 	})
 
@@ -1137,7 +1159,7 @@ func TestDiscovery_SuggestStack_Good(t *testing.T) {
 	})
 
 	t.Run("returns empty when nothing is detected", func(t *testing.T) {
-		assert.Empty(t, SuggestStack(nil))
+		assert.Equal(t, "unknown", SuggestStack(nil))
 	})
 }
 

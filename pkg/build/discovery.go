@@ -13,6 +13,7 @@ const (
 	markerBuildConfig        = ".core/build.yaml"
 	markerGoMod              = "go.mod"
 	markerGoWork             = "go.work"
+	markerMainGo             = "main.go"
 	markerWails              = "wails.json"
 	markerNodePackage        = "package.json"
 	markerDenoJSON           = "deno.json"
@@ -288,6 +289,16 @@ type DiscoveryResult struct {
 	// HasFrontend is true when a root or frontend/ package.json/deno manifest is found,
 	// or when a nested frontend tree is detected.
 	HasFrontend bool
+	// HasRootPackageJSON reports whether package.json exists at the project root.
+	HasRootPackageJSON bool
+	// HasFrontendPackageJSON reports whether frontend/package.json exists.
+	HasFrontendPackageJSON bool
+	// HasRootGoMod reports whether go.mod exists at the project root.
+	HasRootGoMod bool
+	// HasRootMainGo reports whether main.go exists at the project root.
+	HasRootMainGo bool
+	// HasRootCMakeLists reports whether CMakeLists.txt exists at the project root.
+	HasRootCMakeLists bool
 	// HasSubtreeNpm is true when a nested package.json exists within depth 2.
 	HasSubtreeNpm bool
 	// LinuxPackages lists distro-aware system dependencies needed by the detected stack.
@@ -335,7 +346,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	// Record raw marker presence
 	allMarkers := []string{
 		markerBuildConfig,
-		markerGoMod, markerGoWork, markerWails, markerNodePackage, markerDenoJSON, markerDenoJSONC, markerComposer,
+		markerGoMod, markerGoWork, markerMainGo, markerWails, markerNodePackage, markerDenoJSON, markerDenoJSONC, markerComposer,
 		markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
 		markerPyProject, markerRequirements, markerCargo,
 		"CMakeLists.txt", markerDockerfile, "Containerfile", "dockerfile", "containerfile",
@@ -347,6 +358,12 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	for _, m := range allMarkers {
 		result.Markers[m] = fileExists(fs, ax.Join(dir, m))
 	}
+
+	result.HasRootPackageJSON = result.Markers[markerNodePackage]
+	result.HasFrontendPackageJSON = result.Markers[markerFrontendPackage]
+	result.HasRootGoMod = result.Markers[markerGoMod]
+	result.HasRootMainGo = result.Markers[markerMainGo]
+	result.HasRootCMakeLists = result.Markers["CMakeLists.txt"]
 
 	// Pattern-based marker: LinuxKit configs may live in .core/linuxkit/*.yml or *.yaml.
 	result.Markers[markerLinuxKitNestedYML] = hasYAMLInDir(fs, ax.Join(dir, ".core", "linuxkit"))
@@ -393,7 +410,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 //	stack := build.SuggestStack([]build.ProjectType{build.ProjectTypeWails}) // "wails2"
 func SuggestStack(types []ProjectType) string {
 	if len(types) == 0 {
-		return ""
+		return "unknown"
 	}
 
 	switch types[0] {

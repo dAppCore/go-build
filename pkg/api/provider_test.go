@@ -950,6 +950,7 @@ func TestProvider_DiscoverProject_Good(t *testing.T) {
 
 	projectDir := t.TempDir()
 	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644))
 	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, "frontend"), 0o755))
 	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "frontend", "package.json"), []byte("{}"), 0o644))
 	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
@@ -984,6 +985,11 @@ build:
 	assert.Contains(t, body, `"primary_stack":"wails"`)
 	assert.Contains(t, body, `"suggested_stack":"wails2"`)
 	assert.Contains(t, body, `"has_frontend":true`)
+	assert.Contains(t, body, `"has_root_package_json":false`)
+	assert.Contains(t, body, `"has_frontend_package_json":true`)
+	assert.Contains(t, body, `"has_root_go_mod":true`)
+	assert.Contains(t, body, `"has_root_main_go":true`)
+	assert.Contains(t, body, `"has_root_cmakelists":false`)
 	assert.Contains(t, body, `"has_subtree_npm":false`)
 	assert.Contains(t, body, `"linux_packages":`)
 	assert.Contains(t, body, `"ref":"refs/heads/main"`)
@@ -997,6 +1003,7 @@ build:
 	assert.Contains(t, body, `"-obfuscated`)
 	assert.Contains(t, body, `"options":{"ldflags":["-s","-w"],"nsis":true,"obfuscate":true`)
 	assert.Contains(t, body, `"go.mod":true`)
+	assert.Contains(t, body, `"main.go":true`)
 	assert.Contains(t, body, `"frontend/package.json":true`)
 }
 
