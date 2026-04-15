@@ -2,11 +2,12 @@ package generators
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +59,9 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 if [ -n "$output_dir" ]; then
-  mkdir -p "$output_dir"
+  mkdir -p "$output_dir/core"
+  printf 'export * from "./core/client";\n' > "$output_dir/index.ts"
+  printf 'export const client = true;\n' > "$output_dir/core/client.ts"
 fi
 `
 
@@ -128,6 +131,60 @@ func TestTypeScript_TypeScriptGeneratorGenerate_Good(t *testing.T) {
 	if !ax.Exists(outputDir) {
 		t.Error("output directory was not created")
 	}
+	assert.FileExists(t, ax.Join(outputDir, "src", "index.ts"))
+	assert.FileExists(t, ax.Join(outputDir, "src", "core", "client.ts"))
+	assert.NoFileExists(t, ax.Join(outputDir, "index.ts"))
+
+	content, err := ax.ReadFile(ax.Join(outputDir, "package.json"))
+	require.NoError(t, err)
+
+	manifest := map[string]any{}
+	require.NoError(t, json.Unmarshal(content, &manifest))
+	assert.Equal(t, "testclient", manifest["name"])
+	assert.Equal(t, "1.0.0", manifest["version"])
+	assert.Equal(t, []any{"src"}, manifest["files"])
+	assert.Equal(t, "./src/index.ts", manifest["types"])
+}
+
+func TestTypeScript_finalizeTypeScriptOutputNormalizesRootLayout_Good(t *testing.T) {
+	stagingDir := t.TempDir()
+	require.NoError(t, ax.MkdirAll(ax.Join(stagingDir, "apis"), 0o755))
+	require.NoError(t, ax.MkdirAll(ax.Join(stagingDir, "models"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(stagingDir, "index.ts"), []byte("export * from './apis';\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(stagingDir, "runtime.ts"), []byte("export const runtime = true;\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(stagingDir, "apis", "default.ts"), []byte("export const api = true;\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(stagingDir, "models", "widget.ts"), []byte("export type Widget = {};\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(stagingDir, "README.md"), []byte("# SDK\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(stagingDir, "package.json"), []byte("{\"scripts\":{\"build\":\"tsc\"}}\n"), 0o644))
+
+	outputDir := ax.Join(t.TempDir(), "typescript")
+	require.NoError(t, finalizeTypeScriptOutput(stagingDir, Options{
+		OutputDir:   outputDir,
+		PackageName: "@example/sdk",
+		Version:     "2.3.4",
+	}))
+
+	assert.FileExists(t, ax.Join(outputDir, "src", "index.ts"))
+	assert.FileExists(t, ax.Join(outputDir, "src", "runtime.ts"))
+	assert.FileExists(t, ax.Join(outputDir, "src", "apis", "default.ts"))
+	assert.FileExists(t, ax.Join(outputDir, "src", "models", "widget.ts"))
+	assert.FileExists(t, ax.Join(outputDir, "README.md"))
+	assert.NoFileExists(t, ax.Join(outputDir, "index.ts"))
+	assert.NoFileExists(t, ax.Join(outputDir, "runtime.ts"))
+
+	content, err := ax.ReadFile(ax.Join(outputDir, "package.json"))
+	require.NoError(t, err)
+
+	manifest := map[string]any{}
+	require.NoError(t, json.Unmarshal(content, &manifest))
+	assert.Equal(t, "@example/sdk", manifest["name"])
+	assert.Equal(t, "2.3.4", manifest["version"])
+	assert.Equal(t, "module", manifest["type"])
+	assert.Equal(t, "./src/index.ts", manifest["types"])
+
+	scripts, ok := manifest["scripts"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "tsc", scripts["build"])
 }
 
 func TestTypeScript_TypeScriptGeneratorGenerate_Bad(t *testing.T) {
