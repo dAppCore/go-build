@@ -1,6 +1,7 @@
 package build
 
 import (
+	"os"
 	"testing"
 
 	"dappco.re/go/core/io"
@@ -116,6 +117,70 @@ func TestCache_SetupCache_Good_Disabled(t *testing.T) {
 	assert.Equal(t, []string{"cache/go-build"}, cfg.Paths)
 }
 
+func TestCache_SetupCache_Bad(t *testing.T) {
+	t.Run("rejects invalid arity", func(t *testing.T) {
+		err := SetupCache()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expected 1 or 3 arguments")
+	})
+
+	t.Run("rejects a non-cache third argument", func(t *testing.T) {
+		fs := io.NewMemoryMedium()
+		err := SetupCache(fs, "/workspace/project", CacheConfig{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "third argument must be *CacheConfig")
+	})
+}
+
+func TestCache_SetupCache_Ugly(t *testing.T) {
+	t.Run("normalises home and absolute cache paths", func(t *testing.T) {
+		t.Setenv("HOME", "/home/tester")
+
+		fs := io.NewMemoryMedium()
+		cfg := &CacheConfig{
+			Enabled: true,
+			Paths: []string{
+				"~/cache/go-build",
+				"~",
+				"/var/cache/go-mod",
+				"/var/cache/go-mod",
+				"",
+			},
+		}
+
+		err := SetupCache(fs, "/workspace/project", cfg)
+		require.NoError(t, err)
+
+		assert.Equal(t, "/workspace/project/.core/cache", cfg.Directory)
+		assert.Equal(t, []string{
+			"/home/tester/cache/go-build",
+			"/home/tester",
+			"/var/cache/go-mod",
+		}, cfg.Paths)
+		assert.True(t, fs.Exists("/workspace/project/.core/cache"))
+		assert.True(t, fs.Exists("/home/tester/cache/go-build"))
+		assert.True(t, fs.Exists("/home/tester"))
+		assert.True(t, fs.Exists("/var/cache/go-mod"))
+	})
+
+	t.Run("1-argument form wires process cache environment", func(t *testing.T) {
+		t.Setenv("GOCACHE", "before")
+		t.Setenv("GOMODCACHE", "before")
+
+		err := SetupCache(CacheConfig{
+			Enabled: true,
+			Paths: []string{
+				"/tmp/cache/go-build",
+				"/tmp/cache/go-mod",
+			},
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, "/tmp/cache/go-build", os.Getenv("GOCACHE"))
+		assert.Equal(t, "/tmp/cache/go-mod", os.Getenv("GOMODCACHE"))
+	})
+}
+
 func TestCache_SetupBuildCache_Good_Disabled(t *testing.T) {
 	fs := io.NewMemoryMedium()
 	cfg := &BuildConfig{
@@ -133,6 +198,28 @@ func TestCache_SetupBuildCache_Good_Disabled(t *testing.T) {
 	assert.False(t, fs.Exists("/workspace/project/.core/cache"))
 	assert.Empty(t, cfg.Build.Cache.Directory)
 	assert.Equal(t, []string{"cache/go-build"}, cfg.Build.Cache.Paths)
+}
+
+func TestCache_SetupBuildCache_Bad(t *testing.T) {
+	t.Run("nil filesystem is a no-op", func(t *testing.T) {
+		cfg := &BuildConfig{
+			Build: Build{
+				Cache: CacheConfig{Enabled: true},
+			},
+		}
+
+		err := SetupBuildCache(nil, "/workspace/project", cfg)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.Build.Cache.Directory)
+		assert.Empty(t, cfg.Build.Cache.Paths)
+	})
+
+	t.Run("nil config is a no-op", func(t *testing.T) {
+		fs := io.NewMemoryMedium()
+
+		err := SetupBuildCache(fs, "/workspace/project", nil)
+		require.NoError(t, err)
+	})
 }
 
 func TestCache_CacheKey_Good(t *testing.T) {
@@ -180,4 +267,74 @@ func TestCache_CacheEnvironment_Good(t *testing.T) {
 	t.Run("disabled cache returns no env vars", func(t *testing.T) {
 		assert.Nil(t, CacheEnvironment(&CacheConfig{Enabled: false}))
 	})
+}
+
+func TestCache_CacheKeyWithConfig_Good(t *testing.T) {
+	fs := io.NewMemoryMedium()
+	require.NoError(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
+
+	base := CacheKey(fs, "/workspace/project", "linux", "amd64")
+	key := CacheKeyWithConfig(fs, "/workspace/project", "linux", "amd64", &CacheConfig{
+		KeyPrefix: "demo",
+	})
+
+	assert.Equal(t, "demo-"+base, key)
+}
+
+func TestCache_CacheKeyWithConfig_Bad(t *testing.T) {
+	fs := io.NewMemoryMedium()
+	require.NoError(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
+
+	base := CacheKey(fs, "/workspace/project", "linux", "amd64")
+
+	t.Run("nil config leaves key unchanged", func(t *testing.T) {
+		assert.Equal(t, base, CacheKeyWithConfig(fs, "/workspace/project", "linux", "amd64", nil))
+	})
+
+	t.Run("blank prefix leaves key unchanged", func(t *testing.T) {
+		assert.Equal(t, base, CacheKeyWithConfig(fs, "/workspace/project", "linux", "amd64", &CacheConfig{}))
+	})
+}
+
+func TestCache_CacheKeyWithConfig_Ugly(t *testing.T) {
+	fs := io.NewMemoryMedium()
+	require.NoError(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
+
+	base := CacheKey(fs, "/workspace/project", "linux", "amd64")
+	key := CacheKeyWithConfig(fs, "/workspace/project", "linux", "amd64", &CacheConfig{
+		KeyPrefix: "  demo  ",
+	})
+
+	assert.Equal(t, "demo-"+base, key)
+}
+
+func TestCache_CacheRestoreKeys_Good(t *testing.T) {
+	keys := CacheRestoreKeys(&CacheConfig{
+		KeyPrefix:   "demo",
+		RestoreKeys: []string{"go-", "core-"},
+	})
+
+	assert.Equal(t, []string{"demo", "go-", "core-"}, keys)
+}
+
+func TestCache_CacheRestoreKeys_Bad(t *testing.T) {
+	t.Run("nil config returns nil", func(t *testing.T) {
+		assert.Nil(t, CacheRestoreKeys(nil))
+	})
+
+	t.Run("blank prefix is ignored", func(t *testing.T) {
+		keys := CacheRestoreKeys(&CacheConfig{
+			RestoreKeys: []string{"go-"},
+		})
+		assert.Equal(t, []string{"go-"}, keys)
+	})
+}
+
+func TestCache_CacheRestoreKeys_Ugly(t *testing.T) {
+	keys := CacheRestoreKeys(&CacheConfig{
+		KeyPrefix:   "demo",
+		RestoreKeys: []string{"go-", "", "core-", "go-", "core-"},
+	})
+
+	assert.Equal(t, []string{"demo", "go-", "core-"}, keys)
 }
