@@ -33,6 +33,15 @@ const (
 	VariantDev InstallerVariant = "dev"
 )
 
+var installerVariantOrder = []InstallerVariant{
+	VariantFull,
+	VariantCI,
+	VariantPHP,
+	VariantGo,
+	VariantAgent,
+	VariantDev,
+}
+
 // variantTemplates maps each InstallerVariant to its embedded template filename and output script name.
 var variantTemplates = map[InstallerVariant]struct {
 	tmpl   string
@@ -44,6 +53,20 @@ var variantTemplates = map[InstallerVariant]struct {
 	VariantGo:    {tmpl: "templates/go.sh.tmpl", output: "go.sh"},
 	VariantAgent: {tmpl: "templates/agent.sh.tmpl", output: "agent.sh"},
 	VariantDev:   {tmpl: "templates/dev.sh.tmpl", output: "dev.sh"},
+}
+
+// Variants returns the supported installer variants in stable output order.
+func Variants() []InstallerVariant {
+	return append([]InstallerVariant(nil), installerVariantOrder...)
+}
+
+// OutputName returns the generated script filename for a variant.
+func OutputName(variant InstallerVariant) string {
+	entry, ok := variantTemplates[variant]
+	if !ok {
+		return ""
+	}
+	return entry.output
 }
 
 // InstallerConfig holds the values injected into installer script templates.
@@ -100,9 +123,10 @@ func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, e
 //	    // name: "setup.sh", content: "#!/usr/bin/env bash\n..."
 //	}
 func GenerateAll(cfg InstallerConfig) (map[string]string, error) {
-	out := make(map[string]string, len(variantTemplates))
+	out := make(map[string]string, len(installerVariantOrder))
 
-	for variant, entry := range variantTemplates {
+	for _, variant := range installerVariantOrder {
+		entry := variantTemplates[variant]
 		script, err := GenerateInstaller(variant, cfg)
 		if err != nil {
 			return nil, coreerr.E("installers.GenerateAll", "failed to generate variant "+string(variant), err)

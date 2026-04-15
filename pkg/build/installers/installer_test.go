@@ -113,3 +113,24 @@ func TestInstaller_GenerateAll_Good(t *testing.T) {
 		})
 	}
 }
+
+func TestInstaller_Variants_Good(t *testing.T) {
+	assert.Equal(t, []InstallerVariant{
+		VariantFull,
+		VariantCI,
+		VariantPHP,
+		VariantGo,
+		VariantAgent,
+		VariantDev,
+	}, Variants())
+}
+
+func TestInstaller_OutputName_Good(t *testing.T) {
+	assert.Equal(t, "setup.sh", OutputName(VariantFull))
+	assert.Equal(t, "ci.sh", OutputName(VariantCI))
+	assert.Equal(t, "php.sh", OutputName(VariantPHP))
+	assert.Equal(t, "go.sh", OutputName(VariantGo))
+	assert.Equal(t, "agent.sh", OutputName(VariantAgent))
+	assert.Equal(t, "dev.sh", OutputName(VariantDev))
+	assert.Empty(t, OutputName("bogus"))
+}

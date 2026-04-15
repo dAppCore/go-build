@@ -125,6 +125,7 @@ func AddBuildCommands(c *core.Core) {
 
 	AddAppleCommand(c)
 	AddImageCommand(c)
+	AddInstallersCommand(c)
 	AddReleaseCommand(c)
 	AddWorkflowCommand(c)
 }
