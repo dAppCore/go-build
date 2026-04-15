@@ -137,13 +137,7 @@ func SetupCache(args ...any) error {
 		if len(cfg.Paths) == 0 {
 			cfg.Paths = []string{"~/.cache/go-build", "~/go/pkg/mod"}
 		}
-		for _, env := range CacheEnvironment(cfg) {
-			parts := core.SplitN(env, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			_ = os.Setenv(parts[0], parts[1])
-		}
+		applyCacheEnvironment(cfg)
 		return nil
 	case 3:
 		fs, _ := args[0].(io.Medium)
@@ -326,6 +320,16 @@ func appendIfMissing(values []string, value string) []string {
 		}
 	}
 	return append(values, value)
+}
+
+func applyCacheEnvironment(cfg *CacheConfig) {
+	for _, env := range CacheEnvironment(cfg) {
+		parts := core.SplitN(env, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		_ = os.Setenv(parts[0], parts[1])
+	}
 }
 
 func normaliseCachePath(baseDir, path string) string {
