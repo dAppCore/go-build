@@ -136,6 +136,8 @@ func TestBuild_RuntimeConfigFromBuildConfig_StripsUnsafeVersionTemplateFlags(t *
 	require.NotNil(t, cfg)
 
 	assert.Equal(t, []string{"-s", "-w", "-X build.commit=abc123"}, cfg.LDFlags)
+	assert.Empty(t, cfg.Flags)
+	assert.Empty(t, cfg.Env)
 	assert.Equal(t, []string{"-s", "-w", "-X main.Version={{.Tag}}", "-X build.commit=abc123"}, source.Build.LDFlags)
 }
 

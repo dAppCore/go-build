@@ -23,13 +23,29 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 		npmBuild = buildConfig.PreBuild.Npm
 	}
 
+	versionSafe := version == "" || versionIsSafeRelease(version)
+
 	ldFlags := append([]string{}, buildDefaults.LDFlags...)
 	if version == "" {
 		// Preserve template placeholders when no version is being injected.
-	} else if versionIsSafeRelease(version) {
+	} else if versionSafe {
 		ldFlags = ExpandVersionTemplates(ldFlags, version)
 	} else {
 		ldFlags = stripVersionTemplateFlags(ldFlags)
+	}
+
+	flags := append([]string{}, buildDefaults.Flags...)
+	if versionSafe {
+		flags = ExpandVersionTemplates(flags, version)
+	} else if version != "" {
+		flags = stripVersionTemplateValues(flags)
+	}
+
+	env := append([]string{}, buildDefaults.Env...)
+	if versionSafe {
+		env = ExpandVersionTemplates(env, version)
+	} else if version != "" {
+		env = stripVersionTemplateValues(env)
 	}
 
 	cfg := &Config{
@@ -40,9 +56,9 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 		Name:           binaryName,
 		Version:        version,
 		LDFlags:        ldFlags,
-		Flags:          ExpandVersionTemplates(append([]string{}, buildDefaults.Flags...), version),
+		Flags:          flags,
 		BuildTags:      append([]string{}, buildDefaults.BuildTags...),
-		Env:            ExpandVersionTemplates(append([]string{}, buildDefaults.Env...), version),
+		Env:            env,
 		Cache:          buildDefaults.Cache,
 		CGO:            buildDefaults.CGO,
 		Obfuscate:      buildDefaults.Obfuscate,
@@ -79,6 +95,22 @@ func versionIsSafeRelease(version string) bool {
 }
 
 func stripVersionTemplateFlags(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		if containsVersionTemplate(value) {
+			continue
+		}
+		filtered = append(filtered, value)
+	}
+
+	return filtered
+}
+
+func stripVersionTemplateValues(values []string) []string {
 	if len(values) == 0 {
 		return values
 	}
