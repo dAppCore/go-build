@@ -2,6 +2,9 @@ package buildcmd
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"sort"
 	"strings"
 
 	"dappco.re/go/core"
@@ -22,6 +25,19 @@ type ImageBuildRequest struct {
 	OutputDir string
 	List      bool
 	Rebuild   bool
+}
+
+type imageBuildCacheMetadata struct {
+	ImageName    string   `json:"image_name"`
+	Base         string   `json:"base"`
+	BaseVersion  string   `json:"base_version,omitempty"`
+	BuildVersion string   `json:"build_version"`
+	Formats      []string `json:"formats,omitempty"`
+	Packages     []string `json:"packages,omitempty"`
+	Mounts       []string `json:"mounts,omitempty"`
+	GPU          bool     `json:"gpu,omitempty"`
+	Registry     string   `json:"registry,omitempty"`
+	Signature    string   `json:"signature"`
 }
 
 // AddImageCommand registers the immutable LinuxKit image builder command.
@@ -90,8 +106,13 @@ func runBuildImage(req ImageBuildRequest) error {
 	}
 
 	version, versionErr := resolveBuildVersion(ctx, projectDir)
+	cacheVersion := strings.TrimSpace(version)
+	if _, err := ax.LookPath("git"); err != nil {
+		cacheVersion = ""
+	}
 	if versionErr != nil || version == "" {
 		version = "dev"
+		cacheVersion = ""
 	}
 
 	imageName := buildConfig.LinuxKit.Base
@@ -113,7 +134,10 @@ func runBuildImage(req ImageBuildRequest) error {
 		formats = append([]string(nil), build.DefaultLinuxKitConfig().Formats...)
 	}
 
-	if !req.Rebuild && allImageArtifactsExist(io.Local, imageBuilder, outputDir, imageName, formats) {
+	cacheCfg := runtimeCfg.LinuxKit
+	cacheCfg.Formats = append([]string(nil), formats...)
+
+	if !req.Rebuild && allImageArtifactsExist(io.Local, imageBuilder, outputDir, imageName, cacheCfg, cacheVersion) {
 		cli.Print("%s %s\n", buildSuccessStyle.Render("Using"), "cached immutable image artifacts")
 		return nil
 	}
@@ -121,6 +145,9 @@ func runBuildImage(req ImageBuildRequest) error {
 	artifacts, err := imageBuilder.Build(ctx, runtimeCfg)
 	if err != nil {
 		return err
+	}
+	if err := writeImageBuildCacheMetadata(io.Local, outputDir, imageName, cacheCfg, cacheVersion); err != nil {
+		return coreerr.E("build.runBuildImage", "failed to write image cache metadata", err)
 	}
 
 	cli.Print("%s %s\n", buildSuccessStyle.Render("Built"), buildTargetStyle.Render(imageName))
@@ -157,7 +184,8 @@ func parseImageFormats(value string) []string {
 	return formats
 }
 
-func allImageArtifactsExist(filesystem io.Medium, imageBuilder *builders.LinuxKitImageBuilder, outputDir, imageName string, formats []string) bool {
+func allImageArtifactsExist(filesystem io.Medium, imageBuilder *builders.LinuxKitImageBuilder, outputDir, imageName string, cfg build.LinuxKitConfig, version string) bool {
+	formats := normalizeImageCacheValues(cfg.Formats)
 	if len(formats) == 0 {
 		return false
 	}
@@ -167,5 +195,116 @@ func allImageArtifactsExist(filesystem io.Medium, imageBuilder *builders.LinuxKi
 			return false
 		}
 	}
-	return true
+
+	metadata, err := loadImageBuildCacheMetadata(filesystem, outputDir, imageName)
+	if err != nil || metadata == nil {
+		return false
+	}
+	if strings.TrimSpace(version) == "" {
+		return true
+	}
+
+	expected := buildImageCacheMetadata(imageName, cfg, version)
+	if metadata.Signature != expected.Signature {
+		return false
+	}
+
+	if expected.BuildVersion == "" {
+		return true
+	}
+
+	return metadata.BuildVersion == expected.BuildVersion
+}
+
+func writeImageBuildCacheMetadata(filesystem io.Medium, outputDir, imageName string, cfg build.LinuxKitConfig, version string) error {
+	metadata := buildImageCacheMetadata(imageName, cfg, version)
+	encoded, err := ax.JSONMarshal(metadata)
+	if err != nil {
+		return err
+	}
+	return filesystem.Write(imageBuildCacheMetadataPath(outputDir, imageName), encoded)
+}
+
+func loadImageBuildCacheMetadata(filesystem io.Medium, outputDir, imageName string) (*imageBuildCacheMetadata, error) {
+	path := imageBuildCacheMetadataPath(outputDir, imageName)
+	if !filesystem.Exists(path) {
+		return nil, nil
+	}
+
+	content, err := filesystem.Read(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var metadata imageBuildCacheMetadata
+	if err := ax.JSONUnmarshal([]byte(content), &metadata); err != nil {
+		return nil, err
+	}
+
+	return &metadata, nil
+}
+
+func imageBuildCacheMetadataPath(outputDir, imageName string) string {
+	return ax.Join(outputDir, "."+imageName+"-linuxkit-image.json")
+}
+
+func buildImageCacheMetadata(imageName string, cfg build.LinuxKitConfig, version string) imageBuildCacheMetadata {
+	base := cfg.Base
+	baseVersion := ""
+	if baseImage, ok := build.LookupLinuxKitBaseImage(base); ok {
+		baseVersion = baseImage.Version
+	}
+
+	metadata := imageBuildCacheMetadata{
+		ImageName:    imageName,
+		Base:         base,
+		BaseVersion:  baseVersion,
+		BuildVersion: strings.TrimSpace(version),
+		Formats:      normalizeImageCacheValues(cfg.Formats),
+		Packages:     normalizeImageCacheValues(cfg.Packages),
+		Mounts:       normalizeImageCacheValues(cfg.Mounts),
+		GPU:          cfg.GPU,
+		Registry:     strings.TrimSpace(cfg.Registry),
+	}
+	metadata.Signature = imageBuildCacheSignature(metadata)
+	return metadata
+}
+
+func imageBuildCacheSignature(metadata imageBuildCacheMetadata) string {
+	parts := []string{
+		metadata.ImageName,
+		metadata.Base,
+		metadata.BaseVersion,
+		core.Join(",", metadata.Formats...),
+		core.Join(",", metadata.Packages...),
+		core.Join(",", metadata.Mounts...),
+		core.Sprintf("%t", metadata.GPU),
+		metadata.Registry,
+	}
+
+	sum := sha256.Sum256([]byte(core.Join("\n", parts...)))
+	return hex.EncodeToString(sum[:])
+}
+
+func normalizeImageCacheValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+
+	sort.Strings(result)
+	return result
 }
