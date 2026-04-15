@@ -3,6 +3,7 @@ package publishers
 
 import (
 	"context"
+	"reflect"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/pkg/build"
@@ -22,8 +23,10 @@ type Release struct {
 	Changelog string
 	// ProjectDir is the root directory of the project.
 	ProjectDir string
-	// FS is the medium for file operations.
+	// FS is the project filesystem used for local project file access.
 	FS io.Medium
+	// ArtifactFS is the medium backing the release artifact paths.
+	ArtifactFS io.Medium
 }
 
 // PublisherConfig holds configuration for a publisher.
@@ -68,12 +71,24 @@ type Publisher interface {
 //
 // rel := publishers.NewRelease("v1.2.3", artifacts, changelog, ".", io.Local)
 func NewRelease(version string, artifacts []build.Artifact, changelog, projectDir string, fs io.Medium) *Release {
+	return NewReleaseWithArtifactFS(version, artifacts, changelog, projectDir, fs, fs)
+}
+
+// NewReleaseWithArtifactFS creates a Release with explicit project and artifact media.
+//
+// rel := publishers.NewReleaseWithArtifactFS("v1.2.3", artifacts, changelog, ".", io.Local, io.NewMemoryMedium())
+func NewReleaseWithArtifactFS(version string, artifacts []build.Artifact, changelog, projectDir string, fs io.Medium, artifactFS io.Medium) *Release {
+	if artifactFS == nil {
+		artifactFS = fs
+	}
+
 	return &Release{
 		Version:    version,
 		Artifacts:  artifacts,
 		Changelog:  changelog,
 		ProjectDir: projectDir,
 		FS:         fs,
+		ArtifactFS: artifactFS,
 	}
 }
 
@@ -97,6 +112,30 @@ func validatePublisherRelease(name string, release *Release) error {
 		return coreerr.E(name+".Validate", "release filesystem (FS) is nil", nil)
 	}
 	return nil
+}
+
+func releaseArtifactFS(release *Release) io.Medium {
+	if release == nil {
+		return nil
+	}
+	if release.ArtifactFS != nil {
+		return release.ArtifactFS
+	}
+	return release.FS
+}
+
+func mediumEquals(left, right io.Medium) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
+	leftType := reflect.TypeOf(left)
+	rightType := reflect.TypeOf(right)
+	if leftType != rightType || !leftType.Comparable() {
+		return false
+	}
+
+	return reflect.ValueOf(left).Interface() == reflect.ValueOf(right).Interface()
 }
 
 func supportsPublisherTarget(name, target string) bool {

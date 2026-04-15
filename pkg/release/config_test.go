@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -412,6 +413,35 @@ func TestConfig_SetProjectDir_Good(t *testing.T) {
 		cfg := &Config{}
 		cfg.SetProjectDir("/path/to/project")
 		assert.Equal(t, "/path/to/project", cfg.projectDir)
+	})
+}
+
+func TestConfig_SetOutput_Good(t *testing.T) {
+	t.Run("sets output medium and directory", func(t *testing.T) {
+		cfg := &Config{}
+		medium := io.NewMemoryMedium()
+
+		cfg.SetOutput(medium, "releases")
+
+		assert.Equal(t, medium, cfg.output)
+		assert.Equal(t, "releases", cfg.outputDir)
+	})
+
+	t.Run("sets output medium only", func(t *testing.T) {
+		cfg := &Config{}
+		medium := io.NewMemoryMedium()
+
+		cfg.SetOutputMedium(medium)
+
+		assert.Equal(t, medium, cfg.output)
+	})
+
+	t.Run("sets output directory only", func(t *testing.T) {
+		cfg := &Config{}
+
+		cfg.SetOutputDir("artifacts")
+
+		assert.Equal(t, "artifacts", cfg.outputDir)
 	})
 }
 

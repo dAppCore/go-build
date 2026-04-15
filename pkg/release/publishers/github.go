@@ -3,9 +3,12 @@ package publishers
 
 import (
 	"context"
+	stdio "io"
+	"io/fs"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -115,10 +118,13 @@ func (p *GitHubPublisher) executePublish(ctx context.Context, release *Release, 
 	// Build the release create command
 	args := p.buildCreateArgs(release, pubCfg, repo)
 
-	// Add artifact paths to the command
-	for _, artifact := range release.Artifacts {
-		args = append(args, artifact.Path)
+	artifactPaths, cleanup, err := p.materializeArtifacts(release)
+	if err != nil {
+		return err
 	}
+	defer cleanup()
+
+	args = append(args, artifactPaths...)
 
 	// Execute gh release create
 	if err := publisherRun(ctx, release.ProjectDir, nil, ghCommand, args...); err != nil {
@@ -158,6 +164,92 @@ func (p *GitHubPublisher) buildCreateArgs(release *Release, pubCfg PublisherConf
 	}
 
 	return args
+}
+
+func (p *GitHubPublisher) materializeArtifacts(release *Release) ([]string, func(), error) {
+	artifactFS := releaseArtifactFS(release)
+	if artifactFS == nil {
+		return nil, func() {}, coreerr.E("github.Publish", "artifact filesystem is nil", nil)
+	}
+
+	paths := make([]string, 0, len(release.Artifacts))
+	if mediumEquals(artifactFS, coreio.Local) {
+		for _, artifact := range release.Artifacts {
+			paths = append(paths, artifact.Path)
+		}
+		return paths, func() {}, nil
+	}
+
+	tempDir, err := ax.TempDir("github-release-artifacts-*")
+	if err != nil {
+		return nil, func() {}, coreerr.E("github.Publish", "failed to create artifact staging directory", err)
+	}
+
+	for i, artifact := range release.Artifacts {
+		localPath := ax.Join(tempDir, core.Sprintf("%03d", i), ax.Base(artifact.Path))
+		if err := copyArtifactPathToLocal(artifactFS, artifact.Path, localPath); err != nil {
+			_ = ax.RemoveAll(tempDir)
+			return nil, func() {}, coreerr.E("github.Publish", "failed to stage artifact "+artifact.Path, err)
+		}
+		paths = append(paths, localPath)
+	}
+
+	return paths, func() {
+		_ = ax.RemoveAll(tempDir)
+	}, nil
+}
+
+func copyArtifactPathToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) error {
+	if artifactFS.IsDir(sourcePath) {
+		return copyArtifactDirToLocal(artifactFS, sourcePath, destinationPath)
+	}
+
+	return copyArtifactFileToLocal(artifactFS, sourcePath, destinationPath)
+}
+
+func copyArtifactDirToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) error {
+	if err := coreio.Local.EnsureDir(destinationPath); err != nil {
+		return coreerr.E("github.copyArtifactDirToLocal", "failed to create destination directory", err)
+	}
+
+	entries, err := artifactFS.List(sourcePath)
+	if err != nil {
+		return coreerr.E("github.copyArtifactDirToLocal", "failed to list artifact directory", err)
+	}
+
+	for _, entry := range entries {
+		childSource := ax.Join(sourcePath, entry.Name())
+		childDestination := ax.Join(destinationPath, entry.Name())
+		if err := copyArtifactPathToLocal(artifactFS, childSource, childDestination); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func copyArtifactFileToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) error {
+	file, err := artifactFS.Open(sourcePath)
+	if err != nil {
+		return coreerr.E("github.copyArtifactFileToLocal", "failed to open artifact", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	content, err := stdio.ReadAll(file)
+	if err != nil {
+		return coreerr.E("github.copyArtifactFileToLocal", "failed to read artifact", err)
+	}
+
+	mode := fs.FileMode(0o644)
+	if info, err := artifactFS.Stat(sourcePath); err == nil {
+		mode = info.Mode()
+	}
+
+	if err := coreio.Local.WriteMode(destinationPath, string(content), mode); err != nil {
+		return coreerr.E("github.copyArtifactFileToLocal", "failed to write staged artifact", err)
+	}
+
+	return nil
 }
 
 func resolveGhCli(paths ...string) (string, error) {

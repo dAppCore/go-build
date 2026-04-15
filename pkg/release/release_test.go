@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"testing"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/signing"
@@ -664,6 +665,27 @@ func TestRelease_Publish_Good(t *testing.T) {
 		})
 		assert.Contains(t, release.Artifacts, build.Artifact{Path: ax.Join(distDir, "CHECKSUMS.txt")})
 	})
+
+	t.Run("reads artifacts from configured output medium", func(t *testing.T) {
+		medium := io.NewMemoryMedium()
+		require.NoError(t, medium.Write("releases/app-linux-amd64.tar.gz", "artifact"))
+		require.NoError(t, medium.Write("releases/CHECKSUMS.txt", "checksums"))
+
+		cfg := DefaultConfig()
+		cfg.SetProjectDir(t.TempDir())
+		cfg.SetVersion("v1.0.0")
+		cfg.SetOutput(medium, "releases")
+		cfg.Publishers = nil
+
+		release, err := Publish(context.Background(), cfg, true)
+		require.NoError(t, err)
+
+		require.Len(t, release.Artifacts, 2)
+		assert.Equal(t, io.Local, release.FS)
+		assert.Equal(t, medium, release.ArtifactFS)
+		assert.Contains(t, release.Artifacts, build.Artifact{Path: "releases/app-linux-amd64.tar.gz"})
+		assert.Contains(t, release.Artifacts, build.Artifact{Path: "releases/CHECKSUMS.txt"})
+	})
 }
 
 func TestRelease_Publish_Bad(t *testing.T) {
@@ -771,6 +793,34 @@ func main() {}
 		} else {
 			assert.Equal(t, "v1.0.0", release.Version)
 		}
+	})
+
+	t.Run("mirrors artifacts to configured output medium", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module testapp\n\ngo 1.21\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+		medium := io.NewMemoryMedium()
+
+		cfg := DefaultConfig()
+		cfg.SetProjectDir(dir)
+		cfg.SetVersion("v1.0.0")
+		cfg.SetOutput(medium, "releases")
+		cfg.Project.Name = "testapp"
+		cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+		cfg.Publishers = nil
+
+		release, err := Run(context.Background(), cfg, true)
+		require.NoError(t, err)
+		require.NotNil(t, release)
+		require.Equal(t, medium, release.ArtifactFS)
+
+		require.NotEmpty(t, release.Artifacts)
+		for _, artifact := range release.Artifacts {
+			assert.True(t, medium.Exists(artifact.Path), "expected mirrored artifact %s to exist", artifact.Path)
+			assert.True(t, core.HasPrefix(artifact.Path, "releases/"), "expected mirrored artifact path %s to use configured output root", artifact.Path)
+		}
+		assert.True(t, medium.Exists("releases/CHECKSUMS.txt"))
 	})
 }
 
@@ -930,7 +980,7 @@ fi
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
 	require.NoError(t, err)
 
 	var sawChecksumSignature bool
@@ -973,7 +1023,7 @@ func TestRelease_BuildArtifacts_UsesConfiguredChecksumFile_Good(t *testing.T) {
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
 	require.NoError(t, err)
 
 	customChecksumPath := ax.Join(dir, "dist", "checksums.txt")
@@ -1056,7 +1106,7 @@ targets:
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "signedapp")}, signedPaths)
@@ -1125,7 +1175,7 @@ targets:
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
 	require.NoError(t, err)
 	require.NotEmpty(t, artifacts)
 
@@ -1170,7 +1220,7 @@ targets:
 	cfg.Project.Name = "releaseapp"
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
 	require.NoError(t, err)
 
 	var sawArchive bool

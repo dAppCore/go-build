@@ -7,6 +7,7 @@ import (
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/sdk"
+	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
 )
@@ -43,6 +44,8 @@ type Config struct {
 	// Internal fields (not serialized)
 	projectDir string // Set by LoadConfig
 	version    string // Set by CLI flag
+	output     coreio.Medium
+	outputDir  string
 }
 
 // ProjectConfig holds project metadata for releases.
@@ -376,6 +379,37 @@ func (c *Config) SetProjectDir(dir string) {
 // cfg.SetVersion("v1.2.3")
 func (c *Config) SetVersion(version string) {
 	c.version = version
+}
+
+// SetOutput configures the medium and root used for release artifacts.
+//
+// cfg.SetOutput(io.NewMemoryMedium(), "releases")
+func (c *Config) SetOutput(medium coreio.Medium, dir string) {
+	if c == nil {
+		return
+	}
+	c.output = medium
+	c.outputDir = dir
+}
+
+// SetOutputMedium overrides the medium used for release artifacts.
+//
+// cfg.SetOutputMedium(io.NewMemoryMedium())
+func (c *Config) SetOutputMedium(medium coreio.Medium) {
+	if c == nil {
+		return
+	}
+	c.output = medium
+}
+
+// SetOutputDir overrides the root directory or key prefix used for release artifacts.
+//
+// cfg.SetOutputDir("releases")
+func (c *Config) SetOutputDir(dir string) {
+	if c == nil {
+		return
+	}
+	c.outputDir = dir
 }
 
 func expandPublisherConfigs(publishers []PublisherConfig) []PublisherConfig {

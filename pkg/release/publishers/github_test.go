@@ -2,6 +2,7 @@ package publishers
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"dappco.re/go/core"
@@ -94,6 +95,7 @@ func TestGitHub_NewRelease_Good(t *testing.T) {
 		assert.Equal(t, "changelog", r.Changelog)
 		assert.Equal(t, "/project", r.ProjectDir)
 		assert.Nil(t, r.Artifacts)
+		assert.Equal(t, io.Local, r.ArtifactFS)
 	})
 }
 
@@ -488,6 +490,57 @@ func TestGitHub_ResolveGhCli_Bad(t *testing.T) {
 }
 
 func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
+	t.Run("materializes artifacts from non-local media", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("fake gh helper uses a POSIX shell")
+		}
+
+		p := NewGitHubPublisher()
+		commandDir := t.TempDir()
+		logPath := ax.Join(commandDir, "gh.log")
+		artifactPath := ax.Join(commandDir, "artifact.txt")
+		commandPath := ax.Join(commandDir, "gh")
+		script := "#!/bin/sh\n" +
+			"printf '%s\\n' \"$@\" > \"" + logPath + "\"\n" +
+			"for arg in \"$@\"; do\n" +
+			"  case \"$arg\" in\n" +
+			"    *.tar.gz)\n" +
+			"      if [ -f \"$arg\" ]; then\n" +
+			"        printf 'present\\n' >> \"" + logPath + "\"\n" +
+			"        cat \"$arg\" > \"" + artifactPath + "\"\n" +
+			"      fi\n" +
+			"      ;;\n" +
+			"  esac\n" +
+			"done\n"
+		require.NoError(t, ax.WriteFile(commandPath, []byte(script), 0o755))
+
+		artifactFS := io.NewMemoryMedium()
+		require.NoError(t, artifactFS.Write("releases/app-linux-amd64.tar.gz", "artifact"))
+
+		release := &Release{
+			Version:    "v1.0.0",
+			Changelog:  "Changes",
+			ProjectDir: t.TempDir(),
+			FS:         io.Local,
+			ArtifactFS: artifactFS,
+			Artifacts: []build.Artifact{
+				{Path: "releases/app-linux-amd64.tar.gz"},
+			},
+		}
+
+		err := p.executePublish(context.Background(), release, PublisherConfig{Type: "github"}, "owner/repo", commandPath)
+		require.NoError(t, err)
+
+		logContent, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+		assert.NotContains(t, string(logContent), "releases/app-linux-amd64.tar.gz")
+		assert.Contains(t, string(logContent), "present")
+
+		materialized, err := ax.ReadFile(artifactPath)
+		require.NoError(t, err)
+		assert.Equal(t, "artifact", string(materialized))
+	})
+
 	// These tests run only when gh CLI is available and authenticated
 	if err := validateGhCli(context.Background()); err != nil {
 		t.Skip("skipping test: gh CLI not available or not authenticated")

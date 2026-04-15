@@ -5,6 +5,7 @@ package release
 
 import (
 	"context"
+	"os"
 	"slices"
 
 	"dappco.re/go/core"
@@ -39,8 +40,10 @@ type Release struct {
 	Changelog string
 	// ProjectDir is the root directory of the project.
 	ProjectDir string
-	// FS is the medium for file operations.
+	// FS is the project filesystem used for local project file access.
 	FS io.Medium
+	// ArtifactFS is the medium backing the release artifact paths.
+	ArtifactFS io.Medium
 }
 
 // Publish publishes pre-built artifacts from dist/ to configured targets.
@@ -52,7 +55,8 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 		return nil, coreerr.E("release.Publish", "config is nil", nil)
 	}
 
-	filesystem := io.Local
+	projectFS := io.Local
+	artifactFS := resolveReleaseOutputMedium(cfg)
 
 	projectDir := cfg.projectDir
 	if projectDir == "" {
@@ -75,12 +79,12 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Step 2: Find pre-built artifacts in dist/
-	distDir := ax.Join(absProjectDir, "dist")
-	artifacts, err := findArtifacts(filesystem, distDir)
+	distDir := resolveReleaseOutputRoot(absProjectDir, cfg, artifactFS)
+	artifacts, err := findArtifacts(artifactFS, distDir)
 	if err != nil {
 		return nil, coreerr.E("release.Publish", "failed to find artifacts", err)
 	}
-	artifacts = appendConfiguredChecksumArtifacts(filesystem, distDir, artifacts, cfg)
+	artifacts = appendConfiguredChecksumArtifacts(artifactFS, distDir, artifacts, cfg)
 
 	if len(artifacts) == 0 {
 		return nil, coreerr.E("release.Publish", "no artifacts found in dist/\nRun 'core build' first to create artifacts", nil)
@@ -101,12 +105,13 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 		Artifacts:  artifacts,
 		Changelog:  changelog,
 		ProjectDir: absProjectDir,
-		FS:         filesystem,
+		FS:         projectFS,
+		ArtifactFS: artifactFS,
 	}
 
 	// Step 4: Publish to configured targets
 	if len(cfg.Publishers) > 0 {
-		pubRelease := publishers.NewRelease(release.Version, release.Artifacts, release.Changelog, release.ProjectDir, release.FS)
+		pubRelease := publishers.NewReleaseWithArtifactFS(release.Version, release.Artifacts, release.Changelog, release.ProjectDir, release.FS, release.ArtifactFS)
 
 		for _, publisherConfig := range cfg.Publishers {
 			publisher, err := getPublisher(publisherConfig.Type)
@@ -329,7 +334,8 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 		return nil, coreerr.E("release.Run", "config is nil", nil)
 	}
 
-	filesystem := io.Local
+	projectFS := io.Local
+	artifactFS := resolveReleaseOutputMedium(cfg)
 
 	projectDir := cfg.projectDir
 	if projectDir == "" {
@@ -362,9 +368,28 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Step 3: Build artifacts
-	artifacts, err := buildArtifacts(ctx, filesystem, cfg, absProjectDir, version)
+	outputDir := resolveReleaseOutputRoot(absProjectDir, cfg, artifactFS)
+	buildOutputDir := outputDir
+	stageDir := ""
+	if !mediumEquals(artifactFS, io.Local) {
+		stageDir, err = os.MkdirTemp("", "core-release-*")
+		if err != nil {
+			return nil, coreerr.E("release.Run", "failed to create release staging directory", err)
+		}
+		defer func() { _ = os.RemoveAll(stageDir) }()
+		buildOutputDir = ax.Join(stageDir, "dist")
+	}
+
+	artifacts, err := buildArtifacts(ctx, projectFS, cfg, absProjectDir, buildOutputDir, version)
 	if err != nil {
 		return nil, coreerr.E("release.Run", "build failed", err)
+	}
+
+	if !mediumEquals(artifactFS, io.Local) {
+		artifacts, err = mirrorReleaseArtifacts(projectFS, artifactFS, buildOutputDir, outputDir, artifacts)
+		if err != nil {
+			return nil, coreerr.E("release.Run", "failed to mirror release artifacts", err)
+		}
 	}
 
 	release := &Release{
@@ -372,13 +397,14 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 		Artifacts:  artifacts,
 		Changelog:  changelog,
 		ProjectDir: absProjectDir,
-		FS:         filesystem,
+		FS:         projectFS,
+		ArtifactFS: artifactFS,
 	}
 
 	// Step 4: Publish to configured targets
 	if len(cfg.Publishers) > 0 {
 		// Convert to publisher types
-		pubRelease := publishers.NewRelease(release.Version, release.Artifacts, release.Changelog, release.ProjectDir, release.FS)
+		pubRelease := publishers.NewReleaseWithArtifactFS(release.Version, release.Artifacts, release.Changelog, release.ProjectDir, release.FS, release.ArtifactFS)
 
 		for _, publisherConfig := range cfg.Publishers {
 			publisher, err := getPublisher(publisherConfig.Type)
@@ -405,7 +431,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 }
 
 // buildArtifacts builds all artifacts for the release.
-func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, projectDir, version string) ([]build.Artifact, error) {
+func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, projectDir, outputDir, version string) ([]build.Artifact, error) {
 	// Load build configuration
 	buildConfig, err := build.LoadConfig(filesystem, projectDir)
 	if err != nil {
@@ -446,9 +472,6 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	if binaryName == "" {
 		binaryName = ax.Base(projectDir)
 	}
-
-	// Determine output directory
-	outputDir := ax.Join(projectDir, "dist")
 
 	pipeline := &build.Pipeline{
 		FS:             filesystem,
