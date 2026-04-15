@@ -96,6 +96,7 @@ The generated workflow in this repo preserves the same high-signal control surfa
 |---|---|---|
 | `build-name` | derived from config or repo name | Override output/artifact name |
 | `build-platform` | matrix driven | Filter the build matrix to one target |
+| `version` | empty | Override the version embedded into build outputs and releases |
 | `build` | `true` | Run the build phase |
 | `sign` | `false` | Enable platform signing after build |
 | `package` | `true` | Archive, checksum, upload artifacts, and publish on tags |

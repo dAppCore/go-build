@@ -818,6 +818,10 @@ try {
             args+=(--build-tags "${{ inputs.build-tags }}")
           fi
 
+          if [ -n "${{ inputs.version }}" ]; then
+            args+=(--version "${{ inputs.version }}")
+          fi
+
           if [ "${{ inputs.build-obfuscate }}" = "true" ]; then
             args+=(--build-obfuscate)
           fi

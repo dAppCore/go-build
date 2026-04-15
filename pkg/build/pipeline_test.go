@@ -191,6 +191,36 @@ func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
 	assert.Contains(t, setupTools(plan.SetupPlan), SetupToolDeno)
 }
 
+func TestPipeline_Plan_UsesExplicitVersionOverride_Good(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+
+	versionResolverCalled := false
+	pipeline := &Pipeline{
+		FS: io.Local,
+		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+			assert.Equal(t, ProjectTypeGo, projectType)
+			return &stubPipelineBuilder{}, nil
+		},
+		ResolveVersion: func(ctx context.Context, projectDir string) (string, error) {
+			versionResolverCalled = true
+			return "v0.0.1", nil
+		},
+	}
+
+	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+		ProjectDir:  dir,
+		BuildConfig: DefaultConfig(),
+		Version:     "v9.9.9",
+		Targets:     []Target{{OS: "linux", Arch: "amd64"}},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "v9.9.9", plan.Version)
+	assert.Equal(t, "v9.9.9", plan.RuntimeConfig.Version)
+	assert.False(t, versionResolverCalled)
+}
+
 func TestPipeline_Plan_DoesNotMutateCallerBuildConfig_Good(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))

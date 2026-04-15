@@ -35,6 +35,7 @@ import (
 type ProjectBuildRequest struct {
 	Context        context.Context
 	BuildType      string
+	Version        string
 	CIMode         bool
 	TargetsFlag    string
 	OutputDir      string
@@ -144,6 +145,7 @@ func runProjectBuild(req ProjectBuildRequest) error {
 		ProjectDir:  projectDir,
 		BuildConfig: buildConfig,
 		BuildType:   req.BuildType,
+		Version:     req.Version,
 		OutputDir:   req.OutputDir,
 		BuildName:   req.BuildName,
 		Targets:     buildTargets,

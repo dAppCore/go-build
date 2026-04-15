@@ -51,6 +51,7 @@ func AddBuildCommands(c *core.Core) {
 			return cmdutil.ResultFromError(runProjectBuild(ProjectBuildRequest{
 				Context:        cmdutil.ContextOrBackground(),
 				BuildType:      cmdutil.OptionString(opts, "type"),
+				Version:        cmdutil.OptionString(opts, "version"),
 				CIMode:         cmdutil.OptionBool(opts, "ci"),
 				TargetsFlag:    cmdutil.OptionString(opts, "targets", "build-platform", "build_platform"),
 				OutputDir:      cmdutil.OptionString(opts, "output"),

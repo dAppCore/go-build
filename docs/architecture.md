@@ -208,6 +208,7 @@ The workflow keeps the public action inputs visible at the CLI layer:
 - `package`
 - `build-name`
 - `build-platform`
+- `version`
 - `build-tags`
 - `build-obfuscate`
 - `core-version`
