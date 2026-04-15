@@ -42,10 +42,11 @@ func TestPipeline_Plan_Good(t *testing.T) {
 	cfg.Targets = []TargetConfig{{OS: "linux", Arch: "amd64"}}
 
 	builder := &stubPipelineBuilder{}
+	var resolvedTypes []ProjectType
 	pipeline := &Pipeline{
 		FS: io.Local,
 		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
-			assert.Equal(t, ProjectTypeWails, projectType)
+			resolvedTypes = append(resolvedTypes, projectType)
 			return builder, nil
 		},
 		ResolveVersion: func(ctx context.Context, projectDir string) (string, error) {
@@ -63,6 +64,8 @@ func TestPipeline_Plan_Good(t *testing.T) {
 
 	assert.Equal(t, dir, plan.ProjectDir)
 	assert.Equal(t, ProjectTypeWails, plan.ProjectType)
+	assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, plan.ProjectTypes)
+	assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, resolvedTypes)
 	assert.Equal(t, "core-demo", plan.BuildName)
 	assert.Equal(t, ax.Join(dir, "artifacts"), plan.OutputDir)
 	assert.Equal(t, "v1.2.3", plan.Version)
@@ -147,10 +150,11 @@ func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Build.BuildTags = []string{"integration"}
 
+	var resolvedTypes []ProjectType
 	pipeline := &Pipeline{
 		FS: io.Local,
 		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
-			assert.Equal(t, ProjectTypeWails, projectType)
+			resolvedTypes = append(resolvedTypes, projectType)
 			return &stubPipelineBuilder{}, nil
 		},
 	}
@@ -189,6 +193,8 @@ func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
 	assert.Equal(t, plan.BuildConfig.Build.Cache.Directory, plan.RuntimeConfig.Cache.Directory)
 	assert.Equal(t, plan.BuildConfig.Build.Cache.Paths, plan.RuntimeConfig.Cache.Paths)
 	assert.Contains(t, setupTools(plan.SetupPlan), SetupToolDeno)
+	assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, plan.ProjectTypes)
+	assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, resolvedTypes)
 }
 
 func TestPipeline_Plan_UsesExplicitVersionOverride_Good(t *testing.T) {
@@ -287,6 +293,54 @@ func TestPipeline_Run_Good(t *testing.T) {
 	require.NotNil(t, builder.lastCfg)
 	assert.Equal(t, plan.RuntimeConfig, builder.lastCfg)
 	assert.Equal(t, plan.Targets, builder.lastTgts)
+}
+
+func TestPipeline_Run_MultiType_Good(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644))
+
+	nodeBuilder := &stubPipelineBuilder{
+		artifacts: []Artifact{{Path: ax.Join(dir, "dist", "node", "linux_amd64", "node-artifact"), OS: "linux", Arch: "amd64"}},
+	}
+	docsBuilder := &stubPipelineBuilder{
+		artifacts: []Artifact{{Path: ax.Join(dir, "dist", "docs", "linux_amd64", "docs-artifact"), OS: "linux", Arch: "amd64"}},
+	}
+
+	pipeline := &Pipeline{
+		FS: io.Local,
+		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+			switch projectType {
+			case ProjectTypeNode:
+				return nodeBuilder, nil
+			case ProjectTypeDocs:
+				return docsBuilder, nil
+			default:
+				return nil, assert.AnError
+			}
+		},
+	}
+
+	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+		ProjectDir:  dir,
+		BuildConfig: DefaultConfig(),
+		Targets:     []Target{{OS: "linux", Arch: "amd64"}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []ProjectType{ProjectTypeNode, ProjectTypeDocs}, plan.ProjectTypes)
+
+	result, err := pipeline.Run(context.Background(), plan)
+	require.NoError(t, err)
+
+	assert.Len(t, result.Artifacts, 2)
+	require.NotNil(t, nodeBuilder.lastCfg)
+	require.NotNil(t, docsBuilder.lastCfg)
+	assert.Equal(t, ax.Join(plan.OutputDir, "node"), nodeBuilder.lastCfg.OutputDir)
+	assert.Equal(t, ax.Join(plan.OutputDir, "docs"), docsBuilder.lastCfg.OutputDir)
+	assert.Equal(t, plan.Targets, nodeBuilder.lastTgts)
+	assert.Equal(t, plan.Targets, docsBuilder.lastTgts)
+	assert.NotSame(t, plan.RuntimeConfig, nodeBuilder.lastCfg)
+	assert.NotSame(t, plan.RuntimeConfig, docsBuilder.lastCfg)
 }
 
 func TestPipeline_Plan_Bad(t *testing.T) {

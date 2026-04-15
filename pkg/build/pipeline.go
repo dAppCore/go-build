@@ -58,8 +58,10 @@ type PipelineRequest struct {
 // PipelinePlan is the fully resolved gateway state before the builder runs.
 type PipelinePlan struct {
 	ProjectDir    string
+	ProjectTypes  []ProjectType
 	BuildConfig   *BuildConfig
 	ProjectType   ProjectType
+	Builders      []Builder
 	Builder       Builder
 	Discovery     *DiscoveryResult
 	Options       *BuildOptions
@@ -122,14 +124,18 @@ func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) (*PipelinePlan
 		return nil, coreerr.E("build.Pipeline.Plan", "failed to compute setup plan", err)
 	}
 
-	projectType, err := resolvePipelineProjectType(filesystem, projectDir, req.BuildType, buildConfig)
+	projectTypes, err := resolvePipelineProjectTypes(filesystem, projectDir, req.BuildType, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	builder, err := p.resolveBuilder(projectType)
-	if err != nil {
-		return nil, err
+	builders := make([]Builder, 0, len(projectTypes))
+	for _, projectType := range projectTypes {
+		builder, err := p.resolveBuilder(projectType)
+		if err != nil {
+			return nil, err
+		}
+		builders = append(builders, builder)
 	}
 
 	targets := req.Targets
@@ -165,9 +171,11 @@ func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) (*PipelinePlan
 
 	return &PipelinePlan{
 		ProjectDir:    projectDir,
+		ProjectTypes:  append([]ProjectType(nil), projectTypes...),
 		BuildConfig:   buildConfig,
-		ProjectType:   projectType,
-		Builder:       builder,
+		ProjectType:   projectTypes[0],
+		Builders:      builders,
+		Builder:       builders[0],
 		Discovery:     discovery,
 		Options:       options,
 		SetupPlan:     setupPlan,
@@ -189,16 +197,43 @@ func (p *Pipeline) Run(ctx context.Context, plan *PipelinePlan) (*PipelineResult
 	if plan == nil {
 		return nil, coreerr.E("build.Pipeline.Run", "pipeline plan is nil", nil)
 	}
-	if plan.Builder == nil {
-		return nil, coreerr.E("build.Pipeline.Run", "pipeline plan is missing a builder", nil)
-	}
 	if plan.RuntimeConfig == nil {
 		return nil, coreerr.E("build.Pipeline.Run", "pipeline plan is missing runtime config", nil)
 	}
 
-	artifacts, err := plan.Builder.Build(ctx, plan.RuntimeConfig, plan.Targets)
-	if err != nil {
-		return nil, err
+	builders := append([]Builder(nil), plan.Builders...)
+	projectTypes := append([]ProjectType(nil), plan.ProjectTypes...)
+	if len(builders) == 0 {
+		if plan.Builder == nil {
+			return nil, coreerr.E("build.Pipeline.Run", "pipeline plan is missing a builder", nil)
+		}
+		builders = []Builder{plan.Builder}
+		if len(projectTypes) == 0 && plan.ProjectType != "" {
+			projectTypes = []ProjectType{plan.ProjectType}
+		}
+	}
+	if len(projectTypes) == 0 {
+		return nil, coreerr.E("build.Pipeline.Run", "pipeline plan is missing project types", nil)
+	}
+
+	artifacts := make([]Artifact, 0, len(builders))
+	multiType := len(builders) > 1
+	for i, builder := range builders {
+		if builder == nil {
+			return nil, coreerr.E("build.Pipeline.Run", "pipeline plan contains a nil builder", nil)
+		}
+
+		runtimeCfg := plan.RuntimeConfig
+		if multiType {
+			runtimeCfg = cloneRuntimeConfig(plan.RuntimeConfig)
+			runtimeCfg.OutputDir = multiTypeOutputDir(plan.OutputDir, projectTypes, i)
+		}
+
+		builtArtifacts, err := builder.Build(ctx, runtimeCfg, plan.Targets)
+		if err != nil {
+			return nil, err
+		}
+		artifacts = append(artifacts, builtArtifacts...)
 	}
 
 	return &PipelineResult{
@@ -270,37 +305,25 @@ func (p *Pipeline) resolveBuilder(projectType ProjectType) (Builder, error) {
 	return builder, nil
 }
 
-func resolvePipelineProjectType(filesystem io.Medium, projectDir, buildType string, cfg *BuildConfig) (ProjectType, error) {
+func resolvePipelineProjectTypes(filesystem io.Medium, projectDir, buildType string, cfg *BuildConfig) ([]ProjectType, error) {
 	if value := normalisePipelineBuildType(buildType); value != "" {
-		return ProjectType(value), nil
+		return []ProjectType{ProjectType(value)}, nil
 	}
 	if cfg != nil {
 		if value := normalisePipelineBuildType(cfg.Build.Type); value != "" {
-			return ProjectType(value), nil
+			return []ProjectType{ProjectType(value)}, nil
 		}
 	}
 
-	projectType, err := PrimaryType(filesystem, projectDir)
+	projectTypes, err := Discover(filesystem, projectDir)
 	if err != nil {
-		return "", coreerr.E("build.Pipeline.Plan", "failed to detect project type", err)
+		return nil, coreerr.E("build.Pipeline.Plan", "failed to detect project type", err)
 	}
-	if projectType == "" {
-		switch {
-		case IsDockerProject(filesystem, projectDir):
-			projectType = ProjectTypeDocker
-		case IsLinuxKitProject(filesystem, projectDir):
-			projectType = ProjectTypeLinuxKit
-		case IsCPPProject(filesystem, projectDir):
-			projectType = ProjectTypeCPP
-		case IsTaskfileProject(filesystem, projectDir):
-			projectType = ProjectTypeTaskfile
-		}
-	}
-	if projectType == "" {
-		return "", coreerr.E("build.Pipeline.Plan", "no buildable project type found in "+projectDir, nil)
+	if len(projectTypes) == 0 {
+		return nil, coreerr.E("build.Pipeline.Plan", "no buildable project type found in "+projectDir, nil)
 	}
 
-	return projectType, nil
+	return projectTypes, nil
 }
 
 func applyPipelineBuildOverrides(cfg *BuildConfig, req PipelineRequest) {
@@ -336,6 +359,31 @@ func applyPipelineBuildOverrides(cfg *BuildConfig, req PipelineRequest) {
 			cfg.Build.Cache.Enabled = false
 		}
 	}
+}
+
+func cloneRuntimeConfig(cfg *Config) *Config {
+	if cfg == nil {
+		return nil
+	}
+
+	clone := *cfg
+	clone.LDFlags = append([]string(nil), cfg.LDFlags...)
+	clone.Flags = append([]string(nil), cfg.Flags...)
+	clone.BuildTags = append([]string(nil), cfg.BuildTags...)
+	clone.Env = append([]string(nil), cfg.Env...)
+	clone.Cache = cloneCacheConfig(cfg.Cache)
+	clone.Tags = append([]string(nil), cfg.Tags...)
+	clone.BuildArgs = CloneStringMap(cfg.BuildArgs)
+	clone.Formats = append([]string(nil), cfg.Formats...)
+	clone.LinuxKit = cloneLinuxKitConfig(cfg.LinuxKit)
+	return &clone
+}
+
+func multiTypeOutputDir(root string, projectTypes []ProjectType, index int) string {
+	if root == "" || index < 0 || index >= len(projectTypes) || projectTypes[index] == "" {
+		return root
+	}
+	return ax.Join(root, string(projectTypes[index]))
 }
 
 func enableDefaultPipelineBuildCache(cfg *CacheConfig) {

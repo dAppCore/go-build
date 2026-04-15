@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	io_interface "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -84,7 +85,7 @@ func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string
 		if artifact.Checksum == "" {
 			return coreerr.E("build.WriteChecksumFile", "artifact "+artifact.Path+" has no checksum", nil)
 		}
-		filename := core.PathBase(artifact.Path)
+		filename := checksumFilename(path, artifact.Path)
 		lines = append(lines, core.Sprintf("%s  %s", artifact.Checksum, filename))
 	}
 
@@ -99,4 +100,21 @@ func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string
 	}
 
 	return nil
+}
+
+func checksumFilename(checksumPath, artifactPath string) string {
+	baseDir := ax.Dir(checksumPath)
+	relativePath, err := ax.Rel(baseDir, artifactPath)
+	if err == nil {
+		relativePath = ax.Clean(relativePath)
+		if relativePath != "" &&
+			relativePath != "." &&
+			relativePath != ".." &&
+			!ax.IsAbs(relativePath) &&
+			!core.HasPrefix(relativePath, ".."+ax.DS()) {
+			return core.Replace(relativePath, ax.DS(), "/")
+		}
+	}
+
+	return core.PathBase(artifactPath)
 }

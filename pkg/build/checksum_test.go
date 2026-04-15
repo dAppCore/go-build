@@ -261,6 +261,25 @@ func TestChecksum_WriteChecksumFile_Good(t *testing.T) {
 		assert.Contains(t, string(content), "myapp_linux_amd64.tar.gz")
 		assert.NotContains(t, string(content), "/some/deep/nested/path/")
 	})
+
+	t.Run("uses relative paths for nested artifacts inside the output tree", func(t *testing.T) {
+		dir := t.TempDir()
+		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
+		artifactPath := ax.Join(dir, "go", "myapp_linux_amd64.tar.gz")
+		require.NoError(t, ax.MkdirAll(ax.Dir(artifactPath), 0o755))
+
+		artifacts := []Artifact{
+			{Path: artifactPath, Checksum: "checksum123", OS: "linux", Arch: "amd64"},
+		}
+
+		err := WriteChecksumFile(fs, artifacts, checksumPath)
+		require.NoError(t, err)
+
+		content, err := ax.ReadFile(checksumPath)
+		require.NoError(t, err)
+
+		assert.Contains(t, string(content), "go/myapp_linux_amd64.tar.gz")
+	})
 }
 
 func TestChecksum_WriteChecksumFile_Bad(t *testing.T) {

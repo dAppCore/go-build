@@ -165,7 +165,7 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	// Print build info (verbose mode only)
 	if req.Verbose && !req.CIMode {
 		cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.build")), i18n.T("cmd.build.building_project"))
-		cli.Print("  %s %s\n", i18n.T("cmd.build.label.type"), buildTargetStyle.Render(string(plan.ProjectType)))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.label.type"), buildTargetStyle.Render(formatProjectTypes(plan.ProjectTypes)))
 		cli.Print("  %s %s\n", i18n.T("cmd.build.label.output"), buildTargetStyle.Render(plan.OutputDir))
 		cli.Print("  %s %s\n", i18n.T("cmd.build.label.binary"), buildTargetStyle.Render(plan.BuildName))
 		cli.Print("  %s %s\n", i18n.T("cmd.build.label.targets"), buildTargetStyle.Render(formatTargets(plan.Targets)))
@@ -628,6 +628,19 @@ func formatTargets(targets []build.Target) string {
 	for _, t := range targets {
 		parts = append(parts, t.String())
 	}
+	return core.Join(", ", parts...)
+}
+
+func formatProjectTypes(projectTypes []build.ProjectType) string {
+	if len(projectTypes) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(projectTypes))
+	for _, projectType := range projectTypes {
+		parts = append(parts, string(projectType))
+	}
+
 	return core.Join(", ", parts...)
 }
 

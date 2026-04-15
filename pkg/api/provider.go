@@ -116,6 +116,7 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	// Build
 	rg.GET("/config", p.getConfig)
 	rg.GET("/discover", p.discoverProject)
+	rg.POST("", p.triggerBuild)
 	rg.POST("/build", p.triggerBuild)
 	rg.GET("/artifacts", p.listArtifacts)
 
@@ -127,6 +128,7 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 
 	// SDK
 	rg.GET("/sdk/diff", p.getSdkDiff)
+	rg.POST("/sdk", p.generateSdk)
 	rg.POST("/sdk/generate", p.generateSdk)
 }
 
@@ -151,7 +153,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 		},
 		{
 			Method:      "POST",
-			Path:        "/build",
+			Path:        "/",
 			Summary:     "Trigger a build",
 			Description: "Runs the full build pipeline for the project, producing artifacts in dist/.",
 			Tags:        []string{"build"},
@@ -264,7 +266,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 		},
 		{
 			Method:      "POST",
-			Path:        "/sdk/generate",
+			Path:        "/sdk",
 			Summary:     "Generate SDK",
 			Description: "Generates SDK client libraries for configured languages from the OpenAPI spec.",
 			Tags:        []string{"sdk"},
@@ -418,14 +420,16 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		return
 	}
 
-	projectType, err := providerResolveProjectType(p.medium, dir, cfg.Build.Type)
-	if err != nil || projectType == "" {
+	projectTypes, err := build.Discover(p.medium, dir)
+	if err != nil || len(projectTypes) == 0 {
 		c.JSON(http.StatusBadRequest, api.Fail("no_project", "no buildable project detected"))
 		return
 	}
-	if _, err := providerGetBuilder(projectType); err != nil {
-		c.JSON(http.StatusBadRequest, api.Fail("unsupported_type", err.Error()))
-		return
+	for _, projectType := range projectTypes {
+		if _, err := providerGetBuilder(projectType); err != nil {
+			c.JSON(http.StatusBadRequest, api.Fail("unsupported_type", err.Error()))
+			return
+		}
 	}
 
 	pipeline := &build.Pipeline{
@@ -444,17 +448,22 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	plan, err := pipeline.Plan(c.Request.Context(), build.PipelineRequest{
 		ProjectDir:  dir,
 		BuildConfig: cfg,
-		BuildType:   string(projectType),
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("build_prepare_failed", err.Error()))
 		return
 	}
 
+	projectTypeNames := make([]string, 0, len(plan.ProjectTypes))
+	for _, projectType := range plan.ProjectTypes {
+		projectTypeNames = append(projectTypeNames, string(projectType))
+	}
+
 	p.emitEvent("build.started", map[string]any{
-		"project_type": string(plan.ProjectType),
-		"targets":      plan.Targets,
-		"version":      plan.Version,
+		"project_type":  string(plan.ProjectType),
+		"project_types": projectTypeNames,
+		"targets":       plan.Targets,
+		"version":       plan.Version,
 	})
 
 	result, err := pipeline.Run(c.Request.Context(), plan)
@@ -527,6 +536,7 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 
 	p.emitEvent("build.complete", map[string]any{
 		"artifact_count": len(checksummed),
+		"project_types":  projectTypeNames,
 		"version":        plan.Version,
 	})
 
@@ -534,6 +544,8 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		"artifacts":      checksummed,
 		"checksum_file":  checksumPath,
 		"archive_format": string(archiveFormat),
+		"project_type":   string(plan.ProjectType),
+		"project_types":  projectTypeNames,
 		"version":        plan.Version,
 	}))
 }

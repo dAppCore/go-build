@@ -64,14 +64,14 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 
 	assert.Equal(t, "GET", paths["/config"])
 	assert.Equal(t, "GET", paths["/discover"])
-	assert.Equal(t, "POST", paths["/build"])
+	assert.Equal(t, "POST", paths["/"])
 	assert.Equal(t, "GET", paths["/artifacts"])
 	assert.Equal(t, "GET", paths["/release/version"])
 	assert.Equal(t, "GET", paths["/release/changelog"])
 	assert.Equal(t, "POST", paths["/release"])
 	assert.Equal(t, "POST", paths["/release/workflow"])
 	assert.Equal(t, "GET", paths["/sdk/diff"])
-	assert.Equal(t, "POST", paths["/sdk/generate"])
+	assert.Equal(t, "POST", paths["/sdk"])
 
 	var workflowRoute *coreapi.RouteDescription
 	for i := range routes {
@@ -246,6 +246,27 @@ func TestProvider_BuildProviderResolveDirRelative_Good(t *testing.T) {
 func TestProvider_BuildProviderMediumSet_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	assert.NotNil(t, p.medium, "medium should be set to io.Local")
+}
+
+func TestProvider_RegisterRoutes_ExposesRFCAliases_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	p := NewProvider(projectDir, nil)
+
+	router := gin.New()
+	p.RegisterRoutes(router.Group(""))
+
+	buildResponse := httptest.NewRecorder()
+	buildRequest := httptest.NewRequest(http.MethodPost, "/", nil)
+	router.ServeHTTP(buildResponse, buildRequest)
+	assert.NotEqual(t, http.StatusNotFound, buildResponse.Code)
+
+	sdkResponse := httptest.NewRecorder()
+	sdkRequest := httptest.NewRequest(http.MethodPost, "/sdk", bytes.NewBufferString(`{}`))
+	sdkRequest.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(sdkResponse, sdkRequest)
+	assert.NotEqual(t, http.StatusNotFound, sdkResponse.Code)
 }
 
 func TestProvider_GetConfig_UsesSnakeCaseJSONKeys_Good(t *testing.T) {

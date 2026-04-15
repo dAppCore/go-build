@@ -149,7 +149,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		}, []string{artifacts[0].Path, artifacts[1].Path})
 	})
 
-	t.Run("ignores subdirectories", func(t *testing.T) {
+	t.Run("finds nested archived artifacts in subdirectories", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
 		require.NoError(t, ax.MkdirAll(distDir, 0755))
@@ -161,8 +161,11 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		artifacts, err := findArtifacts(io.Local, distDir)
 		require.NoError(t, err)
 
-		// Should only find the top-level artifact
-		assert.Len(t, artifacts, 1)
+		assert.Len(t, artifacts, 2)
+		assert.ElementsMatch(t, []string{
+			ax.Join(distDir, "app.tar.gz"),
+			ax.Join(distDir, "subdir", "nested.tar.gz"),
+		}, []string{artifacts[0].Path, artifacts[1].Path})
 	})
 
 	t.Run("falls back to raw platform artifacts when no archives exist", func(t *testing.T) {
@@ -185,6 +188,39 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		assert.Equal(t, ax.Join(distDir, "windows_amd64", "myapp.exe"), artifacts[1].Path)
 		assert.Equal(t, "windows", artifacts[1].OS)
 		assert.Equal(t, "amd64", artifacts[1].Arch)
+	})
+
+	t.Run("includes checksum artifacts alongside raw platform artifacts", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "linux_amd64", "myapp"), []byte("binary"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0o644))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		assert.Len(t, artifacts, 2)
+		assert.ElementsMatch(t, []string{
+			ax.Join(distDir, "linux_amd64", "myapp"),
+			ax.Join(distDir, "CHECKSUMS.txt"),
+		}, []string{artifacts[0].Path, artifacts[1].Path})
+	})
+
+	t.Run("finds nested raw platform artifacts for multi-type builds", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		platformDir := ax.Join(distDir, "go", "linux_amd64")
+		require.NoError(t, ax.MkdirAll(platformDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(platformDir, "myapp"), []byte("binary"), 0o755))
+
+		artifacts, err := findArtifacts(io.Local, distDir)
+		require.NoError(t, err)
+
+		require.Len(t, artifacts, 1)
+		assert.Equal(t, ax.Join(platformDir, "myapp"), artifacts[0].Path)
+		assert.Equal(t, "linux", artifacts[0].OS)
+		assert.Equal(t, "amd64", artifacts[0].Arch)
 	})
 
 	t.Run("includes macOS app bundles from platform directories", func(t *testing.T) {
@@ -588,6 +624,29 @@ func TestRelease_Publish_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Len(t, release.Artifacts, 4)
+	})
+
+	t.Run("keeps raw platform artifacts when checksums exist without archives", func(t *testing.T) {
+		dir := t.TempDir()
+		distDir := ax.Join(dir, "dist")
+		require.NoError(t, ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "linux_amd64", "app"), []byte("binary"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0o644))
+
+		cfg := DefaultConfig()
+		cfg.SetProjectDir(dir)
+		cfg.SetVersion("v1.0.0")
+		cfg.Publishers = nil
+
+		release, err := Publish(context.Background(), cfg, true)
+		require.NoError(t, err)
+
+		assert.Contains(t, release.Artifacts, build.Artifact{
+			Path: ax.Join(distDir, "linux_amd64", "app"),
+			OS:   "linux",
+			Arch: "amd64",
+		})
+		assert.Contains(t, release.Artifacts, build.Artifact{Path: ax.Join(distDir, "CHECKSUMS.txt")})
 	})
 }
 
