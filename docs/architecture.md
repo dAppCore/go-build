@@ -36,6 +36,7 @@ In the public action this is split across `actions/discovery`, `actions/options`
 
 In go-build the equivalents are:
 
+- `build.Pipeline` for the gateway/orchestration layer that resolves config, discovery, setup, and the selected builder
 - `build.Discover()` and `build.DiscoverFull()`
 - `build.ComputeOptions()`
 - `build.ComputeSetupPlan()`
@@ -121,6 +122,8 @@ In practice that means the public action's `inputs > environment > defaults` rul
 - persisted `.core/build.yaml`
 - environment-driven overrides for opt-in features that the action also exposes through `env:`
 - package defaults such as cache paths, archive format, and stack fallbacks
+
+That orchestration is now exposed directly as `build.Pipeline`, so CLI and API callers can share one gateway instead of duplicating detection, option application, setup planning, and builder resolution.
 
 ## Builder Layer
 

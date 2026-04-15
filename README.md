@@ -16,7 +16,7 @@
 The generated reusable workflow mirrors the `dAppCore/build@v3` action architecture:
 
 - Auto-detects stack markers including subtree frontend manifests and MkDocs projects
-- Exposes the same discovery, option-computation, and setup-planning shape in Go through `DiscoverFull`, `ComputeOptions`, and `ComputeSetupPlan`
+- Exposes the same discovery, option-computation, and setup-planning shape in Go through `DiscoverFull`, `ComputeOptions`, `ComputeSetupPlan`, and the reusable `Pipeline` gateway
 - Installs Go, Node, Python, Conan, MkDocs, Deno, and Wails when required, plus frontend package dependencies and optional garble for obfuscated builds
 - Applies distro-aware Linux WebKit dependencies for Wails builds
 - Supports obfuscation, NSIS packaging, WebView2 modes, Deno frontend overrides, and build cache restore/save

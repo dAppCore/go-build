@@ -7,6 +7,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/fs"
 	"net/http"
@@ -415,67 +416,55 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
 	}
-	if err := build.SetupBuildCache(p.medium, dir, cfg); err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("cache_setup_failed", err.Error()))
-		return
-	}
 
-	discovery, err := build.DiscoverFull(p.medium, dir)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
-		return
-	}
-
-	// Detect project type, honouring an explicit build.type override.
 	projectType, err := providerResolveProjectType(p.medium, dir, cfg.Build.Type)
 	if err != nil || projectType == "" {
 		c.JSON(http.StatusBadRequest, api.Fail("no_project", "no buildable project detected"))
 		return
 	}
-
-	// Get builder
-	builder, err := providerGetBuilder(projectType)
-	if err != nil {
+	if _, err := providerGetBuilder(projectType); err != nil {
 		c.JSON(http.StatusBadRequest, api.Fail("unsupported_type", err.Error()))
 		return
 	}
 
-	// Determine version
-	version, verr := providerDetermineVersion(c.Request.Context(), dir)
-	if verr != nil {
-		version = "dev"
+	pipeline := &build.Pipeline{
+		FS: p.medium,
+		ResolveBuilder: func(projectType build.ProjectType) (build.Builder, error) {
+			return providerGetBuilder(projectType)
+		},
+		ResolveVersion: func(ctx context.Context, projectDir string) (string, error) {
+			version, err := providerDetermineVersion(ctx, projectDir)
+			if err != nil {
+				return "dev", nil
+			}
+			return version, nil
+		},
 	}
-
-	// Build name
-	binaryName := cfg.Project.Binary
-	if binaryName == "" {
-		binaryName = cfg.Project.Name
+	plan, err := pipeline.Plan(c.Request.Context(), build.PipelineRequest{
+		ProjectDir:  dir,
+		BuildConfig: cfg,
+		BuildType:   string(projectType),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("build_prepare_failed", err.Error()))
+		return
 	}
-	if binaryName == "" {
-		binaryName = ax.Base(dir)
-	}
-
-	outputDir := ax.Join(dir, "dist")
-
-	buildConfig := build.RuntimeConfigFromBuildConfig(p.medium, dir, outputDir, binaryName, cfg, false, "", version)
-	build.ApplyOptions(buildConfig, build.ComputeOptions(cfg, discovery))
-
-	targets := cfg.ToTargets()
 
 	p.emitEvent("build.started", map[string]any{
-		"project_type": string(projectType),
-		"targets":      targets,
-		"version":      version,
+		"project_type": string(plan.ProjectType),
+		"targets":      plan.Targets,
+		"version":      plan.Version,
 	})
 
-	artifacts, err := builder.Build(c.Request.Context(), buildConfig, targets)
+	result, err := pipeline.Run(c.Request.Context(), plan)
 	if err != nil {
 		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
 		c.JSON(http.StatusInternalServerError, api.Fail("build_failed", err.Error()))
 		return
 	}
+	artifacts := result.Artifacts
 
-	signCfg := cfg.Sign
+	signCfg := plan.BuildConfig.Sign
 	if signCfg.Enabled && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
 		signingArtifacts := make([]signing.Artifact, len(artifacts))
 		for i, artifact := range artifacts {
@@ -501,7 +490,7 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		}
 	}
 
-	archiveFormat, err := build.ParseArchiveFormat(cfg.Build.ArchiveFormat)
+	archiveFormat, err := build.ParseArchiveFormat(plan.BuildConfig.Build.ArchiveFormat)
 	if err != nil {
 		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
 		c.JSON(http.StatusBadRequest, api.Fail("archive_format_invalid", err.Error()))
@@ -522,7 +511,7 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		return
 	}
 
-	checksumPath := ax.Join(outputDir, "CHECKSUMS.txt")
+	checksumPath := ax.Join(plan.OutputDir, "CHECKSUMS.txt")
 	if err := build.WriteChecksumFile(p.medium, checksummed, checksumPath); err != nil {
 		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
 		c.JSON(http.StatusInternalServerError, api.Fail("checksum_write_failed", err.Error()))
@@ -537,14 +526,14 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 
 	p.emitEvent("build.complete", map[string]any{
 		"artifact_count": len(checksummed),
-		"version":        version,
+		"version":        plan.Version,
 	})
 
 	c.JSON(http.StatusOK, api.OK(map[string]any{
 		"artifacts":      checksummed,
 		"checksum_file":  checksumPath,
 		"archive_format": string(archiveFormat),
-		"version":        version,
+		"version":        plan.Version,
 	}))
 }
 

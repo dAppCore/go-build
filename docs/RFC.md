@@ -117,6 +117,7 @@ Gateway
 
 The Go equivalents are:
 
+- `Pipeline` for the action-style gateway/orchestration layer
 - `DiscoverFull()` for the action-style discovery pass
 - `ComputeOptions()` for deterministic build flag derivation
 - `ComputeSetupPlan()` for setup orchestration inputs
