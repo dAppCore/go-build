@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -17,6 +18,26 @@ func setenvCI(t *testing.T, sha, ref, repo string) {
 	t.Setenv("GITHUB_SHA", sha)
 	t.Setenv("GITHUB_REF", ref)
 	t.Setenv("GITHUB_REPOSITORY", repo)
+}
+
+func initGitMetadataRepo(t *testing.T) (string, string) {
+	t.Helper()
+
+	dir := t.TempDir()
+	ctx := context.Background()
+
+	require.NoError(t, ax.ExecDir(ctx, dir, "git", "init", "-b", "main"))
+	require.NoError(t, ax.ExecDir(ctx, dir, "git", "config", "user.email", "codex@example.com"))
+	require.NoError(t, ax.ExecDir(ctx, dir, "git", "config", "user.name", "Codex"))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("# demo\n"), 0o644))
+	require.NoError(t, ax.ExecDir(ctx, dir, "git", "add", "README.md"))
+	require.NoError(t, ax.ExecDir(ctx, dir, "git", "commit", "-m", "init"))
+	require.NoError(t, ax.ExecDir(ctx, dir, "git", "remote", "add", "origin", "git@github.com:dappcore/core.git"))
+
+	sha, err := ax.RunDir(ctx, dir, "git", "rev-parse", "HEAD")
+	require.NoError(t, err)
+
+	return dir, sha
 }
 
 func TestCi_FormatGitHubAnnotation_Good(t *testing.T) {
@@ -159,6 +180,42 @@ func TestCi_DetectGitHubMetadata_Good(t *testing.T) {
 		assert.Equal(t, "main", ci.Branch)
 		assert.Equal(t, "org/repo", ci.Repo)
 		assert.Equal(t, "org", ci.Owner)
+	})
+}
+
+func TestCi_detectLocalGitMetadata_Good(t *testing.T) {
+	t.Run("detects branch metadata from local git repository", func(t *testing.T) {
+		dir, sha := initGitMetadataRepo(t)
+
+		ci := detectLocalGitMetadata(dir)
+		require.NotNil(t, ci)
+		assert.Equal(t, sha, ci.SHA)
+		assert.Equal(t, sha[:7], ci.ShortSHA)
+		assert.Equal(t, "refs/heads/main", ci.Ref)
+		assert.Equal(t, "main", ci.Branch)
+		assert.False(t, ci.IsTag)
+		assert.Equal(t, "", ci.Tag)
+		assert.Equal(t, "dappcore/core", ci.Repo)
+		assert.Equal(t, "dappcore", ci.Owner)
+	})
+
+	t.Run("prefers exact tag metadata when HEAD is tagged", func(t *testing.T) {
+		dir, sha := initGitMetadataRepo(t)
+		require.NoError(t, ax.ExecDir(context.Background(), dir, "git", "tag", "v1.2.3"))
+
+		ci := detectLocalGitMetadata(dir)
+		require.NotNil(t, ci)
+		assert.Equal(t, sha, ci.SHA)
+		assert.Equal(t, "refs/tags/v1.2.3", ci.Ref)
+		assert.True(t, ci.IsTag)
+		assert.Equal(t, "v1.2.3", ci.Tag)
+		assert.Equal(t, "", ci.Branch)
+	})
+}
+
+func TestCi_detectLocalGitMetadata_Bad(t *testing.T) {
+	t.Run("returns nil outside a git repository", func(t *testing.T) {
+		assert.Nil(t, detectLocalGitMetadata(t.TempDir()))
 	})
 }
 

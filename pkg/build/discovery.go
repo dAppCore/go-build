@@ -448,6 +448,15 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 		result.ShortSHA = git.ShortSHA
 		result.Repo = git.Repo
 		result.Owner = git.Owner
+	} else if git := detectLocalGitMetadata(dir); git != nil {
+		result.Ref = git.Ref
+		result.Branch = git.Branch
+		result.Tag = git.Tag
+		result.IsTag = git.IsTag
+		result.SHA = git.SHA
+		result.ShortSHA = git.ShortSHA
+		result.Repo = git.Repo
+		result.Owner = git.Owner
 	}
 
 	// Primary stack: first detected type as string, or empty

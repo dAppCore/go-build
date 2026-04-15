@@ -838,6 +838,25 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, "dappcore", result.Owner)
 	})
 
+	t.Run("falls back to local git metadata when GitHub env is absent", func(t *testing.T) {
+		t.Setenv("GITHUB_SHA", "")
+		t.Setenv("GITHUB_REF", "")
+		t.Setenv("GITHUB_REPOSITORY", "")
+
+		dir, sha := initGitMetadataRepo(t)
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, sha, result.SHA)
+		assert.Equal(t, sha[:7], result.ShortSHA)
+		assert.Equal(t, "refs/heads/main", result.Ref)
+		assert.Equal(t, "main", result.Branch)
+		assert.False(t, result.IsTag)
+		assert.Equal(t, "dappcore/core", result.Repo)
+		assert.Equal(t, "dappcore", result.Owner)
+	})
+
 	t.Run("returns complete result for Go workspace project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.work")
 		result, err := DiscoverFull(fs, dir)

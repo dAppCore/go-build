@@ -3,9 +3,13 @@
 package build
 
 import (
+	"context"
 	"encoding/json"
+	"net/url"
+	"strings"
 
 	"dappco.re/go/core"
+	"dappco.re/go/core/build/internal/ax"
 	io_interface "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -91,6 +95,33 @@ func DetectGitHubMetadata() *CIContext {
 	return detectGitHubContext(false)
 }
 
+func detectLocalGitMetadata(dir string) *CIContext {
+	dir = core.Trim(dir)
+	if dir == "" {
+		return nil
+	}
+
+	sha, err := runGitMetadataCommand(dir, "rev-parse", "HEAD")
+	if err != nil || sha == "" {
+		return nil
+	}
+
+	ctx := &CIContext{SHA: sha}
+
+	if tag, err := runGitMetadataCommand(dir, "describe", "--tags", "--exact-match", "HEAD"); err == nil && tag != "" {
+		ctx.Ref = "refs/tags/" + tag
+	} else if branch, err := runGitMetadataCommand(dir, "symbolic-ref", "--quiet", "--short", "HEAD"); err == nil && branch != "" {
+		ctx.Ref = "refs/heads/" + branch
+	}
+
+	if remoteURL, err := runGitMetadataCommand(dir, "remote", "get-url", "origin"); err == nil {
+		ctx.Repo, ctx.Owner = parseGitRemote(remoteURL)
+	}
+
+	populateGitHubContext(ctx)
+	return ctx
+}
+
 func detectGitHubContext(requireActions bool) *CIContext {
 	if requireActions && core.Env("GITHUB_ACTIONS") == "" {
 		return nil
@@ -145,6 +176,54 @@ func populateGitHubContext(ctx *CIContext) {
 	} else if core.HasPrefix(ctx.Ref, branchPrefix) {
 		ctx.Branch = core.TrimPrefix(ctx.Ref, branchPrefix)
 	}
+}
+
+func runGitMetadataCommand(dir string, args ...string) (string, error) {
+	output, err := ax.RunDir(context.Background(), dir, "git", args...)
+	if err != nil {
+		return "", err
+	}
+	return core.Trim(output), nil
+}
+
+func parseGitRemote(raw string) (string, string) {
+	raw = core.Trim(raw)
+	if raw == "" {
+		return "", ""
+	}
+
+	path := remoteRepositoryPath(raw)
+	if path == "" {
+		return "", ""
+	}
+
+	parts := strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	})
+	if len(parts) < 2 {
+		return "", ""
+	}
+
+	owner := parts[len(parts)-2]
+	repo := strings.TrimSuffix(parts[len(parts)-1], ".git")
+	if owner == "" || repo == "" {
+		return "", ""
+	}
+
+	value := owner + "/" + repo
+	return value, owner
+}
+
+func remoteRepositoryPath(raw string) string {
+	if parsed, err := url.Parse(raw); err == nil && parsed.Scheme != "" {
+		return strings.Trim(parsed.Path, "/")
+	}
+
+	if idx := strings.Index(raw, ":"); idx >= 0 && strings.Contains(raw[:idx], "@") {
+		return strings.Trim(raw[idx+1:], "/")
+	}
+
+	return strings.Trim(raw, "/")
 }
 
 // ArtifactName generates a canonical artifact filename from the build name, CI context, and target.
