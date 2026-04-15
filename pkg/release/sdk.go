@@ -79,8 +79,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	}
 
 	// Generate SDKs
-	sdkCfg := toSDKConfig(cfg.SDK)
-	s := sdk.New(projectDir, sdkCfg)
+	s := sdk.New(projectDir, cfg.SDK)
 	s.SetVersion(version)
 
 	if err := s.Generate(ctx); err != nil {
@@ -177,26 +176,7 @@ func materializeTaggedSDKSpec(ctx context.Context, projectDir, tag, specPath str
 	}, nil
 }
 
-// toSDKConfig converts release.SDKConfig to sdk.Config.
+// toSDKConfig clones release SDK config into the runtime SDK config type.
 func toSDKConfig(cfg *SDKConfig) *sdk.Config {
-	if cfg == nil {
-		return nil
-	}
-	return &sdk.Config{
-		Spec:      cfg.Spec,
-		Languages: cfg.Languages,
-		Output:    cfg.Output,
-		Package: sdk.PackageConfig{
-			Name:    cfg.Package.Name,
-			Version: cfg.Package.Version,
-		},
-		Diff: sdk.DiffConfig{
-			Enabled:        cfg.Diff.Enabled,
-			FailOnBreaking: cfg.Diff.FailOnBreaking,
-		},
-		Publish: sdk.PublishConfig{
-			Repo: cfg.Publish.Repo,
-			Path: cfg.Publish.Path,
-		},
-	}
+	return sdk.CloneConfig(cfg)
 }

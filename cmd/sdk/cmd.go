@@ -14,9 +14,11 @@ import (
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/internal/cmdutil"
+	"dappco.re/go/core/build/internal/sdkcfg"
 	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
+	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -80,7 +82,10 @@ func runSDKGenerate(ctx context.Context, specPath, lang, version string, dryRun 
 }
 
 func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool) error {
-	config := sdk.DefaultConfig()
+	config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
+	if err != nil {
+		return coreerr.E("sdk.Generate", "failed to load sdk config", err)
+	}
 	if specPath != "" {
 		config.Spec = specPath
 	}
@@ -140,7 +145,12 @@ func runSDKDiff(basePath, specPath string) error {
 	}
 
 	if specPath == "" {
-		s := sdk.New(projectDir, nil)
+		config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
+		if err != nil {
+			return coreerr.E("sdk.Diff", "failed to load sdk config", err)
+		}
+
+		s := sdk.New(projectDir, config)
 		specPath, err = s.DetectSpec()
 		if err != nil {
 			return err
@@ -183,7 +193,15 @@ func runSDKValidate(specPath string) error {
 }
 
 func runSDKValidateInDir(ctx context.Context, projectDir, specPath string) error {
-	s := sdk.New(projectDir, &sdk.Config{Spec: specPath})
+	config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
+	if err != nil {
+		return coreerr.E("sdk.Validate", "failed to load sdk config", err)
+	}
+	if specPath != "" {
+		config.Spec = specPath
+	}
+
+	s := sdk.New(projectDir, config)
 
 	cli.Print("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.sdk.label.sdk")), i18n.T("cmd.sdk.validate.validating"))
 

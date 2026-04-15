@@ -6,6 +6,7 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/pkg/sdk"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
 )
@@ -146,44 +147,22 @@ type OfficialConfig struct {
 // SDKConfig holds SDK generation configuration.
 //
 // cfg.SDK = &release.SDKConfig{Spec: "docs/openapi.yaml", Languages: []string{"typescript", "go"}}
-type SDKConfig struct {
-	// Spec is the path to the OpenAPI spec file.
-	Spec string `yaml:"spec,omitempty"`
-	// Languages to generate.
-	Languages []string `yaml:"languages,omitempty"`
-	// Output directory (default: sdk/).
-	Output string `yaml:"output,omitempty"`
-	// Package naming.
-	Package SDKPackageConfig `yaml:"package,omitempty"`
-	// Diff configuration.
-	Diff SDKDiffConfig `yaml:"diff,omitempty"`
-	// Publish configuration.
-	Publish SDKPublishConfig `yaml:"publish,omitempty"`
-}
+type SDKConfig = sdk.Config
 
 // SDKPackageConfig holds package naming configuration.
 //
 // cfg.SDK.Package = release.SDKPackageConfig{Name: "@host-uk/api-client", Version: "1.0.0"}
-type SDKPackageConfig struct {
-	Name    string `yaml:"name,omitempty"`
-	Version string `yaml:"version,omitempty"`
-}
+type SDKPackageConfig = sdk.PackageConfig
 
 // SDKDiffConfig holds diff configuration.
 //
 // cfg.SDK.Diff = release.SDKDiffConfig{Enabled: true, FailOnBreaking: true}
-type SDKDiffConfig struct {
-	Enabled        bool `yaml:"enabled,omitempty"`
-	FailOnBreaking bool `yaml:"fail_on_breaking,omitempty"`
-}
+type SDKDiffConfig = sdk.DiffConfig
 
 // SDKPublishConfig holds monorepo publish configuration.
 //
 // cfg.SDK.Publish = release.SDKPublishConfig{Repo: "host-uk/ts", Path: "packages/api-client"}
-type SDKPublishConfig struct {
-	Repo string `yaml:"repo,omitempty"`
-	Path string `yaml:"path,omitempty"`
-}
+type SDKPublishConfig = sdk.PublishConfig
 
 // ChangelogConfig holds changelog generation settings.
 //
@@ -242,6 +221,9 @@ func LoadConfig(dir string) (*Config, error) {
 	// Apply defaults for any missing fields
 	applyDefaults(&cfg)
 	cfg.ExpandEnv()
+	if cfg.SDK != nil {
+		cfg.SDK.ApplyDefaults()
+	}
 	cfg.projectDir = dir
 
 	return &cfg, nil
@@ -340,6 +322,7 @@ func (c *Config) ExpandEnv() {
 
 	if c.SDK != nil {
 		c.SDK.Spec = expandEnv(c.SDK.Spec)
+		c.SDK.Languages = expandEnvSlice(c.SDK.Languages)
 		c.SDK.Output = expandEnv(c.SDK.Output)
 		c.SDK.Package.Name = expandEnv(c.SDK.Package.Name)
 		c.SDK.Package.Version = expandEnv(c.SDK.Package.Version)

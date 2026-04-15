@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/pkg/sdk"
 
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
@@ -280,6 +281,32 @@ linuxkit:
 		assert.Equal(t, "ghcr.io/dappcore", cfg.LinuxKit.Registry)
 	})
 
+	t.Run("loads sdk config from build yaml with shorthand diff and defaults", func(t *testing.T) {
+		t.Setenv("SDK_SPEC", "docs/openapi.yaml")
+		t.Setenv("SDK_LANG", "typescript")
+
+		content := `
+version: 1
+sdk:
+  spec: ${SDK_SPEC}
+  languages:
+    - ${SDK_LANG}
+  diff: true
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		require.NotNil(t, cfg.SDK)
+
+		assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
+		assert.Equal(t, []string{"typescript"}, cfg.SDK.Languages)
+		assert.Equal(t, "sdk", cfg.SDK.Output)
+		assert.True(t, cfg.SDK.Diff.Enabled)
+		assert.False(t, cfg.SDK.Diff.FailOnBreaking)
+	})
+
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
 		dir := t.TempDir()
 
@@ -507,6 +534,11 @@ func TestConfig_CloneBuildConfig_Good(t *testing.T) {
 				Triggers: []XcodeCloudTrigger{{Branch: "main", Action: "testflight"}},
 			},
 		},
+		SDK: &sdk.Config{
+			Spec:      "docs/openapi.yaml",
+			Languages: []string{"typescript"},
+			Output:    "generated/sdk",
+		},
 		Targets: []TargetConfig{{OS: "linux", Arch: "amd64"}},
 	}
 
@@ -531,6 +563,8 @@ func TestConfig_CloneBuildConfig_Good(t *testing.T) {
 	*clone.Apple.Notarise = true
 	*clone.Apple.DMG = false
 	clone.Apple.XcodeCloud.Triggers[0].Branch = "dev"
+	clone.SDK.Languages[0] = "python"
+	clone.SDK.Output = "sdk"
 	clone.Targets[0].OS = "darwin"
 
 	assert.Equal(t, []string{"-trimpath"}, cfg.Build.Flags)
@@ -555,6 +589,9 @@ func TestConfig_CloneBuildConfig_Good(t *testing.T) {
 	assert.True(t, *cfg.Apple.DMG)
 	require.Len(t, cfg.Apple.XcodeCloud.Triggers, 1)
 	assert.Equal(t, "main", cfg.Apple.XcodeCloud.Triggers[0].Branch)
+	require.NotNil(t, cfg.SDK)
+	assert.Equal(t, []string{"typescript"}, cfg.SDK.Languages)
+	assert.Equal(t, "generated/sdk", cfg.SDK.Output)
 	assert.Equal(t, []TargetConfig{{OS: "linux", Arch: "amd64"}}, cfg.Targets)
 }
 

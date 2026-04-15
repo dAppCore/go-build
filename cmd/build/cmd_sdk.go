@@ -10,10 +10,12 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/internal/sdkcfg"
 	"dappco.re/go/core/build/pkg/sdk"
-	"dappco.re/go/core/i18n"
-	coreerr "dappco.re/go/core/log"
 	"dappco.re/go/core/cli/pkg/cli"
+	"dappco.re/go/core/i18n"
+	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // runBuildSDK handles the `core build sdk` command.
@@ -27,8 +29,10 @@ func runBuildSDK(ctx context.Context, specPath, lang, version string, dryRun boo
 }
 
 func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool) error {
-	// Load config
-	config := sdk.DefaultConfig()
+	config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
+	if err != nil {
+		return coreerr.E("build.SDK", "failed to load sdk config", err)
+	}
 	if specPath != "" {
 		config.Spec = specPath
 	}

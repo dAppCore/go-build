@@ -18,6 +18,7 @@ import (
 	"dappco.re/go/core/api/pkg/provider"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/internal/projectdetect"
+	"dappco.re/go/core/build/internal/sdkcfg"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
 	"dappco.re/go/core/build/pkg/build/signing"
@@ -871,32 +872,10 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 		req.Language = ""
 	}
 
-	// Load SDK config from release config
-	relCfg, err := release.LoadConfig(dir)
+	sdkCfg, err := sdkcfg.LoadProjectConfig(p.medium, dir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
-	}
-
-	var sdkCfg *sdk.Config
-	if relCfg.SDK != nil {
-		sdkCfg = &sdk.Config{
-			Spec:      relCfg.SDK.Spec,
-			Languages: relCfg.SDK.Languages,
-			Output:    relCfg.SDK.Output,
-			Package: sdk.PackageConfig{
-				Name:    relCfg.SDK.Package.Name,
-				Version: relCfg.SDK.Package.Version,
-			},
-			Diff: sdk.DiffConfig{
-				Enabled:        relCfg.SDK.Diff.Enabled,
-				FailOnBreaking: relCfg.SDK.Diff.FailOnBreaking,
-			},
-			Publish: sdk.PublishConfig{
-				Repo: relCfg.SDK.Publish.Repo,
-				Path: relCfg.SDK.Publish.Path,
-			},
-		}
 	}
 
 	s := sdk.New(dir, sdkCfg)

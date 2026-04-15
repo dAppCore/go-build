@@ -8,6 +8,7 @@ import (
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build/signing"
+	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
@@ -40,6 +41,8 @@ type BuildConfig struct {
 	Targets []TargetConfig `json:"targets" yaml:"targets"`
 	// Sign contains code signing configuration.
 	Sign signing.SignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
+	// SDK contains OpenAPI SDK generation configuration.
+	SDK *sdk.Config `json:"sdk,omitempty" yaml:"sdk,omitempty"`
 	// LinuxKit contains immutable image configuration for `core build image`.
 	LinuxKit LinuxKitConfig `json:"linuxkit,omitempty" yaml:"linuxkit,omitempty"`
 }
@@ -201,6 +204,9 @@ func LoadConfigAtPath(fs io.Medium, configPath string) (*BuildConfig, error) {
 	// Expand environment variables after defaults so overrides can still be
 	// expressed declaratively in config files.
 	cfg.ExpandEnv()
+	if cfg.SDK != nil {
+		cfg.SDK.ApplyDefaults()
+	}
 
 	return cfg, nil
 }
@@ -337,6 +343,15 @@ func (cfg *BuildConfig) ExpandEnv() {
 
 	cfg.Build.BuildArgs = expandEnvMap(cfg.Build.BuildArgs)
 	cfg.Targets = expandTargetConfigs(cfg.Targets)
+	if cfg.SDK != nil {
+		cfg.SDK.Spec = expandEnv(cfg.SDK.Spec)
+		cfg.SDK.Languages = expandEnvSlice(cfg.SDK.Languages)
+		cfg.SDK.Output = expandEnv(cfg.SDK.Output)
+		cfg.SDK.Package.Name = expandEnv(cfg.SDK.Package.Name)
+		cfg.SDK.Package.Version = expandEnv(cfg.SDK.Package.Version)
+		cfg.SDK.Publish.Repo = expandEnv(cfg.SDK.Publish.Repo)
+		cfg.SDK.Publish.Path = expandEnv(cfg.SDK.Publish.Path)
+	}
 
 	cfg.Sign.ExpandEnv()
 }
@@ -423,6 +438,7 @@ func CloneBuildConfig(cfg *BuildConfig) *BuildConfig {
 	clone := *cfg
 	clone.Build = cloneBuild(cfg.Build)
 	clone.Apple = cloneAppleConfig(cfg.Apple)
+	clone.SDK = sdk.CloneConfig(cfg.SDK)
 	clone.LinuxKit = cloneLinuxKitConfig(cfg.LinuxKit)
 	clone.Targets = append([]TargetConfig(nil), cfg.Targets...)
 

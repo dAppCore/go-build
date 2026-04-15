@@ -118,6 +118,27 @@ project:
 		require.NoError(t, err)
 		assert.Equal(t, dir, cfg.projectDir)
 	})
+
+	t.Run("loads sdk config with shorthand diff and defaults", func(t *testing.T) {
+		content := `
+version: 1
+sdk:
+  spec: docs/openapi.yaml
+  diff: true
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		require.NotNil(t, cfg.SDK)
+
+		assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
+		assert.Equal(t, []string{"typescript", "python", "go", "php"}, cfg.SDK.Languages)
+		assert.Equal(t, "sdk", cfg.SDK.Output)
+		assert.True(t, cfg.SDK.Diff.Enabled)
+		assert.False(t, cfg.SDK.Diff.FailOnBreaking)
+	})
 }
 
 func TestConfig_LoadConfig_ExpandEnv_Good(t *testing.T) {
@@ -128,6 +149,7 @@ func TestConfig_LoadConfig_ExpandEnv_Good(t *testing.T) {
 	t.Setenv("HOMEBREW_TAP", "owner/homebrew-tap")
 	t.Setenv("SDK_SPEC", "docs/openapi.yaml")
 	t.Setenv("SDK_OUTPUT", "generated/sdk")
+	t.Setenv("SDK_LANGUAGE", "typescript")
 
 	content := `
 version: 1
@@ -144,6 +166,8 @@ publishers:
     tap: $HOMEBREW_TAP
 sdk:
   spec: $SDK_SPEC
+  languages:
+    - $SDK_LANGUAGE
   output: $SDK_OUTPUT
 `
 	dir := setupConfigTestDir(t, content)
@@ -161,6 +185,7 @@ sdk:
 	assert.Equal(t, "owner/homebrew-tap", cfg.Publishers[0].Tap)
 	require.NotNil(t, cfg.SDK)
 	assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
+	assert.Equal(t, []string{"typescript"}, cfg.SDK.Languages)
 	assert.Equal(t, "generated/sdk", cfg.SDK.Output)
 }
 
