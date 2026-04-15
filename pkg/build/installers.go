@@ -31,6 +31,7 @@ const (
 // GenerateInstaller renders a single installer script variant from the release version and repository.
 //
 //	script, err := build.GenerateInstaller(build.VariantCI, "v1.2.3", "dappcore/core")
+//	// script starts with the ci.sh template rendered for core binaries
 func GenerateInstaller(variant InstallerVariant, version, repo string) (string, error) {
 	return buildinstallers.GenerateInstaller(variant, installerConfig(version, repo))
 }
@@ -38,6 +39,7 @@ func GenerateInstaller(variant InstallerVariant, version, repo string) (string, 
 // GenerateAll renders every installer script variant from the release version and repository.
 //
 //	scripts, err := build.GenerateAll("v1.2.3", "dappcore/core")
+//	// scripts["setup.sh"], scripts["ci.sh"], scripts["go.sh"], ...
 func GenerateAll(version, repo string) (map[string]string, error) {
 	return buildinstallers.GenerateAll(installerConfig(version, repo))
 }

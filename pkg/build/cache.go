@@ -13,6 +13,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DefaultCacheDirectory is the project-local cache metadata directory used when
+// no cache directory is supplied.
+//
+//	cfg := build.CacheConfig{Enabled: true}
+//	// SetupCache(io.Local, ".", &cfg) -> ".core/cache"
+const DefaultCacheDirectory = ".core/cache"
+
 // CacheConfig holds build cache configuration loaded from .core/build.yaml.
 //
 //	cfg := build.CacheConfig{
@@ -67,13 +74,14 @@ func (c *CacheConfig) UnmarshalYAML(value *yaml.Node) error {
 //	    Enabled: true,
 //	    Paths: []string{"~/.cache/go-build", "~/go/pkg/mod"},
 //	})
+//	// cfg.Directory defaults to ".core/cache" when unset
 func SetupCache(fs io.Medium, dir string, cfg *CacheConfig) error {
 	if fs == nil || cfg == nil || !cfg.Enabled {
 		return nil
 	}
 
 	if cfg.Directory == "" {
-		cfg.Directory = ax.Join(dir, ConfigDir, "cache")
+		cfg.Directory = ax.Join(dir, DefaultCacheDirectory)
 	}
 	cfg.Directory = normaliseCachePath(dir, cfg.Directory)
 	if len(cfg.Paths) == 0 {

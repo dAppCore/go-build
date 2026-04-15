@@ -3,8 +3,8 @@ package build
 import (
 	"sort"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 )
 
@@ -138,10 +138,11 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 }
 
 // ResolveFrontendSetupDirs returns frontend directories that participate in the
-// action-style setup phase. It checks the project root, `frontend/`, and then
-// searches nested subtrees up to depth 2, ignoring hidden directories and
-// node_modules. When allowEmptyFallback is true, the function falls back to an
-// existing `frontend/` directory or the project root even if no manifest exists.
+// action-style setup phase.
+//
+//	dirs := build.ResolveFrontendSetupDirs(io.Local, ".", true)
+//	// ["./frontend"] when the project only has an empty frontend/ directory
+//	// ["./apps/web"] when a nested package.json is detected
 func ResolveFrontendSetupDirs(fs io.Medium, dir string, allowEmptyFallback bool) []string {
 	if fs == nil {
 		fs = io.Local
