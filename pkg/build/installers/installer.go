@@ -100,11 +100,19 @@ type InstallerConfig struct {
 
 // GenerateInstaller renders an installer script for the given variant.
 //
+//	// RFC-shaped form:
+//	script, err := installers.GenerateInstaller(installers.VariantCI, "v1.2.3", "dappcore/core")
+//
+//	// Rich form with explicit binary name and script host:
 //	script, err := installers.GenerateInstaller(installers.VariantCI, installers.InstallerConfig{
 //	    Version: "v1.2.3", Repo: "dappcore/core", BinaryName: "core",
 //	})
-func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, error) {
-	cfg = normalizeInstallerConfig(cfg)
+func GenerateInstaller(variant InstallerVariant, args ...any) (string, error) {
+	cfg, err := normalizeInstallerArgs(args...)
+	if err != nil {
+		return "", err
+	}
+
 	variant = canonicalVariant(variant)
 	if err := validateInstallerVersion(cfg.Version); err != nil {
 		return "", coreerr.E("installers.GenerateInstaller", "version is not a safe release identifier", err)
@@ -137,13 +145,22 @@ func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, e
 
 // GenerateAll renders all installer variants and returns a map of output filename → script content.
 //
+//	// RFC-shaped form:
+//	scripts, err := installers.GenerateAll("v1.2.3", "dappcore/core")
+//
+//	// Rich form with explicit binary name and script host:
 //	scripts, err := installers.GenerateAll(installers.InstallerConfig{
 //	    Version: "v1.2.3", Repo: "dappcore/core", BinaryName: "core",
 //	})
 //	for name, content := range scripts {
 //	    // name: "setup.sh", content: "#!/usr/bin/env bash\n..."
 //	}
-func GenerateAll(cfg InstallerConfig) (map[string]string, error) {
+func GenerateAll(args ...any) (map[string]string, error) {
+	cfg, err := normalizeInstallerArgs(args...)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := validateInstallerVersion(cfg.Version); err != nil {
 		return nil, coreerr.E("installers.GenerateAll", "version is not a safe release identifier", err)
 	}
@@ -162,13 +179,65 @@ func GenerateAll(cfg InstallerConfig) (map[string]string, error) {
 	return out, nil
 }
 
+func normalizeInstallerArgs(args ...any) (InstallerConfig, error) {
+	switch len(args) {
+	case 1:
+		switch cfg := args[0].(type) {
+		case InstallerConfig:
+			return normalizeInstallerConfig(cfg), nil
+		case *InstallerConfig:
+			if cfg == nil {
+				return normalizeInstallerConfig(InstallerConfig{}), nil
+			}
+			return normalizeInstallerConfig(*cfg), nil
+		default:
+			return InstallerConfig{}, coreerr.E("installers.normalizeInstallerArgs", "expected InstallerConfig or *InstallerConfig", nil)
+		}
+	case 2:
+		version, ok := args[0].(string)
+		if !ok {
+			return InstallerConfig{}, coreerr.E("installers.normalizeInstallerArgs", "version must be a string", nil)
+		}
+		repo, ok := args[1].(string)
+		if !ok {
+			return InstallerConfig{}, coreerr.E("installers.normalizeInstallerArgs", "repo must be a string", nil)
+		}
+		return normalizeInstallerConfig(InstallerConfig{
+			Version:    version,
+			Repo:       repo,
+			BinaryName: defaultInstallerBinaryName(repo),
+		}), nil
+	default:
+		return InstallerConfig{}, coreerr.E("installers.normalizeInstallerArgs", "expected either InstallerConfig or version/repo arguments", nil)
+	}
+}
+
 func normalizeInstallerConfig(cfg InstallerConfig) InstallerConfig {
 	baseURL := strings.TrimRight(strings.TrimSpace(cfg.ScriptBaseURL), "/")
 	if baseURL == "" {
 		baseURL = DefaultScriptBaseURL
 	}
 	cfg.ScriptBaseURL = baseURL
+	if strings.TrimSpace(cfg.BinaryName) == "" {
+		cfg.BinaryName = defaultInstallerBinaryName(cfg.Repo)
+	}
 	return cfg
+}
+
+func defaultInstallerBinaryName(repo string) string {
+	repo = strings.TrimSpace(repo)
+	if repo == "" {
+		return ""
+	}
+
+	parts := strings.FieldsFunc(repo, func(r rune) bool {
+		return r == '/' || r == '\\'
+	})
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return parts[len(parts)-1]
 }
 
 func shellQuote(value string) string {
