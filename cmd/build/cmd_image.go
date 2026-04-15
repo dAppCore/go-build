@@ -200,20 +200,17 @@ func allImageArtifactsExist(filesystem io.Medium, imageBuilder *builders.LinuxKi
 	if err != nil || metadata == nil {
 		return false
 	}
-	if strings.TrimSpace(version) == "" {
-		return true
-	}
-
 	expected := buildImageCacheMetadata(imageName, cfg, version)
 	if metadata.Signature != expected.Signature {
 		return false
 	}
 
-	if expected.BuildVersion == "" {
+	expectedVersion := strings.TrimSpace(expected.BuildVersion)
+	if expectedVersion == "" {
 		return true
 	}
 
-	return metadata.BuildVersion == expected.BuildVersion
+	return strings.TrimSpace(metadata.BuildVersion) == expectedVersion
 }
 
 func writeImageBuildCacheMetadata(filesystem io.Medium, outputDir, imageName string, cfg build.LinuxKitConfig, version string) error {

@@ -150,3 +150,25 @@ func TestBuildCmd_allImageArtifactsExist_RequiresMatchingCacheMetadata_Good(t *t
 	require.NoError(t, io.Local.Delete(imageBuildCacheMetadataPath(outputDir, imageName)))
 	assert.False(t, allImageArtifactsExist(io.Local, builder, outputDir, imageName, cfg, "v1.2.3"))
 }
+
+func TestBuildCmd_allImageArtifactsExist_ValidatesVersionlessCacheMetadata_Good(t *testing.T) {
+	outputDir := t.TempDir()
+	imageName := "core-dev"
+	builder := builders.NewLinuxKitImageBuilder()
+	cfg := build.LinuxKitConfig{
+		Base:     "core-dev",
+		Formats:  []string{"oci", "apple"},
+		Packages: []string{"git", "task"},
+		Mounts:   []string{"/workspace"},
+	}
+
+	require.NoError(t, ax.WriteFile(ax.Join(outputDir, "core-dev.tar"), []byte("oci image"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(outputDir, "core-dev.aci"), []byte("apple image"), 0o644))
+	require.NoError(t, writeImageBuildCacheMetadata(io.Local, outputDir, imageName, cfg, ""))
+
+	assert.True(t, allImageArtifactsExist(io.Local, builder, outputDir, imageName, cfg, ""))
+
+	changedCfg := cfg
+	changedCfg.GPU = true
+	assert.False(t, allImageArtifactsExist(io.Local, builder, outputDir, imageName, changedCfg, ""))
+}

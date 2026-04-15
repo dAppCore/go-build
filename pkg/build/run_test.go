@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -109,6 +110,28 @@ func TestRun_MirrorsDirectoryArtifacts_Good(t *testing.T) {
 	content, err := output.Read(binaryPath)
 	require.NoError(t, err)
 	assert.Equal(t, "bundle:darwin/arm64", content)
+}
+
+func TestRun_UsesLocalTargetWhenBuildConfigMissing_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	output := coreio.NewMemoryMedium()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+
+	artifacts, err := Run(
+		WithProjectDir(projectDir),
+		WithBuildType(string(ProjectTypeGo)),
+		WithBuildName("core-build"),
+		WithOutput(output),
+		WithOutputDir("releases"),
+		WithBuilderResolver(func(projectType ProjectType) (Builder, error) {
+			return &runTestBuilder{}, nil
+		}),
+	)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	expectedPath := ax.Join("releases", runtime.GOOS+"_"+runtime.GOARCH, "core-build")
+	assert.Equal(t, expectedPath, artifacts[0].Path)
 }
 
 func TestRun_Bad_NoBuilderResolver(t *testing.T) {

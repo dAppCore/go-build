@@ -140,7 +140,9 @@ func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) (*PipelinePlan
 
 	targets := req.Targets
 	if len(targets) == 0 {
-		if len(buildConfig.Targets) > 0 {
+		if shouldUseLocalTargetByDefault(filesystem, projectDir, req) {
+			targets = []Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+		} else if len(buildConfig.Targets) > 0 {
 			targets = buildConfig.ToTargets()
 		} else {
 			targets = []Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
@@ -324,6 +326,14 @@ func resolvePipelineProjectTypes(filesystem io.Medium, projectDir, buildType str
 	}
 
 	return projectTypes, nil
+}
+
+func shouldUseLocalTargetByDefault(filesystem io.Medium, projectDir string, req PipelineRequest) bool {
+	if req.BuildConfig != nil || req.ConfigPath != "" {
+		return false
+	}
+
+	return !ConfigExists(filesystem, projectDir)
 }
 
 func applyPipelineBuildOverrides(cfg *BuildConfig, req PipelineRequest) {

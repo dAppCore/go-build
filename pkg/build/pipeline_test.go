@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -195,6 +196,27 @@ func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
 	assert.Contains(t, setupTools(plan.SetupPlan), SetupToolDeno)
 	assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, plan.ProjectTypes)
 	assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, resolvedTypes)
+}
+
+func TestPipeline_Plan_UsesLocalTargetWhenBuildConfigMissing_Good(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+
+	pipeline := &Pipeline{
+		FS: io.Local,
+		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+			assert.Equal(t, ProjectTypeGo, projectType)
+			return &stubPipelineBuilder{}, nil
+		},
+	}
+
+	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+		ProjectDir: dir,
+		BuildType:  string(ProjectTypeGo),
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}, plan.Targets)
 }
 
 func TestPipeline_Plan_UsesExplicitVersionOverride_Good(t *testing.T) {
