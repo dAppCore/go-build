@@ -448,6 +448,25 @@ func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 		assert.Contains(t, changelog, "bug fix")
 		assert.NotContains(t, changelog, "performance")
 	})
+
+	t.Run("supports regex exclude patterns from release config", func(t *testing.T) {
+		dir := setupChangelogGitRepo(t)
+		createChangelogCommit(t, dir, "feat: new feature")
+		createChangelogCommit(t, dir, "docs: update README")
+		createChangelogCommit(t, dir, "ci: tidy workflow")
+
+		cfg := &ChangelogConfig{
+			Exclude: []string{"^docs:", "^ci:"},
+			Use:     "conventional",
+		}
+
+		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
+		require.NoError(t, err)
+
+		assert.Contains(t, changelog, "new feature")
+		assert.NotContains(t, changelog, "update README")
+		assert.NotContains(t, changelog, "tidy workflow")
+	})
 }
 
 func TestChangelog_GetCommits_Good(t *testing.T) {

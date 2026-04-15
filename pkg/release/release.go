@@ -85,7 +85,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Step 3: Generate changelog
-	changelog, err := GenerateWithContext(ctx, absProjectDir, "", version)
+	changelog, err := generateReleaseChangelog(ctx, absProjectDir, version, cfg)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, coreerr.E("release.Publish", "changelog generation cancelled", ctx.Err())
@@ -296,7 +296,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Step 2: Generate changelog
-	changelog, err := GenerateWithContext(ctx, absProjectDir, "", version)
+	changelog, err := generateReleaseChangelog(ctx, absProjectDir, version, cfg)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, coreerr.E("release.Run", "changelog generation cancelled", ctx.Err())
@@ -484,6 +484,13 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	}
 
 	return checksummedArtifacts, nil
+}
+
+func generateReleaseChangelog(ctx context.Context, projectDir, version string, cfg *Config) (string, error) {
+	if cfg == nil {
+		return GenerateWithContext(ctx, projectDir, "", version)
+	}
+	return GenerateWithConfigWithContext(ctx, projectDir, "", version, &cfg.Changelog)
 }
 
 // writeArtifactMetadata writes artifact_meta.json files next to built artifacts

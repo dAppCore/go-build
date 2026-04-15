@@ -370,3 +370,53 @@ func TestBuildCmd_runProjectBuild_PwaOverride_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, called)
 }
+
+func TestBuildCmd_runProjectBuild_NoConfigGoPassthrough_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	originalGetwd := getProjectBuildWorkingDir
+	t.Cleanup(func() {
+		getProjectBuildWorkingDir = originalGetwd
+	})
+	getProjectBuildWorkingDir = func() (string, error) {
+		return projectDir, nil
+	}
+
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	err := runProjectBuild(ProjectBuildRequest{
+		Context:       context.Background(),
+		ArchiveOutput: true,
+	})
+	require.NoError(t, err)
+
+	assert.FileExists(t, ax.Join(projectDir, "passthrough"))
+	assert.NoFileExists(t, ax.Join(projectDir, "dist"))
+}
+
+func TestBuildCmd_runProjectBuild_NoConfigGoPassthroughTargetAndOutput_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	outputDir := ax.Join(projectDir, "bin")
+	outputPath := ax.Join(outputDir, "custom-binary")
+	originalGetwd := getProjectBuildWorkingDir
+	t.Cleanup(func() {
+		getProjectBuildWorkingDir = originalGetwd
+	})
+	getProjectBuildWorkingDir = func() (string, error) {
+		return projectDir, nil
+	}
+
+	require.NoError(t, ax.MkdirAll(outputDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	err := runProjectBuild(ProjectBuildRequest{
+		Context:     context.Background(),
+		TargetsFlag: "linux/amd64",
+		OutputDir:   outputDir,
+		BuildName:   "custom-binary",
+	})
+	require.NoError(t, err)
+
+	assert.FileExists(t, outputPath)
+}

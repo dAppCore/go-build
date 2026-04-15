@@ -14,6 +14,14 @@ import (
 	coreerr "dappco.re/go/core/log"
 )
 
+var (
+	getReleaseWorkingDir  = ax.Getwd
+	releaseConfigExistsFn = release.ConfigExists
+	loadReleaseConfigFn   = release.LoadConfig
+	runFullReleaseFn      = release.Run
+	runSDKReleaseFn       = release.RunSDK
+)
+
 // AddReleaseCommand adds the release subcommand to the build command.
 //
 // buildcmd.AddReleaseCommand(buildCmd)
@@ -28,8 +36,13 @@ func registerReleaseCommand(c *core.Core, path string) {
 		Action: func(opts core.Options) core.Result {
 			return cmdutil.ResultFromError(runRelease(
 				cmdutil.ContextOrBackground(),
-				!cmdutil.OptionBool(opts, "we-are-go-for-launch"),
-				cmdutil.OptionString(opts, "version"),
+				resolveReleaseDryRun(
+					cmdutil.OptionBool(opts, "dry-run"),
+					cmdutil.OptionBool(opts, "publish"),
+					cmdutil.OptionBool(opts, "we-are-go-for-launch"),
+				),
+				cmdutil.OptionString(opts, "target"),
+				cmdutil.OptionString(opts, "version", "tag"),
 				cmdutil.OptionBool(opts, "draft"),
 				cmdutil.OptionBool(opts, "prerelease"),
 				cmdutil.OptionString(opts, "archive-format"),
@@ -40,16 +53,16 @@ func registerReleaseCommand(c *core.Core, path string) {
 
 // runRelease executes the full release workflow: build + archive + checksum + publish.
 //
-// runRelease(ctx, true, "v1.2.3", true, false, "xz") // dry run with a forced release version, draft output
-func runRelease(ctx context.Context, dryRun bool, version string, draft, prerelease bool, archiveFormat string) error {
+// runRelease(ctx, true, "sdk", "v1.2.3", true, false, "xz") // dry run with an SDK-only target
+func runRelease(ctx context.Context, dryRun bool, target, version string, draft, prerelease bool, archiveFormat string) error {
 	// Get current directory
-	projectDir, err := ax.Getwd()
+	projectDir, err := getReleaseWorkingDir()
 	if err != nil {
 		return coreerr.E("release", "get working directory", err)
 	}
 
 	// Check for release config
-	if !release.ConfigExists(projectDir) {
+	if !releaseConfigExistsFn(projectDir) {
 		cli.Print("%s %s\n",
 			buildErrorStyle.Render(i18n.Label("error")),
 			i18n.T("cmd.build.release.error.no_config"),
@@ -59,7 +72,7 @@ func runRelease(ctx context.Context, dryRun bool, version string, draft, prerele
 	}
 
 	// Load configuration
-	cfg, err := release.LoadConfig(projectDir)
+	cfg, err := loadReleaseConfigFn(projectDir)
 	if err != nil {
 		return coreerr.E("release", "load config", err)
 	}
@@ -72,8 +85,13 @@ func runRelease(ctx context.Context, dryRun bool, version string, draft, prerele
 		return err
 	}
 
+	target = core.Lower(core.Trim(target))
+	if target == "" {
+		target = "release"
+	}
+
 	// Apply draft/prerelease overrides to all publishers
-	if draft || prerelease {
+	if target == "release" && (draft || prerelease) {
 		for i := range cfg.Publishers {
 			if draft {
 				cfg.Publishers[i].Draft = true
@@ -85,31 +103,47 @@ func runRelease(ctx context.Context, dryRun bool, version string, draft, prerele
 	}
 
 	// Print header
-	cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.release.label.release")), i18n.T("cmd.build.release.building_and_publishing"))
+	cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.release.label.release")), releaseTargetLabel(target))
 	if dryRun {
 		cli.Print("  %s\n", buildDimStyle.Render(i18n.T("cmd.build.release.dry_run_hint")))
 	}
 	cli.Blank()
 
-	// Run full release (build + archive + checksum + publish)
-	rel, err := release.Run(ctx, cfg, dryRun)
-	if err != nil {
-		return err
-	}
-
-	// Print summary
-	cli.Blank()
-	cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("i18n.done.pass")), i18n.T("cmd.build.release.completed"))
-	cli.Print("  %s   %s\n", i18n.Label("version"), buildTargetStyle.Render(rel.Version))
-	cli.Print("  %s %d\n", i18n.T("cmd.build.release.label.artifacts"), len(rel.Artifacts))
-
-	if !dryRun {
-		for _, pub := range cfg.Publishers {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.release.label.published"), buildTargetStyle.Render(pub.Type))
+	switch target {
+	case "release":
+		rel, err := runFullReleaseFn(ctx, cfg, dryRun)
+		if err != nil {
+			return err
 		}
-	}
 
-	return nil
+		// Print summary
+		cli.Blank()
+		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("i18n.done.pass")), i18n.T("cmd.build.release.completed"))
+		cli.Print("  %s   %s\n", i18n.Label("version"), buildTargetStyle.Render(rel.Version))
+		cli.Print("  %s %d\n", i18n.T("cmd.build.release.label.artifacts"), len(rel.Artifacts))
+
+		if !dryRun {
+			for _, pub := range cfg.Publishers {
+				cli.Print("  %s %s\n", i18n.T("cmd.build.release.label.published"), buildTargetStyle.Render(pub.Type))
+			}
+		}
+
+		return nil
+	case "sdk":
+		result, err := runSDKReleaseFn(ctx, cfg, dryRun)
+		if err != nil {
+			return err
+		}
+
+		cli.Blank()
+		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("i18n.done.pass")), "SDK release completed")
+		cli.Print("  %s   %s\n", i18n.Label("version"), buildTargetStyle.Render(result.Version))
+		cli.Print("  %s   %s\n", "output", buildTargetStyle.Render(result.Output))
+		cli.Print("  %s %s\n", "languages", buildTargetStyle.Render(core.Join(", ", result.Languages...)))
+		return nil
+	default:
+		return coreerr.E("release", "unsupported release target: "+target, nil)
+	}
 }
 
 // applyReleaseArchiveFormatOverride applies the archive-format CLI override to the release config.
@@ -127,4 +161,15 @@ func applyReleaseArchiveFormatOverride(cfg *release.Config, archiveFormat string
 
 	cfg.Build.ArchiveFormat = string(formatValue)
 	return nil
+}
+
+func resolveReleaseDryRun(dryRun, _ bool, _ bool) bool {
+	return dryRun
+}
+
+func releaseTargetLabel(target string) string {
+	if target == "sdk" {
+		return "Generating SDK release"
+	}
+	return i18n.T("cmd.build.release.building_and_publishing")
 }

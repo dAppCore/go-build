@@ -120,22 +120,61 @@ func checkBreakingChanges(ctx context.Context, projectDir string, cfg *SDKConfig
 	}
 
 	// Detect spec path
-	specPath := cfg.Spec
-	if specPath == "" {
-		s := sdk.New(projectDir, nil)
-		specPath, err = s.DetectSpec()
-		if err != nil {
-			return false, err
-		}
+	specPath, err := detectSDKSpecPath(projectDir, cfg)
+	if err != nil {
+		return false, err
 	}
 
+	baseSpecPath, cleanup, err := materializeTaggedSDKSpec(ctx, projectDir, prevTag, specPath)
+	if err != nil {
+		return false, err
+	}
+	defer cleanup()
+
 	// Run diff
-	result, err := sdk.Diff(prevTag, specPath)
+	result, err := sdk.Diff(baseSpecPath, specPath)
 	if err != nil {
 		return false, err
 	}
 
 	return result.Breaking, nil
+}
+
+func detectSDKSpecPath(projectDir string, cfg *SDKConfig) (string, error) {
+	specCfg := &sdk.Config{}
+	if cfg != nil {
+		specCfg.Spec = cfg.Spec
+	}
+
+	return sdk.New(projectDir, specCfg).DetectSpec()
+}
+
+func materializeTaggedSDKSpec(ctx context.Context, projectDir, tag, specPath string) (string, func(), error) {
+	relativeSpecPath, err := ax.Rel(projectDir, specPath)
+	if err != nil {
+		return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "spec path must be inside the project directory", err)
+	}
+
+	gitSpecPath := core.Replace(relativeSpecPath, ax.DS(), "/")
+	content, err := ax.RunDir(ctx, projectDir, "git", "show", core.Sprintf("%s:%s", tag, gitSpecPath))
+	if err != nil {
+		return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "failed to load spec from "+tag, err)
+	}
+
+	tempDir, err := ax.TempDir("core-build-sdk-diff-*")
+	if err != nil {
+		return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "failed to create temp dir", err)
+	}
+
+	tempPath := ax.Join(tempDir, "base"+ax.Ext(specPath))
+	if err := ax.WriteString(tempPath, content, 0o644); err != nil {
+		_ = ax.RemoveAll(tempDir)
+		return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "failed to write tagged spec", err)
+	}
+
+	return tempPath, func() {
+		_ = ax.RemoveAll(tempDir)
+	}, nil
 }
 
 // toSDKConfig converts release.SDKConfig to sdk.Config.

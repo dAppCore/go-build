@@ -9,6 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func runReleaseGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	require.NoError(t, ax.ExecDir(context.Background(), dir, "git", args...))
+}
+
 func TestSDK_RunSDKNilConfig_Bad(t *testing.T) {
 	_, err := RunSDK(context.Background(), nil, true)
 	assert.Error(t, err)
@@ -250,4 +255,57 @@ func TestSDK_ResolveSDKOutputRoot_Good(t *testing.T) {
 
 		assert.Equal(t, ax.Join("packages/api-client", "generated"), resolveSDKOutputRoot(cfg))
 	})
+}
+
+func TestSDK_CheckBreakingChanges_UsesPreviousTaggedSpec_Good(t *testing.T) {
+	dir := t.TempDir()
+	runReleaseGit(t, dir, "init")
+	runReleaseGit(t, dir, "config", "user.email", "test@example.com")
+	runReleaseGit(t, dir, "config", "user.name", "Test User")
+
+	baseSpec := `openapi: "3.0.0"
+info:
+  title: Test API
+  version: "1.0.0"
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+  /users:
+    get:
+      operationId: getUsers
+      responses:
+        "200":
+          description: OK
+`
+
+	currentSpec := `openapi: "3.0.0"
+info:
+  title: Test API
+  version: "2.0.0"
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+`
+
+	specPath := ax.Join(dir, "openapi.yaml")
+	require.NoError(t, ax.WriteFile(specPath, []byte(baseSpec), 0o644))
+	runReleaseGit(t, dir, "add", "openapi.yaml")
+	runReleaseGit(t, dir, "commit", "-m", "feat: add initial spec")
+	runReleaseGit(t, dir, "tag", "v1.0.0")
+
+	require.NoError(t, ax.WriteFile(specPath, []byte(currentSpec), 0o644))
+	runReleaseGit(t, dir, "add", "openapi.yaml")
+	runReleaseGit(t, dir, "commit", "-m", "feat: remove users endpoint")
+
+	breaking, err := checkBreakingChanges(context.Background(), dir, &SDKConfig{Spec: "openapi.yaml"})
+	require.NoError(t, err)
+	assert.True(t, breaking)
 }

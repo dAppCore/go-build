@@ -21,6 +21,7 @@ import (
 type ConventionalCommit struct {
 	Type        string // feat, fix, etc.
 	Scope       string // optional scope in parentheses
+	Subject     string // full conventional commit subject without the hash
 	Description string // commit description
 	Hash        string // short commit hash
 	Breaking    bool   // has breaking change indicator
@@ -59,6 +60,7 @@ var commitTypeOrder = []string{
 // conventionalCommitRegex matches conventional commit format.
 // Examples: "feat: add feature", "fix(scope): fix bug", "feat!: breaking change"
 var conventionalCommitRegex = regexp.MustCompile(`^(\w+)(?:\(([^)]+)\))?(!)?:\s*(.+)$`)
+var changelogLiteralTypeRegex = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // Generate generates a markdown changelog from git commits between two refs.
 // If fromRef is empty, it uses the previous tag or initial commit.
@@ -123,6 +125,10 @@ func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (strin
 //
 // md, err := release.GenerateWithConfigWithContext(ctx, ".", "v1.2.3", "HEAD", &cfg.Changelog)
 func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
+	if cfg == nil {
+		return GenerateWithContext(ctx, dir, fromRef, toRef)
+	}
+
 	if toRef == "" {
 		toRef = "HEAD"
 	}
@@ -146,15 +152,7 @@ func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef stri
 		return "", coreerr.E("changelog.GenerateWithConfig", "failed to get commits", err)
 	}
 
-	// Build include/exclude sets
-	includeSet := make(map[string]bool)
-	excludeSet := make(map[string]bool)
-	for _, t := range cfg.Include {
-		includeSet[t] = true
-	}
-	for _, t := range cfg.Exclude {
-		excludeSet[t] = true
-	}
+	includeSet, excludeSet, excludePatterns := compileChangelogFilters(cfg)
 
 	// Parse and filter conventional commits
 	var parsedCommits []ConventionalCommit
@@ -168,7 +166,7 @@ func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef stri
 		if len(includeSet) > 0 && !includeSet[parsed.Type] {
 			continue
 		}
-		if excludeSet[parsed.Type] {
+		if excludeSet[parsed.Type] || matchesExcludedCommitPattern(*parsed, excludePatterns) {
 			continue
 		}
 
@@ -234,10 +232,59 @@ func parseConventionalCommit(commitLine string) *ConventionalCommit {
 	return &ConventionalCommit{
 		Type:        core.Lower(matches[1]),
 		Scope:       matches[2],
+		Subject:     subject,
 		Breaking:    matches[3] == "!",
 		Description: matches[4],
 		Hash:        hash,
 	}
+}
+
+func compileChangelogFilters(cfg *ChangelogConfig) (map[string]bool, map[string]bool, []*regexp.Regexp) {
+	includeSet := make(map[string]bool)
+	excludeSet := make(map[string]bool)
+	var excludePatterns []*regexp.Regexp
+
+	if cfg == nil {
+		return includeSet, excludeSet, excludePatterns
+	}
+
+	for _, value := range cfg.Include {
+		value = core.Lower(core.Trim(value))
+		if value == "" {
+			continue
+		}
+		includeSet[value] = true
+	}
+
+	for _, value := range cfg.Exclude {
+		value = core.Trim(value)
+		if value == "" {
+			continue
+		}
+
+		if changelogLiteralTypeRegex.MatchString(value) {
+			excludeSet[core.Lower(value)] = true
+			continue
+		}
+
+		pattern, err := regexp.Compile(value)
+		if err != nil {
+			excludeSet[core.Lower(value)] = true
+			continue
+		}
+		excludePatterns = append(excludePatterns, pattern)
+	}
+
+	return includeSet, excludeSet, excludePatterns
+}
+
+func matchesExcludedCommitPattern(commit ConventionalCommit, patterns []*regexp.Regexp) bool {
+	for _, pattern := range patterns {
+		if pattern.MatchString(commit.Subject) {
+			return true
+		}
+	}
+	return false
 }
 
 // formatChangelog formats parsed commits into markdown.

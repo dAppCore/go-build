@@ -189,6 +189,8 @@ type SDKPublishConfig struct {
 //
 // cfg.Changelog = release.ChangelogConfig{Include: []string{"feat", "fix"}, Exclude: []string{"chore"}}
 type ChangelogConfig struct {
+	// Use selects the changelog strategy. Conventional commits are the default.
+	Use string `yaml:"use,omitempty"`
 	// Include specifies commit types to include in the changelog.
 	Include []string `yaml:"include"`
 	// Exclude specifies commit types to exclude from the changelog.
@@ -332,6 +334,7 @@ func (c *Config) ExpandEnv() {
 
 	c.Publishers = expandPublisherConfigs(c.Publishers)
 
+	c.Changelog.Use = expandEnv(c.Changelog.Use)
 	c.Changelog.Include = expandEnvSlice(c.Changelog.Include)
 	c.Changelog.Exclude = expandEnvSlice(c.Changelog.Exclude)
 

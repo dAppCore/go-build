@@ -1,6 +1,7 @@
 package buildcmd
 
 import (
+	"context"
 	"testing"
 
 	"dappco.re/go/core"
@@ -32,4 +33,57 @@ func TestBuildCmd_AddReleaseCommand_RegistersTopLevelAlias_Good(t *testing.T) {
 
 	assert.True(t, c.Command("build/release").OK)
 	assert.True(t, c.Command("release").OK)
+}
+
+func TestBuildCmd_resolveReleaseDryRun_Good(t *testing.T) {
+	assert.False(t, resolveReleaseDryRun(false, false, false))
+	assert.True(t, resolveReleaseDryRun(true, false, false))
+}
+
+func TestBuildCmd_runRelease_TargetSDK_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	originalGetwd := getReleaseWorkingDir
+	t.Cleanup(func() {
+		getReleaseWorkingDir = originalGetwd
+	})
+	getReleaseWorkingDir = func() (string, error) { return projectDir, nil }
+
+	originalConfigExists := releaseConfigExistsFn
+	originalLoadConfig := loadReleaseConfigFn
+	originalRunSDK := runSDKReleaseFn
+	t.Cleanup(func() {
+		releaseConfigExistsFn = originalConfigExists
+		loadReleaseConfigFn = originalLoadConfig
+		runSDKReleaseFn = originalRunSDK
+	})
+
+	releaseConfigExistsFn = func(dir string) bool {
+		assert.Equal(t, projectDir, dir)
+		return true
+	}
+	loadReleaseConfigFn = func(dir string) (*release.Config, error) {
+		cfg := release.DefaultConfig()
+		cfg.SetProjectDir(dir)
+		cfg.SDK = &release.SDKConfig{
+			Languages: []string{"typescript", "go"},
+			Output:    "sdk",
+		}
+		return cfg, nil
+	}
+
+	called := false
+	runSDKReleaseFn = func(ctx context.Context, cfg *release.Config, dryRun bool) (*release.SDKRelease, error) {
+		called = true
+		assert.True(t, dryRun)
+		require.NotNil(t, cfg.SDK)
+		return &release.SDKRelease{
+			Version:   "v1.2.3",
+			Output:    "sdk",
+			Languages: []string{"typescript", "go"},
+		}, nil
+	}
+
+	err := runRelease(context.Background(), true, "sdk", "v1.2.3", false, false, "")
+	require.NoError(t, err)
+	assert.True(t, called)
 }

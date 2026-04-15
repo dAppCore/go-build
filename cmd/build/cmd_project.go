@@ -25,6 +25,8 @@ import (
 	coreerr "dappco.re/go/core/log"
 )
 
+var getProjectBuildWorkingDir = ax.Getwd
+
 // ProjectBuildRequest groups the inputs for the main `core build` command.
 //
 //	req := ProjectBuildRequest{
@@ -83,7 +85,7 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	filesystem := io.Local
 
 	// Get current working directory as project root
-	projectDir, err := ax.Getwd()
+	projectDir, err := getProjectBuildWorkingDir()
 	if err != nil {
 		return coreerr.E("build.Run", "failed to get working directory", err)
 	}
@@ -92,6 +94,10 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	// project-type builder registry.
 	if req.BuildType == "pwa" {
 		return runLocalPwaBuild(ctx, projectDir)
+	}
+
+	if shouldUseGoBuildPassthrough(filesystem, projectDir, req) {
+		return runGoBuildPassthrough(ctx, projectDir, req)
 	}
 
 	// Load configuration from .core/build.yaml (or defaults)
@@ -310,6 +316,86 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	}
 
 	return nil
+}
+
+func shouldUseGoBuildPassthrough(filesystem io.Medium, projectDir string, req ProjectBuildRequest) bool {
+	if req.ConfigPath != "" || build.ConfigExists(filesystem, projectDir) {
+		return false
+	}
+
+	if req.BuildType != "" && req.BuildType != string(build.ProjectTypeGo) {
+		return false
+	}
+
+	if !build.IsGoProject(filesystem, projectDir) {
+		return false
+	}
+
+	if req.ObfuscateSet || req.NSISSet || req.WebView2Set || req.DenoBuildSet || req.BuildCacheSet || req.SignSet || req.NoSign || req.Notarize {
+		return false
+	}
+
+	if req.Push || req.ImageName != "" || req.Format != "" {
+		return false
+	}
+
+	if req.TargetsFlag == "" {
+		return true
+	}
+
+	targets, err := parseTargets(req.TargetsFlag)
+	if err != nil {
+		return false
+	}
+
+	return len(targets) == 1
+}
+
+func runGoBuildPassthrough(ctx context.Context, projectDir string, req ProjectBuildRequest) error {
+	args := []string{"build"}
+
+	if outputPath := resolveGoPassthroughOutput(req.OutputDir, req.BuildName); outputPath != "" {
+		args = append(args, "-o", outputPath)
+	}
+
+	if tags := parseBuildTagsFlag(req.BuildTagsFlag); len(tags) > 0 {
+		args = append(args, "-tags", core.Join(",", tags...))
+	}
+
+	args = append(args, ".")
+
+	env := []string{}
+	if req.TargetsFlag != "" {
+		targets, err := parseTargets(req.TargetsFlag)
+		if err != nil {
+			return err
+		}
+		if len(targets) != 1 {
+			return coreerr.E("build.Run", "go build passthrough supports exactly one target", nil)
+		}
+
+		env = append(env,
+			"GOOS="+targets[0].OS,
+			"GOARCH="+targets[0].Arch,
+		)
+	}
+
+	if err := ax.ExecWithEnv(ctx, projectDir, env, "go", args...); err != nil {
+		return coreerr.E("build.Run", "go build passthrough failed", err)
+	}
+
+	return nil
+}
+
+func resolveGoPassthroughOutput(outputDir, buildName string) string {
+	switch {
+	case outputDir != "" && buildName != "":
+		return ax.Join(outputDir, buildName)
+	case outputDir != "":
+		return outputDir
+	default:
+		return buildName
+	}
 }
 
 func applyProjectBuildOverrides(cfg *build.BuildConfig, req ProjectBuildRequest) {
