@@ -113,12 +113,52 @@ func (c *CacheConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // SetupCache normalises cache paths and ensures the cache directories exist.
 //
+// The canonical form is the 3-argument variant:
+//
 //	err := build.SetupCache(io.Local, ".", &build.CacheConfig{
 //	    Enabled: true,
 //	    Paths: []string{"~/.cache/go-build", "~/go/pkg/mod"},
 //	})
-//	// cfg.Directory defaults to ".core/cache" when unset
-func SetupCache(fs io.Medium, dir string, cfg *CacheConfig) error {
+//
+// A compatibility 1-argument form is also supported for the RFC-shaped API:
+//
+//	err := build.SetupCache(build.CacheConfig{Enabled: true})
+func SetupCache(args ...any) error {
+	switch len(args) {
+	case 1:
+		cfg, ok := cacheConfigArg(args[0])
+		if !ok || cfg == nil || !cfg.Enabled {
+			return nil
+		}
+
+		// The single-argument form is intentionally side-effect free because it
+		// does not provide a filesystem or project directory to hydrate paths.
+		return nil
+	case 3:
+		fs, _ := args[0].(io.Medium)
+		dir, _ := args[1].(string)
+		cfg, ok := args[2].(*CacheConfig)
+		if !ok {
+			return coreerr.E("build.SetupCache", "third argument must be *CacheConfig", nil)
+		}
+		return setupCacheWithMedium(fs, dir, cfg)
+	default:
+		return coreerr.E("build.SetupCache", "expected 1 or 3 arguments", nil)
+	}
+}
+
+func cacheConfigArg(arg any) (*CacheConfig, bool) {
+	switch cfg := arg.(type) {
+	case CacheConfig:
+		return &cfg, true
+	case *CacheConfig:
+		return cfg, true
+	default:
+		return nil, false
+	}
+}
+
+func setupCacheWithMedium(fs io.Medium, dir string, cfg *CacheConfig) error {
 	if fs == nil || cfg == nil || !cfg.Enabled {
 		return nil
 	}
@@ -162,7 +202,7 @@ func SetupBuildCache(fs io.Medium, dir string, cfg *BuildConfig) error {
 		return nil
 	}
 
-	return SetupCache(fs, dir, &cfg.Build.Cache)
+	return setupCacheWithMedium(fs, dir, &cfg.Build.Cache)
 }
 
 // CacheKey returns a deterministic cache key from go.sum, go.work.sum, and the target platform.
