@@ -21,6 +21,10 @@ import (
 //	// SetupCache(io.Local, ".", &cfg) -> ".core/cache"
 const DefaultCacheDirectory = ".core/cache"
 
+// DefaultProcessCacheDirectory is the RFC-documented cache directory used by
+// the single-argument SetupCache form when only environment wiring is needed.
+const DefaultProcessCacheDirectory = "~/.cache/core-build"
+
 // DefaultBuildCachePaths returns the project-local Go cache directories used
 // when no cache paths are configured.
 //
@@ -134,6 +138,10 @@ func SetupCache(args ...any) error {
 
 		// The single-argument form configures the process environment for callers
 		// that only need cache wiring and do not have a filesystem/project root.
+		if cfg.effectiveDirectory() == "" {
+			cfg.Dir = DefaultProcessCacheDirectory
+			cfg.Directory = DefaultProcessCacheDirectory
+		}
 		if len(cfg.Paths) == 0 {
 			cfg.Paths = []string{"~/.cache/go-build", "~/go/pkg/mod"}
 		}
