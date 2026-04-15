@@ -41,7 +41,13 @@ func TestBuild_LinuxKitBaseTemplate_Good(t *testing.T) {
 	images := LinuxKitBaseImages()
 	require.Len(t, images, 3)
 
-	content, err := LinuxKitBaseTemplate("core-dev")
-	require.NoError(t, err)
-	assert.Contains(t, content, "core-dev")
+	for _, image := range images {
+		content, err := LinuxKitBaseTemplate(image.Name)
+		require.NoError(t, err)
+		assert.Contains(t, content, image.Name)
+
+		lookedUp, ok := LookupLinuxKitBaseImage(image.Name)
+		require.True(t, ok)
+		assert.Equal(t, image.Name, lookedUp.Name)
+	}
 }

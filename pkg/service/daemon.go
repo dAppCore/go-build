@@ -11,6 +11,7 @@ import (
 	"time"
 
 	coreapi "dappco.re/go/core/api"
+	providerpkg "dappco.re/go/core/api/pkg/provider"
 	buildapi "dappco.re/go/core/build/pkg/api"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/build/builders"
@@ -26,15 +27,26 @@ type apiEngine interface {
 	Serve(ctx context.Context) error
 }
 
+type processDaemon interface {
+	Start() error
+	Stop() error
+	SetReady(ready bool)
+}
+
 var (
 	newHub           = ws.NewHub
-	newBuildProvider = func(projectDir string, hub *ws.Hub) coreapi.RouteGroup { return buildapi.NewProvider(projectDir, hub) }
-	newAPIEngine     = func(opts ...coreapi.Option) (apiEngine, error) { return coreapi.New(opts...) }
-	runWatchedBuild  = defaultRunWatchedBuild
-	discoverProject  = func(projectDir string) (*build.DiscoveryResult, error) {
+	newBuildProvider = func(projectDir string, hub *ws.Hub) providerpkg.Provider {
+		return buildapi.NewProvider(projectDir, hub)
+	}
+	newProviderRegistry    = providerpkg.NewRegistry
+	newAPIEngine           = func(opts ...coreapi.Option) (apiEngine, error) { return coreapi.New(opts...) }
+	newMCPServer           = defaultNewMCPServer
+	newAgenticOrchestrator = defaultNewAgenticOrchestrator
+	runWatchedBuild        = defaultRunWatchedBuild
+	discoverProject        = func(projectDir string) (*build.DiscoveryResult, error) {
 		return build.DiscoverFull(io.Local, projectDir)
 	}
-	newProcessDaemon = process.NewDaemon
+	newProcessDaemon = func(opts process.DaemonOptions) processDaemon { return process.NewDaemon(opts) }
 )
 
 // Run starts the background daemon for cfg until ctx is cancelled.
@@ -60,6 +72,22 @@ func Run(ctx context.Context, cfg Config) error {
 	hub := newHub()
 	go hub.Run(ctx)
 
+	registry := newProviderRegistry()
+	if registry == nil {
+		registry = providerpkg.NewRegistry()
+	}
+
+	buildProvider := newBuildProvider(cfg.ProjectDir, hub)
+	if buildProvider != nil {
+		registry.Add(buildProvider)
+	}
+
+	mcpServer := newMCPServer(cfg, registry, hub)
+	agentic := newAgenticOrchestrator(cfg, registry, hub)
+	if agentic != nil {
+		go agentic.Run(ctx)
+	}
+
 	engine, err := newAPIEngine(
 		coreapi.WithAddr(cfg.APIAddr),
 		coreapi.WithWSPath("/api/v1/build/events"),
@@ -69,7 +97,24 @@ func Run(ctx context.Context, cfg Config) error {
 		stopErr := daemon.Stop()
 		return errors.Join(err, stopErr)
 	}
-	engine.Register(newBuildProvider(cfg.ProjectDir, hub))
+	if buildProvider != nil {
+		engine.Register(buildProvider)
+	}
+	if mcpServer != nil {
+		engine.Register(mcpServer)
+	}
+
+	emitter := daemonEventEmitter{
+		hub:     hub,
+		agentic: agentic,
+	}
+	if mcpServer != nil {
+		emitter.Emit("service.mcp.ready", map[string]any{
+			"projectDir": cfg.ProjectDir,
+			"basePath":   mcpServer.BasePath(),
+			"tools":      mcpToolNames(mcpServer),
+		})
+	}
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -77,9 +122,9 @@ func Run(ctx context.Context, cfg Config) error {
 	}()
 
 	if cfg.AutoRebuild {
-		go watchLoop(ctx, cfg, hub)
+		go watchLoop(ctx, cfg, emitter)
 	}
-	go schedulerLoop(ctx, cfg, hub)
+	go schedulerLoop(ctx, cfg, emitter)
 
 	daemon.SetReady(true)
 
@@ -121,7 +166,7 @@ func defaultRunWatchedBuild(ctx context.Context, projectDir string) error {
 	return err
 }
 
-func schedulerLoop(ctx context.Context, cfg Config, hub *ws.Hub) {
+func schedulerLoop(ctx context.Context, cfg Config, emitter daemonEventEmitter) {
 	ticker := time.NewTicker(cfg.ScheduleInterval)
 	defer ticker.Stop()
 
@@ -140,23 +185,23 @@ func schedulerLoop(ctx context.Context, cfg Config, hub *ws.Hub) {
 			} else {
 				payload["types"] = discoveryTypes(discovery)
 			}
-			sendEvent(hub, "service.discovery", payload)
+			emitter.Emit("service.discovery", payload)
 		}
 	}
 }
 
-func watchLoop(ctx context.Context, cfg Config, hub *ws.Hub) {
+func watchLoop(ctx context.Context, cfg Config, emitter daemonEventEmitter) {
 	ticker := time.NewTicker(cfg.WatchInterval)
 	defer ticker.Stop()
 
 	current, err := snapshotFiles(cfg)
 	if err != nil {
-		sendEvent(hub, "service.watch.error", map[string]any{"error": err.Error()})
+		emitter.Emit("service.watch.error", map[string]any{"error": err.Error()})
 		return
 	}
 
 	buildQueue := make(chan []string, 1)
-	go buildWorker(ctx, cfg, hub, buildQueue)
+	go buildWorker(ctx, cfg, emitter, buildQueue)
 
 	for {
 		select {
@@ -165,7 +210,7 @@ func watchLoop(ctx context.Context, cfg Config, hub *ws.Hub) {
 		case <-ticker.C:
 			next, err := snapshotFiles(cfg)
 			if err != nil {
-				sendEvent(hub, "service.watch.error", map[string]any{"error": err.Error()})
+				emitter.Emit("service.watch.error", map[string]any{"error": err.Error()})
 				continue
 			}
 
@@ -175,7 +220,7 @@ func watchLoop(ctx context.Context, cfg Config, hub *ws.Hub) {
 				continue
 			}
 
-			sendEvent(hub, "service.watch.changed", map[string]any{
+			emitter.Emit("service.watch.changed", map[string]any{
 				"projectDir": cfg.ProjectDir,
 				"paths":      changed,
 			})
@@ -188,27 +233,27 @@ func watchLoop(ctx context.Context, cfg Config, hub *ws.Hub) {
 	}
 }
 
-func buildWorker(ctx context.Context, cfg Config, hub *ws.Hub, buildQueue <-chan []string) {
+func buildWorker(ctx context.Context, cfg Config, emitter daemonEventEmitter, buildQueue <-chan []string) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case changed := <-buildQueue:
-			sendEvent(hub, "build.started", map[string]any{
+			emitter.Emit("build.started", map[string]any{
 				"projectDir": cfg.ProjectDir,
 				"paths":      changed,
 			})
 
 			err := runWatchedBuild(ctx, cfg.ProjectDir)
 			if err != nil {
-				sendEvent(hub, "build.failed", map[string]any{
+				emitter.Emit("build.failed", map[string]any{
 					"projectDir": cfg.ProjectDir,
 					"error":      err.Error(),
 				})
 				continue
 			}
 
-			sendEvent(hub, "build.complete", map[string]any{
+			emitter.Emit("build.complete", map[string]any{
 				"projectDir": cfg.ProjectDir,
 				"paths":      changed,
 			})
@@ -312,4 +357,16 @@ func sendEvent(hub *ws.Hub, channel string, payload any) {
 		Type: ws.TypeEvent,
 		Data: payload,
 	})
+}
+
+type daemonEventEmitter struct {
+	hub     *ws.Hub
+	agentic agenticOrchestrator
+}
+
+func (e daemonEventEmitter) Emit(channel string, payload any) {
+	sendEvent(e.hub, channel, payload)
+	if e.agentic != nil {
+		e.agentic.Notify(channel, payload)
+	}
 }

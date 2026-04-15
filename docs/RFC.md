@@ -44,10 +44,25 @@ The original action/RFC centred on seven builder families. The Go implementation
 | `cpp` | `CMakeLists.txt` | CMake-based C++ builds with Conan-aware setup |
 | `taskfile` | `Taskfile.yml`, `Taskfile.yaml`, `Taskfile` | Task-driven build pipelines |
 | `docs` | `mkdocs.yml`, `mkdocs.yaml`, `docs/mkdocs.*` | MkDocs documentation sites |
-| `node` | `package.json`, `deno.json`, `deno.jsonc` | Frontend builds via package manager or Deno |
+| `node` | `package.json`, `deno.json`, `deno.jsonc` | Frontend builds via package manager or Deno-backed tooling |
 | `php` | `composer.json` | Composer-backed bundles |
 | `python` | `pyproject.toml`, `requirements.txt` | Deterministic Python source bundles |
 | `rust` | `Cargo.toml` | Cargo release builds |
+
+`pkg/build/builders/deno.go` is shared frontend command-resolution logic, not a twelfth `ProjectType`.
+Deno stays inside the Node/Wails frontend path so repositories with `deno.json` still resolve through the
+same stack detection and build surfaces instead of splitting into a separate builder family.
+
+The option-style build API also routes artefacts through `io.Medium` directly at the `build.Run(...)`
+layer rather than only through release config mutation:
+
+```go
+output := io.NewMemoryMedium()
+artifacts, err := build.Run(
+    build.WithOutput(output),
+    build.WithOutputDir("releases"),
+)
+```
 
 Auto-detection follows the action-style precedence model:
 

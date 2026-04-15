@@ -4,7 +4,7 @@
 
 ## What It Covers
 
-- Project discovery across Go, Wails, Node, Deno, PHP, Python, Rust, Docs, Docker, LinuxKit, C++, and Taskfile projects
+- Project discovery across Go, Wails, Node/Deno frontend, PHP, Python, Rust, Docs, Docker, LinuxKit, C++, and Taskfile projects
 - Cross-platform artifact builds with archive and checksum generation
 - Eight release publishers: GitHub, Docker, npm, Homebrew, Scoop, AUR, Chocolatey, and LinuxKit
 - macOS Apple pipeline: `core build apple`, codesign, notarisation, DMG packaging, TestFlight/App Store submission, Info.plist and entitlements generation, Xcode Cloud scripts
