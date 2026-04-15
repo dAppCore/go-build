@@ -1282,6 +1282,49 @@ targets:
 	assert.True(t, sawArchive)
 }
 
+func TestRelease_BuildArtifacts_InheritsBuildTargetsWhenReleaseTargetsOmitted_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/releaseapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	buildConfig := `version: 1
+project:
+  name: releaseapp
+  binary: releaseapp
+targets:
+  - os: ` + runtime.GOOS + `
+    arch: ` + runtime.GOARCH + `
+sign:
+  enabled: false
+`
+	require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(buildConfig), 0o644))
+
+	releaseConfig := `version: 1
+project:
+  name: releaseapp
+`
+	require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", ConfigFileName), []byte(releaseConfig), 0o644))
+
+	cfg, err := LoadConfig(dir)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	assert.Empty(t, cfg.Build.Targets)
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
+	require.NoError(t, err)
+	require.NotEmpty(t, artifacts)
+
+	for _, artifact := range artifacts {
+		if artifact.OS == "" || artifact.Arch == "" {
+			continue
+		}
+		assert.Equal(t, runtime.GOOS, artifact.OS)
+		assert.Equal(t, runtime.GOARCH, artifact.Arch)
+	}
+}
+
 // Helper functions for publish tests
 func setupPublishGitRepo(t *testing.T) string {
 	t.Helper()

@@ -106,9 +106,10 @@ project:
 		assert.Equal(t, 2, cfg.Version)
 		assert.Equal(t, "partial", cfg.Project.Name)
 
-		// Defaults applied
+		// Defaults applied to release-only fields while build targets stay unset so
+		// the release pipeline can inherit them from .core/build.yaml.
 		defaults := DefaultConfig()
-		assert.Equal(t, defaults.Build.Targets, cfg.Build.Targets)
+		assert.Empty(t, cfg.Build.Targets)
 		assert.Equal(t, defaults.Publishers, cfg.Publishers)
 	})
 

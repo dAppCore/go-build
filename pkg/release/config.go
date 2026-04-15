@@ -299,10 +299,6 @@ func applyDefaults(cfg *Config) {
 		cfg.Version = defaults.Version
 	}
 
-	if len(cfg.Build.Targets) == 0 {
-		cfg.Build.Targets = defaults.Build.Targets
-	}
-
 	if len(cfg.Publishers) == 0 {
 		cfg.Publishers = defaults.Publishers
 	}
