@@ -1386,7 +1386,7 @@ func TestWails_CopyBuildArtifact_Good(t *testing.T) {
 	})
 }
 
-func TestWails_WailsBuilderBuild_Bad(t *testing.T) {
+func TestWails_WailsBuilderBuildUnsafeVersion_Bad(t *testing.T) {
 	t.Run("returns error for nil config", func(t *testing.T) {
 		builder := NewWailsBuilder()
 
@@ -1705,6 +1705,29 @@ func TestWails_WailsBuilderBuildV3NSISWebView2Embed_Good(t *testing.T) {
 	content, err := ax.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "WEBVIEW2_MODE=embed")
+}
+
+func TestWails_WailsBuilderBuild_Bad(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	projectDir := setupWailsTestProject(t)
+	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+
+	builder := NewWailsBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  t.TempDir(),
+		Name:       "unsafe-version",
+		Version:    "v1.2.3 && echo unsafe",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.Error(t, err)
+	assert.Empty(t, artifacts)
+	assert.Contains(t, err.Error(), "unsupported characters")
 }
 
 func TestWails_WailsBuilderInterface_Good(t *testing.T) {

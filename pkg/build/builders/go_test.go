@@ -915,6 +915,80 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		assert.Error(t, err)
 		assert.Empty(t, artifacts)
 	})
+
+	t.Run("rejects unsafe version identifiers before invoking go build", func(t *testing.T) {
+		projectDir := setupGoTestProject(t)
+
+		builder := NewGoBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			OutputDir:  t.TempDir(),
+			Name:       "unsafe-version",
+			Version:    "v1.2.3;rm -rf /",
+		}
+
+		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
+		require.Error(t, err)
+		assert.Empty(t, artifacts)
+		assert.Contains(t, err.Error(), "unsupported characters")
+	})
+}
+
+func TestGo_GoBuilderResolveGarbleCli_Good(t *testing.T) {
+	t.Run("returns an explicit fallback path when it exists", func(t *testing.T) {
+		builder := NewGoBuilder()
+		garblePath := ax.Join(t.TempDir(), "garble")
+		require.NoError(t, ax.WriteFile(garblePath, []byte("#!/bin/sh\n"), 0o755))
+		t.Setenv("PATH", t.TempDir())
+
+		command, err := builder.resolveGarbleCli(garblePath)
+		require.NoError(t, err)
+		assert.Equal(t, garblePath, command)
+	})
+}
+
+func TestGo_GoBuilderResolveGarbleCli_Bad(t *testing.T) {
+	t.Run("returns an error when garble cannot be resolved", func(t *testing.T) {
+		builder := NewGoBuilder()
+		t.Setenv("PATH", t.TempDir())
+
+		command, err := builder.resolveGarbleCli(ax.Join(t.TempDir(), "missing-garble"))
+		require.Error(t, err)
+		assert.Empty(t, command)
+		assert.Contains(t, err.Error(), "garble CLI not found")
+	})
+}
+
+func TestGo_GarbleInstallPaths_Ugly(t *testing.T) {
+	gobin := ax.Join(t.TempDir(), "gobin")
+	gopathOne := ax.Join(t.TempDir(), "gopath-one")
+	gopathTwo := ax.Join(t.TempDir(), "gopath-two")
+
+	t.Setenv("GOBIN", gobin)
+	t.Setenv("GOPATH", gopathOne+string(os.PathListSeparator)+" "+string(os.PathListSeparator)+gopathTwo)
+
+	paths := garbleInstallPaths()
+
+	assert.Equal(t, []string{
+		ax.Join(gobin, "garble"),
+		ax.Join(gopathOne, "bin", "garble"),
+		ax.Join(gopathTwo, "bin", "garble"),
+	}, paths)
+}
+
+func TestGo_hasVersionLDFlag_Good(t *testing.T) {
+	assert.True(t, hasVersionLDFlag([]string{"-s", "-w", "-X main.version=v1.2.3"}))
+	assert.True(t, hasVersionLDFlag([]string{"-X main.Version=v1.2.3"}))
+}
+
+func TestGo_hasVersionLDFlag_Bad(t *testing.T) {
+	assert.False(t, hasVersionLDFlag([]string{"-s", "-w"}))
+}
+
+func TestGo_containsString_Ugly(t *testing.T) {
+	assert.True(t, containsString([]string{"alpha", "beta"}, "beta"))
+	assert.False(t, containsString([]string{"alpha", "beta"}, "gamma"))
 }
 
 func TestGo_GoBuilderInterface_Good(t *testing.T) {

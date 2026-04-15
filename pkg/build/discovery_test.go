@@ -326,6 +326,17 @@ func TestDiscovery_Discover_Bad(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Empty(t, types)
 	})
+
+	t.Run("unsupported configured build type is ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: kotlin\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeGo}, types)
+	})
 }
 
 func TestDiscovery_PrimaryType_Good(t *testing.T) {
