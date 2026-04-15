@@ -394,6 +394,43 @@ func TestBuildCmd_runProjectBuild_NoConfigGoPassthrough_Good(t *testing.T) {
 	assert.NoFileExists(t, ax.Join(projectDir, "dist"))
 }
 
+func TestBuildCmd_shouldUseGoBuildPassthrough_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	t.Run("keeps simple no-config go builds on passthrough", func(t *testing.T) {
+		assert.True(t, shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{}))
+	})
+
+	t.Run("uses the pipeline for ci mode", func(t *testing.T) {
+		assert.False(t, shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{
+			CIMode: true,
+		}))
+	})
+
+	t.Run("uses the pipeline for explicit archive requests", func(t *testing.T) {
+		assert.False(t, shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{
+			ArchiveOutput:    true,
+			ArchiveOutputSet: true,
+		}))
+	})
+
+	t.Run("uses the pipeline for explicit package requests", func(t *testing.T) {
+		assert.False(t, shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{
+			ArchiveOutput:  true,
+			ChecksumOutput: true,
+			PackageSet:     true,
+		}))
+	})
+
+	t.Run("uses the pipeline for explicit versioning", func(t *testing.T) {
+		assert.False(t, shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{
+			Version: "v1.2.3",
+		}))
+	})
+}
+
 func TestBuildCmd_runProjectBuild_NoConfigGoPassthroughTargetAndOutput_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "bin")
@@ -419,4 +456,59 @@ func TestBuildCmd_runProjectBuild_NoConfigGoPassthroughTargetAndOutput_Good(t *t
 	require.NoError(t, err)
 
 	assert.FileExists(t, outputPath)
+}
+
+func TestBuildCmd_runProjectBuild_NoConfigGoCIModeUsesPipeline_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	originalGetwd := getProjectBuildWorkingDir
+	t.Cleanup(func() {
+		getProjectBuildWorkingDir = originalGetwd
+	})
+	getProjectBuildWorkingDir = func() (string, error) {
+		return projectDir, nil
+	}
+
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	buildName := ax.Base(projectDir)
+
+	err := runProjectBuild(ProjectBuildRequest{
+		Context:        context.Background(),
+		CIMode:         true,
+		TargetsFlag:    "linux/amd64",
+		ArchiveOutput:  false,
+		ChecksumOutput: false,
+	})
+	require.NoError(t, err)
+
+	assert.NoFileExists(t, ax.Join(projectDir, "passthrough"))
+	assert.FileExists(t, ax.Join(projectDir, "dist", "linux_amd64", buildName))
+}
+
+func TestBuildCmd_runProjectBuild_NoConfigGoArchiveRequestUsesPipeline_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	originalGetwd := getProjectBuildWorkingDir
+	t.Cleanup(func() {
+		getProjectBuildWorkingDir = originalGetwd
+	})
+	getProjectBuildWorkingDir = func() (string, error) {
+		return projectDir, nil
+	}
+
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	buildName := ax.Base(projectDir)
+
+	err := runProjectBuild(ProjectBuildRequest{
+		Context:          context.Background(),
+		TargetsFlag:      "linux/amd64",
+		ArchiveOutput:    true,
+		ArchiveOutputSet: true,
+		ChecksumOutput:   false,
+	})
+	require.NoError(t, err)
+
+	assert.NoFileExists(t, ax.Join(projectDir, "passthrough"))
+	assert.FileExists(t, ax.Join(projectDir, "dist", "linux_amd64", buildName))
+	assert.FileExists(t, ax.Join(projectDir, "dist", buildName+"_linux_amd64.tar.gz"))
 }

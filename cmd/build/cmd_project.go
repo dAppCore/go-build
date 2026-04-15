@@ -35,36 +35,39 @@ var getProjectBuildWorkingDir = ax.Getwd
 //		TargetsFlag: "linux/amd64,linux/arm64",
 //	}
 type ProjectBuildRequest struct {
-	Context        context.Context
-	BuildType      string
-	Version        string
-	CIMode         bool
-	TargetsFlag    string
-	OutputDir      string
-	BuildName      string
-	BuildTagsFlag  string
-	Obfuscate      bool
-	ObfuscateSet   bool
-	NSIS           bool
-	NSISSet        bool
-	WebView2       string
-	WebView2Set    bool
-	DenoBuild      string
-	DenoBuildSet   bool
-	BuildCache     bool
-	BuildCacheSet  bool
-	ArchiveOutput  bool
-	ChecksumOutput bool
-	ArchiveFormat  string
-	ConfigPath     string
-	Format         string
-	Push           bool
-	ImageName      string
-	Sign           bool
-	SignSet        bool
-	NoSign         bool
-	Notarize       bool
-	Verbose        bool
+	Context           context.Context
+	BuildType         string
+	Version           string
+	CIMode            bool
+	TargetsFlag       string
+	OutputDir         string
+	BuildName         string
+	BuildTagsFlag     string
+	Obfuscate         bool
+	ObfuscateSet      bool
+	NSIS              bool
+	NSISSet           bool
+	WebView2          string
+	WebView2Set       bool
+	DenoBuild         string
+	DenoBuildSet      bool
+	BuildCache        bool
+	BuildCacheSet     bool
+	ArchiveOutput     bool
+	ArchiveOutputSet  bool
+	ChecksumOutput    bool
+	ChecksumOutputSet bool
+	PackageSet        bool
+	ArchiveFormat     string
+	ConfigPath        string
+	Format            string
+	Push              bool
+	ImageName         string
+	Sign              bool
+	SignSet           bool
+	NoSign            bool
+	Notarize          bool
+	Verbose           bool
 }
 
 // runProjectBuild handles the main `core build` command with auto-detection.
@@ -336,6 +339,18 @@ func shouldUseGoBuildPassthrough(filesystem io.Medium, projectDir string, req Pr
 	}
 
 	if req.Push || req.ImageName != "" || req.Format != "" {
+		return false
+	}
+	if req.CIMode || req.Version != "" || req.ArchiveFormat != "" {
+		return false
+	}
+	if req.ArchiveOutputSet && req.ArchiveOutput {
+		return false
+	}
+	if req.ChecksumOutputSet && req.ChecksumOutput {
+		return false
+	}
+	if req.PackageSet && (req.ArchiveOutput || req.ChecksumOutput) {
 		return false
 	}
 
