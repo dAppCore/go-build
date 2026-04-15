@@ -2,6 +2,10 @@ package generators
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	stdio "io"
 	"strconv"
 	"sync"
 	"time"
@@ -19,6 +23,8 @@ var (
 )
 
 var availabilityProbeTimeout = 2 * time.Second
+
+const dockerRuntimeFingerprintBytes = 4 * 1024
 
 func dockerRuntimeAvailable() bool {
 	ctx, cancel := availabilityProbeContext()
@@ -48,6 +54,9 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 
 	err = ax.Exec(ctx, dockerCommand, "--help")
 	if err != nil && ctx.Err() != nil {
+		return false
+	}
+	if ctx.Err() != nil {
 		return false
 	}
 
@@ -84,9 +93,22 @@ func dockerRuntimeCommandState(command string) (string, error) {
 		return "", err
 	}
 
+	file, err := ax.Open(command)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = file.Close() }()
+
+	hasher := sha256.New()
+	if _, err := stdio.CopyN(hasher, file, dockerRuntimeFingerprintBytes); err != nil && !errors.Is(err, stdio.EOF) {
+		return "", err
+	}
+
 	return command + "|" +
 		strconv.FormatInt(info.Size(), 10) + "|" +
-		strconv.FormatInt(info.ModTime().UnixNano(), 10), nil
+		strconv.FormatInt(info.ModTime().UnixNano(), 10) + "|" +
+		info.Mode().String() + "|" +
+		hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 func cachedDockerRuntimeAvailability(command, state string) (bool, bool) {
@@ -110,4 +132,14 @@ func storeDockerRuntimeAvailability(command, state string, available bool) {
 	dockerRuntimeState = state
 	dockerRuntimeOK = available
 	dockerRuntimeChecked = true
+}
+
+func resetDockerRuntimeAvailabilityCache() {
+	dockerRuntimeMu.Lock()
+	defer dockerRuntimeMu.Unlock()
+
+	dockerRuntimeChecked = false
+	dockerRuntimeOK = false
+	dockerRuntimeCommand = ""
+	dockerRuntimeState = ""
 }

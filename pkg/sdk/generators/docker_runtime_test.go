@@ -2,8 +2,8 @@ package generators
 
 import (
 	"context"
+	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -13,11 +13,7 @@ import (
 )
 
 func resetDockerRuntimeState() {
-	dockerRuntimeMu = sync.Mutex{}
-	dockerRuntimeChecked = false
-	dockerRuntimeOK = false
-	dockerRuntimeCommand = ""
-	dockerRuntimeState = ""
+	resetDockerRuntimeAvailabilityCache()
 }
 
 func setAvailabilityProbeTimeout(t *testing.T, timeout time.Duration) {
@@ -194,6 +190,27 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutates
 	// Preserve monotonic ordering for filesystems with coarse mtimes.
 	time.Sleep(20 * time.Millisecond)
 	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n"), 0o755))
+
+	assert.False(t, dockerRuntimeAvailable())
+}
+
+func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandKeepsSizeAndMTime_Good(t *testing.T) {
+	resetDockerRuntimeState()
+	t.Cleanup(resetDockerRuntimeState)
+
+	dockerDir := t.TempDir()
+	successScript := "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n"
+	failureScript := "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n"
+	dockerPath := writeFakeDockerRuntime(t, dockerDir, successScript)
+	t.Setenv("PATH", dockerDir)
+
+	assert.True(t, dockerRuntimeAvailable())
+
+	info, err := os.Stat(dockerPath)
+	require.NoError(t, err)
+
+	require.NoError(t, ax.WriteFile(dockerPath, []byte(failureScript), 0o755))
+	require.NoError(t, os.Chtimes(dockerPath, info.ModTime(), info.ModTime()))
 
 	assert.False(t, dockerRuntimeAvailable())
 }
