@@ -1,6 +1,10 @@
 package build
 
-import "dappco.re/go/core/io"
+import (
+	"strings"
+
+	"dappco.re/go/core/io"
+)
 
 // RuntimeConfigFromBuildConfig maps persisted build settings onto a runtime
 // builder config while preserving the caller's output/name/version overrides.
@@ -18,6 +22,16 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 	if npmBuild == "" {
 		npmBuild = buildConfig.PreBuild.Npm
 	}
+
+	ldFlags := append([]string{}, buildDefaults.LDFlags...)
+	if version == "" {
+		// Preserve template placeholders when no version is being injected.
+	} else if versionIsSafeRelease(version) {
+		ldFlags = ExpandVersionTemplates(ldFlags, version)
+	} else {
+		ldFlags = stripVersionTemplateFlags(ldFlags)
+	}
+
 	cfg := &Config{
 		FS:             filesystem,
 		Project:        buildConfig.Project,
@@ -25,7 +39,7 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 		OutputDir:      outputDir,
 		Name:           binaryName,
 		Version:        version,
-		LDFlags:        ExpandVersionTemplates(append([]string{}, buildDefaults.LDFlags...), version),
+		LDFlags:        ldFlags,
 		Flags:          ExpandVersionTemplates(append([]string{}, buildDefaults.Flags...), version),
 		BuildTags:      append([]string{}, buildDefaults.BuildTags...),
 		Env:            ExpandVersionTemplates(append([]string{}, buildDefaults.Env...), version),
@@ -53,4 +67,38 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 	}
 
 	return cfg
+}
+
+func versionIsSafeRelease(version string) bool {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return false
+	}
+
+	return safeVersionLinkerValue.MatchString(version)
+}
+
+func stripVersionTemplateFlags(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		if containsVersionTemplate(value) {
+			continue
+		}
+		filtered = append(filtered, value)
+	}
+
+	return filtered
+}
+
+func containsVersionTemplate(value string) bool {
+	return strings.Contains(value, "v{{.Version}}") ||
+		strings.Contains(value, "v{{Version}}") ||
+		strings.Contains(value, "{{.Tag}}") ||
+		strings.Contains(value, "{{Tag}}") ||
+		strings.Contains(value, "{{.Version}}") ||
+		strings.Contains(value, "{{Version}}")
 }

@@ -120,6 +120,25 @@ func TestBuild_RuntimeConfigFromBuildConfig_ExpandsVersionTemplates_Good(t *test
 	assert.Equal(t, []string{"RELEASE_TAG={{.Tag}}", "IMAGE_TAG=v{{.Version}}"}, source.Build.Env)
 }
 
+func TestBuild_RuntimeConfigFromBuildConfig_StripsUnsafeVersionTemplateFlags(t *testing.T) {
+	source := &BuildConfig{
+		Build: Build{
+			LDFlags: []string{
+				"-s",
+				"-w",
+				"-X main.Version={{.Tag}}",
+				"-X build.commit=abc123",
+			},
+		},
+	}
+
+	cfg := RuntimeConfigFromBuildConfig(io.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, false, "", "v1.2.3 -bad")
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, []string{"-s", "-w", "-X build.commit=abc123"}, cfg.LDFlags)
+	assert.Equal(t, []string{"-s", "-w", "-X main.Version={{.Tag}}", "-X build.commit=abc123"}, source.Build.LDFlags)
+}
+
 func TestBuild_RuntimeConfigFromBuildConfig_UsesRFCPreBuildAliases_Good(t *testing.T) {
 	source := &BuildConfig{
 		PreBuild: PreBuild{
