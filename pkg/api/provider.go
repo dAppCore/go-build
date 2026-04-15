@@ -144,7 +144,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Method:      "GET",
 			Path:        "/discover",
 			Summary:     "Detect project type",
-			Description: "Scans the project directory for marker files and returns detected project types plus frontend and distro metadata.",
+			Description: "Scans the project directory for marker files and returns detected project types plus frontend, setup-plan, and distro metadata.",
 			Tags:        []string{"build", "discovery"},
 		},
 		{
@@ -324,6 +324,11 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		return
 	}
 	options := build.ComputeOptions(cfg, discovery)
+	setupPlan, err := build.ComputeSetupPlan(p.medium, dir, cfg, discovery)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Fail("setup_plan_failed", err.Error()))
+		return
+	}
 
 	// Convert to string slice for JSON
 	typeStrings := make([]string, len(discovery.Types))
@@ -357,6 +362,7 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		"has_root_cmakelists":       discovery.HasRootCMakeLists,
 		"has_root_wails_json":       discovery.HasRootWailsJSON,
 		"has_subtree_npm":           discovery.HasSubtreeNpm,
+		"has_subtree_package_json":  discovery.HasSubtreeNpm,
 		"has_subtree_deno_manifest": discovery.HasSubtreeDenoManifest,
 		"has_docs_config":           discovery.HasDocsConfig,
 		"has_go_toolchain":          discovery.HasGoToolchain,
@@ -378,6 +384,14 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 			"nsis":      options.NSIS,
 			"webview2":  options.WebView2,
 			"ldflags":   options.LDFlags,
+		},
+		"setup_plan": map[string]any{
+			"project_dir":              setupPlan.ProjectDir,
+			"primary_stack":            setupPlan.PrimaryStack,
+			"primary_stack_suggestion": setupPlan.PrimaryStackSuggestion,
+			"frontend_dirs":            setupPlan.FrontendDirs,
+			"linux_packages":           setupPlan.LinuxPackages,
+			"steps":                    setupPlan.Steps,
 		},
 		"markers": discovery.Markers,
 		"distro":  discovery.Distro,

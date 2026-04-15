@@ -93,6 +93,17 @@ interface BuildConfigData {
 }
 
 interface DiscoverData {
+  setup_plan?: {
+    project_dir: string;
+    primary_stack?: string;
+    primary_stack_suggestion?: string;
+    frontend_dirs?: string[];
+    linux_packages?: string[];
+    steps?: Array<{
+      tool: string;
+      reason: string;
+    }>;
+  };
   types: string[];
   primary: string;
   primary_stack?: string;
@@ -105,6 +116,7 @@ interface DiscoverData {
   tag?: string;
   short_sha?: string;
   has_subtree_npm?: boolean;
+  has_subtree_package_json?: boolean;
   linux_packages?: string[];
   build_options?: string;
   options?: {
@@ -365,6 +377,7 @@ export class BuildConfig extends LitElement {
 
     const cfg = this.configData.config;
     const disc = this.discoverData;
+    const hasSubtreePackageJson = disc ? (disc.has_subtree_package_json ?? disc.has_subtree_npm ?? false) : false;
 
     return html`
       <!-- Discovery -->
@@ -402,8 +415,8 @@ export class BuildConfig extends LitElement {
               </div>
               <div class="field">
                 <span class="field-label">Nested frontend</span>
-                <span class="badge ${disc.has_subtree_npm ? 'present' : 'absent'}">
-                  ${disc.has_subtree_npm ? 'Depth 2' : 'None'}
+                <span class="badge ${hasSubtreePackageJson ? 'present' : 'absent'}">
+                  ${hasSubtreePackageJson ? 'Depth 2' : 'None'}
                 </span>
               </div>
               ${disc.distro
@@ -483,6 +496,44 @@ export class BuildConfig extends LitElement {
             `
           : nothing}
       </div>
+
+      ${disc?.setup_plan
+        ? html`
+            <div class="section">
+              <div class="section-title">Setup Plan</div>
+              ${this.renderFlags(
+                'Toolchains',
+                disc.setup_plan.steps?.map((step) => step.tool),
+              )}
+              ${this.renderFlags('Frontend dirs', disc.setup_plan.frontend_dirs)}
+              ${disc.setup_plan.linux_packages && disc.setup_plan.linux_packages.length > 0
+                ? html`
+                    <div class="field">
+                      <span class="field-label">System packages</span>
+                      <div class="flags">
+                        ${disc.setup_plan.linux_packages.map((pkg: string) => html`<span class="flag">${pkg}</span>`)}
+                      </div>
+                    </div>
+                  `
+                : nothing}
+              ${disc.setup_plan.steps && disc.setup_plan.steps.length > 0
+                ? disc.setup_plan.steps.map(
+                    (step) => html`
+                      <div class="field">
+                        <span class="field-label">${step.tool}</span>
+                        <span class="field-value">${step.reason}</span>
+                      </div>
+                    `,
+                  )
+                : html`
+                    <div class="field">
+                      <span class="field-label">Steps</span>
+                      <span class="field-value">No setup required</span>
+                    </div>
+                  `}
+            </div>
+          `
+        : nothing}
 
       <!-- Project -->
       <div class="section">

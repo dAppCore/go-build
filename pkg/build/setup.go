@@ -41,8 +41,8 @@ const (
 
 // SetupStep describes one toolchain requirement in the setup plan.
 type SetupStep struct {
-	Tool   SetupTool
-	Reason string
+	Tool   SetupTool `json:"tool"`
+	Reason string    `json:"reason"`
 }
 
 // SetupPlan is the Go-side equivalent of the action setup orchestration.

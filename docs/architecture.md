@@ -52,6 +52,8 @@ The pure Go equivalents are:
 
 This keeps the Go package aligned with the action architecture without copying the action repository's bash and PowerShell implementation split.
 
+The build API surfaces the same shape through `GET /api/v1/build/discover`, including action-compatible aliases such as `has_subtree_package_json` and a serialized `setup_plan` for UI/debugging consumers.
+
 ## Builder Layer
 
 Every builder implements:
