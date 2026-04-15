@@ -96,6 +96,7 @@ The generated workflow in this repo preserves the same high-signal control surfa
 |---|---|---|
 | `build-name` | derived from config or repo name | Override output/artifact name |
 | `build-platform` | matrix driven | Filter the build matrix to one target |
+| `core-version` | `latest` | Pin the bootstrap Core CLI version used by the generated workflow |
 | `version` | empty | Override the version embedded into build outputs and releases |
 | `build` | `true` | Run the build phase |
 | `sign` | `false` | Enable platform signing after build |
@@ -109,6 +110,7 @@ The generated workflow in this repo preserves the same high-signal control surfa
 | `deno-build` | empty | Override the default Deno build command |
 | `wails-build-webview2` | empty | Set Windows WebView2 mode |
 | `build-cache` | `true` | Restore and save build caches |
+| `archive-format` | empty | Override the archive format used for packaged build artefacts; empty falls back to gzip (`.tar.gz`, or `.zip` on Windows) |
 
 ### What the Action Shape Does
 
@@ -257,8 +259,9 @@ Key flags:
 The RFC-facing wrapper exposes:
 
 - `AppleBuilder`
+- the `Builder` interface returning `core.Result` values from `Detect()` and `Build()`
 - functional options such as `WithArch`, `WithSign`, `WithNotarise`, `WithDMG`, `WithTestFlight`, and `WithAppStore`
-- `AppleOptions` mirroring the CLI/runtime pipeline
+- `AppleOptions` mirroring the CLI/runtime pipeline, including signing identity, App Store Connect credentials, and delivery toggles
 
 This wrapper keeps the Apple contract consistent with the wider Core service pattern while delegating the concrete implementation to `pkg/build/apple.go`.
 
@@ -276,6 +279,8 @@ The Apple implementation exposes helper functions such as:
 - `BuildWailsApp()`
 - `CreateUniversal()`
 
+`BuildWailsApp()` keeps the RFC-facing `LDFlags` field as a single string in `pkg/build/apple/` and converts it to the lower-level slice form expected by `pkg/build/apple.go`, so the wrapper stays stable while the build package remains CLI-friendly.
+
 ### Signing, Notarisation, and DMG Packaging
 
 The Apple pipeline supports:
@@ -284,6 +289,11 @@ The Apple pipeline supports:
 - notarisation with `xcrun notarytool`
 - stapling and verification
 - DMG packaging for direct distribution, including background assets and `/Applications` symlink staging
+
+Notarisation supports both auth paths from the RFC:
+
+- App Store Connect API key authentication via `APIKeyID`, `APIKeyIssuerID`, and `APIKeyPath`
+- Apple ID plus app-specific password as a fallback when API key credentials are not supplied
 
 The runtime order is:
 
@@ -336,8 +346,18 @@ Entitlement generation distinguishes direct-distribution and App Store profiles 
 - sandboxing for App Store builds
 - JIT-related entitlements only where that distribution mode allows them
 
+## Reference Material
+
+- Go module path: `dappco.re/go/core/build`
+- Public action: `dAppCore/build@v3`
+- Build config companion RFC: `code/core/config/RFC.md`
+
 ## Supporting Documents
 
 - [Architecture](architecture.md)
 - [Stacks](stacks.md)
 - [Development](development.md)
+
+## Changelog
+
+- 2026-04-15: Synced the in-repo RFC with the current generated workflow surface by documenting `core-version`, `archive-format`, and the fuller Apple wrapper/notarisation contract.
