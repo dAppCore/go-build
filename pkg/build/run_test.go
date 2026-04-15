@@ -160,14 +160,40 @@ func TestRun_UsesLocalTargetWhenBuildConfigMissing_Good(t *testing.T) {
 	assert.Equal(t, expectedPath, artifacts[0].Path)
 }
 
-func TestRun_Bad_NoBuilderResolver(t *testing.T) {
+func TestRun_UsesBuiltinGoResolverWhenResolverUnset_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/builtin\n\ngo 1.24\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	output := coreio.NewMemoryMedium()
+	artifacts, err := Run(
+		WithProjectDir(projectDir),
+		WithBuildConfig(DefaultConfig()),
+		WithBuildType(string(ProjectTypeGo)),
+		WithBuildName("core-build"),
+		WithTargets(Target{OS: runtime.GOOS, Arch: runtime.GOARCH}),
+		WithOutput(output),
+		WithOutputDir("releases"),
+	)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	expectedPath := ax.Join("releases", runtime.GOOS+"_"+runtime.GOARCH, "core-build")
+	if runtime.GOOS == "windows" {
+		expectedPath += ".exe"
+	}
+	assert.Equal(t, expectedPath, artifacts[0].Path)
+	assert.True(t, output.Exists(expectedPath))
+}
+
+func TestRun_Bad_NoBuilderResolverForUnsupportedProjectType(t *testing.T) {
 	projectDir := t.TempDir()
 
 	_, err := Run(
 		WithProjectDir(projectDir),
 		WithBuildConfig(DefaultConfig()),
-		WithBuildType(string(ProjectTypeGo)),
+		WithBuildType(string(ProjectTypeNode)),
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "builder resolver is required")
+	assert.Contains(t, err.Error(), "builtin fallback only supports go projects")
 }

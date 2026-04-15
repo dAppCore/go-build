@@ -182,7 +182,7 @@ func Run(opts ...RunOption) ([]Artifact, error) {
 		resolver = DefaultBuilderResolver()
 	}
 	if resolver == nil {
-		return nil, coreerr.E("build.Run", "builder resolver is required; import pkg/build/builders or use WithBuilderResolver", nil)
+		resolver = resolveBuiltinBuilder
 	}
 
 	pipeline := &Pipeline{
