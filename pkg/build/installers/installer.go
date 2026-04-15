@@ -114,7 +114,9 @@ func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, e
 		return "", coreerr.E("installers.GenerateInstaller", "failed to read template "+entry.tmpl, err)
 	}
 
-	tmpl, err := template.New(entry.output).Parse(string(raw))
+	tmpl, err := template.New(entry.output).Funcs(template.FuncMap{
+		"shellQuote": shellQuote,
+	}).Parse(string(raw))
 	if err != nil {
 		return "", coreerr.E("installers.GenerateInstaller", "failed to parse template "+entry.tmpl, err)
 	}
@@ -157,6 +159,14 @@ func normalizeInstallerConfig(cfg InstallerConfig) InstallerConfig {
 	}
 	cfg.ScriptBaseURL = baseURL
 	return cfg
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
 
 func canonicalVariant(variant InstallerVariant) InstallerVariant {

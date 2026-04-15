@@ -6,9 +6,9 @@
 #   curl -sL {{.ScriptBaseURL}}/dev.sh | bash
 set -euo pipefail
 
-BINARY_NAME="{{.BinaryName}}"
-VERSION="{{.Version}}"
-REPO="{{.Repo}}"
+BINARY_NAME={{ shellQuote .BinaryName }}
+VERSION={{ shellQuote .Version }}
+REPO={{ shellQuote .Repo }}
 GITHUB_BASE="https://github.com/${REPO}"
 DEV_IMAGE_VERSION="${VERSION#v}"
 if [ -z "${DEV_IMAGE_VERSION}" ]; then

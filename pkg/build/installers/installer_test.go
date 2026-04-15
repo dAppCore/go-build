@@ -114,6 +114,21 @@ func TestInstaller_GenerateInstaller_Ugly(t *testing.T) {
 	})
 }
 
+func TestInstaller_GenerateInstaller_QuotesValues(t *testing.T) {
+	cfg := InstallerConfig{
+		Version:    "v1.2.3-beta+1",
+		Repo:       "dappcore/core",
+		BinaryName: "core's tool",
+	}
+
+	script, err := GenerateInstaller(VariantCI, cfg)
+	require.NoError(t, err)
+
+	assert.Contains(t, script, "BINARY_NAME='core'\"'\"'s tool'")
+	assert.Contains(t, script, "VERSION='v1.2.3-beta+1'")
+	assert.Contains(t, script, "REPO='dappcore/core'")
+}
+
 // TestInstaller_GenerateAll_Good verifies that GenerateAll returns one entry per variant
 // and that each script is a non-empty bash script.
 func TestInstaller_GenerateAll_Good(t *testing.T) {

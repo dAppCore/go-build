@@ -157,7 +157,9 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 	if binaryName != "" {
 		env = append(env, core.Sprintf("NAME=%s", binaryName))
 	}
-	if goflags := buildV3GoFlags(cfg); goflags != "" {
+	if goflags, err := buildV3GoFlags(cfg); err != nil {
+		return build.Artifact{}, err
+	} else if goflags != "" {
 		env = append(env, "GOFLAGS="+goflags)
 	}
 	if cfg.CGO {
@@ -418,7 +420,11 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 
 	ldflags := append([]string{}, cfg.LDFlags...)
 	if cfg.Version != "" && !hasVersionLDFlag(ldflags) {
-		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+		versionFlag, err := build.VersionLinkerFlag(cfg.Version)
+		if err != nil {
+			return build.Artifact{}, err
+		}
+		ldflags = append(ldflags, versionFlag)
 	}
 	if len(ldflags) > 0 {
 		args = append(args, "-ldflags", core.Join(" ", ldflags...))
@@ -657,9 +663,9 @@ func (b *WailsBuilder) resolveWails3Cli(paths ...string) (string, error) {
 	return command, nil
 }
 
-func buildV3GoFlags(cfg *build.Config) string {
+func buildV3GoFlags(cfg *build.Config) (string, error) {
 	if cfg == nil {
-		return ""
+		return "", nil
 	}
 
 	var flags []string
@@ -674,13 +680,17 @@ func buildV3GoFlags(cfg *build.Config) string {
 
 	ldflags := append([]string{}, cfg.LDFlags...)
 	if cfg.Version != "" && !hasVersionLDFlag(ldflags) {
-		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+		versionFlag, err := build.VersionLinkerFlag(cfg.Version)
+		if err != nil {
+			return "", err
+		}
+		ldflags = append(ldflags, versionFlag)
 	}
 	if len(ldflags) > 0 {
 		flags = append(flags, "-ldflags="+core.Join(" ", ldflags...))
 	}
 
-	return core.Join(" ", flags...)
+	return core.Join(" ", flags...), nil
 }
 
 func buildV3TaskVars(cfg *build.Config, target build.Target) ([]string, error) {
@@ -689,7 +699,9 @@ func buildV3TaskVars(cfg *build.Config, target build.Target) ([]string, error) {
 	}
 
 	var taskVars []string
-	if buildFlags := buildV3BuildFlags(cfg, target); buildFlags != "" {
+	if buildFlags, err := buildV3BuildFlags(cfg, target); err != nil {
+		return nil, err
+	} else if buildFlags != "" {
 		taskVars = append(taskVars, "BUILD_FLAGS="+buildFlags)
 	}
 	if len(cfg.BuildTags) > 0 {
@@ -706,9 +718,9 @@ func buildV3TaskVars(cfg *build.Config, target build.Target) ([]string, error) {
 	return taskVars, nil
 }
 
-func buildV3BuildFlags(cfg *build.Config, target build.Target) string {
+func buildV3BuildFlags(cfg *build.Config, target build.Target) (string, error) {
 	if cfg == nil {
-		return ""
+		return "", nil
 	}
 
 	var flags []string
@@ -731,13 +743,17 @@ func buildV3BuildFlags(cfg *build.Config, target build.Target) string {
 		ldflags = append(ldflags, "-H windowsgui")
 	}
 	if cfg.Version != "" && !hasVersionLDFlag(ldflags) {
-		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+		versionFlag, err := build.VersionLinkerFlag(cfg.Version)
+		if err != nil {
+			return "", err
+		}
+		ldflags = append(ldflags, versionFlag)
 	}
 	if len(ldflags) > 0 {
 		flags = append(flags, `-ldflags="`+core.Join(" ", ldflags...)+`"`)
 	}
 
-	return core.Join(" ", flags...)
+	return core.Join(" ", flags...), nil
 }
 
 func (b *WailsBuilder) prepareV3Obfuscation(env []string) ([]string, func(), error) {

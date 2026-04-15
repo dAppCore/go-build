@@ -5,9 +5,9 @@ import (
 	"context"
 	"runtime"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -120,7 +120,11 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, outputDi
 	// Add ldflags if specified, and inject the build version when needed.
 	ldflags := append([]string{}, cfg.LDFlags...)
 	if cfg.Version != "" && !hasVersionLDFlag(ldflags) {
-		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+		versionFlag, err := build.VersionLinkerFlag(cfg.Version)
+		if err != nil {
+			return build.Artifact{}, err
+		}
+		ldflags = append(ldflags, versionFlag)
 	}
 	if len(ldflags) > 0 {
 		args = append(args, "-ldflags", core.Join(" ", ldflags...))

@@ -6,9 +6,9 @@ import (
 	"path"
 	"runtime"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -185,7 +185,9 @@ func (b *TaskfileBuilder) applyWailsV3BuildSurface(cfg *build.Config, target bui
 		return args, env, func() {}, nil
 	}
 
-	if goflags := buildV3GoFlags(cfg); goflags != "" {
+	if goflags, err := buildV3GoFlags(cfg); err != nil {
+		return nil, nil, nil, err
+	} else if goflags != "" {
 		env = append(env, "GOFLAGS="+goflags)
 	}
 

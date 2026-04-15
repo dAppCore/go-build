@@ -4,8 +4,8 @@ import (
 	"context"
 	"runtime"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -101,7 +101,11 @@ func (b *builtinGoBuilder) buildTarget(ctx context.Context, filesystem io.Medium
 
 	ldflags := append([]string{}, cfg.LDFlags...)
 	if cfg.Version != "" && !builtinHasVersionLDFlag(ldflags) {
-		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+		versionFlag, err := VersionLinkerFlag(cfg.Version)
+		if err != nil {
+			return Artifact{}, err
+		}
+		ldflags = append(ldflags, versionFlag)
 	}
 	if len(ldflags) > 0 {
 		args = append(args, "-ldflags", core.Join(" ", ldflags...))

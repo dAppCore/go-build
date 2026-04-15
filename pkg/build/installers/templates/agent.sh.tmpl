@@ -6,9 +6,9 @@
 #   curl -sL {{.ScriptBaseURL}}/agent.sh | bash
 set -euo pipefail
 
-BINARY_NAME="{{.BinaryName}}"
-VERSION="{{.Version}}"
-REPO="{{.Repo}}"
+BINARY_NAME={{ shellQuote .BinaryName }}
+VERSION={{ shellQuote .Version }}
+REPO={{ shellQuote .Repo }}
 GITHUB_BASE="https://github.com/${REPO}"
 
 detect_os() {

@@ -7,9 +7,9 @@
 #   curl -sL {{.ScriptBaseURL}}/setup.sh | bash -s -- --version {{.Version}}
 set -euo pipefail
 
-BINARY_NAME="{{.BinaryName}}"
-VERSION="{{.Version}}"
-REPO="{{.Repo}}"
+BINARY_NAME={{ shellQuote .BinaryName }}
+VERSION={{ shellQuote .Version }}
+REPO={{ shellQuote .Repo }}
 GITHUB_BASE="https://github.com/${REPO}"
 
 # ── OS / ARCH detection ──────────────────────────────────────────────────────

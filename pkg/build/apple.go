@@ -13,8 +13,8 @@ import (
 	"time"
 	"unicode"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -598,7 +598,11 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) (string, error) {
 
 	ldflags := append([]string{}, cfg.LDFlags...)
 	if cfg.Version != "" && !appleHasVersionLDFlag(ldflags) {
-		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+		versionFlag, err := VersionLinkerFlag(cfg.Version)
+		if err != nil {
+			return "", err
+		}
+		ldflags = append(ldflags, versionFlag)
 	}
 	if len(ldflags) > 0 {
 		args = append(args, "-ldflags", core.Join(" ", ldflags...))
