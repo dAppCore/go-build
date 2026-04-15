@@ -2,6 +2,7 @@ package generators
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ var (
 	dockerRuntimeChecked bool
 	dockerRuntimeOK      bool
 	dockerRuntimeCommand string
+	dockerRuntimeState   string
 )
 
 var availabilityProbeTimeout = 2 * time.Second
@@ -26,7 +28,16 @@ func dockerRuntimeAvailable() bool {
 }
 
 func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
+	if err := ctx.Err(); err != nil {
+		return false
+	}
+
 	dockerCommand, err := resolveDockerRuntimeCli()
+	if err != nil {
+		return false
+	}
+
+	commandState, err := dockerRuntimeCommandState(dockerCommand)
 	if err != nil {
 		return false
 	}
@@ -34,12 +45,15 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 	dockerRuntimeMu.Lock()
 	defer dockerRuntimeMu.Unlock()
 
-	if dockerRuntimeChecked && dockerRuntimeOK && dockerRuntimeCommand == dockerCommand {
-		return dockerRuntimeOK
-	}
-
 	if err := ctx.Err(); err != nil {
 		return false
+	}
+
+	if dockerRuntimeChecked &&
+		dockerRuntimeOK &&
+		dockerRuntimeCommand == dockerCommand &&
+		dockerRuntimeState == commandState {
+		return dockerRuntimeOK
 	}
 
 	err = ax.Exec(ctx, dockerCommand, "--help")
@@ -48,6 +62,7 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 	}
 
 	dockerRuntimeCommand = dockerCommand
+	dockerRuntimeState = commandState
 	dockerRuntimeOK = err == nil
 	dockerRuntimeChecked = dockerRuntimeOK
 
@@ -74,4 +89,15 @@ func resolveDockerRuntimeCli(paths ...string) (string, error) {
 
 func availabilityProbeContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), availabilityProbeTimeout)
+}
+
+func dockerRuntimeCommandState(command string) (string, error) {
+	info, err := ax.Stat(command)
+	if err != nil {
+		return "", err
+	}
+
+	return command + "|" +
+		strconv.FormatInt(info.Size(), 10) + "|" +
+		strconv.FormatInt(info.ModTime().UnixNano(), 10), nil
 }

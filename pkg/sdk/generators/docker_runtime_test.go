@@ -16,6 +16,7 @@ func resetDockerRuntimeState() {
 	dockerRuntimeChecked = false
 	dockerRuntimeOK = false
 	dockerRuntimeCommand = ""
+	dockerRuntimeState = ""
 }
 
 func setAvailabilityProbeTimeout(t *testing.T, timeout time.Duration) {
@@ -84,6 +85,22 @@ func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T)
 	assert.True(t, dockerRuntimeAvailable())
 }
 
+func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextAfterCachedSuccess_Bad(t *testing.T) {
+	resetDockerRuntimeState()
+	t.Cleanup(resetDockerRuntimeState)
+
+	dockerDir := t.TempDir()
+	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nexit 0\n")
+	t.Setenv("PATH", dockerDir)
+
+	assert.True(t, dockerRuntimeAvailable())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.False(t, dockerRuntimeAvailableWithContext(ctx))
+}
+
 func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
@@ -125,6 +142,23 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChanges
 	failureDir := t.TempDir()
 	writeFakeDockerRuntime(t, failureDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n")
 	t.Setenv("PATH", failureDir)
+
+	assert.False(t, dockerRuntimeAvailable())
+}
+
+func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutatesInPlace_Good(t *testing.T) {
+	resetDockerRuntimeState()
+	t.Cleanup(resetDockerRuntimeState)
+
+	dockerDir := t.TempDir()
+	dockerPath := writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n")
+	t.Setenv("PATH", dockerDir)
+
+	assert.True(t, dockerRuntimeAvailable())
+
+	// Preserve monotonic ordering for filesystems with coarse mtimes.
+	time.Sleep(20 * time.Millisecond)
+	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n"), 0o755))
 
 	assert.False(t, dockerRuntimeAvailable())
 }

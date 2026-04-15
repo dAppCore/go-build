@@ -1,378 +1,1008 @@
 ---
-title: RFC
-description: Authoritative spec for the build system, public GitHub Action parity, publishers, and Apple pipeline.
+module: dappco.re/go/build
+repo: core/go-build
+lang: go
+tier: lib
+depends:
+  - code/core/go
+tags:
+  - build
+  - compilation
+  - release
+  - artifacts
+  - packaging
+---
+# Core Build & Release RFC — Build automation and code signing
+
+> The authoritative spec for `core build`, `core release`, code signing, SDK generation, and installer scripts.
+> An agent should be able to implement any component from this document alone.
+
+**Repository:** `core/go-build` (build/release), `core/cli` (CLI commands)
+**Module:** `dappco.re/go/build`
+**Sub-specs:** [Models](RFC.models.md) | [Commands](RFC.commands.md) | [Build Pipeline](RFC.build-pipeline.md) | [Release Pipeline](RFC.release-pipeline.md) | [SDK Generation](RFC.sdk-generation.md) | [API Provider](RFC.api-provider.md) | [CI Workflow](RFC.ci-workflow.md) | [cmd build](RFC.cmd-build.md) | [cmd sdk](RFC.cmd-sdk.md) | [Action Port](RFC.action-port.md)
+
 ---
 
-# core/build RFC
+## 1. Overview
 
-`dappco.re/go/core/build` is the build, release, signing, SDK, Apple packaging, and workflow engine behind:
+The build system dogfoods Core to build itself. Two design modes:
 
-- `core build`
-- `core build apple`
-- `core build workflow`
-- `core release`
-- `core sdk`
-- `core ci`
-- the public `dAppCore/build@v3` GitHub Action surface
+- **Without `.core/`:** Simple passthrough — `core build` = `go build .`
+- **With `.core/`:** Full orchestration — matrix builds, releases, signing, SDK generation
 
-## Overview
+### 1.1 Design Principle
 
-The build system has two linked faces:
+Nobody remembers long arg strings. `.core/build.yaml` remembers them for you.
 
-1. A Go package that implements discovery, option computation, setup planning, stack-specific builds, packaging, signing, release publishing, Apple delivery, and SDK generation.
-2. A public GitHub Action architecture that works as the distribution funnel for Wails and adjacent build workflows.
+---
 
-The action remains the public entrypoint while go-build is the reusable engine:
+## 2. Command Structure
 
-```text
-Developer searches "wails build action"
-  -> Finds dAppCore/build on GitHub
-    -> Uses it successfully
-      -> Discovers the wider Core tooling
+### 2.1 Without Config (Passthrough)
+
+```bash
+core build                        # = go build .
+core build --output ./bin         # = go build -o ./bin .
+core build --targets linux/amd64  # = GOOS=linux GOARCH=amd64 go build .
 ```
 
-## Builders
+### 2.2 With Config (Orchestrated)
 
-The original action/RFC centred on seven builder families. The Go implementation keeps those surfaces and extends them with additional language-native stacks.
-
-| Builder | Detects | What It Builds |
-|---|---|---|
-| `go` | `go.mod`, `go.work` | Go binaries across a target matrix |
-| `wails` | `wails.json` or Go roots with frontend manifests | Wails desktop apps, with Wails v2 direct builds and Wails v3 Taskfile or CLI fallback |
-| `docker` | `Dockerfile`, `Containerfile` variants | OCI container images |
-| `linuxkit` | `linuxkit.yml`, `.core/linuxkit/*.yml` | LinuxKit VM images |
-| `cpp` | `CMakeLists.txt` | CMake-based C++ builds with Conan-aware setup |
-| `taskfile` | `Taskfile.yml`, `Taskfile.yaml`, `Taskfile` | Task-driven build pipelines |
-| `docs` | `mkdocs.yml`, `mkdocs.yaml`, `docs/mkdocs.*` | MkDocs documentation sites |
-| `node` | `package.json`, `deno.json`, `deno.jsonc` | Frontend builds via package manager or Deno-backed tooling |
-| `php` | `composer.json` | Composer-backed bundles |
-| `python` | `pyproject.toml`, `requirements.txt` | Deterministic Python source bundles |
-| `rust` | `Cargo.toml` | Cargo release builds |
-
-`pkg/build/builders/deno.go` is shared frontend command-resolution logic, not a twelfth `ProjectType`.
-Deno stays inside the Node/Wails frontend path so repositories with `deno.json` still resolve through the
-same stack detection and build surfaces instead of splitting into a separate builder family.
-
-The option-style build API also routes artefacts through `io.Medium` directly at the `build.Run(...)`
-layer rather than only through release config mutation:
-
-```go
-output := io.NewMemoryMedium()
-artifacts, err := build.Run(
-    build.WithOutput(output),
-    build.WithOutputDir("releases"),
-)
+```bash
+core build              # .core/build.yaml → matrix build
+core release            # .core/release.yaml → build + archive + publish
+core release --publish  # explicit publish to GitHub/Forge
+core release --tag v1.0 # specify tag
+core release --draft    # create as draft
 ```
 
-Auto-detection follows the action-style precedence model:
+---
 
-```text
-core build
-  -> .core/build.yaml exists? use configured build.type
-  -> Wails markers? Wails builder
-  -> Go markers? Go builder
-  -> MkDocs markers? Docs builder
-  -> CMakeLists.txt? C++ builder
-  -> Dockerfile or Containerfile? Docker builder
-  -> Taskfile? Taskfile builder
-```
+## 3. Configuration
 
-## Publishers
-
-Release publishing currently covers eight targets:
-
-- GitHub Releases
-- Docker registries
-- npm
-- Homebrew
-- Scoop
-- AUR
-- Chocolatey
-- LinuxKit registries
-
-## Public GitHub Action
-
-The public action surface remains `dAppCore/build@v3`.
-
-### Example Usage
+### 3.1 .core/build.yaml
 
 ```yaml
-- uses: dAppCore/build@v3
-  with:
-    build-name: myapp
-    build-platform: linux/amd64
+version: 1
+
+project:
+  name: core
+  description: "Core CLI"
+  main: ./cmd/core
+  binary: core
+
+build:
+  type: go                          # Override auto-detected type
+  cgo: false                        # Enable/disable CGO (Go only)
+  obfuscate: false                  # Use garble for binary obfuscation (Go only)
+  nsis: false                       # Generate Windows NSIS installer (Wails only)
+  webview2: download                # WebView2 delivery: download|embed|browser|error (Wails only)
+  flags: ["-trimpath"]              # Build flags
+  ldflags: ["-s", "-w", "-X main.Version={{.Tag}}"]  # Linker flags
+  build_tags: [tag1, tag2]          # Go build tags
+  archive_format: gz                # Archive format: gz (default), xz, zip
+  env: ["CGO_ENABLED=0"]            # Environment variables
+  dockerfile: Dockerfile            # Path to Dockerfile (Docker only)
+  registry: ghcr.io                 # Container registry (Docker)
+  image: owner/repo                 # Image name (Docker)
+  tags: [latest, v1.0]              # Docker image tags
+  build_args:                       # Docker build arguments
+    ARG1: value1
+  push: false                       # Push Docker image after build
+  load: false                       # Load image into local daemon (single-platform builds)
+  linuxkit_config: linuxkit.yml     # Path to LinuxKit config
+  formats: [iso, qcow2, raw]        # LinuxKit output formats: iso, raw, qcow2, vmdk, vhd, gcp, aws, docker, tar, kernel+initrd
+
+cache:
+  enabled: false                    # Enable build cache setup
+  dir: .core/cache                  # Cache metadata directory
+  key_prefix: my-project            # Cache key prefix
+  paths:                            # Cache directories to create/setup
+    - ~/.cache/go-build
+    - ~/go/pkg/mod
+  restore_keys:                     # Fallback cache key prefixes
+    - go-
+
+targets:
+  - os: linux
+    arch: amd64
+  - os: linux
+    arch: arm64
+  - os: darwin
+    arch: amd64
+  - os: darwin
+    arch: arm64
+  - os: windows
+    arch: amd64
+
+sign:
+  enabled: true
+  gpg:
+    key: $GPG_KEY_ID
+  macos:
+    identity: "Developer ID Application: Lethean CIC (TEAM_ID)"
+    notarize: false
+    apple_id: $APPLE_ID
+    team_id: $APPLE_TEAM_ID
+    app_password: $APPLE_APP_PASSWORD
+  windows:
+    signtool: false
+
+sdk:
+  spec: openapi.yaml        # or auto-detect
+  languages: [typescript, python, go, php]
+  output: sdk/
+  diff: true                 # breaking change detection
 ```
 
-### Public Inputs
+### 3.2 .core/release.yaml
 
-The generated workflow in this repo preserves the same high-signal control surface exposed by the action:
+```yaml
+version: 1
 
-| Input | Default | Purpose |
-|---|---|---|
-| `build-name` | derived from config or repo name | Override output/artifact name |
-| `build-platform` | matrix driven | Filter the build matrix to one target |
-| `core-version` | `latest` | Pin the bootstrap Core CLI version used by the generated workflow |
-| `version` | empty | Override the version embedded into build outputs and releases |
-| `build` | `true` | Run the build phase |
-| `sign` | `false` | Enable platform signing after build |
-| `package` | `true` | Archive, checksum, upload artifacts, and publish on tags |
-| `nsis` | `false` | Enable Wails Windows NSIS packaging |
-| `build-tags` | empty | Forward Go build tags |
-| `build-obfuscate` | `false` | Use garble or Wails obfuscation |
-| `wails-version` | `latest` | Pin the Wails CLI |
-| `go-version` | `1.26` | Pin Go |
-| `node-version` | `22.x` | Pin Node |
-| `deno-build` | empty | Override the default Deno build command |
-| `wails-build-webview2` | empty | Set Windows WebView2 mode |
-| `build-cache` | `true` | Restore and save build caches |
-| `archive-format` | empty | Override the archive format used for packaged build artefacts; empty falls back to gzip (`.tar.gz`, or `.zip` on Windows) |
+project:
+  name: core
+  repository: dappcore/core
 
-### What the Action Shape Does
+build:
+  targets:
+    - os: linux
+      arch: amd64
+    - os: darwin
+      arch: arm64
+  archive_format: gz        # Archive format: gz (default), xz, zip
 
-The action and generated workflow preserve the same phase ordering:
+changelog:
+  use: conventional         # Commit convention: conventional, semver
+  exclude:                  # Exclude commit types/patterns
+    - '^docs:'
+    - '^test:'
+    - '^ci:'
 
-1. Discovery of project markers, distro metadata, and Git context.
-2. Option computation for tags, obfuscation, NSIS, and WebView2.
-3. Conditional toolchain setup for the detected stack.
-4. Stack-specific build execution.
-5. Platform signing when requested.
-6. Artifact upload and tag-gated release publishing.
+sdk:
+  spec: openapi.yaml        # Path to OpenAPI spec or auto-detect
+  languages:
+    - typescript
+    - python
+    - go
+    - php
+  output: sdk/
+  diff: true                # Breaking change detection
 
-Artifact naming follows the action convention:
+publishers:
+  - type: github
+    draft: false
+    prerelease: false       # Auto-detect from semver (alpha/beta/rc)
 
-```text
-{build-name}_{os}_{arch}_{tag|shortsha}
+  - type: npm
+    package: "@dappcore/core"
+    access: public
+
+  - type: homebrew
+    tap: dappcore/homebrew-tap
+    formula: core
+    official:               # Generate files for official Homebrew repo PR
+      enabled: false
+      output: dist/homebrew
+
+  - type: docker
+    registry: ghcr.io
+    image: dappcore/core
+    tags: [latest, v{{.Version}}]
+    build_args:
+      VERSION: "{{.Version}}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
+  - type: linuxkit
+    config: linuxkit.yml
+    formats: [iso, qcow2, raw, aws, gcp]
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
+  - type: aur
+    maintainer: "Name <email@example.com>"
+
+  - type: scoop
+    bucket: dappcore/scoop-bucket
+    official:               # Generate files for official Scoop repo PR
+      enabled: false
+      output: dist/scoop
+
+  - type: chocolatey
+    push: false             # Generate only, don't push
+
+checksum:
+  algorithm: sha256
+  file: checksums.txt
 ```
 
-### History
+---
 
-The public action architecture evolved in stages:
+## 4. Build Pipeline
 
-```text
-wails-build-action@v2
-  -> proved cross-platform Wails CI packaging
-    -> dAppCore/build@v3
-      -> decomposed into reusable action phases
-        -> core/go-build
-          -> Go implementation of discovery, setup, build, release, Apple, and SDK flows
+```
+core build
+  |
+  +-- .core/build.yaml exists?
+  |     |
+  |     +-- Yes: load config, iterate targets, build each
+  |     +-- No:  simple `go build .` (passthrough)
+  |
+  +-- output binaries to dist/
 ```
 
-The key point is architectural continuity: go-build is not an unrelated tool, it is the typed implementation of the public action model.
+### 4.0 Supported Project Types
 
-## Action Architecture and Parity
+The build system auto-detects project types and applies type-specific builders. Multi-type projects (e.g., Wails + Go) iterate all detected types.
 
-The public action is organised as composable phases:
+| Project Type | Marker Files | Builder |
+|-------------|--------------|---------|
+| **Go** | go.mod, go.work | GoBuilder — `go build` with matrix targets |
+| **Wails** | wails.json | WailsBuilder — desktop app with WebView2/macOS/Windows support |
+| **Node** | package.json | NodeBuilder — npm/yarn with cross-platform bundling |
+| **PHP** | composer.json | PHPBuilder — Composer + code generation |
+| **Python** | pyproject.toml, requirements.txt | PythonBuilder — pip/poetry with wheel packaging |
+| **C++** | CMakeLists.txt | CPPBuilder — CMake + Conan with cross-compile profiles |
+| **Rust** | Cargo.toml | RustBuilder — cargo build |
+| **Taskfile** | Taskfile.yml, Taskfile.yaml, Taskfile | TaskfileBuilder — Task runner automation |
+| **Docker** | Dockerfile | DockerBuilder — Docker buildx with multi-arch |
+| **LinuxKit** | linuxkit.yml, .core/linuxkit/*.yml | LinuxKitBuilder — VM image generation (iso, qcow2, raw, aws, gcp) |
+| **Docs** | mkdocs.yml, mkdocs.yaml, docs/mkdocs.yml | DocsBuilder — Static site generation with bundling |
 
-```text
-Gateway
-  -> Discovery
-  -> Orchestration
-  -> Options
-  -> Setup
-  -> Build
-  -> Sign
-  -> Package
+### 4.1 Package Structure
+
+```
+go-build/
+  pkg/build/
+    config.go              # Config loading (.core/build.yaml, .core/release.yaml)
+    discovery.go           # Project type detection (Go, Wails, Node, PHP, Python, Rust, C++, Docker, LinuxKit, Taskfile, Docs)
+    ci.go                  # CI environment detection (GitHub Actions)
+    workflow.go            # Release workflow generation + template embedding
+    cache.go               # Build cache configuration
+    builders/
+      go.go                # Go builder
+      wails.go             # Wails desktop application builder
+      node.go              # Node.js/npm builder
+      docker.go            # Docker/OCI builder
+      linuxkit.go          # LinuxKit VM builder
+      linuxkit_image.go    # Immutable image spec, base resolution, Apple Container + OCI output
+      php.go               # PHP builder (Composer)
+      python.go            # Python builder (pyproject.toml, requirements.txt)
+      cpp.go               # C++ builder (CMake + Conan)
+      rust.go              # Rust builder (Cargo)
+      taskfile.go          # Taskfile task runner builder
+      docs.go              # Documentation builder (mkdocs)
+      zip_deterministic.go # Deterministic ZIP archive support
+    images/
+      core-dev.yml         # LinuxKit YAML for core-dev base image
+      core-ml.yml          # LinuxKit YAML for core-ml base image
+      core-minimal.yml     # LinuxKit YAML for core-minimal base image
+    signing/
+      signer.go            # Signer interface + SignConfig
+      gpg.go               # GPG checksums signing
+      codesign.go          # macOS codesign + notarize
+      signtool.go          # Windows Authenticode signing (signtool)
+  pkg/release/
+    release.go             # Archive + checksums + multi-platform publish
+    config.go              # Release configuration + SDK settings
+    changelog.go           # Changelog generation
+    publishers/
+      github.go            # GitHub Releases publisher
+      npm.go               # npm package publisher
+      homebrew.go          # Homebrew formula publisher
+      docker.go            # Docker image publisher
+      linuxkit.go          # LinuxKit image publisher
+      aur.go               # Arch User Repository publisher
+      scoop.go             # Scoop bucket publisher
+      chocolatey.go        # Chocolatey package publisher
+  pkg/sdk/
+    sdk.go                 # SDK generation orchestration
+    detect.go              # OpenAPI spec detection
+    diff.go                # Breaking change detection (oasdiff)
+    generators/
+      generator.go         # Generator interface
+      typescript.go        # TypeScript SDK generator
+      python.go            # Python SDK generator
+      go.go                # Go SDK generator
+      php.go               # PHP SDK generator
+  pkg/api/
+    provider.go            # REST API provider wrapper + WebSocket support
+  cmd/build/
+    cmd_project.go         # Main project build orchestration
+    cmd_pwa.go             # PWA building (local path or URL)
+    cmd_workflow.go        # Release workflow file generation
+    cmd_build.go           # build command
+    cmd_image.go           # `core build image` — immutable LinuxKit image building
+    cmd_release.go         # release command
+    cmd_sdk.go             # SDK commands
+    cmd_commands.go        # Utility commands
 ```
 
-The Go equivalents are:
+---
 
-- `build.Pipeline` for the gateway/orchestration layer
-- `build.Discover()` and `build.DiscoverFull()` for discovery
-- `build.ComputeOptions()` for deterministic flag derivation
-- `build.ComputeSetupPlan()` for setup orchestration
-- `pkg/build/builders/` for stack-specific build wrappers
-- `pkg/build/signing/` and `pkg/build/apple.go` for signing/notarisation
-- `pkg/build/archive.go`, `pkg/build/checksum.go`, and `pkg/release/` for packaging and publishing
+## 5. Release Pipeline
 
-### Discovery Contract
-
-Discovery preserves the richer `dAppCore/build@v3` model rather than stopping at simple marker lookup:
-
-- Wails detection accepts `wails.json` and also Go roots with frontend manifests.
-- Frontend discovery scans the root, `frontend/`, and nested trees up to depth 2.
-- Docs detection accepts `mkdocs.yml` and `mkdocs.yaml` in the root or `docs/`.
-- Stack suggestions preserve action naming such as `wails2`, `cpp`, `docs`, and `node`.
-- Linux distro detection feeds Ubuntu-aware WebKit dependency selection.
-- Git metadata is surfaced for artifact naming and release decisions.
-- The build API exposes workflow-facing aliases such as `configured_build_type`, `has_subtree_package_json`, `has_subtree_deno_manifest`, `has_taskfile`, root Composer/Cargo markers, and a serialized `setup_plan`.
-
-### Ported Action Behaviours
-
-The features that originally lived in the action now exist in Go and in the generated workflow:
-
-| Behaviour | Status in go-build |
-|---|---|
-| Ubuntu-aware WebKit dependency selection | Implemented |
-| `webkit2_41` tag injection for Ubuntu 24.04+ Wails builds | Implemented |
-| Subtree frontend scanning to depth 2 | Implemented |
-| MkDocs stack detection | Implemented |
-| Stack suggestion aliases (`wails2`, `cpp`, `docs`, `node`) | Implemented |
-| Conan-aware C++ setup planning | Implemented |
-| Windows NSIS packaging for Wails | Implemented |
-| garble-based obfuscation | Implemented |
-| Deno setup and `DENO_BUILD` overrides | Implemented |
-| Build cache wiring under `.core/cache` and `cache/` | Implemented |
-| Windows WebView2 modes (`download`, `embed`, `browser`, `error`) | Implemented |
-
-## SDK Generation
-
-`pkg/sdk` detects OpenAPI specs, validates them, compares revisions with `oasdiff`, and generates SDKs for:
-
-| Language | Primary Generator Path | Fallback |
-|---|---|---|
-| TypeScript | native or `npx` tooling | Docker where needed |
-| Python | native client generator | Docker |
-| Go | native Go tooling | none |
-| PHP | generator CLI | Docker |
-
-Breaking-change detection remains part of the release/SDK story through `oasdiff`.
-
-## Code Signing
-
-Signing and trust surfaces include:
-
-| Signer | Platform | Purpose |
-|---|---|---|
-| GPG | all | `CHECKSUMS.txt.asc` |
-| `codesign` | macOS | app bundles, frameworks, binaries, installers |
-| `notarytool` | macOS | notarisation and stapling |
-| `signtool` | Windows | Windows binary and installer signing integration points |
-
-Credentials are loaded from `.core/build.yaml` and support environment expansion.
-
-## Apple Build Target
-
-The Apple surface covers build, sign, notarise, package, and distribute macOS applications through:
-
-- `core build apple`
-- `pkg/build/apple.go`
-- the RFC-facing `pkg/build/apple/` wrapper that exposes `core.Result` contracts
-
-### CLI Shape
-
-```text
-core build apple [flags]
+```
+core release
+  → load .core/release.yaml
+  → build (uses .core/build.yaml)
+  → sign macOS binaries (codesign)
+  → notarise if enabled (wait for Apple)
+  → create archives (tar.gz/zip)
+  → generate CHECKSUMS.txt + GPG sign
+  → publish to configured targets
 ```
 
-Key flags:
+### 5.1 Publisher Interface
 
-| Flag | Default | Purpose |
-|---|---|---|
-| `--arch` | `universal` | `arm64`, `amd64`, or `universal` |
-| `--sign` | `true` | Enable Apple code signing |
-| `--notarise` | `true` | Submit to Apple notarisation |
-| `--dmg` | `false` | Produce a distributable DMG |
-| `--testflight` | `false` | Upload to TestFlight |
-| `--appstore` | `false` | Submit to App Store Connect |
-| `--team-id` | config | Apple Developer Team ID |
-| `--bundle-id` | config | Bundle identifier |
-| `--version` | Git or override | Version string |
-| `--build-number` | generated | Integer build number |
+```go
+type Publisher interface {
+    Name() string
+    Validate(ctx context.Context, cfg *Config) error
+    Publish(ctx context.Context, release *Release) error
+    Supports(target string) bool
+}
+```
 
-### Builder and Options Surface
+Package structure: `pkg/release/publishers/` with one file per platform + `templates/` for generated files.
 
-The RFC-facing wrapper exposes:
+### 5.2 Release Targets
 
-- `AppleBuilder`
-- the `Builder` interface returning `core.Result` values from `Detect()` and `Build()`
-- functional options such as `WithArch`, `WithSign`, `WithNotarise`, `WithDMG`, `WithTestFlight`, and `WithAppStore`
-- `AppleOptions` mirroring the CLI/runtime pipeline, including signing identity, App Store Connect credentials, and delivery toggles
+**Philosophy:** Make paywalled release features "just a feature". GoReleaser Pro charges $165/yr for npm, Chocolatey, AUR. OSS developers shouldn't pay to distribute free software.
 
-This wrapper keeps the Apple contract consistent with the wider Core service pattern while delegating the concrete implementation to `pkg/build/apple.go`.
+#### Tier 1 — Must Have
 
-### Wails macOS Build
+| Platform | Publisher | Method | Notes |
+|----------|-----------|--------|-------|
+| **GitHub Releases** | GitHubPublisher | go-github | Foundation — artifacts + checksums, all others reference these |
+| **npm** | NpmPublisher | npm CLI + binary wrapper | `@dappcore/core` — installs correct binary per platform |
+| **Homebrew** | HomebrewPublisher | Formula + tap PR | `dappcore/homebrew-tap` — generates formula for official repo PR |
 
-Apple builds wrap Wails app generation for macOS:
+#### Tier 2 — High Impact
 
-1. Build an app bundle for `arm64`, `amd64`, or both.
-2. Inject version metadata and build tags.
-3. Merge arch-specific bundles with `lipo` for universal builds.
-4. Produce `{OutputDir}/AppName.app`.
+| Platform | Publisher | Method | Notes |
+|----------|-----------|--------|-------|
+| **Docker** | DockerPublisher | buildx multi-arch | `ghcr.io/dappcore/core` — push to registry or load locally |
+| **AUR** | AURPublisher | PKGBUILD template | `core-bin` package with official repo PR generation |
+| **Scoop** | ScoopPublisher | JSON manifest | `dappcore/scoop-bucket` — generates manifest for official repo PR |
+| **Chocolatey** | ChocolateyPublisher | NuSpec + push | Optional push to Chocolatey (false = generate only) |
+| **LinuxKit** | LinuxKitPublisher | LinuxKit CLI | ISO, qcow2, raw, vmdk, vhd, aws, gcp outputs |
 
-The Apple implementation exposes helper functions such as:
+#### Tier 3 (Future)
 
-- `BuildWailsApp()`
-- `CreateUniversal()`
+Snapcraft, Flatpak, Fury.io, WinGet, APT/YUM repos.
 
-`BuildWailsApp()` keeps the RFC-facing `LDFlags` field as a single string in `pkg/build/apple/` and converts it to the lower-level slice form expected by `pkg/build/apple.go`, so the wrapper stays stable while the build package remains CLI-friendly.
+### 5.3 Official Repository Configuration
 
-### Signing, Notarisation, and DMG Packaging
+When publishing to official package repositories (Homebrew, Scoop, AUR), use the `official` block to generate PR-ready files instead of publishing directly:
 
-The Apple pipeline supports:
+```yaml
+publishers:
+  - type: homebrew
+    tap: dappcore/homebrew-tap
+    formula: core
+    official:
+      enabled: true
+      output: dist/homebrew     # Generated files for official Homebrew repo PR
 
-- inside-out signing of frameworks, helpers, binaries, and the `.app` bundle
-- notarisation with `xcrun notarytool`
-- stapling and verification
-- DMG packaging for direct distribution, including background assets and `/Applications` symlink staging
+  - type: scoop
+    bucket: dappcore/scoop-bucket
+    official:
+      enabled: true
+      output: dist/scoop        # Generated files for official Scoop repo PR
 
-Notarisation supports both auth paths from the RFC:
+  - type: aur
+    maintainer: "Name <email>"
+    # AUR uses PKGBUILD template generation for official submissions
+```
 
-- App Store Connect API key authentication via `APIKeyID`, `APIKeyIssuerID`, and `APIKeyPath`
-- Apple ID plus app-specific password as a fallback when API key credentials are not supplied
+Official configurations generate the necessary files (formulas, manifests, PKGBUILDs) without pushing directly to official repositories.
 
-The runtime order is:
+---
 
-1. Build app bundle.
-2. Generate `Info.plist` and entitlements.
-3. Sign with `codesign`.
-4. Package DMG when requested.
-5. Notarise the app or DMG.
-6. Upload to TestFlight or App Store Connect when requested.
+## 6. Code Signing
 
-### Xcode Cloud
+### 6.1 Architecture
 
-Xcode Cloud support is configured in `.core/build.yaml` and generates the checked-in helper scripts expected by the Apple pipeline:
+```
+Build binaries
+    |
+Sign macOS binaries (codesign --sign --timestamp --options runtime)
+    |
+Notarise if enabled (xcrun notarytool submit --wait → xcrun stapler staple)
+    |
+Create archives (tar.gz / zip)
+    |
+Generate CHECKSUMS.txt (SHA-256)
+    |
+GPG sign CHECKSUMS.txt → CHECKSUMS.txt.asc
+```
 
-- `ci_scripts/ci_post_clone.sh`
-- `ci_scripts/ci_pre_xcodebuild.sh`
-- `ci_scripts/ci_post_xcodebuild.sh`
+### 6.2 Signer Interface
 
-The generated flow is designed around:
+```go
+type Signer interface {
+    Name() string
+    Available() bool
+    Sign(ctx context.Context, path string) error
+}
+```
 
-- branch-triggered TestFlight delivery
-- tag-triggered App Store delivery
-- prebuild invocation of `core build apple`
+### 6.3 Implementations
 
-### TestFlight and App Store Connect
+| Signer | Platform | What It Signs | Output |
+|--------|----------|---------------|--------|
+| GPG | All | CHECKSUMS.txt | CHECKSUMS.txt.asc (detached ASCII armour) |
+| macOS codesign | darwin | Binary files | In-place signature + hardened runtime |
+| macOS notarytool | darwin | Binaries (via zip) | Stapled notarisation ticket |
+| Windows signtool | windows | Binaries | Authenticode signature |
 
-The Apple surface includes runtime support for:
+### 6.4 User Verification
 
-- TestFlight uploads
-- App Store Connect submission
-- App Store preflight checks for metadata, privacy policy URL, minimum macOS version, and distribution mode
+```bash
+gpg --verify CHECKSUMS.txt.asc CHECKSUMS.txt
+sha256sum -c CHECKSUMS.txt
+```
 
-### Info.plist and Entitlements
+### 6.5 CLI Flags
 
-The Apple pipeline generates `Info.plist` and entitlements from config rather than treating them as static assets.
+```bash
+core build                # Sign with defaults (GPG + codesign if configured)
+core build --no-sign      # Skip all signing
+core build --notarize     # Enable macOS notarisation (overrides config)
+```
 
-Important metadata includes:
+### 6.6 Environment Variables
 
-- bundle identifier and names
-- user-facing version and build number
-- minimum macOS version
-- App Store category
-- copyright and licence notice
+| Variable | Purpose |
+|----------|---------|
+| `GPG_KEY_ID` | GPG key fingerprint |
+| `CODESIGN_IDENTITY` | macOS Developer ID (fallback) |
+| `APPLE_ID` | Apple account email |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
+| `APPLE_APP_PASSWORD` | App-specific password for notarisation |
 
-Entitlement generation distinguishes direct-distribution and App Store profiles so the build can request:
+---
 
-- network client and server access
-- file access for user-selected and downloads locations
-- Metal access
-- sandboxing for App Store builds
-- JIT-related entitlements only where that distribution mode allows them
+## 7. SDK Generation
 
-## Reference Material
+### 7.1 Overview
 
-- Go module path: `dappco.re/go/core/build`
-- Public action: `dAppCore/build@v3`
-- Build config companion RFC: `code/core/config/RFC.md`
+Generate typed API clients from OpenAPI specs. Hybrid approach: native generators where available, Docker openapi-generator fallback.
 
-## Supporting Documents
+### 7.2 Detection Flow
 
-- [Architecture](architecture.md)
-- [Stacks](stacks.md)
-- [Development](development.md)
+```
+1. Check .core/build.yaml sdk.spec field
+2. Scan common paths: openapi.yaml, openapi.json, docs/openapi.yaml
+3. Try Laravel Scramble (php artisan scramble:export)
+4. Fail if no spec found
+```
+
+### 7.3 Generators
+
+| Language | Tool | Native? |
+|----------|------|---------|
+| TypeScript | openapi-typescript-codegen | Yes |
+| Python | openapi-python-client | Yes |
+| Go | oapi-codegen | Yes |
+| PHP | openapi-generator (Docker) | No |
+
+### 7.4 Breaking Change Detection
+
+Uses `oasdiff` library to compare current spec against previously generated spec:
+
+```bash
+core sdk diff                    # Show breaking changes
+core sdk diff --fail-on-warn     # Exit 1 on warnings too
+core sdk generate                # Generate all configured SDKs
+core sdk generate --lang ts      # Generate TypeScript only
+```
+
+### 7.5 Output Structure
+
+```
+sdk/
+  typescript/
+    package.json
+    src/
+  python/
+    pyproject.toml
+    src/
+  go/
+    go.mod
+    client.go
+  php/
+    composer.json
+    src/
+```
+
+### 7.6 Release Integration
+
+```bash
+core release --target sdk                    # Generate SDKs only
+core release --target sdk --version v1.2.3   # Explicit version
+core release --target sdk --dry-run          # Preview
+```
+
+SDK version matches release version from git tags.
+
+### 7.7 Package Structure
+
+```
+pkg/sdk/
+  sdk.go              # Main SDK type, orchestration
+  detect.go           # OpenAPI spec detection
+  diff.go             # Breaking change detection (oasdiff)
+  generators/
+    generator.go      # Generator interface
+    typescript.go     # openapi-typescript-codegen
+    python.go         # openapi-python-client
+    go.go             # oapi-codegen
+    php.go            # openapi-generator (Docker)
+  templates/          # Package scaffolding templates
+    typescript/
+    python/
+    go/
+    php/
+```
+
+---
+
+## 8. Project Detection & Multi-Type Projects
+
+### 8.1 Auto-Detection
+
+The build system auto-detects project types based on marker files and directory structure. Projects can combine multiple types (e.g., a Wails project is detected as both Wails + Go).
+
+```
+core build
+  → Discover project types
+  → Iterate all detected types
+  → Run type-specific builder for each
+```
+
+### 8.2 Detection Order
+
+Detection checks in priority order:
+
+1. **Wails** (wails.json) — if present, always checked first
+2. **Go** (go.mod, go.work)
+3. **Node** (package.json, subtree npm detection)
+4. **PHP** (composer.json)
+5. **Python** (pyproject.toml, requirements.txt)
+6. **Rust** (Cargo.toml)
+7. **C++** (CMakeLists.txt)
+8. **Docker** (Dockerfile)
+9. **LinuxKit** (linuxkit.yml, .core/linuxkit/*.yml)
+10. **Taskfile** (Taskfile.yml, Taskfile.yaml, Taskfile)
+11. **Docs** (mkdocs.yml, docs/mkdocs.yml)
+
+### 8.3 Override Detection
+
+To skip auto-detection and force a specific type:
+
+```yaml
+# .core/build.yaml
+build:
+  type: go  # Forces Go builder, skips detection
+```
+
+---
+
+## 9. PWA & Legacy GUI Building
+
+### 9.1 Local PWA Build
+
+Build a local Progressive Web App directory into a desktop application:
+
+```bash
+core build pwa --path ./my-pwa
+```
+
+### 9.2 Live PWA Build
+
+Download a PWA from a URL and package it:
+
+```bash
+core build pwa --url https://example.com/app
+```
+
+The builder:
+1. Fetches the HTML entry point
+2. Downloads all linked assets (CSS, JS, images, manifest)
+3. Extracts metadata (title, description, icons)
+4. Packages assets locally
+5. Invokes the main build pipeline
+
+---
+
+## 9.3 LinuxKit Immutable Images
+
+go-build produces LinuxKit images for Apple Containers and Docker. The image is the controlled environment — agents work in a known OS with enforced toolchains, not whatever the host happens to have installed.
+
+### 9.3.1 Design
+
+The rootfs is immutable. The OS layer, installed packages, and toolchain versions are defined by the image spec at build time. Runtime cannot modify the base — only the mounted `/workspace` volume is read-write. This eliminates environment drift between agent runs and guarantees reproducible builds across all dispatch hosts.
+
+### 9.3.2 Base Images
+
+| Base | Contents | Use Case |
+|------|----------|----------|
+| `core-dev` | Go toolchain, git, task, core CLI, linters | Standard agent dispatch (code generation, AX sweeps) |
+| `core-ml` | Go toolchain, MLX framework, model loaders | ML inference tasks (go-mlx inside container) |
+| `core-minimal` | Go toolchain only | Lightweight builds, CI runners |
+
+### 9.3.3 Image Spec
+
+```go
+// Build an immutable LinuxKit image for agent dispatch
+//
+//   image := build.LinuxKit(
+//       build.WithBase("core-dev"),
+//       build.WithPackages("git", "task"),
+//       build.WithMount("/workspace"),
+//       build.WithGPU(true),
+//   )
+func LinuxKit(opts ...LinuxKitOption) *LinuxKitImage {
+    cfg := &LinuxKitConfig{
+        Base:     "core-dev",
+        Packages: []string{},
+        Mounts:   []string{"/workspace"},
+        GPU:      false,
+    }
+    for _, opt := range opts {
+        opt(cfg)
+    }
+    return &LinuxKitImage{Config: cfg}
+}
+
+// LinuxKitConfig defines an immutable container image.
+type LinuxKitConfig struct {
+    Base     string   // base image: core-dev, core-ml, core-minimal
+    Packages []string // additional OS packages
+    Mounts   []string // volume mount points (read-write)
+    GPU      bool     // Metal passthrough support (Apple) or NVIDIA (Docker)
+}
+```
+
+### 9.3.4 Output Formats
+
+LinuxKit images build to multiple output formats from a single spec:
+
+| Format | Target Runtime | Extension |
+|--------|---------------|-----------|
+| OCI image | Docker, Podman | `.tar` (OCI bundle) |
+| Apple Container image | Apple Containers (macOS 26+) | `.aci` |
+| Raw disk | QEMU, bare metal | `.raw` |
+| ISO | Boot media, CI runners | `.iso` |
+
+The OCI format is Docker/Podman compatible — the same image runs on Linux hosts, CI systems, and macOS Docker Desktop. The Apple Container format is macOS-native with hardware VM isolation and sub-second startup.
+
+### 9.3.5 CLI
+
+```bash
+core build image core-dev              # Build the core-dev image (default formats: OCI + Apple)
+core build image core-ml               # Build the ML-capable image
+core build image core-minimal          # Build the minimal image
+core build image core-dev --format oci # Build OCI format only
+core build image --list                # List available base images and their versions
+core build image --rebuild             # Force rebuild (ignores cache)
+```
+
+### 9.3.6 Versioning
+
+Images are versioned alongside Core releases. The image tag matches the Core version that built it — `core-dev:0.8.0` is built by Core v0.8.0. When Core updates, `core build image` rebuilds with the new toolchain. Old images are retained for rollback.
+
+### 9.3.7 Configuration
+
+```yaml
+# .core/build.yaml — LinuxKit image section
+linuxkit:
+  base: core-dev
+  packages:
+    - git
+    - task
+    - gopls
+  mounts:
+    - /workspace
+  gpu: false
+  formats: [oci, apple]               # Output formats
+  registry: ghcr.io/dappcore          # Push OCI images to registry
+```
+
+### 9.3.8 Package Structure
+
+```
+go-build/
+  pkg/build/
+    builders/
+      linuxkit.go          # LinuxKit builder (existing)
+      linuxkit_image.go    # Immutable image spec, base resolution, format output
+    images/
+      core-dev.yml         # LinuxKit YAML for core-dev base
+      core-ml.yml          # LinuxKit YAML for core-ml base
+      core-minimal.yml     # LinuxKit YAML for core-minimal base
+  cmd/build/
+    cmd_image.go           # `core build image` command
+```
+
+---
+
+## 10. CI Integration & Workflow Generation
+
+### 10.1 GitHub Actions Environment Detection
+
+The build system detects GitHub Actions environment and provides:
+
+```go
+ci := build.DetectCI()
+if ci != nil {
+    // Inside GitHub Actions
+    ci.Tag       // "v1.2.3" (if triggered by tag)
+    ci.SHA       // Full commit hash
+    ci.ShortSHA  // First 7 chars
+    ci.Ref       // Full git ref
+    ci.IsTag     // Boolean tag detection
+    ci.Repo      // "owner/repo"
+    ci.Owner     // "owner"
+}
+```
+
+### 10.2 Release Workflow Generation
+
+Generate a GitHub Actions workflow file for releases on tags:
+
+```bash
+core build workflow --output .github/workflows/
+```
+
+Generates `.github/workflows/release.yml` with:
+- Trigger on version tags (`v*.*.*`)
+- Checkout, build, sign, and publish steps
+- Matrix builds for multiple platforms
+- Automatic changelog generation
+- Multi-target publishing
+
+Workflow path resolution supports:
+- Directory: `core build workflow --output ci` → `./ci/release.yml`
+- File: `core build workflow --output ci/release.yml`
+- Absolute: `core build workflow --output /tmp/release.yml`
+- Default: `core build workflow` → `.github/workflows/release.yml`
+
+### 10.3 GitHub Annotations
+
+Format build messages as GitHub Actions annotations:
+
+```go
+s := build.FormatGitHubAnnotation("error", "main.go", 42, "undefined: foo")
+// → "::error file=main.go,line=42::undefined: foo"
+```
+
+Support levels: error, warning, notice, debug
+
+---
+
+## 11. REST API Provider
+
+### 11.1 Overview
+
+The `pkg/api/BuildProvider` wraps build, release, and SDK operations as a REST API with WebSocket event streaming.
+
+Implements:
+- `Provider` — route group registration
+- `Streamable` — WebSocket event emission
+- `Describable` — OpenAPI documentation
+- `Renderable` — UI element specification
+
+### 11.2 Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/v1/build` | Trigger build |
+| POST | `/api/v1/build/release` | Trigger release |
+| POST | `/api/v1/build/sdk` | Generate SDKs |
+| WS | `/api/v1/build/events` | Subscribe to build events |
+
+### 11.3 Usage
+
+```go
+hub := ws.NewHub()
+p := api.NewProvider(".", hub)
+router.Use(p.Register(router, hub))
+// Routes registered at /api/v1/build/*
+```
+
+---
+
+## 12. Installer Scripts
+
+Hosted at `https://lthn.sh/`
+
+| Script | Variant | Usage |
+|--------|---------|-------|
+| `setup.sh` | full | Default install |
+| `ci.sh` | ci | Minimal CI builds |
+| `php.sh` | php | PHP development |
+| `go.sh` | go | Go development |
+| `agent.sh` | agentic | AI agent variant |
+| `dev.sh` | dev | Multi-repo dev |
+
+```bash
+curl -sL https://lthn.sh/setup.sh | bash
+```
+
+---
+
+## 14. Service & Daemon
+
+```bash
+core service install    # Register with OS service manager
+core service start      # Start daemon
+core service stop       # Stop daemon
+core service uninstall  # Remove registration
+core service export     # Dump native config (systemd/launchd/etc)
+```
+
+Daemon runs Core runtime with:
+- File watcher (auto-rebuild)
+- API server (IDE/remote control)
+- Task scheduler (periodic jobs)
+- MCP server (AI tool integration)
+- Agentic (AI agent orchestration)
+
+Implementation: kardianos/service for abstraction + native config export.
+
+---
+
+## 15. Implementation Priority
+
+### Core Build Features
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Cross-compile matrix | Build from `.core/build.yaml` target definitions | ✓ |
+| Project type detection | Auto-detect Go, Wails, Node, PHP, Python, Rust, C++, Docker, LinuxKit, Taskfile, Docs | ✓ |
+| Go builder | Standard Go cross-compile | ✓ |
+| Wails builder | Desktop app with WebView2/macOS/Windows support | ✓ |
+| Node builder | npm/yarn with bundling | ✓ |
+| PHP builder | Composer package handling | ✓ |
+| Python builder | pip/poetry wheel support | ✓ |
+| Rust builder | Cargo build system | ✓ |
+| C++ builder | CMake + Conan cross-compile | ✓ |
+| Docker builder | Multi-arch Docker images with buildx | ✓ |
+| LinuxKit builder | VM image generation (iso, qcow2, raw, aws, gcp, vmdk, vhd) | ✓ |
+| Taskfile builder | Task runner automation | ✓ |
+| Docs builder | mkdocs static site generation | ✓ |
+
+### Archive & Packaging
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Archive creation | tar.gz, xz, zip packaging | ✓ |
+| Deterministic ZIP | Reproducible ZIP archives | ✓ |
+| CHECKSUMS.txt generation | SHA-256 checksums for artifacts | ✓ |
+| Build caching | Cache configuration with restore keys | ✓ |
+
+### Code Signing
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Signer interface | Pluggable signing abstraction | ✓ |
+| GPG signing | Detached ASCII armour signature for checksums | ✓ |
+| macOS codesign | Code signing with Developer ID + hardened runtime | ✓ |
+| macOS notarisation | notarytool submit + stapler staple | ✓ |
+| Windows signtool | Authenticode signing via signtool | ✓ |
+| CLI signing flags | `--no-sign`, `--notarize` overrides | ✓ |
+
+### Release Publishing
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| GitHub Releases | go-github publisher | ✓ |
+| npm publisher | Binary wrapper + metadata | ✓ |
+| Homebrew | Formula generation + tap PR | ✓ |
+| Docker | Multi-arch image push | ✓ |
+| AUR | PKGBUILD template generation | ✓ |
+| Scoop | JSON manifest generation | ✓ |
+| Chocolatey | NuSpec generation + optional push | ✓ |
+| LinuxKit | Image publishing | ✓ |
+| Official repo generation | Homebrew/Scoop official repo PR files | ✓ |
+
+### SDK Generation
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| OpenAPI spec detection | Auto-scan or manual spec path | ✓ |
+| Breaking change detection | oasdiff comparison | ✓ |
+| TypeScript generator | openapi-typescript-codegen | ✓ |
+| Python generator | openapi-python-client | ✓ |
+| Go generator | oapi-codegen | ✓ |
+| PHP generator | openapi-generator (Docker) | ✓ |
+| SDK CLI commands | `core sdk diff`, `core sdk generate` | ✓ |
+| SDK release integration | `core release --target sdk` | ✓ |
+
+### Installer Scripts
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| setup.sh | Full installer with PATH + completions | ✓ |
+| ci.sh | Minimal CI-only installer | ✓ |
+| php.sh | PHP development variant | ✓ |
+| go.sh | Go development variant | ✓ |
+| agent.sh | AI agent variant | ✓ |
+| dev.sh | Multi-repo development variant | ✓ |
+| CDN hosting | lthn.sh script distribution | ✓ |
+
+### CI & Workflow
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| GitHub Actions detection | CIContext with SHA, tag, ref, repo | ✓ |
+| GitHub Annotations | Format build messages as annotations | ✓ |
+| Release workflow generation | Embedded template output to .github/workflows/ | ✓ |
+| Workflow path resolution | Directory/file path handling | ✓ |
+
+### Advanced Features
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| PWA building | Local path or URL download + packaging | ✓ |
+| REST API provider | Build operations as HTTP endpoints | ✓ |
+| WebSocket events | Real-time build event streaming | ✓ |
+| kardianos/service | Cross-platform daemon service | ✓ |
+| File watcher | Auto-rebuild on source changes | ✓ |
+| API server | IDE/remote control interface | ✓ |
+| `core service` commands | install, start, stop, uninstall, export | ✓ |
+
+### Build Configuration Features
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Type override | Force builder via `.core/build.yaml` | ✓ |
+| CGO control | Enable/disable CGO (Go) | ✓ |
+| Binary obfuscation | garble integration for Go | ✓ |
+| Build tags | Go build tag support | ✓ |
+| NSIS installer | Windows installer generation (Wails) | ✓ |
+| WebView2 delivery | download\|embed\|browser\|error modes (Wails) | ✓ |
+| Docker load | Load image into local daemon | ✓ |
+| LinuxKit formats | 9 output formats (iso, raw, qcow2, vmdk, vhd, aws, gcp, docker, tar, kernel+initrd) | ✓ |
+| Immutable base images | core-dev, core-ml, core-minimal LinuxKit images for agent dispatch | ✓ |
+| Apple Container output | Native macOS 26 container image format (.aci) | ✓ |
+| `core build image` | CLI command to build/rebuild immutable images | ✓ |
+| Image versioning | Images tagged with Core release version | ✓ |
+
+---
+
+## 16. I/O Medium
+
+Build artifacts are stored and retrieved via `io.Medium` — output to local filesystem, S3, or DataCube. See `code/core/go/io/RFC.md §Medium` for the interface.
+
+```go
+build.Run(build.WithOutput(io.S3("releases.lthn.io/v0.8.0")))
+```
+
+---
+
+## 17. Reference Material
+
+| Resource | Location |
+|----------|----------|
+| go-build repo | `dappco.re/go/build` |
+| Core Go RFC | `code/core/go/RFC.md` |
+| I/O Medium interface | `code/core/go/io/RFC.md` |
+| Build pipeline sub-spec | `code/core/go/build/RFC.build-pipeline.md` |
+| Release pipeline sub-spec | `code/core/go/build/RFC.release-pipeline.md` |
+| SDK generation sub-spec | `code/core/go/build/RFC.sdk-generation.md` |
+
+---
 
 ## Changelog
 
-- 2026-04-15: Synced the in-repo RFC with the current generated workflow surface by documenting `core-version`, `archive-format`, and the fuller Apple wrapper/notarisation contract.
+| Date | Change |
+|------|--------|
+| 2026-04-08 | Added §9.3 LinuxKit Immutable Images — base images (core-dev, core-ml, core-minimal), Apple Container + OCI output formats, `core build image` CLI, versioned alongside Core releases |
+| 2026-04-08 | Added §16 I/O Medium (build artifacts via io.Medium) |
