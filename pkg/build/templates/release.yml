@@ -78,6 +78,11 @@ on:
         required: false
         type: string
         default: ""
+      npm-build:
+        description: Override the npm frontend build command.
+        required: false
+        type: string
+        default: ""
       wails-build-webview2:
         description: Set the WebView2 delivery mode for Windows Wails builds.
         required: false
@@ -177,6 +182,11 @@ on:
         default: false
       deno-build:
         description: Override the Deno frontend build command.
+        required: false
+        type: string
+        default: ""
+      npm-build:
+        description: Override the npm frontend build command.
         required: false
         type: string
         default: ""
@@ -343,6 +353,11 @@ PY
             deno_requested=true
           fi
 
+          npm_requested=false
+          if [ -n "${NPM_BUILD:-}" ] || [ -n "${{ inputs.npm-build }}" ]; then
+            npm_requested=true
+          fi
+
           has_package_json=false
           if [ "$has_root_package_json" = "true" ] || [ "$has_frontend_package_json" = "true" ] || [ "$has_subtree_package_json" = "true" ]; then
             has_package_json=true
@@ -473,6 +488,7 @@ PY
             echo "has_subtree_package_json=$has_subtree_package_json"
             echo "has_subtree_deno_manifest=$has_subtree_deno_manifest"
             echo "deno_requested=$deno_requested"
+            echo "npm_requested=$npm_requested"
             echo "has_frontend=$has_frontend"
             echo "has_go_toolchain=$has_go_toolchain"
             echo "has_docs_config=$has_docs_config"
@@ -526,20 +542,20 @@ PY
           echo "$gobin" >> "${GITHUB_PATH}"
 
       - name: Setup Node
-        if: steps.discovery.outputs.has_package_json == 'true' || steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'node'
+        if: steps.discovery.outputs.has_package_json == 'true' || steps.discovery.outputs.npm_requested == 'true' || steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'node'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
 
       - name: Enable Corepack
-        if: steps.discovery.outputs.has_package_json == 'true' || steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'node'
+        if: steps.discovery.outputs.has_package_json == 'true' || steps.discovery.outputs.npm_requested == 'true' || steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'node'
         shell: bash
         run: |
           set -euo pipefail
           corepack enable
 
       - name: Install frontend dependencies
-        if: steps.discovery.outputs.has_package_json == 'true' || steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'node'
+        if: steps.discovery.outputs.has_package_json == 'true' || steps.discovery.outputs.npm_requested == 'true' || steps.discovery.outputs.primary_stack_suggestion == 'wails2' || steps.discovery.outputs.configured_build_type == 'node'
         working-directory: ${{ inputs.working-directory }}
         shell: bash
         run: |
@@ -844,6 +860,10 @@ try {
 
           if [ -n "${{ inputs.deno-build }}" ]; then
             args+=(--deno-build "${{ inputs.deno-build }}")
+          fi
+
+          if [ -n "${{ inputs.npm-build }}" ]; then
+            args+=(--npm-build "${{ inputs.npm-build }}")
           fi
 
           if [ -n "${{ inputs.wails-build-webview2 }}" ]; then

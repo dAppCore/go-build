@@ -391,6 +391,7 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		"has_docs_config":           discovery.HasDocsConfig,
 		"has_go_toolchain":          discovery.HasGoToolchain,
 		"deno_requested":            build.DenoRequested(cfg.Build.DenoBuild),
+		"npm_requested":             build.NpmRequested(cfg.Build.NpmBuild),
 		"linux_packages":            discovery.LinuxPackages,
 		"webkit_package":            discovery.WebKitPackage,
 		"ref":                       discovery.Ref,

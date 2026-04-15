@@ -230,6 +230,7 @@ func TestRun_ForwardsActionPortOverrides_Good(t *testing.T) {
 		WithNSIS(true),
 		WithWebView2("embed"),
 		WithDenoBuild("deno task bundle"),
+		WithNpmBuild("npm run bundle"),
 		WithBuildCache(true),
 		WithBuilderResolver(func(projectType ProjectType) (Builder, error) {
 			return &capturingRunTestBuilder{captured: &captured}, nil
@@ -243,6 +244,7 @@ func TestRun_ForwardsActionPortOverrides_Good(t *testing.T) {
 	assert.True(t, captured.NSIS)
 	assert.Equal(t, "embed", captured.WebView2)
 	assert.Equal(t, "deno task bundle", captured.DenoBuild)
+	assert.Equal(t, "npm run bundle", captured.NpmBuild)
 	assert.True(t, captured.Cache.Enabled)
 	assert.NotEmpty(t, captured.Cache.Paths)
 }

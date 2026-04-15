@@ -51,6 +51,8 @@ type ProjectBuildRequest struct {
 	WebView2Set       bool
 	DenoBuild         string
 	DenoBuildSet      bool
+	NpmBuild          string
+	NpmBuildSet       bool
 	BuildCache        bool
 	BuildCacheSet     bool
 	ArchiveOutput     bool
@@ -361,7 +363,7 @@ func shouldUseGoBuildPassthrough(filesystem io.Medium, projectDir string, req Pr
 		return false
 	}
 
-	if req.ObfuscateSet || req.NSISSet || req.WebView2Set || req.DenoBuildSet || req.BuildCacheSet || req.SignSet || req.NoSign || req.Notarize {
+	if req.ObfuscateSet || req.NSISSet || req.WebView2Set || req.DenoBuildSet || req.NpmBuildSet || req.BuildCacheSet || req.SignSet || req.NoSign || req.Notarize {
 		return false
 	}
 
@@ -460,6 +462,9 @@ func applyProjectBuildOverrides(cfg *build.BuildConfig, req ProjectBuildRequest)
 	}
 	if req.DenoBuildSet {
 		cfg.Build.DenoBuild = req.DenoBuild
+	}
+	if req.NpmBuildSet {
+		cfg.Build.NpmBuild = req.NpmBuild
 	}
 	if req.BuildCacheSet {
 		if req.BuildCache {

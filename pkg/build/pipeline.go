@@ -45,6 +45,8 @@ type PipelineRequest struct {
 	WebView2Set   bool
 	DenoBuild     string
 	DenoBuildSet  bool
+	NpmBuild      string
+	NpmBuildSet   bool
 	BuildCache    bool
 	BuildCacheSet bool
 	OutputDir     string
@@ -364,6 +366,9 @@ func applyPipelineBuildOverrides(cfg *BuildConfig, req PipelineRequest) {
 	}
 	if req.DenoBuildSet {
 		cfg.Build.DenoBuild = req.DenoBuild
+	}
+	if req.NpmBuildSet {
+		cfg.Build.NpmBuild = req.NpmBuild
 	}
 	if req.BuildCacheSet {
 		if req.BuildCache {

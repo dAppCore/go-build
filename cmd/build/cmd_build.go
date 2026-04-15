@@ -61,6 +61,8 @@ func AddBuildCommands(c *core.Core) {
 				WebView2Set:       cmdutil.OptionHas(opts, "wails-build-webview2", "wails_build_webview2", "webview2"),
 				DenoBuild:         cmdutil.OptionString(opts, "deno-build", "deno_build"),
 				DenoBuildSet:      cmdutil.OptionHas(opts, "deno-build", "deno_build"),
+				NpmBuild:          cmdutil.OptionString(opts, "npm-build", "npm_build"),
+				NpmBuildSet:       cmdutil.OptionHas(opts, "npm-build", "npm_build"),
 				BuildCache:        cmdutil.OptionBool(opts, "build-cache", "build_cache"),
 				BuildCacheSet:     cmdutil.OptionHas(opts, "build-cache", "build_cache"),
 				ArchiveOutput:     archiveOutput,

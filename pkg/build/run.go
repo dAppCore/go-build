@@ -29,6 +29,8 @@ type RunConfig struct {
 	WebView2Set    bool
 	DenoBuild      string
 	DenoBuildSet   bool
+	NpmBuild       string
+	NpmBuildSet    bool
 	BuildCache     bool
 	BuildCacheSet  bool
 	BuildName      string
@@ -133,6 +135,14 @@ func WithDenoBuild(command string) RunOption {
 	return func(cfg *RunConfig) {
 		cfg.DenoBuild = command
 		cfg.DenoBuildSet = true
+	}
+}
+
+// WithNpmBuild overrides the default npm frontend build command.
+func WithNpmBuild(command string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.NpmBuild = command
+		cfg.NpmBuildSet = true
 	}
 }
 
@@ -263,6 +273,8 @@ func Run(opts ...RunOption) ([]Artifact, error) {
 		WebView2Set:   cfg.WebView2Set,
 		DenoBuild:     cfg.DenoBuild,
 		DenoBuildSet:  cfg.DenoBuildSet,
+		NpmBuild:      cfg.NpmBuild,
+		NpmBuildSet:   cfg.NpmBuildSet,
 		BuildCache:    cfg.BuildCache,
 		BuildCacheSet: cfg.BuildCacheSet,
 		OutputDir:     stageOutputDir,
