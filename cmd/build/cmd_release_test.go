@@ -1,11 +1,13 @@
 package buildcmd
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/pkg/release"
+	"dappco.re/go/core"
+	"dappco.re/go/core/cli/pkg/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -87,7 +89,33 @@ func TestBuildCmd_runRelease_TargetSDK_Good(t *testing.T) {
 		}, nil
 	}
 
-	err := runRelease(context.Background(), true, "sdk", "v1.2.3", false, false, "")
+	err := runRelease(context.Background(), true, false, "sdk", "v1.2.3", false, false, "")
 	require.NoError(t, err)
 	assert.True(t, called)
+}
+
+func TestBuildCmd_runRelease_CIModeEmitsGitHubAnnotationOnError_Bad(t *testing.T) {
+	projectDir := t.TempDir()
+	originalGetwd := getReleaseWorkingDir
+	originalConfigExists := releaseConfigExistsFn
+	t.Cleanup(func() {
+		getReleaseWorkingDir = originalGetwd
+		releaseConfigExistsFn = originalConfigExists
+		cli.SetStdout(nil)
+		cli.SetStderr(nil)
+	})
+
+	getReleaseWorkingDir = func() (string, error) { return projectDir, nil }
+	releaseConfigExistsFn = func(dir string) bool {
+		assert.Equal(t, projectDir, dir)
+		return false
+	}
+
+	var stdout bytes.Buffer
+	cli.SetStdout(&stdout)
+	cli.SetStderr(&stdout)
+
+	err := runRelease(context.Background(), false, true, "release", "", false, false, "")
+	require.Error(t, err)
+	assert.Contains(t, stdout.String(), emitCIAnnotationForTest(err))
 }

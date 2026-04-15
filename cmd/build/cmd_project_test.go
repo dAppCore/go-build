@@ -1,6 +1,7 @@
 package buildcmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -8,6 +9,7 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -205,6 +207,31 @@ func TestBuildCmd_resolvePackageOutputs_Good(t *testing.T) {
 		assert.True(t, archiveOutput)
 		assert.False(t, checksumOutput)
 	})
+}
+
+func TestBuildCmd_runProjectBuild_CIModeEmitsGitHubAnnotationOnError_Bad(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+
+	originalGetwd := getProjectBuildWorkingDir
+	t.Cleanup(func() {
+		getProjectBuildWorkingDir = originalGetwd
+		cli.SetStdout(nil)
+		cli.SetStderr(nil)
+	})
+	getProjectBuildWorkingDir = func() (string, error) { return projectDir, nil }
+
+	var stdout bytes.Buffer
+	cli.SetStdout(&stdout)
+	cli.SetStderr(&stdout)
+
+	err := runProjectBuild(ProjectBuildRequest{
+		Context:     context.Background(),
+		CIMode:      true,
+		TargetsFlag: "linux",
+	})
+	require.Error(t, err)
+	assert.Contains(t, stdout.String(), emitCIAnnotationForTest(err))
 }
 
 func TestBuildCmd_applyProjectBuildOverrides_Good(t *testing.T) {

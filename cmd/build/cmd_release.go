@@ -5,10 +5,10 @@ package buildcmd
 import (
 	"context"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/release"
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
@@ -41,6 +41,7 @@ func registerReleaseCommand(c *core.Core, path string) {
 					cmdutil.OptionBool(opts, "publish"),
 					cmdutil.OptionBool(opts, "we-are-go-for-launch"),
 				),
+				cmdutil.OptionBool(opts, "ci"),
 				cmdutil.OptionString(opts, "target"),
 				cmdutil.OptionString(opts, "version", "tag"),
 				cmdutil.OptionBool(opts, "draft"),
@@ -53,8 +54,14 @@ func registerReleaseCommand(c *core.Core, path string) {
 
 // runRelease executes the full release workflow: build + archive + checksum + publish.
 //
-// runRelease(ctx, true, "sdk", "v1.2.3", true, false, "xz") // dry run with an SDK-only target
-func runRelease(ctx context.Context, dryRun bool, target, version string, draft, prerelease bool, archiveFormat string) error {
+// runRelease(ctx, true, false, "sdk", "v1.2.3", true, false, "xz") // dry run with an SDK-only target
+func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version string, draft, prerelease bool, archiveFormat string) (err error) {
+	if ciMode {
+		defer func() {
+			emitCIErrorAnnotation(err)
+		}()
+	}
+
 	// Get current directory
 	projectDir, err := getReleaseWorkingDir()
 	if err != nil {

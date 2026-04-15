@@ -79,7 +79,13 @@ type ProjectBuildRequest struct {
 //	  ChecksumOutput: true,
 //	  Format: "gz",
 //	})
-func runProjectBuild(req ProjectBuildRequest) error {
+func runProjectBuild(req ProjectBuildRequest) (err error) {
+	if req.CIMode {
+		defer func() {
+			emitCIErrorAnnotation(err)
+		}()
+	}
+
 	ctx := req.Context
 	if ctx == nil {
 		ctx = context.Background()
