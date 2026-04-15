@@ -89,6 +89,22 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		assert.Empty(t, plan.FrontendDirs)
 	})
 
+	t.Run("python stack adds Python tooling", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("[project]\nname='demo'\n"), 0o644))
+
+		discovery := &DiscoveryResult{
+			Types:                  []ProjectType{ProjectTypePython},
+			PrimaryStack:           "python",
+			PrimaryStackSuggestion: "python",
+		}
+
+		plan, err := ComputeSetupPlan(io.Local, dir, DefaultConfig(), discovery)
+		require.NoError(t, err)
+
+		assert.Equal(t, []SetupTool{SetupToolPython}, setupTools(plan))
+	})
+
 	t.Run("taskfile stack adds Go and Task even without go markers", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, ax.WriteFile(ax.Join(dir, "Taskfile.yaml"), []byte("version: '3'\n"), 0o644))

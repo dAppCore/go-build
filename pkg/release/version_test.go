@@ -47,6 +47,18 @@ func createTag(t *testing.T, dir, tag string) {
 }
 
 func TestVersion_DetermineVersion_Good(t *testing.T) {
+	t.Run("uses GitHub tag metadata before local git tags", func(t *testing.T) {
+		dir := setupGitRepo(t)
+		createCommit(t, dir, "feat: initial commit")
+
+		t.Setenv("GITHUB_SHA", "0123456789abcdef0123456789abcdef01234567")
+		t.Setenv("GITHUB_REF", "refs/tags/v2.3.4")
+
+		version, err := DetermineVersionWithContext(context.Background(), dir)
+		require.NoError(t, err)
+		assert.Equal(t, "v2.3.4", version)
+	})
+
 	t.Run("returns tag when HEAD has tag", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
@@ -130,6 +142,18 @@ func TestVersion_DetermineVersion_Bad(t *testing.T) {
 		createTag(t, dir, "v1.0.0;bad")
 
 		_, err := DetermineVersion(dir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsafe release tag")
+	})
+
+	t.Run("rejects unsafe GitHub tag metadata", func(t *testing.T) {
+		dir := setupGitRepo(t)
+		createCommit(t, dir, "feat: initial commit")
+
+		t.Setenv("GITHUB_SHA", "0123456789abcdef0123456789abcdef01234567")
+		t.Setenv("GITHUB_REF", "refs/tags/v1.0.0;bad")
+
+		_, err := DetermineVersionWithContext(context.Background(), dir)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsafe release tag")
 	})

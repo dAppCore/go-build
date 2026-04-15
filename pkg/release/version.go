@@ -35,6 +35,14 @@ func DetermineVersion(dir string) (string, error) {
 //
 // version, err := release.DetermineVersionWithContext(ctx, ".") // → "v1.2.4"
 func DetermineVersionWithContext(ctx context.Context, dir string) (string, error) {
+	if git := build.DetectGitHubMetadata(); git != nil && git.IsTag {
+		tag := normalizeVersion(strings.TrimSpace(git.Tag))
+		if !ValidateVersion(tag) {
+			return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+tag, nil)
+		}
+		return tag, nil
+	}
+
 	// Check if HEAD has a tag
 	headTag, err := getTagOnHeadWithContext(ctx, dir)
 	if err == nil && headTag != "" {

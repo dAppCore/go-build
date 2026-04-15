@@ -78,6 +78,7 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 	hasWails := configuredType == string(ProjectTypeWails) || discovery.PrimaryStackSuggestion == "wails2"
 	hasCPP := configuredType == string(ProjectTypeCPP) || containsProjectType(discovery.Types, ProjectTypeCPP) || discovery.HasRootCMakeLists
 	hasDocs := configuredType == string(ProjectTypeDocs) || containsProjectType(discovery.Types, ProjectTypeDocs) || discovery.HasDocsConfig
+	hasPython := configuredType == string(ProjectTypePython) || containsProjectType(discovery.Types, ProjectTypePython)
 	hasPHP := configuredType == string(ProjectTypePHP) || containsProjectType(discovery.Types, ProjectTypePHP) || discovery.HasRootComposerJSON
 	hasRust := configuredType == string(ProjectTypeRust) || containsProjectType(discovery.Types, ProjectTypeRust) || discovery.HasRootCargoToml
 	hasNode := configuredType == string(ProjectTypeNode) || hasWails || discovery.HasPackageJSON
@@ -114,8 +115,8 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 	if hasWails {
 		plan.addStep(SetupToolWails, "Wails stack detected")
 	}
-	if hasCPP || hasDocs {
-		plan.addStep(SetupToolPython, "docs and C++ setup relies on Python tooling")
+	if hasPython || hasCPP || hasDocs {
+		plan.addStep(SetupToolPython, pythonSetupReason(hasPython, hasCPP, hasDocs))
 	}
 	if hasPHP {
 		plan.addStep(SetupToolPHP, "composer.json detected")
@@ -135,6 +136,21 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 	}
 
 	return plan, nil
+}
+
+func pythonSetupReason(hasPython, hasCPP, hasDocs bool) string {
+	switch {
+	case hasPython:
+		return "Python project detected"
+	case hasCPP && hasDocs:
+		return "docs and C++ setup relies on Python tooling"
+	case hasCPP:
+		return "C++ setup relies on Python tooling"
+	case hasDocs:
+		return "MkDocs setup relies on Python tooling"
+	default:
+		return "Python tooling required"
+	}
 }
 
 // ResolveFrontendSetupDirs returns frontend directories that participate in the
