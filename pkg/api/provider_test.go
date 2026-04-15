@@ -209,6 +209,32 @@ func TestProvider_BuildProviderNilHub_Good(t *testing.T) {
 	p.emitEvent("build.started", map[string]any{"test": true})
 }
 
+func TestProvider_ResolveBuildOutputs_Good(t *testing.T) {
+	t.Run("defaults to raw build output", func(t *testing.T) {
+		archiveOutput, checksumOutput := resolveBuildOutputs(buildRequest{})
+		assert.False(t, archiveOutput)
+		assert.False(t, checksumOutput)
+	})
+
+	t.Run("enables archive and checksum when package is set", func(t *testing.T) {
+		value := true
+		archiveOutput, checksumOutput := resolveBuildOutputs(buildRequest{Package: &value})
+		assert.True(t, archiveOutput)
+		assert.True(t, checksumOutput)
+	})
+
+	t.Run("preserves explicit archive override over package", func(t *testing.T) {
+		packageValue := true
+		archiveValue := false
+		archiveOutput, checksumOutput := resolveBuildOutputs(buildRequest{
+			Archive: &archiveValue,
+			Package: &packageValue,
+		})
+		assert.False(t, archiveOutput)
+		assert.True(t, checksumOutput)
+	})
+}
+
 func TestProvider_GetBuilderSupportedTypes_Good(t *testing.T) {
 	cases := []struct {
 		projectType build.ProjectType
@@ -1175,7 +1201,8 @@ targets:
 
 	p := NewProvider(projectDir, nil)
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/build", nil)
+	request := httptest.NewRequest(http.MethodPost, "/build", bytes.NewBufferString(`{"package":true}`))
+	request.Header.Set("Content-Type", "application/json")
 
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = request
@@ -1214,6 +1241,76 @@ targets:
 	checksums, err := io.Local.Read(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))
 	require.NoError(t, err)
 	assert.Contains(t, checksums, "api-build_linux_amd64.tar.xz")
+}
+
+func TestProvider_TriggerBuild_DefaultsToRawArtifacts_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`version: 1
+project:
+  name: provider
+  binary: provider
+build:
+  type: go
+targets:
+  - os: `+runtime.GOOS+`
+    arch: `+runtime.GOARCH+`
+sign:
+  enabled: false
+`), 0o644))
+
+	oldGetBuilder := providerGetBuilder
+	oldDetermineVersion := providerDetermineVersion
+	t.Cleanup(func() {
+		providerGetBuilder = oldGetBuilder
+		providerDetermineVersion = oldDetermineVersion
+	})
+
+	providerGetBuilder = func(projectType build.ProjectType) (build.Builder, error) {
+		return &capturingBuilder{
+			name: "go",
+			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+				artifactDir := ax.Join(cfg.OutputDir, runtime.GOOS+"_"+runtime.GOARCH)
+				require.NoError(t, cfg.FS.EnsureDir(artifactDir))
+				artifactPath := ax.Join(artifactDir, "provider")
+				if runtime.GOOS == "windows" {
+					artifactPath += ".exe"
+				}
+				require.NoError(t, cfg.FS.WriteMode(artifactPath, "binary", 0o755))
+
+				return []build.Artifact{{
+					Path: artifactPath,
+					OS:   runtime.GOOS,
+					Arch: runtime.GOARCH,
+				}}, nil
+			},
+		}, nil
+	}
+	providerDetermineVersion = func(ctx context.Context, dir string) (string, error) {
+		return "v1.2.3", nil
+	}
+
+	p := NewProvider(projectDir, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/build", nil)
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.triggerBuild(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"project_type":"go"`)
+	assert.NotContains(t, recorder.Body.String(), `"archive_format"`)
+	assert.NotContains(t, recorder.Body.String(), `"checksum_file"`)
+	assert.True(t, io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider")) || io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider.exe")))
+	assert.False(t, io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")))
+	assert.False(t, io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz")))
+	assert.False(t, io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz")))
 }
 
 func TestProvider_TriggerBuild_WithoutBuildConfig_UsesLocalTarget_Good(t *testing.T) {

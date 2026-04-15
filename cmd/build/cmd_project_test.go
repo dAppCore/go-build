@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
@@ -185,9 +186,9 @@ func TestBuildCmd_resolveBuildSignConfig_Good(t *testing.T) {
 
 func TestBuildCmd_resolvePackageOutputs_Good(t *testing.T) {
 	t.Run("leaves archive and checksum defaults alone when package is unset", func(t *testing.T) {
-		archiveOutput, checksumOutput := resolvePackageOutputs(true, false, true, false, true, false)
-		assert.True(t, archiveOutput)
-		assert.True(t, checksumOutput)
+		archiveOutput, checksumOutput := resolvePackageOutputs(false, false, false, false, false, false)
+		assert.False(t, archiveOutput)
+		assert.False(t, checksumOutput)
 	})
 
 	t.Run("disables archive and checksum when package=false and neither output flag is explicit", func(t *testing.T) {
@@ -572,6 +573,48 @@ func TestBuildCmd_runProjectBuild_NoConfigGoPassthrough_Good(t *testing.T) {
 
 	assert.FileExists(t, ax.Join(projectDir, "passthrough"))
 	assert.NoFileExists(t, ax.Join(projectDir, "dist"))
+}
+
+func TestBuildCmd_runProjectBuild_ConfiguredBuildDefaultsToRawArtifacts_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	originalGetwd := getProjectBuildWorkingDir
+	t.Cleanup(func() {
+		getProjectBuildWorkingDir = originalGetwd
+	})
+	getProjectBuildWorkingDir = func() (string, error) {
+		return projectDir, nil
+	}
+
+	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/configured\n\ngo 1.24\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(
+		"version: 1\n"+
+			"project:\n"+
+			"  name: configured\n"+
+			"  binary: configured\n"+
+			"targets:\n"+
+			"  - os: "+runtime.GOOS+"\n"+
+			"    arch: "+runtime.GOARCH+"\n"+
+			"sign:\n"+
+			"  enabled: false\n",
+	), 0o644))
+
+	err := runProjectBuild(ProjectBuildRequest{
+		Context: context.Background(),
+	})
+	require.NoError(t, err)
+
+	expectedBinary := ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "configured")
+	if runtime.GOOS == "windows" {
+		expectedBinary += ".exe"
+	}
+
+	assert.FileExists(t, expectedBinary)
+	assert.NoFileExists(t, ax.Join(projectDir, "dist", "CHECKSUMS.txt"))
+	assert.NoFileExists(t, ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz"))
+	assert.NoFileExists(t, ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz"))
+	assert.NoFileExists(t, ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".zip"))
 }
 
 func TestBuildCmd_shouldUseGoBuildPassthrough_Good(t *testing.T) {

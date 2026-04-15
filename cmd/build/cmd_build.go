@@ -29,11 +29,11 @@ func AddBuildCommands(c *core.Core) {
 	c.Command("build", core.Command{
 		Description: "cmd.build.long",
 		Action: func(opts core.Options) core.Result {
-			archiveOutput := cmdutil.OptionBoolDefault(opts, true, "archive")
+			archiveOutput := cmdutil.OptionBoolDefault(opts, false, "archive")
 			archiveOutputSet := cmdutil.OptionHas(opts, "archive")
-			checksumOutput := cmdutil.OptionBoolDefault(opts, true, "checksum")
+			checksumOutput := cmdutil.OptionBoolDefault(opts, false, "checksum")
 			checksumOutputSet := cmdutil.OptionHas(opts, "checksum")
-			packageEnabled := cmdutil.OptionBoolDefault(opts, true, "package")
+			packageEnabled := cmdutil.OptionBoolDefault(opts, false, "package")
 			packageSet := cmdutil.OptionHas(opts, "package")
 			archiveOutput, checksumOutput = resolvePackageOutputs(
 				packageEnabled,

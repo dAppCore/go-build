@@ -41,6 +41,12 @@ type BuildProvider struct {
 	medium     io.Medium
 }
 
+type buildRequest struct {
+	Archive  *bool `json:"archive,omitempty"`
+	Checksum *bool `json:"checksum,omitempty"`
+	Package  *bool `json:"package,omitempty"`
+}
+
 var (
 	providerResolveProjectType = resolveProjectType
 	providerGetBuilder         = getBuilder
@@ -423,6 +429,13 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		return
 	}
 
+	request, err := decodeBuildRequest(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+		return
+	}
+	archiveOutput, checksumOutput := resolveBuildOutputs(request)
+
 	hasBuildConfig := build.ConfigExists(p.medium, dir)
 	var cfg *build.BuildConfig
 	if hasBuildConfig {
@@ -513,54 +526,104 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		}
 	}
 
-	archiveFormat, err := build.ParseArchiveFormat(plan.BuildConfig.Build.ArchiveFormat)
-	if err != nil {
-		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(http.StatusBadRequest, api.Fail("archive_format_invalid", err.Error()))
-		return
+	finalArtifacts := append([]build.Artifact(nil), artifacts...)
+	response := map[string]any{
+		"artifacts":     finalArtifacts,
+		"project_type":  string(plan.ProjectType),
+		"project_types": projectTypeNames,
+		"version":       plan.Version,
 	}
 
-	archived, err := build.ArchiveAllWithFormat(p.medium, artifacts, archiveFormat)
-	if err != nil {
-		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, api.Fail("archive_failed", err.Error()))
-		return
+	if archiveOutput {
+		archiveFormat, err := build.ParseArchiveFormat(plan.BuildConfig.Build.ArchiveFormat)
+		if err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, api.Fail("archive_format_invalid", err.Error()))
+			return
+		}
+
+		finalArtifacts, err = build.ArchiveAllWithFormat(p.medium, finalArtifacts, archiveFormat)
+		if err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, api.Fail("archive_failed", err.Error()))
+			return
+		}
+
+		response["archive_format"] = string(archiveFormat)
 	}
 
-	checksummed, err := build.ChecksumAll(p.medium, archived)
-	if err != nil {
-		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, api.Fail("checksum_failed", err.Error()))
-		return
-	}
+	if checksumOutput {
+		checksummed, err := build.ChecksumAll(p.medium, finalArtifacts)
+		if err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, api.Fail("checksum_failed", err.Error()))
+			return
+		}
 
-	checksumPath := ax.Join(plan.OutputDir, "CHECKSUMS.txt")
-	if err := build.WriteChecksumFile(p.medium, checksummed, checksumPath); err != nil {
-		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, api.Fail("checksum_write_failed", err.Error()))
-		return
-	}
+		checksumPath := ax.Join(plan.OutputDir, "CHECKSUMS.txt")
+		if err := build.WriteChecksumFile(p.medium, checksummed, checksumPath); err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, api.Fail("checksum_write_failed", err.Error()))
+			return
+		}
 
-	if err := providerSignChecksums(c.Request.Context(), p.medium, signCfg, checksumPath); err != nil {
-		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, api.Fail("checksum_sign_failed", err.Error()))
-		return
+		if signCfg.Enabled {
+			if err := providerSignChecksums(c.Request.Context(), p.medium, signCfg, checksumPath); err != nil {
+				p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+				c.JSON(http.StatusInternalServerError, api.Fail("checksum_sign_failed", err.Error()))
+				return
+			}
+		}
+
+		finalArtifacts = checksummed
+		response["checksum_file"] = checksumPath
 	}
 
 	p.emitEvent("build.complete", map[string]any{
-		"artifact_count": len(checksummed),
+		"artifact_count": len(finalArtifacts),
 		"project_types":  projectTypeNames,
 		"version":        plan.Version,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
-		"artifacts":      checksummed,
-		"checksum_file":  checksumPath,
-		"archive_format": string(archiveFormat),
-		"project_type":   string(plan.ProjectType),
-		"project_types":  projectTypeNames,
-		"version":        plan.Version,
-	}))
+	response["artifacts"] = finalArtifacts
+	c.JSON(http.StatusOK, api.OK(response))
+}
+
+func decodeBuildRequest(c *gin.Context) (buildRequest, error) {
+	var request buildRequest
+	if c == nil || c.Request == nil || c.Request.Body == nil || c.Request.ContentLength == 0 {
+		return request, nil
+	}
+	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
+		return buildRequest{}, err
+	}
+	return request, nil
+}
+
+func resolveBuildOutputs(request buildRequest) (bool, bool) {
+	archiveOutput := false
+	checksumOutput := false
+
+	archiveSet := request.Archive != nil
+	if archiveSet {
+		archiveOutput = *request.Archive
+	}
+
+	checksumSet := request.Checksum != nil
+	if checksumSet {
+		checksumOutput = *request.Checksum
+	}
+
+	if request.Package != nil {
+		if !archiveSet {
+			archiveOutput = *request.Package
+		}
+		if !checksumSet {
+			checksumOutput = *request.Package
+		}
+	}
+
+	return archiveOutput, checksumOutput
 }
 
 // resolveProjectType returns the configured build type when present, otherwise it falls back to detection.
