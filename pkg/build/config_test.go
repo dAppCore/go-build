@@ -225,6 +225,54 @@ cache:
 		assert.Equal(t, []string{"go-"}, cfg.Build.Cache.RestoreKeys)
 	})
 
+	t.Run("supports RFC pre_build block for frontend hooks", func(t *testing.T) {
+		t.Setenv("DENO_BUILD", "deno task bundle")
+		t.Setenv("NPM_BUILD", "npm run bundle")
+
+		content := `
+version: 1
+pre_build:
+  deno: ${DENO_BUILD}
+  npm: ${NPM_BUILD}
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "deno task bundle", cfg.Build.DenoBuild)
+		assert.Equal(t, "npm run bundle", cfg.Build.NpmBuild)
+		assert.Equal(t, PreBuild{
+			Deno: "deno task bundle",
+			Npm:  "npm run bundle",
+		}, cfg.PreBuild)
+	})
+
+	t.Run("keeps legacy build frontend hooks when both shapes are present", func(t *testing.T) {
+		content := `
+version: 1
+build:
+  deno_build: deno task legacy
+  npm_build: npm run legacy
+pre_build:
+  deno: deno task ignored
+  npm: npm run ignored
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "deno task legacy", cfg.Build.DenoBuild)
+		assert.Equal(t, "npm run legacy", cfg.Build.NpmBuild)
+		assert.Equal(t, PreBuild{
+			Deno: "deno task legacy",
+			Npm:  "npm run legacy",
+		}, cfg.PreBuild)
+	})
+
 	t.Run("loads apple pipeline config with env expansion", func(t *testing.T) {
 		t.Setenv("APPLE_TEAM_ID", "ABC123DEF4")
 		t.Setenv("APPLE_BUNDLE_ID", "ai.lthn.core")
@@ -534,8 +582,9 @@ targets:
 
 func TestConfig_MarshalYAML_Good(t *testing.T) {
 	type marshalledBuildConfig struct {
-		Build map[string]any `yaml:"build"`
-		Cache map[string]any `yaml:"cache"`
+		Build    map[string]any `yaml:"build"`
+		Cache    map[string]any `yaml:"cache"`
+		PreBuild map[string]any `yaml:"pre_build"`
 	}
 
 	t.Run("emits the RFC top-level cache block", func(t *testing.T) {
@@ -578,6 +627,30 @@ func TestConfig_MarshalYAML_Good(t *testing.T) {
 
 		_, hasNestedCache := decoded.Build["cache"]
 		assert.False(t, hasNestedCache)
+	})
+
+	t.Run("emits the RFC pre_build block instead of legacy build hooks", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Build.DenoBuild = "deno task build"
+		cfg.Build.NpmBuild = "npm run build"
+		cfg.PreBuild = PreBuild{
+			Deno: "deno task build",
+			Npm:  "npm run build",
+		}
+
+		data, err := yaml.Marshal(cfg)
+		require.NoError(t, err)
+
+		var decoded marshalledBuildConfig
+		require.NoError(t, yaml.Unmarshal(data, &decoded))
+
+		require.NotNil(t, decoded.PreBuild)
+		assert.Equal(t, "deno task build", decoded.PreBuild["deno"])
+		assert.Equal(t, "npm run build", decoded.PreBuild["npm"])
+		_, hasLegacyDeno := decoded.Build["deno_build"]
+		_, hasLegacyNpm := decoded.Build["npm_build"]
+		assert.False(t, hasLegacyDeno)
+		assert.False(t, hasLegacyNpm)
 	})
 }
 

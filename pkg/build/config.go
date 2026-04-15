@@ -37,6 +37,8 @@ type BuildConfig struct {
 	Build Build `json:"build" yaml:"build"`
 	// Apple contains macOS Apple pipeline settings.
 	Apple AppleConfig `json:"apple,omitempty" yaml:"apple,omitempty"`
+	// PreBuild contains declarative frontend build hooks such as Deno or npm.
+	PreBuild PreBuild `json:"pre_build,omitempty" yaml:"pre_build,omitempty"`
 	// Targets defines the build targets.
 	Targets []TargetConfig `json:"targets" yaml:"targets"`
 	// Sign contains code signing configuration.
@@ -126,6 +128,17 @@ type Build struct {
 	Formats []string `json:"formats,omitempty" yaml:"formats,omitempty"`
 }
 
+// PreBuild holds declarative frontend build hooks loaded from the RFC
+// `pre_build:` block.
+//
+//	cfg.PreBuild = build.PreBuild{Deno: "deno task build", Npm: "npm run build"}
+type PreBuild struct {
+	// Deno overrides the default `deno task build` invocation.
+	Deno string `json:"deno,omitempty" yaml:"deno,omitempty"`
+	// Npm overrides the default `npm run build` invocation.
+	Npm string `json:"npm,omitempty" yaml:"npm,omitempty"`
+}
+
 // AppleConfig holds macOS Apple pipeline settings loaded from .core/build.yaml.
 // Pointer booleans preserve the difference between an explicit false and an unset field.
 type AppleConfig struct {
@@ -190,6 +203,7 @@ type buildConfigYAML struct {
 	Build    buildYAML          `json:"build" yaml:"build"`
 	Cache    *CacheConfig       `json:"cache,omitempty" yaml:"cache,omitempty"`
 	Apple    AppleConfig        `json:"apple,omitempty" yaml:"apple,omitempty"`
+	PreBuild *PreBuild          `json:"pre_build,omitempty" yaml:"pre_build,omitempty"`
 	Targets  []TargetConfig     `json:"targets" yaml:"targets"`
 	Sign     signing.SignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
 	SDK      *sdk.Config        `json:"sdk,omitempty" yaml:"sdk,omitempty"`
@@ -230,6 +244,7 @@ func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) error {
 		Build    Build          `json:"build" yaml:"build"`
 		Cache    CacheConfig    `json:"cache,omitempty" yaml:"cache,omitempty"`
 		Apple    AppleConfig    `json:"apple,omitempty" yaml:"apple,omitempty"`
+		PreBuild PreBuild       `json:"pre_build,omitempty" yaml:"pre_build,omitempty"`
 		Targets  []TargetConfig `json:"targets" yaml:"targets"`
 		Sign     *rawSignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
 		SDK      *sdk.Config    `json:"sdk,omitempty" yaml:"sdk,omitempty"`
@@ -246,9 +261,23 @@ func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) error {
 		Project:  raw.Project,
 		Build:    raw.Build,
 		Apple:    raw.Apple,
+		PreBuild: raw.PreBuild,
 		Targets:  raw.Targets,
 		SDK:      raw.SDK,
 		LinuxKit: raw.LinuxKit,
+	}
+
+	// Accept the RFC-shaped top-level pre_build block while preserving the
+	// legacy build.deno_build and build.npm_build fields when both are present.
+	if cfg.Build.DenoBuild == "" {
+		cfg.Build.DenoBuild = cfg.PreBuild.Deno
+	}
+	if cfg.Build.NpmBuild == "" {
+		cfg.Build.NpmBuild = cfg.PreBuild.Npm
+	}
+	cfg.PreBuild = PreBuild{
+		Deno: cfg.Build.DenoBuild,
+		Npm:  cfg.Build.NpmBuild,
 	}
 
 	if !cacheConfigConfigured(cfg.Build.Cache) && cacheConfigConfigured(raw.Cache) {
@@ -273,6 +302,16 @@ func (cfg BuildConfig) MarshalYAML() (any, error) {
 		LinuxKit: cfg.LinuxKit,
 	}
 
+	if preBuildConfigured(cfg.PreBuild) {
+		preBuild := cfg.PreBuild
+		raw.PreBuild = &preBuild
+	} else if cfg.Build.DenoBuild != "" || cfg.Build.NpmBuild != "" {
+		raw.PreBuild = &PreBuild{
+			Deno: cfg.Build.DenoBuild,
+			Npm:  cfg.Build.NpmBuild,
+		}
+	}
+
 	if cacheConfigConfigured(cfg.Build.Cache) {
 		cache := cfg.Build.Cache
 		raw.Cache = &cache
@@ -286,8 +325,6 @@ func buildYAMLFromBuild(value Build) buildYAML {
 		Type:           value.Type,
 		CGO:            value.CGO,
 		Obfuscate:      value.Obfuscate,
-		DenoBuild:      value.DenoBuild,
-		NpmBuild:       value.NpmBuild,
 		NSIS:           value.NSIS,
 		WebView2:       value.WebView2,
 		Flags:          value.Flags,
@@ -429,6 +466,10 @@ func cacheConfigConfigured(cfg CacheConfig) bool {
 		len(cfg.RestoreKeys) > 0
 }
 
+func preBuildConfigured(cfg PreBuild) bool {
+	return cfg.Deno != "" || cfg.Npm != ""
+}
+
 func mergeSignConfig(raw *rawSignConfig) signing.SignConfig {
 	cfg := signing.DefaultSignConfig()
 	if raw == nil {
@@ -511,6 +552,8 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.Apple.DMGVolumeName = expandEnv(cfg.Apple.DMGVolumeName)
 	cfg.Apple.EntitlementsPath = expandEnv(cfg.Apple.EntitlementsPath)
 	cfg.Apple.XcodeCloud.Workflow = expandEnv(cfg.Apple.XcodeCloud.Workflow)
+	cfg.PreBuild.Deno = expandEnv(cfg.PreBuild.Deno)
+	cfg.PreBuild.Npm = expandEnv(cfg.PreBuild.Npm)
 
 	cfg.Build.Flags = expandEnvSlice(cfg.Build.Flags)
 	cfg.Build.LDFlags = expandEnvSlice(cfg.Build.LDFlags)
@@ -518,6 +561,10 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.Build.Env = expandEnvSlice(cfg.Build.Env)
 	cfg.Build.Tags = expandEnvSlice(cfg.Build.Tags)
 	cfg.Build.Formats = normalizeLinuxKitFormats(expandEnvSlice(cfg.Build.Formats))
+	cfg.PreBuild = PreBuild{
+		Deno: cfg.Build.DenoBuild,
+		Npm:  cfg.Build.NpmBuild,
+	}
 	cfg.LinuxKit.Base = expandEnv(cfg.LinuxKit.Base)
 	cfg.LinuxKit.Packages = expandEnvSlice(cfg.LinuxKit.Packages)
 	cfg.LinuxKit.Mounts = expandEnvSlice(cfg.LinuxKit.Mounts)

@@ -10,6 +10,14 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 	}
 
 	buildDefaults := buildConfig.Build
+	denoBuild := buildDefaults.DenoBuild
+	if denoBuild == "" {
+		denoBuild = buildConfig.PreBuild.Deno
+	}
+	npmBuild := buildDefaults.NpmBuild
+	if npmBuild == "" {
+		npmBuild = buildConfig.PreBuild.Npm
+	}
 	cfg := &Config{
 		FS:             filesystem,
 		Project:        buildConfig.Project,
@@ -24,8 +32,8 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 		Cache:          buildDefaults.Cache,
 		CGO:            buildDefaults.CGO,
 		Obfuscate:      buildDefaults.Obfuscate,
-		DenoBuild:      buildDefaults.DenoBuild,
-		NpmBuild:       buildDefaults.NpmBuild,
+		DenoBuild:      denoBuild,
+		NpmBuild:       npmBuild,
 		NSIS:           buildDefaults.NSIS,
 		WebView2:       buildDefaults.WebView2,
 		Dockerfile:     buildDefaults.Dockerfile,
