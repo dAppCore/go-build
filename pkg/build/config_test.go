@@ -85,6 +85,21 @@ targets:
 		assert.Equal(t, "arm64", cfg.Targets[1].Arch)
 	})
 
+	t.Run("defaults to the local medium when nil is passed", func(t *testing.T) {
+		content := `
+version: 1
+project:
+  name: nil-medium
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(nil, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "nil-medium", cfg.Project.Name)
+	})
+
 	t.Run("expands environment variables in target config", func(t *testing.T) {
 		t.Setenv("TARGET_OS", "linux")
 		t.Setenv("TARGET_ARCH", "arm64")
@@ -529,6 +544,30 @@ targets:
 		assert.Len(t, cfg.Targets, 1)
 		assert.Equal(t, "linux", cfg.Targets[0].OS)
 		assert.Equal(t, "amd64", cfg.Targets[0].Arch)
+	})
+
+	t.Run("defaults to the local medium when nil is passed", func(t *testing.T) {
+		dir := t.TempDir()
+		configPath := ax.Join(dir, "custom-build.yaml")
+		content := `
+version: 1
+project:
+  name: explicit-nil-medium
+`
+		err := ax.WriteFile(configPath, []byte(content), 0o644)
+		require.NoError(t, err)
+
+		cfg, err := LoadConfigAtPath(nil, configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "explicit-nil-medium", cfg.Project.Name)
+	})
+}
+
+func TestConfig_ConfigExistsNilMedium_Good(t *testing.T) {
+	t.Run("returns false for a nil medium", func(t *testing.T) {
+		assert.False(t, ConfigExists(nil, t.TempDir()))
 	})
 }
 

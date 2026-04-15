@@ -148,6 +148,39 @@ func TestBuildCmd_resolveNoSign_Good(t *testing.T) {
 	})
 }
 
+func TestBuildCmd_resolveBuildSignConfig_Good(t *testing.T) {
+	t.Run("enables signing when notarize overrides disabled config", func(t *testing.T) {
+		signCfg := resolveBuildSignConfig(build.DefaultConfig().Sign, ProjectBuildRequest{
+			Notarize: true,
+		})
+
+		assert.True(t, signCfg.Enabled)
+		assert.True(t, signCfg.MacOS.Notarize)
+	})
+
+	t.Run("preserves explicit no-sign over notarize", func(t *testing.T) {
+		signCfg := resolveBuildSignConfig(build.DefaultConfig().Sign, ProjectBuildRequest{
+			NoSign:   true,
+			Notarize: true,
+		})
+
+		assert.False(t, signCfg.Enabled)
+		assert.True(t, signCfg.MacOS.Notarize)
+	})
+
+	t.Run("re-enables signing when config disabled but notarize requested", func(t *testing.T) {
+		base := build.DefaultConfig().Sign
+		base.Enabled = false
+
+		signCfg := resolveBuildSignConfig(base, ProjectBuildRequest{
+			Notarize: true,
+		})
+
+		assert.True(t, signCfg.Enabled)
+		assert.True(t, signCfg.MacOS.Notarize)
+	})
+}
+
 func TestBuildCmd_resolvePackageOutputs_Good(t *testing.T) {
 	t.Run("leaves archive and checksum defaults alone when package is unset", func(t *testing.T) {
 		archiveOutput, checksumOutput := resolvePackageOutputs(true, false, true, false, true, false)

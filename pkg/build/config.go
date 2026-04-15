@@ -227,6 +227,9 @@ func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) error {
 //
 // cfg, err := build.LoadConfig(io.Local, ".")
 func LoadConfig(fs io.Medium, dir string) (*BuildConfig, error) {
+	if fs == nil {
+		fs = io.Local
+	}
 	return LoadConfigAtPath(fs, ax.Join(dir, ConfigDir, ConfigFileName))
 }
 
@@ -236,6 +239,10 @@ func LoadConfig(fs io.Medium, dir string) (*BuildConfig, error) {
 //
 // cfg, err := build.LoadConfigAtPath(io.Local, "/tmp/project/build.yaml")
 func LoadConfigAtPath(fs io.Medium, configPath string) (*BuildConfig, error) {
+	if fs == nil {
+		fs = io.Local
+	}
+
 	content, err := fs.Read(configPath)
 	if err != nil {
 		if !fs.Exists(configPath) {
@@ -677,6 +684,9 @@ func ConfigPath(dir string) string {
 //
 // if build.ConfigExists(io.Local, ".") { ... }
 func ConfigExists(fs io.Medium, dir string) bool {
+	if fs == nil {
+		return false
+	}
 	return fileExists(fs, ConfigPath(dir))
 }
 

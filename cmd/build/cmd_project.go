@@ -13,12 +13,12 @@ import (
 	"runtime"
 	"strings"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/release"
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
@@ -207,13 +207,7 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	}
 
 	// Sign binaries if enabled.
-	signCfg := plan.BuildConfig.Sign
-	if req.Notarize {
-		signCfg.MacOS.Notarize = true
-	}
-	if req.NoSign {
-		signCfg.Enabled = false
-	}
+	signCfg := resolveBuildSignConfig(plan.BuildConfig.Sign, req)
 
 	if signCfg.Enabled && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
 		if req.Verbose && !req.CIMode {
@@ -319,6 +313,22 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	}
 
 	return nil
+}
+
+func resolveBuildSignConfig(base signing.SignConfig, req ProjectBuildRequest) signing.SignConfig {
+	signCfg := base
+
+	if req.Notarize {
+		signCfg.MacOS.Notarize = true
+		if !req.NoSign {
+			signCfg.Enabled = true
+		}
+	}
+	if req.NoSign {
+		signCfg.Enabled = false
+	}
+
+	return signCfg
 }
 
 func shouldUseGoBuildPassthrough(filesystem io.Medium, projectDir string, req ProjectBuildRequest) bool {
