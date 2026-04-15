@@ -134,7 +134,7 @@ Discovery preserves the richer `dAppCore/build@v3` model:
 - Linux distro detection feeds Ubuntu-aware WebKit dependency selection.
 - Stack suggestions preserve action naming such as `wails2`, `cpp`, `docs`, and `node`.
 - Git metadata is surfaced for artifact naming and release behavior.
-- The build API exposes action-compatible aliases such as `has_subtree_package_json`, `has_subtree_deno_manifest`, and a serialized `setup_plan`.
+- The build API exposes action-compatible aliases such as `configured_build_type`, `has_subtree_package_json`, `has_subtree_deno_manifest`, `has_taskfile`, root Composer/Cargo markers, and a serialized `setup_plan`.
 
 ## Ported Action Behaviours
 

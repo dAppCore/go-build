@@ -74,12 +74,12 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 
 	configuredType := resolveConfiguredBuildType(cfg, discovery)
 	denoRequested := DenoRequested(configuredDenoBuild(cfg))
-	hasTaskfile := configuredType == string(ProjectTypeTaskfile) || containsProjectType(discovery.Types, ProjectTypeTaskfile)
+	hasTaskfile := configuredType == string(ProjectTypeTaskfile) || discovery.HasTaskfile || containsProjectType(discovery.Types, ProjectTypeTaskfile)
 	hasWails := configuredType == string(ProjectTypeWails) || discovery.PrimaryStackSuggestion == "wails2"
 	hasCPP := configuredType == string(ProjectTypeCPP) || containsProjectType(discovery.Types, ProjectTypeCPP) || discovery.HasRootCMakeLists
 	hasDocs := configuredType == string(ProjectTypeDocs) || containsProjectType(discovery.Types, ProjectTypeDocs) || discovery.HasDocsConfig
-	hasPHP := configuredType == string(ProjectTypePHP) || containsProjectType(discovery.Types, ProjectTypePHP) || discovery.Markers[markerComposer]
-	hasRust := configuredType == string(ProjectTypeRust) || containsProjectType(discovery.Types, ProjectTypeRust) || discovery.Markers[markerCargo]
+	hasPHP := configuredType == string(ProjectTypePHP) || containsProjectType(discovery.Types, ProjectTypePHP) || discovery.HasRootComposerJSON
+	hasRust := configuredType == string(ProjectTypeRust) || containsProjectType(discovery.Types, ProjectTypeRust) || discovery.HasRootCargoToml
 	hasNode := configuredType == string(ProjectTypeNode) || discovery.HasPackageJSON || discovery.PrimaryStackSuggestion == "wails2"
 	hasGo := configuredType == string(ProjectTypeGo) || hasWails || hasTaskfile || discovery.HasGoToolchain || containsProjectType(discovery.Types, ProjectTypeGo)
 

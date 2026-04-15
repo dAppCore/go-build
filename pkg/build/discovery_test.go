@@ -866,6 +866,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		assert.Equal(t, "wails", result.PrimaryStack)
 		assert.True(t, result.HasSubtreeNpm)
+		assert.True(t, result.HasSubtreePackageJSON)
 		assert.True(t, result.HasFrontend)
 	})
 
@@ -881,10 +882,14 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.True(t, result.HasFrontend)
 		assert.True(t, result.HasRootPackageJSON)
 		assert.False(t, result.HasFrontendPackageJSON)
+		assert.False(t, result.HasRootComposerJSON)
+		assert.False(t, result.HasRootCargoToml)
 		assert.False(t, result.HasRootGoMod)
 		assert.False(t, result.HasRootMainGo)
 		assert.False(t, result.HasRootCMakeLists)
+		assert.False(t, result.HasTaskfile)
 		assert.False(t, result.HasSubtreeNpm)
+		assert.False(t, result.HasSubtreePackageJSON)
 	})
 
 	t.Run("detects root deno.json as node project", func(t *testing.T) {
@@ -993,10 +998,25 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []ProjectType{ProjectTypeCPP}, result.Types)
 		assert.Equal(t, "cpp", result.ConfiguredType)
+		assert.Equal(t, "cpp", result.ConfiguredBuildType)
 		assert.Equal(t, "cpp", result.PrimaryStack)
 		assert.Equal(t, "cpp", result.PrimaryStackSuggestion)
 		assert.True(t, result.Markers[".core/build.yaml"])
 		assert.True(t, result.Markers["Dockerfile"])
+	})
+
+	t.Run("records workflow-facing marker aliases", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "composer.json"), []byte("{}"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "Cargo.toml"), []byte("[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "Taskfile.yaml"), []byte("version: '3'\n"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.True(t, result.HasRootComposerJSON)
+		assert.True(t, result.HasRootCargoToml)
+		assert.True(t, result.HasTaskfile)
+		assert.False(t, result.HasSubtreePackageJSON)
 	})
 
 	t.Run("maps configured wails type to the action stack suggestion", func(t *testing.T) {
@@ -1035,6 +1055,8 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.False(t, result.HasFrontend)
 		assert.False(t, result.HasRootPackageJSON)
 		assert.False(t, result.HasFrontendPackageJSON)
+		assert.False(t, result.HasRootComposerJSON)
+		assert.False(t, result.HasRootCargoToml)
 		assert.False(t, result.HasPackageJSON)
 		assert.False(t, result.HasDenoManifest)
 		assert.False(t, result.HasRootGoMod)
@@ -1042,7 +1064,9 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.False(t, result.HasRootMainGo)
 		assert.False(t, result.HasRootCMakeLists)
 		assert.False(t, result.HasRootWailsJSON)
+		assert.False(t, result.HasTaskfile)
 		assert.False(t, result.HasSubtreeNpm)
+		assert.False(t, result.HasSubtreePackageJSON)
 		assert.False(t, result.HasSubtreeDenoManifest)
 		assert.False(t, result.HasDocsConfig)
 		assert.False(t, result.HasGoToolchain)

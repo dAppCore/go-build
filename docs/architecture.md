@@ -63,7 +63,7 @@ Important detection behaviour:
 - LinuxKit detection accepts root manifests and `.core/linuxkit/*.yml`
 - Taskfile detection accepts common case variants
 
-The build API exposes this richer discovery contract through `GET /api/v1/build/discover`, including action-compatible aliases such as `has_subtree_package_json` and a serialized `setup_plan`.
+The build API exposes this richer discovery contract through `GET /api/v1/build/discover`, including workflow-facing aliases such as `configured_build_type`, `has_subtree_package_json`, `has_taskfile`, root Composer/Cargo markers, and a serialized `setup_plan`.
 
 ## Option and Setup Planning
 

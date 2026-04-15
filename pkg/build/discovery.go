@@ -279,6 +279,8 @@ type DiscoveryResult struct {
 	Types []ProjectType
 	// ConfiguredType is the explicit build.type override from .core/build.yaml when present.
 	ConfiguredType string
+	// ConfiguredBuildType mirrors the workflow-facing discovery output name.
+	ConfiguredBuildType string
 	// OS is the current host operating system for the discovery run.
 	OS string
 	// Arch is the current host architecture for the discovery run.
@@ -295,6 +297,10 @@ type DiscoveryResult struct {
 	HasRootPackageJSON bool
 	// HasFrontendPackageJSON reports whether frontend/package.json exists.
 	HasFrontendPackageJSON bool
+	// HasRootComposerJSON reports whether composer.json exists at the project root.
+	HasRootComposerJSON bool
+	// HasRootCargoToml reports whether Cargo.toml exists at the project root.
+	HasRootCargoToml bool
 	// HasRootGoMod reports whether go.mod exists at the project root.
 	HasRootGoMod bool
 	// HasRootGoWork reports whether go.work exists at the project root.
@@ -311,8 +317,12 @@ type DiscoveryResult struct {
 	// HasDenoManifest reports whether deno.json or deno.jsonc exists at the root,
 	// in frontend/, or in a supported nested subtree.
 	HasDenoManifest bool
+	// HasTaskfile reports whether any supported Taskfile name exists at the project root.
+	HasTaskfile bool
 	// HasSubtreeNpm is true when a nested package.json exists within depth 2.
 	HasSubtreeNpm bool
+	// HasSubtreePackageJSON mirrors the workflow-facing discovery output name.
+	HasSubtreePackageJSON bool
 	// HasSubtreeDenoManifest is true when a nested Deno manifest exists within depth 2.
 	HasSubtreeDenoManifest bool
 	// HasDocsConfig reports whether MkDocs config exists at the root or under docs/.
@@ -385,11 +395,18 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	result.HasRootPackageJSON = result.Markers[markerNodePackage]
 	result.HasFrontendPackageJSON = result.Markers[markerFrontendPackage]
+	result.HasRootComposerJSON = result.Markers[markerComposer]
+	result.HasRootCargoToml = result.Markers[markerCargo]
 	result.HasRootGoMod = result.Markers[markerGoMod]
 	result.HasRootGoWork = result.Markers[markerGoWork]
 	result.HasRootMainGo = result.Markers[markerMainGo]
 	result.HasRootCMakeLists = result.Markers["CMakeLists.txt"]
 	result.HasRootWailsJSON = result.Markers[markerWails]
+	result.HasTaskfile = result.Markers[markerTaskfileYML] ||
+		result.Markers[markerTaskfileYAML] ||
+		result.Markers[markerTaskfileBare] ||
+		result.Markers[markerTaskfileLowerYML] ||
+		result.Markers[markerTaskfileLowerYAML]
 	result.HasDocsConfig = IsMkDocsProject(fs, dir)
 
 	// Pattern-based marker: LinuxKit configs may live in .core/linuxkit/*.yml or *.yaml.
@@ -398,6 +415,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	// Subtree npm detection
 	result.HasSubtreeNpm = HasSubtreeNpm(fs, dir)
+	result.HasSubtreePackageJSON = result.HasSubtreeNpm
 	result.HasSubtreeDenoManifest = hasSubtreeDenoManifest(fs, dir)
 	result.HasPackageJSON = result.HasRootPackageJSON || result.HasFrontendPackageJSON || result.HasSubtreeNpm
 	result.HasDenoManifest = result.Markers[markerDenoJSON] ||
@@ -413,6 +431,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	result.Types = types
 	if configuredType, ok := configuredProjectType(fs, dir); ok {
 		result.ConfiguredType = string(configuredType)
+		result.ConfiguredBuildType = result.ConfiguredType
 	}
 
 	// Linux distro detection: used for distro-sensitive build flags.
