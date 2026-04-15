@@ -83,10 +83,17 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 	hasNode := configuredType == string(ProjectTypeNode) || discovery.HasPackageJSON || discovery.PrimaryStackSuggestion == "wails2"
 	hasGo := configuredType == string(ProjectTypeGo) || hasWails || hasTaskfile || discovery.HasGoToolchain || containsProjectType(discovery.Types, ProjectTypeGo)
 
+	primaryStack := discovery.PrimaryStack
+	primaryStackSuggestion := discovery.PrimaryStackSuggestion
+	if configuredType != "" {
+		primaryStack = configuredType
+		primaryStackSuggestion = SuggestStack([]ProjectType{ProjectType(configuredType)})
+	}
+
 	plan := &SetupPlan{
 		ProjectDir:             dir,
-		PrimaryStack:           discovery.PrimaryStack,
-		PrimaryStackSuggestion: discovery.PrimaryStackSuggestion,
+		PrimaryStack:           primaryStack,
+		PrimaryStackSuggestion: primaryStackSuggestion,
 		FrontendDirs:           ResolveFrontendSetupDirs(fs, dir, denoRequested),
 		LinuxPackages:          append([]string{}, discovery.LinuxPackages...),
 	}

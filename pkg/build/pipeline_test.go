@@ -100,13 +100,42 @@ func TestPipeline_Plan_UsesExplicitBuildTypeOverride_Good(t *testing.T) {
 	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:  dir,
 		BuildConfig: cfg,
-		BuildType:   string(ProjectTypeNode),
+		BuildType:   "NoDe",
 		Targets:     []Target{{OS: "darwin", Arch: "arm64"}},
 	})
 	require.NoError(t, err)
 
 	assert.Equal(t, ProjectTypeNode, plan.ProjectType)
+	assert.Equal(t, "node", plan.BuildConfig.Build.Type)
+	assert.Equal(t, "node", plan.SetupPlan.PrimaryStack)
+	assert.Equal(t, "node", plan.SetupPlan.PrimaryStackSuggestion)
+	assert.Contains(t, setupTools(plan.SetupPlan), SetupToolNode)
 	assert.Equal(t, []Target{{OS: "darwin", Arch: "arm64"}}, plan.Targets)
+}
+
+func TestPipeline_Plan_NormalisesConfiguredBuildType_Good(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Build.Type = "WaIlS"
+
+	pipeline := &Pipeline{
+		FS: io.Local,
+		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+			assert.Equal(t, ProjectTypeWails, projectType)
+			return &stubPipelineBuilder{}, nil
+		},
+	}
+
+	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+		ProjectDir:  t.TempDir(),
+		BuildConfig: cfg,
+		Targets:     []Target{{OS: "darwin", Arch: "arm64"}},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, ProjectTypeWails, plan.ProjectType)
+	assert.Equal(t, "wails", plan.BuildConfig.Build.Type)
+	assert.Equal(t, "wails2", plan.SetupPlan.PrimaryStackSuggestion)
+	assert.Contains(t, setupTools(plan.SetupPlan), SetupToolWails)
 }
 
 func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {

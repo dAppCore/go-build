@@ -72,6 +72,19 @@ func TestOptions_ComputeOptions_Good(t *testing.T) {
 		})
 		assert.NotContains(t, opts.Tags, "webkit2_41")
 	})
+
+	t.Run("configured wails type injects webkit tag even when discovery markers differ", func(t *testing.T) {
+		opts := ComputeOptions(&BuildConfig{
+			Build: Build{
+				Type: "WaIlS",
+			},
+		}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeGo},
+			PrimaryStack: "go",
+			Distro:       "24.04",
+		})
+		assert.Contains(t, opts.Tags, "webkit2_41")
+	})
 }
 
 func TestOptions_ComputeOptions_Bad(t *testing.T) {

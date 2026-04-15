@@ -43,7 +43,7 @@ func ComputeOptions(cfg *BuildConfig, discovery *DiscoveryResult) *BuildOptions 
 	}
 
 	// Inject webkit2_41 for Ubuntu 24.04+ Wails builds.
-	if shouldInjectWebKitTag(discovery) {
+	if shouldInjectWebKitTag(cfg, discovery) {
 		options.Tags = InjectWebKitTag(options.Tags, discovery.Distro)
 	}
 
@@ -138,9 +138,17 @@ func (o *BuildOptions) String() string {
 	return core.Join(" ", parts...)
 }
 
-func shouldInjectWebKitTag(discovery *DiscoveryResult) bool {
+func shouldInjectWebKitTag(cfg *BuildConfig, discovery *DiscoveryResult) bool {
 	if discovery == nil || discovery.Distro == "" {
 		return false
+	}
+
+	if cfg != nil && core.Lower(core.Trim(cfg.Build.Type)) == string(ProjectTypeWails) {
+		return true
+	}
+
+	if core.Lower(core.Trim(discovery.ConfiguredType)) == string(ProjectTypeWails) {
+		return true
 	}
 
 	if discovery.PrimaryStack == string(ProjectTypeWails) {

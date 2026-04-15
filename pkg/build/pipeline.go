@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -270,11 +271,13 @@ func (p *Pipeline) resolveBuilder(projectType ProjectType) (Builder, error) {
 }
 
 func resolvePipelineProjectType(filesystem io.Medium, projectDir, buildType string, cfg *BuildConfig) (ProjectType, error) {
-	if buildType != "" {
-		return ProjectType(buildType), nil
+	if value := normalisePipelineBuildType(buildType); value != "" {
+		return ProjectType(value), nil
 	}
-	if cfg != nil && cfg.Build.Type != "" {
-		return ProjectType(cfg.Build.Type), nil
+	if cfg != nil {
+		if value := normalisePipelineBuildType(cfg.Build.Type); value != "" {
+			return ProjectType(value), nil
+		}
 	}
 
 	projectType, err := PrimaryType(filesystem, projectDir)
@@ -305,6 +308,12 @@ func applyPipelineBuildOverrides(cfg *BuildConfig, req PipelineRequest) {
 		return
 	}
 
+	if cfg.Build.Type != "" {
+		cfg.Build.Type = normalisePipelineBuildType(cfg.Build.Type)
+	}
+	if buildType := normalisePipelineBuildType(req.BuildType); buildType != "" {
+		cfg.Build.Type = buildType
+	}
 	if len(req.BuildTags) > 0 {
 		cfg.Build.BuildTags = deduplicateTags(append([]string(nil), req.BuildTags...))
 	}
@@ -344,4 +353,8 @@ func enableDefaultPipelineBuildCache(cfg *CacheConfig) {
 			ax.Join("cache", "go-mod"),
 		}
 	}
+}
+
+func normalisePipelineBuildType(value string) string {
+	return core.Lower(core.Trim(value))
 }
