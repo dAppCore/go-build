@@ -11,7 +11,7 @@ init:
 
 services:
   - name: core-ml
-    image: alpine:3.19
+    image: "{{ .ServiceImage }}"
     net: host
     capabilities:
       - all
@@ -27,7 +27,7 @@ services:
     command:
       - /bin/sh
       - -lc
-      - '{{ .BootstrapCommand }}'
+      - '{{ .EntrypointCommand }}'
 
 files:
   - path: /etc/motd

@@ -66,32 +66,42 @@ func setupFakeDockerImageCLI(t *testing.T, binDir string) {
 	script := `#!/bin/sh
 set -eu
 
-log_file="${DOCKER_LOG:?DOCKER_LOG is required}"
+log_file="${DOCKER_LOG:-}"
+
+log() {
+	if [ -n "$log_file" ]; then
+		printf '%s\n' "$1" >> "$log_file"
+	fi
+}
 
 case "${1:-}" in
+	build)
+		shift
+		log "docker build $*"
+		;;
 	image)
 		shift
 		case "${1:-}" in
 			load)
 				shift
-				printf 'docker image load %s\n' "$*" >> "$log_file"
+				log "docker image load $*"
 				echo "Loaded image: imported:latest"
 				;;
 			tag)
 				shift
-				printf 'docker image tag %s\n' "$*" >> "$log_file"
+				log "docker image tag $*"
 				;;
 			push)
 				shift
-				printf 'docker image push %s\n' "$*" >> "$log_file"
+				log "docker image push $*"
 				;;
 			*)
-				printf 'docker image %s\n' "$*" >> "$log_file"
+				log "docker image $*"
 				;;
 		esac
 		;;
 	*)
-		printf 'docker %s\n' "$*" >> "$log_file"
+		log "docker $*"
 		;;
 esac
 `
@@ -139,6 +149,7 @@ func TestBuildCmd_runBuildImage_Good(t *testing.T) {
 
 	binDir := t.TempDir()
 	setupFakeLinuxKitImageCLI(t, binDir)
+	setupFakeDockerImageCLI(t, binDir)
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	outputDir := t.TempDir()

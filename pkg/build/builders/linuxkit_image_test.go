@@ -15,6 +15,11 @@ import (
 func setupFakeLinuxKitImageToolchain(t *testing.T, binDir string) {
 	t.Helper()
 
+	dockerScript := `#!/bin/sh
+exit 0
+`
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, "docker"), []byte(dockerScript), 0o755))
+
 	script := `#!/bin/sh
 set -eu
 
@@ -75,6 +80,24 @@ func TestLinuxKitImage_LinuxKitImageBuilderArtifactPath_Good(t *testing.T) {
 	assert.Equal(t, "/dist/core-dev.tar", builder.ArtifactPath("/dist", "core-dev", "oci"))
 	assert.Equal(t, "/dist/core-dev.aci", builder.ArtifactPath("/dist", "core-dev", "apple"))
 	assert.Equal(t, "/dist/core-dev.iso", builder.ArtifactPath("/dist", "core-dev", "iso"))
+}
+
+func TestLinuxKitImage_RenderTemplateUsesImmutableServiceImage_Good(t *testing.T) {
+	builder := NewLinuxKitImageBuilder()
+	baseImage, ok := build.LookupLinuxKitBaseImage("core-dev")
+	require.True(t, ok)
+
+	rendered, err := builder.renderTemplate(baseImage, build.LinuxKitConfig{
+		Base:     "core-dev",
+		Mounts:   []string{"/workspace"},
+		Formats:  []string{"oci"},
+		Packages: []string{"gh"},
+	}, "v1.2.3", "core-build-linuxkit/core-dev:test")
+	require.NoError(t, err)
+
+	assert.Contains(t, rendered, `image: "core-build-linuxkit/core-dev:test"`)
+	assert.Contains(t, rendered, "tail -f /dev/null")
+	assert.NotContains(t, rendered, "apk add --no-cache")
 }
 
 func TestLinuxKitImage_LinuxKitImageBuilderBuild_Good(t *testing.T) {

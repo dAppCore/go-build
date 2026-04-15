@@ -42,29 +42,18 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 		return false
 	}
 
-	dockerRuntimeMu.Lock()
-	defer dockerRuntimeMu.Unlock()
-
-	if err := ctx.Err(); err != nil {
-		return false
-	}
-
-	if dockerRuntimeChecked &&
-		dockerRuntimeOK &&
-		dockerRuntimeCommand == dockerCommand &&
-		dockerRuntimeState == commandState {
-		return dockerRuntimeOK
-	}
-
 	err = ax.Exec(ctx, dockerCommand, "--help")
 	if err != nil && ctx.Err() != nil {
 		return false
 	}
 
+	dockerRuntimeMu.Lock()
+	defer dockerRuntimeMu.Unlock()
+
 	dockerRuntimeCommand = dockerCommand
 	dockerRuntimeState = commandState
 	dockerRuntimeOK = err == nil
-	dockerRuntimeChecked = dockerRuntimeOK
+	dockerRuntimeChecked = true
 
 	return dockerRuntimeOK
 }

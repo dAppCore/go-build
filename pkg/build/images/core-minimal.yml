@@ -11,7 +11,7 @@ init:
 
 services:
   - name: core-minimal
-    image: alpine:3.19
+    image: "{{ .ServiceImage }}"
     net: host
 {{- if .Mounts }}
     binds:
@@ -25,7 +25,7 @@ services:
     command:
       - /bin/sh
       - -lc
-      - '{{ .BootstrapCommand }}'
+      - '{{ .EntrypointCommand }}'
 
 files:
   - path: /etc/motd

@@ -4,6 +4,8 @@ package builders
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"runtime"
 	"strings"
 	"text/template"
@@ -20,12 +22,13 @@ type LinuxKitImageBuilder struct{}
 
 // LinuxKitImageTemplateData is the template input for embedded immutable image definitions.
 type LinuxKitImageTemplateData struct {
-	Name             string
-	Description      string
-	Version          string
-	GPU              bool
-	Mounts           []string
-	BootstrapCommand string
+	Name              string
+	Description       string
+	Version           string
+	GPU               bool
+	Mounts            []string
+	ServiceImage      string
+	EntrypointCommand string
 }
 
 // NewLinuxKitImageBuilder creates an immutable LinuxKit image builder.
@@ -81,7 +84,13 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 		imageName = imageCfg.Base
 	}
 
-	renderedTemplate, err := b.renderTemplate(baseImage, imageCfg, cfg.Version)
+	serviceImage, cleanup, err := b.prepareServiceImage(ctx, cfg.ProjectDir, imageName, baseImage, imageCfg)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+
+	renderedTemplate, err := b.renderTemplate(baseImage, imageCfg, cfg.Version, serviceImage)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +153,7 @@ func mergeLinuxKitImageConfig(defaults, override build.LinuxKitConfig) build.Lin
 	return cfg
 }
 
-func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig, version string) (string, error) {
+func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig, version, serviceImage string) (string, error) {
 	templateContent, err := build.LinuxKitBaseTemplate(baseImage.Name)
 	if err != nil {
 		return "", err
@@ -160,12 +169,13 @@ func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage,
 	}
 
 	data := LinuxKitImageTemplateData{
-		Name:             baseImage.Name,
-		Description:      baseImage.Description,
-		Version:          version,
-		GPU:              cfg.GPU,
-		Mounts:           uniqueStrings(cfg.Mounts),
-		BootstrapCommand: buildBootstrapCommand(baseImage.DefaultPackages, cfg.Packages, cfg.GPU),
+		Name:              baseImage.Name,
+		Description:       baseImage.Description,
+		Version:           version,
+		GPU:               cfg.GPU,
+		Mounts:            uniqueStrings(cfg.Mounts),
+		ServiceImage:      serviceImage,
+		EntrypointCommand: "tail -f /dev/null",
 	}
 
 	var rendered bytes.Buffer
@@ -176,19 +186,96 @@ func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage,
 	return rendered.String(), nil
 }
 
-func buildBootstrapCommand(defaultPackages, extraPackages []string, gpu bool) string {
-	packages := uniqueStrings(append(append([]string{}, defaultPackages...), extraPackages...))
-	commands := make([]string, 0, 4)
+func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectDir, imageName string, baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) (string, func(), error) {
+	dockerCommand, err := (&DockerBuilder{}).resolveDockerCli()
+	if err != nil {
+		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to resolve docker CLI for immutable service image build", err)
+	}
+
+	tempDir, err := ax.TempDir("core-build-linuxkit-service-*")
+	if err != nil {
+		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to create service image build context", err)
+	}
+
+	cleanup := func() {
+		_ = ax.RemoveAll(tempDir)
+	}
+
+	serviceImage := buildLinuxKitServiceImageReference(imageName, baseImage, cfg)
+	mounts := uniqueStrings(append([]string{"/workspace"}, cfg.Mounts...))
+	dockerfile := renderLinuxKitServiceDockerfile(imageName, append(append([]string{}, baseImage.DefaultPackages...), cfg.Packages...), mounts, cfg.GPU)
+	if err := ax.WriteString(ax.Join(tempDir, "Dockerfile"), dockerfile, 0o644); err != nil {
+		cleanup()
+		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to write service image Dockerfile", err)
+	}
+
+	if err := ax.ExecDir(ctx, tempDir, dockerCommand, "build", "-t", serviceImage, "."); err != nil {
+		cleanup()
+		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to build immutable LinuxKit service image", err)
+	}
+
+	return serviceImage, cleanup, nil
+}
+
+func renderLinuxKitServiceDockerfile(imageName string, packages, mounts []string, gpu bool) string {
+	lines := []string{
+		"FROM alpine:3.19",
+	}
+
+	packages = uniqueStrings(packages)
 	if len(packages) > 0 {
-		commands = append(commands, "apk add --no-cache "+core.Join(" ", packages...))
+		lines = append(lines, "RUN apk add --no-cache "+core.Join(" ", packages...))
 	}
+
+	mounts = uniqueStrings(append([]string{"/workspace"}, mounts...))
+	if len(mounts) > 0 {
+		lines = append(lines, "RUN mkdir -p "+core.Join(" ", mounts...))
+	}
+
 	if gpu {
-		commands = append(commands, "mkdir -p /etc/profile.d")
-		commands = append(commands, `printf 'export CORE_GPU=1\n' > /etc/profile.d/core-gpu.sh`)
+		lines = append(lines, "RUN mkdir -p /etc/profile.d && printf 'export CORE_GPU=1\\n' > /etc/profile.d/core-gpu.sh")
 	}
-	commands = append(commands, "mkdir -p /workspace")
-	commands = append(commands, "tail -f /dev/null")
-	return core.Join(" && ", commands...)
+
+	lines = append(lines,
+		"WORKDIR /workspace",
+		"ENV CORE_IMAGE="+imageName,
+		core.Sprintf("ENV CORE_GPU=%d", boolToInt(gpu)),
+		`CMD ["/bin/sh", "-lc", "tail -f /dev/null"]`,
+	)
+
+	return core.Join("\n", lines...) + "\n"
+}
+
+func buildLinuxKitServiceImageReference(imageName string, baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) string {
+	parts := []string{
+		baseImage.Name,
+		baseImage.Version,
+		core.Join(",", uniqueStrings(baseImage.DefaultPackages)...),
+		core.Join(",", uniqueStrings(cfg.Packages)...),
+		core.Join(",", uniqueStrings(cfg.Mounts)...),
+		core.Sprintf("%t", cfg.GPU),
+	}
+	sum := sha256.Sum256([]byte(core.Join("\n", parts...)))
+	tag := normalizeLinuxKitServiceTag(baseImage.Version + "-" + hex.EncodeToString(sum[:6]))
+	return core.Sprintf("core-build-linuxkit/%s:%s", imageName, tag)
+}
+
+func normalizeLinuxKitServiceTag(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	replacer := strings.NewReplacer("/", "-", "\\", "-", ":", "-", " ", "-", "\t", "-", "_", "-", "..", ".")
+	value = replacer.Replace(value)
+	value = strings.Trim(value, "-.")
+	if value == "" {
+		return "latest"
+	}
+	return value
+}
+
+func boolToInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func uniqueStrings(values []string) []string {
