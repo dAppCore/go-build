@@ -201,6 +201,25 @@ sign:
 		assert.Equal(t, "ABCD1234", cfg.Sign.GPG.Key)
 	})
 
+	t.Run("loads RFC build flags for obfuscation and NSIS", func(t *testing.T) {
+		content := `
+version: 1
+build:
+  obfuscate: true
+  nsis: true
+  webview2: download
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.Build.Obfuscate)
+		assert.True(t, cfg.Build.NSIS)
+		assert.Equal(t, "download", cfg.Build.WebView2)
+	})
+
 	t.Run("supports top-level cache block from the RFC", func(t *testing.T) {
 		content := `
 version: 1

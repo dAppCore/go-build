@@ -85,6 +85,25 @@ func TestOptions_ComputeOptions_Good(t *testing.T) {
 		})
 		assert.Contains(t, opts.Tags, "webkit2_41")
 	})
+
+	t.Run("configured discovery type injects webkit tag even without build config type", func(t *testing.T) {
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			ConfiguredType: string(ProjectTypeWails),
+			Distro:         "24.04",
+		})
+
+		assert.Contains(t, opts.Tags, "webkit2_41")
+	})
+
+	t.Run("discovery types alone can trigger webkit injection", func(t *testing.T) {
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails, ProjectTypeGo},
+			PrimaryStack: "go",
+			Distro:       "24.04",
+		})
+
+		assert.Contains(t, opts.Tags, "webkit2_41")
+	})
 }
 
 func TestOptions_ComputeOptions_Bad(t *testing.T) {

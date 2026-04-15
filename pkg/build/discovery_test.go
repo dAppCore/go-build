@@ -849,6 +849,22 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, "docs", result.SuggestedStack)
 	})
 
+	t.Run("prefers Go stack suggestion when docs and Go toolchain coexist", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeGo, ProjectTypeDocs}, result.Types)
+		assert.True(t, result.HasDocsConfig)
+		assert.Equal(t, "go", result.PrimaryStack)
+		assert.Equal(t, "go", result.SuggestedStack)
+		assert.Equal(t, "go", result.PrimaryStackSuggestion)
+		assert.True(t, result.Markers["go.mod"])
+		assert.True(t, result.Markers["mkdocs.yml"])
+	})
+
 	t.Run("captures GitHub metadata when available", func(t *testing.T) {
 		t.Setenv("GITHUB_SHA", "0123456789abcdef")
 		t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
@@ -1043,6 +1059,21 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.Equal(t, "node", result.SuggestedStack)
 		assert.True(t, result.HasFrontend)
 		assert.False(t, result.HasSubtreeNpm)
+	})
+
+	t.Run("detects nested deno subtree manifests in full discovery", func(t *testing.T) {
+		dir := t.TempDir()
+		frontendDir := ax.Join(dir, "apps", "site")
+		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeNode}, result.Types)
+		assert.Equal(t, "node", result.PrimaryStack)
+		assert.True(t, result.HasFrontend)
+		assert.True(t, result.HasDenoManifest)
+		assert.True(t, result.HasSubtreeDenoManifest)
 	})
 
 	t.Run("records frontend package manifest markers", func(t *testing.T) {
