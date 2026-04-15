@@ -2,9 +2,13 @@
 package publishers
 
 import (
+	"bufio"
 	"context"
 	stdio "io"
 	"io/fs"
+	"net/url"
+	"sort"
+	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -17,11 +21,23 @@ import (
 // pub := publishers.NewGitHubPublisher()
 type GitHubPublisher struct{}
 
+type gitRemote struct {
+	Name string
+	URL  string
+}
+
 // NewGitHubPublisher creates a new GitHub publisher.
 //
 // pub := publishers.NewGitHubPublisher()
 func NewGitHubPublisher() *GitHubPublisher {
 	return &GitHubPublisher{}
+}
+
+// DetectGitHubRepository detects the owner/repo pair from any GitHub remote in
+// the repository. Repositories that use Forge or another self-hosted origin can
+// still resolve against a secondary `github` remote.
+func DetectGitHubRepository(ctx context.Context, dir string) (string, error) {
+	return detectRepository(ctx, dir)
 }
 
 // Name returns the publisher's identifier.
@@ -293,12 +309,26 @@ func validateGhAuth(ctx context.Context, ghCommand string) error {
 
 // detectRepository detects the GitHub repository from git remote.
 func detectRepository(ctx context.Context, dir string) (string, error) {
-	output, err := ax.RunDir(ctx, dir, "git", "remote", "get-url", "origin")
+	remotes, err := listGitRemotes(ctx, dir)
 	if err != nil {
-		return "", coreerr.E("github.detectRepository", "failed to get git remote", err)
+		return "", coreerr.E("github.detectRepository", "failed to list git remotes", err)
+	}
+	if len(remotes) == 0 {
+		return "", coreerr.E("github.detectRepository", "no git remotes configured", nil)
 	}
 
-	return parseGitHubRepo(core.Trim(output))
+	var parseErr error
+	for _, remote := range remotes {
+		repo, err := parseGitHubRepo(remote.URL)
+		if err == nil {
+			return repo, nil
+		}
+		if parseErr == nil {
+			parseErr = err
+		}
+	}
+
+	return "", coreerr.E("github.detectRepository", "no GitHub remote found", parseErr)
 }
 
 // parseGitHubRepo extracts owner/repo from a GitHub URL.
@@ -307,21 +337,92 @@ func detectRepository(ctx context.Context, dir string) (string, error) {
 //   - https://github.com/owner/repo.git
 //   - https://github.com/owner/repo
 func parseGitHubRepo(url string) (string, error) {
+	url = core.Trim(url)
+	if url == "" {
+		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+url, nil)
+	}
+
 	// SSH format
 	if core.HasPrefix(url, "git@github.com:") {
 		repo := core.TrimPrefix(url, "git@github.com:")
-		repo = core.TrimSuffix(repo, ".git")
-		return repo, nil
+		return normaliseGitHubRepoPath(repo)
 	}
 
-	// HTTPS format
-	if core.HasPrefix(url, "https://github.com/") {
-		repo := core.TrimPrefix(url, "https://github.com/")
-		repo = core.TrimSuffix(repo, ".git")
-		return repo, nil
+	parsed, err := urlpkgParse(url)
+	if err == nil && strings.EqualFold(parsed.Hostname(), "github.com") {
+		return normaliseGitHubRepoPath(parsed.Path)
 	}
 
 	return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+url, nil)
+}
+
+func listGitRemotes(ctx context.Context, dir string) ([]gitRemote, error) {
+	output, err := ax.RunDir(ctx, dir, "git", "remote", "-v")
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{})
+	remotes := make([]gitRemote, 0)
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 2 {
+			continue
+		}
+
+		name := core.Trim(fields[0])
+		remoteURL := core.Trim(fields[1])
+		if name == "" || remoteURL == "" {
+			continue
+		}
+
+		key := name + "\n" + remoteURL
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		remotes = append(remotes, gitRemote{Name: name, URL: remoteURL})
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	sort.SliceStable(remotes, func(i, j int) bool {
+		if remotes[i].Name == remotes[j].Name {
+			return remotes[i].URL < remotes[j].URL
+		}
+		if remotes[i].Name == "origin" {
+			return true
+		}
+		if remotes[j].Name == "origin" {
+			return false
+		}
+		return remotes[i].Name < remotes[j].Name
+	})
+
+	return remotes, nil
+}
+
+func normaliseGitHubRepoPath(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	path = strings.Trim(path, "/")
+	path = strings.TrimSuffix(path, ".git")
+	path = strings.Trim(path, "/")
+	if path == "" {
+		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil)
+	}
+
+	parts := strings.Split(path, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil)
+	}
+
+	return parts[0] + "/" + parts[1], nil
+}
+
+func urlpkgParse(rawURL string) (*url.URL, error) {
+	return url.Parse(rawURL)
 }
 
 // UploadArtifact uploads a single artifact to an existing release.

@@ -39,6 +39,11 @@ func TestGitHub_ParseGitHubRepo_Good(t *testing.T) {
 			input:    "git@github.com:owner/repo",
 			expected: "owner/repo",
 		},
+		{
+			name:     "SSH scheme URL",
+			input:    "ssh://git@github.com/owner/repo.git",
+			expected: "owner/repo",
+		},
 	}
 
 	for _, tc := range tests {
@@ -397,6 +402,17 @@ func TestGitHub_DetectRepository_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "another-owner/another-repo", repo)
 	})
+
+	t.Run("falls back to a secondary github remote when origin is forge", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		runPublisherCommand(t, tmpDir, "git", "init")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "ssh://git@forge.example.com:2223/core/repo.git")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "github", "ssh://git@github.com/mirror-owner/mirror-repo.git")
+
+		repo, err := detectRepository(context.Background(), tmpDir)
+		require.NoError(t, err)
+		assert.Equal(t, "mirror-owner/mirror-repo", repo)
+	})
 }
 
 func TestGitHub_DetectRepository_Bad(t *testing.T) {
@@ -405,7 +421,7 @@ func TestGitHub_DetectRepository_Bad(t *testing.T) {
 
 		_, err := detectRepository(context.Background(), tmpDir)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get git remote")
+		assert.Contains(t, err.Error(), "failed to list git remotes")
 	})
 
 	t.Run("fails when directory does not exist", func(t *testing.T) {
@@ -420,7 +436,7 @@ func TestGitHub_DetectRepository_Bad(t *testing.T) {
 
 		_, err := detectRepository(context.Background(), tmpDir)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not a GitHub URL")
+		assert.Contains(t, err.Error(), "no GitHub remote found")
 	})
 
 	t.Run("respects cancelled context", func(t *testing.T) {

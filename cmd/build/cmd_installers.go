@@ -9,6 +9,7 @@ import (
 	"dappco.re/go/core/build/internal/cmdutil"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/release"
+	"dappco.re/go/core/build/pkg/release/publishers"
 	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -19,9 +20,7 @@ var (
 	loadInstallersBuildConfig   = build.LoadConfig
 	loadInstallersReleaseConfig = release.LoadConfig
 	resolveInstallersVersion    = resolveBuildVersion
-	installersGitRemoteGetURL   = func(ctx context.Context, dir string) (string, error) {
-		return ax.RunDir(ctx, dir, "git", "remote", "get-url", "origin")
-	}
+	detectInstallersRepository  = publishers.DetectGitHubRepository
 )
 
 // BuildInstallersRequest groups the inputs for `core build installers`.
@@ -163,30 +162,12 @@ func resolveInstallersRepository(ctx context.Context, projectDir string) (string
 		}
 	}
 
-	remoteURL, err := installersGitRemoteGetURL(ctx, projectDir)
-	if err != nil {
-		return "", coreerr.E("build.resolveInstallersRepository", "failed to determine repository; use --repo or configure .core/release.yaml project.repository", err)
-	}
-
-	repo, err := parseInstallersRepositoryURL(strings.TrimSpace(remoteURL))
+	repo, err := detectInstallersRepository(ctx, projectDir)
 	if err != nil {
 		return "", coreerr.E("build.resolveInstallersRepository", "failed to determine repository; use --repo or configure .core/release.yaml project.repository", err)
 	}
 
 	return repo, nil
-}
-
-func parseInstallersRepositoryURL(url string) (string, error) {
-	switch {
-	case strings.HasPrefix(url, "git@github.com:"):
-		repo := strings.TrimPrefix(url, "git@github.com:")
-		return strings.TrimSuffix(repo, ".git"), nil
-	case strings.HasPrefix(url, "https://github.com/"):
-		repo := strings.TrimPrefix(url, "https://github.com/")
-		return strings.TrimSuffix(repo, ".git"), nil
-	default:
-		return "", coreerr.E("build.parseInstallersRepositoryURL", "not a GitHub URL: "+url, nil)
-	}
 }
 
 func normalizeInstallersVariant(value string) (build.InstallerVariant, bool) {

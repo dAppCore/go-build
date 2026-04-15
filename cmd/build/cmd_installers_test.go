@@ -83,10 +83,10 @@ func TestBuildCmd_runBuildInstallersInDir_UsesGitRemoteWhenReleaseConfigMissing_
 	projectDir := t.TempDir()
 
 	originalLoadReleaseConfig := loadInstallersReleaseConfig
-	originalGitRemote := installersGitRemoteGetURL
+	originalDetectRepository := detectInstallersRepository
 	t.Cleanup(func() {
 		loadInstallersReleaseConfig = originalLoadReleaseConfig
-		installersGitRemoteGetURL = originalGitRemote
+		detectInstallersRepository = originalDetectRepository
 	})
 
 	loadInstallersReleaseConfig = func(dir string) (*release.Config, error) {
@@ -94,9 +94,9 @@ func TestBuildCmd_runBuildInstallersInDir_UsesGitRemoteWhenReleaseConfigMissing_
 		cfg.SetProjectDir(dir)
 		return cfg, nil
 	}
-	installersGitRemoteGetURL = func(ctx context.Context, dir string) (string, error) {
+	detectInstallersRepository = func(ctx context.Context, dir string) (string, error) {
 		assert.Equal(t, projectDir, dir)
-		return "git@github.com:host-uk/core-build.git", nil
+		return "host-uk/core-build", nil
 	}
 
 	err := runBuildInstallersInDir(context.Background(), projectDir, "agent", "v1.2.3", "", "", "core")
@@ -119,10 +119,10 @@ func TestBuildCmd_runBuildInstallersInDir_MissingRepository_Bad(t *testing.T) {
 	projectDir := t.TempDir()
 
 	originalLoadReleaseConfig := loadInstallersReleaseConfig
-	originalGitRemote := installersGitRemoteGetURL
+	originalDetectRepository := detectInstallersRepository
 	t.Cleanup(func() {
 		loadInstallersReleaseConfig = originalLoadReleaseConfig
-		installersGitRemoteGetURL = originalGitRemote
+		detectInstallersRepository = originalDetectRepository
 	})
 
 	loadInstallersReleaseConfig = func(dir string) (*release.Config, error) {
@@ -130,7 +130,7 @@ func TestBuildCmd_runBuildInstallersInDir_MissingRepository_Bad(t *testing.T) {
 		cfg.SetProjectDir(dir)
 		return cfg, nil
 	}
-	installersGitRemoteGetURL = func(ctx context.Context, dir string) (string, error) {
+	detectInstallersRepository = func(ctx context.Context, dir string) (string, error) {
 		return "", assert.AnError
 	}
 
