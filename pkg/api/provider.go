@@ -121,6 +121,7 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("", p.triggerBuild)
 	rg.POST("/build", p.triggerBuild)
 	rg.GET("/artifacts", p.listArtifacts)
+	rg.GET("/events", p.streamEvents)
 
 	// Release
 	rg.GET("/release/version", p.getVersion)
@@ -166,6 +167,13 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Summary:     "List build artifacts",
 			Description: "Returns the contents of the dist/ directory with file sizes.",
 			Tags:        []string{"build", "artifacts"},
+		},
+		{
+			Method:      "GET",
+			Path:        "/events",
+			Summary:     "Subscribe to build events",
+			Description: "Upgrades to a WebSocket connection and streams build, release, workflow, and SDK events emitted by this provider.",
+			Tags:        []string{"build", "events"},
 		},
 		{
 			Method:      "GET",
@@ -914,6 +922,15 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 		"generated": true,
 		"language":  req.Language,
 	}))
+}
+
+func (p *BuildProvider) streamEvents(c *gin.Context) {
+	if p.hub == nil {
+		c.JSON(http.StatusServiceUnavailable, api.Fail("event_hub_unavailable", "build event stream is unavailable"))
+		return
+	}
+
+	p.hub.HandleWebSocket(c.Writer, c.Request)
 }
 
 // -- Internal Helpers ---------------------------------------------------------

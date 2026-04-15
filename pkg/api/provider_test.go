@@ -8,7 +8,9 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -17,6 +19,8 @@ import (
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/io"
+	"dappco.re/go/core/ws"
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,8 +58,8 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	routes := p.Describe()
 
-	// Should have 10 endpoint descriptions
-	assert.Len(t, routes, 10)
+	// Should have 11 endpoint descriptions
+	assert.Len(t, routes, 11)
 
 	// Verify key routes exist
 	paths := make(map[string]string)
@@ -67,6 +71,7 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	assert.Equal(t, "GET", paths["/discover"])
 	assert.Equal(t, "POST", paths["/"])
 	assert.Equal(t, "GET", paths["/artifacts"])
+	assert.Equal(t, "GET", paths["/events"])
 	assert.Equal(t, "GET", paths["/release/version"])
 	assert.Equal(t, "GET", paths["/release/changelog"])
 	assert.Equal(t, "POST", paths["/release"])
@@ -274,6 +279,51 @@ func TestProvider_RegisterRoutes_ExposesRFCAliases_Good(t *testing.T) {
 	sdkRequest.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(sdkResponse, sdkRequest)
 	assert.NotEqual(t, http.StatusNotFound, sdkResponse.Code)
+
+	eventsResponse := httptest.NewRecorder()
+	eventsRequest := httptest.NewRequest(http.MethodGet, "/events", nil)
+	router.ServeHTTP(eventsResponse, eventsRequest)
+	assert.Equal(t, http.StatusServiceUnavailable, eventsResponse.Code)
+}
+
+func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	hub := ws.NewHub()
+	go hub.Run(t.Context())
+
+	p := NewProvider(projectDir, hub)
+
+	router := gin.New()
+	p.RegisterRoutes(router.Group(""))
+
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/events"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	require.NoError(t, conn.WriteJSON(ws.Message{
+		Type: ws.TypeSubscribe,
+		Data: "build.complete",
+	}))
+
+	require.Eventually(t, func() bool {
+		return hub.ChannelSubscriberCount("build.complete") == 1
+	}, time.Second, 10*time.Millisecond)
+
+	p.emitEvent("build.complete", map[string]any{"status": "ok"})
+
+	var message ws.Message
+	require.NoError(t, conn.ReadJSON(&message))
+	assert.Equal(t, ws.TypeEvent, message.Type)
+
+	payload, ok := message.Data.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "ok", payload["status"])
 }
 
 func TestProvider_GetConfig_UsesSnakeCaseJSONKeys_Good(t *testing.T) {
