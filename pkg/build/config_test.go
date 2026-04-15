@@ -245,6 +245,41 @@ apple:
 		assert.Equal(t, "appstore", cfg.Apple.XcodeCloud.Triggers[1].Action)
 	})
 
+	t.Run("loads immutable LinuxKit image config with env expansion", func(t *testing.T) {
+		t.Setenv("CORE_IMAGE_BASE", "core-ml")
+		t.Setenv("CORE_IMAGE_PACKAGE", "gh")
+		t.Setenv("CORE_IMAGE_MOUNT", "/workspace")
+		t.Setenv("CORE_IMAGE_FORMAT", "oci")
+		t.Setenv("CORE_IMAGE_REGISTRY", "ghcr.io/dappcore")
+
+		content := `
+version: 1
+linuxkit:
+  base: ${CORE_IMAGE_BASE}
+  packages:
+    - ${CORE_IMAGE_PACKAGE}
+  mounts:
+    - ${CORE_IMAGE_MOUNT}
+  gpu: true
+  formats:
+    - ${CORE_IMAGE_FORMAT}
+    - apple
+  registry: ${CORE_IMAGE_REGISTRY}
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "core-ml", cfg.LinuxKit.Base)
+		assert.Equal(t, []string{"gh"}, cfg.LinuxKit.Packages)
+		assert.Equal(t, []string{"/workspace"}, cfg.LinuxKit.Mounts)
+		assert.True(t, cfg.LinuxKit.GPU)
+		assert.Equal(t, []string{"oci", "apple"}, cfg.LinuxKit.Formats)
+		assert.Equal(t, "ghcr.io/dappcore", cfg.LinuxKit.Registry)
+	})
+
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
 		dir := t.TempDir()
 
@@ -413,6 +448,9 @@ func TestConfig_DefaultConfig_Good(t *testing.T) {
 		assert.Contains(t, cfg.Build.LDFlags, "-s")
 		assert.Contains(t, cfg.Build.LDFlags, "-w")
 		assert.Empty(t, cfg.Build.Env)
+		assert.Equal(t, "core-dev", cfg.LinuxKit.Base)
+		assert.Equal(t, []string{"/workspace"}, cfg.LinuxKit.Mounts)
+		assert.Equal(t, []string{"oci", "apple"}, cfg.LinuxKit.Formats)
 
 		// Default targets cover common platforms
 		assert.Len(t, cfg.Targets, 4)
@@ -452,6 +490,14 @@ func TestConfig_CloneBuildConfig_Good(t *testing.T) {
 			BuildArgs: map[string]string{"VERSION": "v1.2.3"},
 			Formats:   []string{"iso"},
 		},
+		LinuxKit: LinuxKitConfig{
+			Base:     "core-dev",
+			Packages: []string{"git"},
+			Mounts:   []string{"/workspace"},
+			GPU:      true,
+			Formats:  []string{"oci", "apple"},
+			Registry: "ghcr.io/dappcore",
+		},
 		Apple: AppleConfig{
 			Sign:     &sign,
 			Notarise: &notarise,
@@ -476,6 +522,11 @@ func TestConfig_CloneBuildConfig_Good(t *testing.T) {
 	clone.Build.Tags[0] = "stable"
 	clone.Build.BuildArgs["VERSION"] = "v2.0.0"
 	clone.Build.Formats[0] = "qcow2"
+	clone.LinuxKit.Base = "core-minimal"
+	clone.LinuxKit.Packages[0] = "task"
+	clone.LinuxKit.Mounts[0] = "/src"
+	clone.LinuxKit.Formats[0] = "tar"
+	clone.LinuxKit.Registry = "registry.example.com/core"
 	*clone.Apple.Sign = false
 	*clone.Apple.Notarise = true
 	*clone.Apple.DMG = false
@@ -491,6 +542,11 @@ func TestConfig_CloneBuildConfig_Good(t *testing.T) {
 	assert.Equal(t, []string{"latest"}, cfg.Build.Tags)
 	assert.Equal(t, map[string]string{"VERSION": "v1.2.3"}, cfg.Build.BuildArgs)
 	assert.Equal(t, []string{"iso"}, cfg.Build.Formats)
+	assert.Equal(t, "core-dev", cfg.LinuxKit.Base)
+	assert.Equal(t, []string{"git"}, cfg.LinuxKit.Packages)
+	assert.Equal(t, []string{"/workspace"}, cfg.LinuxKit.Mounts)
+	assert.Equal(t, []string{"oci", "apple"}, cfg.LinuxKit.Formats)
+	assert.Equal(t, "ghcr.io/dappcore", cfg.LinuxKit.Registry)
 	require.NotNil(t, cfg.Apple.Sign)
 	require.NotNil(t, cfg.Apple.Notarise)
 	require.NotNil(t, cfg.Apple.DMG)

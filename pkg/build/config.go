@@ -40,6 +40,8 @@ type BuildConfig struct {
 	Targets []TargetConfig `json:"targets" yaml:"targets"`
 	// Sign contains code signing configuration.
 	Sign signing.SignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
+	// LinuxKit contains immutable image configuration for `core build image`.
+	LinuxKit LinuxKitConfig `json:"linuxkit,omitempty" yaml:"linuxkit,omitempty"`
 }
 
 // Project holds project metadata.
@@ -226,7 +228,8 @@ func DefaultConfig() *BuildConfig {
 			{OS: "darwin", Arch: "arm64"},
 			{OS: "windows", Arch: "amd64"},
 		},
-		Sign: signing.DefaultSignConfig(),
+		Sign:     signing.DefaultSignConfig(),
+		LinuxKit: DefaultLinuxKitConfig(),
 	}
 }
 
@@ -256,6 +259,16 @@ func applyDefaults(cfg *BuildConfig) {
 
 	if cfg.Targets == nil {
 		cfg.Targets = defaults.Targets
+	}
+
+	if cfg.LinuxKit.Base == "" {
+		cfg.LinuxKit.Base = defaults.LinuxKit.Base
+	}
+	if cfg.LinuxKit.Mounts == nil {
+		cfg.LinuxKit.Mounts = append([]string(nil), defaults.LinuxKit.Mounts...)
+	}
+	if cfg.LinuxKit.Formats == nil {
+		cfg.LinuxKit.Formats = append([]string(nil), defaults.LinuxKit.Formats...)
 	}
 
 }
@@ -310,6 +323,11 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.Build.Env = expandEnvSlice(cfg.Build.Env)
 	cfg.Build.Tags = expandEnvSlice(cfg.Build.Tags)
 	cfg.Build.Formats = expandEnvSlice(cfg.Build.Formats)
+	cfg.LinuxKit.Base = expandEnv(cfg.LinuxKit.Base)
+	cfg.LinuxKit.Packages = expandEnvSlice(cfg.LinuxKit.Packages)
+	cfg.LinuxKit.Mounts = expandEnvSlice(cfg.LinuxKit.Mounts)
+	cfg.LinuxKit.Formats = expandEnvSlice(cfg.LinuxKit.Formats)
+	cfg.LinuxKit.Registry = expandEnv(cfg.LinuxKit.Registry)
 	cfg.Apple.XcodeCloud.Triggers = expandXcodeCloudTriggers(cfg.Apple.XcodeCloud.Triggers)
 
 	cfg.Build.Cache.Directory = expandEnv(cfg.Build.Cache.Directory)
@@ -405,6 +423,7 @@ func CloneBuildConfig(cfg *BuildConfig) *BuildConfig {
 	clone := *cfg
 	clone.Build = cloneBuild(cfg.Build)
 	clone.Apple = cloneAppleConfig(cfg.Apple)
+	clone.LinuxKit = cloneLinuxKitConfig(cfg.LinuxKit)
 	clone.Targets = append([]TargetConfig(nil), cfg.Targets...)
 
 	return &clone
@@ -443,6 +462,17 @@ func cloneCacheConfig(value CacheConfig) CacheConfig {
 		KeyPrefix:   value.KeyPrefix,
 		Paths:       append([]string(nil), value.Paths...),
 		RestoreKeys: append([]string(nil), value.RestoreKeys...),
+	}
+}
+
+func cloneLinuxKitConfig(value LinuxKitConfig) LinuxKitConfig {
+	return LinuxKitConfig{
+		Base:     value.Base,
+		Packages: append([]string(nil), value.Packages...),
+		Mounts:   append([]string(nil), value.Mounts...),
+		GPU:      value.GPU,
+		Formats:  append([]string(nil), value.Formats...),
+		Registry: value.Registry,
 	}
 }
 

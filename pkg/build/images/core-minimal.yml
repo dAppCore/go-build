@@ -1,0 +1,40 @@
+# core-minimal LinuxKit image template
+kernel:
+  image: linuxkit/kernel:6.6.13
+  cmdline: "console=tty0 console=ttyS0"
+
+init:
+  - linuxkit/init:v1.2.0
+  - linuxkit/runc:v1.1.12
+  - linuxkit/containerd:v1.7.13
+  - linuxkit/ca-certificates:v1.0.0
+
+services:
+  - name: core-minimal
+    image: alpine:3.19
+    net: host
+{{- if .Mounts }}
+    binds:
+{{- range .Mounts }}
+      - {{ . }}:{{ . }}
+{{- end }}
+{{- end }}
+    env:
+      - CORE_IMAGE=core-minimal
+      - CORE_GPU={{ if .GPU }}1{{ else }}0{{ end }}
+    command:
+      - /bin/sh
+      - -lc
+      - '{{ .BootstrapCommand }}'
+
+files:
+  - path: /etc/motd
+    contents: |
+      core-minimal
+      Version: {{ .Version }}
+      {{ .Description }}
+
+trust:
+  org:
+    - linuxkit
+    - library

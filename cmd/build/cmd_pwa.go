@@ -23,8 +23,9 @@ import (
 
 // Error sentinels for build commands
 var (
-	errPathRequired = coreerr.E("buildcmd.Init", "the --path flag is required", nil)
-	errURLRequired  = coreerr.E("buildcmd.Init", "the --url flag is required", nil)
+	errPathRequired     = coreerr.E("buildcmd.Init", "the --path flag is required", nil)
+	errURLRequired      = coreerr.E("buildcmd.Init", "the --url flag is required", nil)
+	errPWAInputRequired = coreerr.E("buildcmd.Init", "either --path or --url is required", nil)
 )
 
 // runLocalPwaBuild points at the local PWA build entrypoint.

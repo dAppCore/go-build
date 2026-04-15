@@ -36,6 +36,14 @@ func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {
 			LinuxKitConfig: ".core/linuxkit/core.yaml",
 			Formats:        []string{"iso", "qcow2"},
 		},
+		LinuxKit: LinuxKitConfig{
+			Base:     "core-dev",
+			Packages: []string{"git"},
+			Mounts:   []string{"/workspace"},
+			GPU:      true,
+			Formats:  []string{"oci", "apple"},
+			Registry: "ghcr.io/dappcore",
+		},
 	}
 
 	cfg := RuntimeConfigFromBuildConfig(io.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, true, "override/image", "v1.2.3")
@@ -66,6 +74,14 @@ func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {
 	assert.True(t, cfg.Load)
 	assert.Equal(t, ".core/linuxkit/core.yaml", cfg.LinuxKitConfig)
 	assert.Equal(t, []string{"iso", "qcow2"}, cfg.Formats)
+	assert.Equal(t, LinuxKitConfig{
+		Base:     "core-dev",
+		Packages: []string{"git"},
+		Mounts:   []string{"/workspace"},
+		GPU:      true,
+		Formats:  []string{"oci", "apple"},
+		Registry: "ghcr.io/dappcore",
+	}, cfg.LinuxKit)
 
 	cfg.Flags[0] = "-trimpath"
 	cfg.LDFlags[0] = "-X"
@@ -73,6 +89,7 @@ func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {
 	cfg.Env[0] = "BAR=baz"
 	cfg.Tags[0] = "stable"
 	cfg.BuildArgs["VERSION"] = "2.0.0"
+	cfg.LinuxKit.Packages[0] = "task"
 
 	assert.Equal(t, []string{"-mod=readonly"}, source.Build.Flags)
 	assert.Equal(t, []string{"-s", "-w"}, source.Build.LDFlags)
@@ -80,4 +97,5 @@ func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {
 	assert.Equal(t, []string{"FOO=bar"}, source.Build.Env)
 	assert.Equal(t, []string{"latest"}, source.Build.Tags)
 	assert.Equal(t, map[string]string{"VERSION": "1.2.3"}, source.Build.BuildArgs)
+	assert.Equal(t, []string{"git"}, source.LinuxKit.Packages)
 }

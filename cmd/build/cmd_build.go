@@ -101,11 +101,16 @@ func AddBuildCommands(c *core.Core) {
 	c.Command("build/pwa", core.Command{
 		Description: "cmd.build.pwa.short",
 		Action: func(opts core.Options) core.Result {
+			pwaPath := cmdutil.OptionString(opts, "path")
 			pwaURL := cmdutil.OptionString(opts, "url")
-			if pwaURL == "" {
-				return cmdutil.ResultFromError(errURLRequired)
+			switch {
+			case pwaPath != "":
+				return cmdutil.ResultFromError(runLocalPwaBuild(cmdutil.ContextOrBackground(), pwaPath))
+			case pwaURL != "":
+				return cmdutil.ResultFromError(runPwaBuild(cmdutil.ContextOrBackground(), pwaURL))
+			default:
+				return cmdutil.ResultFromError(errPWAInputRequired)
 			}
-			return cmdutil.ResultFromError(runPwaBuild(cmdutil.ContextOrBackground(), pwaURL))
 		},
 	})
 
@@ -123,6 +128,7 @@ func AddBuildCommands(c *core.Core) {
 	})
 
 	AddAppleCommand(c)
+	AddImageCommand(c)
 	AddReleaseCommand(c)
 	AddWorkflowCommand(c)
 }

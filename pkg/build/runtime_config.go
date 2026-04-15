@@ -36,6 +36,7 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 		Load:           buildDefaults.Load,
 		LinuxKitConfig: buildDefaults.LinuxKitConfig,
 		Formats:        append([]string{}, buildDefaults.Formats...),
+		LinuxKit:       cloneLinuxKitConfig(buildConfig.LinuxKit),
 	}
 
 	if imageName != "" {

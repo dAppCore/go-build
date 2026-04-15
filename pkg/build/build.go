@@ -114,6 +114,7 @@ type Config struct {
 	// LinuxKit-specific config
 	LinuxKitConfig string   // Path to LinuxKit YAML config, relative to ProjectDir or absolute.
 	Formats        []string // Output formats (iso, qcow2, raw, vmdk)
+	LinuxKit       LinuxKitConfig
 }
 
 // Builder defines the interface for project-specific build implementations.
