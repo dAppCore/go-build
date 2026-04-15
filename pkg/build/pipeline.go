@@ -4,8 +4,8 @@ import (
 	"context"
 	"runtime"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -406,10 +406,7 @@ func enableDefaultPipelineBuildCache(cfg *CacheConfig) {
 		cfg.Directory = ax.Join(ConfigDir, "cache")
 	}
 	if len(cfg.Paths) == 0 {
-		cfg.Paths = []string{
-			ax.Join("cache", "go-build"),
-			ax.Join("cache", "go-mod"),
-		}
+		cfg.Paths = DefaultBuildCachePaths("")
 	}
 }
 

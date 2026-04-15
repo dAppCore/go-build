@@ -20,6 +20,25 @@ import (
 //	// SetupCache(io.Local, ".", &cfg) -> ".core/cache"
 const DefaultCacheDirectory = ".core/cache"
 
+// DefaultBuildCachePaths returns the project-local Go cache directories used
+// when no cache paths are configured.
+//
+//	paths := build.DefaultBuildCachePaths("/workspace/project")
+//	// ["/workspace/project/cache/go-build", "/workspace/project/cache/go-mod"]
+func DefaultBuildCachePaths(baseDir string) []string {
+	if core.Trim(baseDir) == "" {
+		return []string{
+			"cache/go-build",
+			"cache/go-mod",
+		}
+	}
+
+	return []string{
+		ax.Join(baseDir, "cache", "go-build"),
+		ax.Join(baseDir, "cache", "go-mod"),
+	}
+}
+
 // CacheConfig holds build cache configuration loaded from .core/build.yaml.
 //
 //	cfg := build.CacheConfig{
@@ -85,10 +104,7 @@ func SetupCache(fs io.Medium, dir string, cfg *CacheConfig) error {
 	}
 	cfg.Directory = normaliseCachePath(dir, cfg.Directory)
 	if len(cfg.Paths) == 0 {
-		cfg.Paths = []string{
-			ax.Join("cache", "go-build"),
-			ax.Join("cache", "go-mod"),
-		}
+		cfg.Paths = DefaultBuildCachePaths(dir)
 	}
 
 	if err := fs.EnsureDir(cfg.Directory); err != nil {

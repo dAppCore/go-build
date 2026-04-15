@@ -507,10 +507,7 @@ func enableDefaultBuildCache(cfg *build.CacheConfig) {
 		cfg.Directory = ax.Join(build.ConfigDir, "cache")
 	}
 	if len(cfg.Paths) == 0 {
-		cfg.Paths = []string{
-			ax.Join("cache", "go-build"),
-			ax.Join("cache", "go-mod"),
-		}
+		cfg.Paths = build.DefaultBuildCachePaths("")
 	}
 }
 
