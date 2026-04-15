@@ -45,6 +45,8 @@ var (
 	providerResolveProjectType = resolveProjectType
 	providerGetBuilder         = getBuilder
 	providerDetermineVersion   = release.DetermineVersionWithContext
+	providerLoadReleaseConfig  = release.LoadConfig
+	providerRunRelease         = release.Run
 	providerSignBinaries       = signing.SignBinaries
 	providerNotarizeBinaries   = signing.NotarizeBinaries
 	providerSignChecksums      = signing.SignChecksums
@@ -183,7 +185,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Method:      "POST",
 			Path:        "/release",
 			Summary:     "Trigger release pipeline",
-			Description: "Publishes pre-built artifacts from dist/ to configured targets.",
+			Description: "Runs the full release pipeline: build, sign, archive, checksum, and publish.",
 			Tags:        []string{"release"},
 		},
 		{
@@ -689,7 +691,7 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 		return
 	}
 
-	cfg, err := release.LoadConfig(dir)
+	cfg, err := providerLoadReleaseConfig(dir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
@@ -702,7 +704,7 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 		"dry_run": dryRun,
 	})
 
-	rel, err := release.Publish(c.Request.Context(), cfg, dryRun)
+	rel, err := providerRunRelease(c.Request.Context(), cfg, dryRun)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("release_failed", err.Error()))
 		return

@@ -15,6 +15,7 @@ import (
 	coreapi "dappco.re/go/core/api"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/core/build/pkg/release"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,6 +73,12 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	assert.Equal(t, "POST", paths["/release/workflow"])
 	assert.Equal(t, "GET", paths["/sdk/diff"])
 	assert.Equal(t, "POST", paths["/sdk"])
+
+	for _, route := range routes {
+		if route.Path == "/release" {
+			assert.Equal(t, "Runs the full release pipeline: build, sign, archive, checksum, and publish.", route.Description)
+		}
+	}
 
 	var workflowRoute *coreapi.RouteDescription
 	for i := range routes {
@@ -1156,6 +1163,91 @@ targets:
 	checksums, err := io.Local.Read(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))
 	require.NoError(t, err)
 	assert.Contains(t, checksums, "api-build_linux_amd64.tar.xz")
+}
+
+func TestProvider_TriggerRelease_UsesFullReleasePipeline_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+
+	oldLoadReleaseConfig := providerLoadReleaseConfig
+	oldRunRelease := providerRunRelease
+	t.Cleanup(func() {
+		providerLoadReleaseConfig = oldLoadReleaseConfig
+		providerRunRelease = oldRunRelease
+	})
+
+	providerLoadReleaseConfig = func(dir string) (*release.Config, error) {
+		assert.Equal(t, projectDir, dir)
+		cfg := release.DefaultConfig()
+		cfg.SetProjectDir(dir)
+		return cfg, nil
+	}
+
+	called := false
+	providerRunRelease = func(ctx context.Context, cfg *release.Config, dryRun bool) (*release.Release, error) {
+		called = true
+		assert.False(t, dryRun)
+		require.NotNil(t, cfg)
+
+		return &release.Release{
+			Version:   "v1.2.3",
+			Artifacts: []build.Artifact{{Path: ax.Join(projectDir, "dist", "demo.tar.gz")}},
+			Changelog: "Release notes",
+		}, nil
+	}
+
+	p := NewProvider(projectDir, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release", nil)
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.triggerRelease(ctx)
+
+	assert.True(t, called)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"version":"v1.2.3"`)
+	assert.Contains(t, recorder.Body.String(), `"dry_run":false`)
+}
+
+func TestProvider_TriggerRelease_DryRun_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+
+	oldLoadReleaseConfig := providerLoadReleaseConfig
+	oldRunRelease := providerRunRelease
+	t.Cleanup(func() {
+		providerLoadReleaseConfig = oldLoadReleaseConfig
+		providerRunRelease = oldRunRelease
+	})
+
+	providerLoadReleaseConfig = func(dir string) (*release.Config, error) {
+		cfg := release.DefaultConfig()
+		cfg.SetProjectDir(dir)
+		return cfg, nil
+	}
+
+	providerRunRelease = func(ctx context.Context, cfg *release.Config, dryRun bool) (*release.Release, error) {
+		assert.True(t, dryRun)
+		return &release.Release{
+			Version: "v1.2.3",
+		}, nil
+	}
+
+	p := NewProvider(projectDir, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/release?dry_run=true", nil)
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.triggerRelease(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"dry_run":true`)
 }
 
 func TestProvider_ListArtifacts_RecursesIntoPlatformDirectories_Good(t *testing.T) {

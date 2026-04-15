@@ -15,6 +15,7 @@ func resetDockerRuntimeState() {
 	dockerRuntimeMu = sync.Mutex{}
 	dockerRuntimeChecked = false
 	dockerRuntimeOK = false
+	dockerRuntimeCommand = ""
 }
 
 func setAvailabilityProbeTimeout(t *testing.T, timeout time.Duration) {
@@ -25,6 +26,14 @@ func setAvailabilityProbeTimeout(t *testing.T, timeout time.Duration) {
 	t.Cleanup(func() {
 		availabilityProbeTimeout = previous
 	})
+}
+
+func writeFakeDockerRuntime(t *testing.T, dir, script string) string {
+	t.Helper()
+
+	dockerPath := ax.Join(dir, "docker")
+	require.NoError(t, ax.WriteFile(dockerPath, []byte(script), 0o755))
+	return dockerPath
 }
 
 func TestSDK_ResolveDockerRuntimeCli_Good(t *testing.T) {
@@ -50,8 +59,7 @@ func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
 	t.Cleanup(resetDockerRuntimeState)
 
 	dockerDir := t.TempDir()
-	dockerPath := ax.Join(dockerDir, "docker")
-	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 0\nfi\nexit 0\n"), 0o755))
+	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 0\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
 
 	assert.True(t, dockerRuntimeAvailable())
@@ -66,8 +74,7 @@ func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T)
 	t.Cleanup(resetDockerRuntimeState)
 
 	dockerDir := t.TempDir()
-	dockerPath := ax.Join(dockerDir, "docker")
-	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -83,11 +90,41 @@ func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
 	setAvailabilityProbeTimeout(t, 20*time.Millisecond)
 
 	dockerDir := t.TempDir()
-	dockerPath := ax.Join(dockerDir, "docker")
-	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  while :; do :; done\nfi\nexit 0\n"), 0o755))
+	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  while :; do :; done\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
 
 	started := time.Now()
 	assert.False(t, dockerRuntimeAvailable())
 	assert.Less(t, time.Since(started), 500*time.Millisecond)
+}
+
+func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailure_Good(t *testing.T) {
+	resetDockerRuntimeState()
+	t.Cleanup(resetDockerRuntimeState)
+
+	dockerDir := t.TempDir()
+	dockerPath := writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 1\nfi\nexit 0\n")
+	t.Setenv("PATH", dockerDir)
+
+	assert.False(t, dockerRuntimeAvailable())
+
+	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 0\nfi\nexit 0\n"), 0o755))
+	assert.True(t, dockerRuntimeAvailable())
+}
+
+func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChanges_Good(t *testing.T) {
+	resetDockerRuntimeState()
+	t.Cleanup(resetDockerRuntimeState)
+
+	successDir := t.TempDir()
+	writeFakeDockerRuntime(t, successDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 0\nfi\nexit 0\n")
+	t.Setenv("PATH", successDir)
+
+	assert.True(t, dockerRuntimeAvailable())
+
+	failureDir := t.TempDir()
+	writeFakeDockerRuntime(t, failureDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 1\nfi\nexit 0\n")
+	t.Setenv("PATH", failureDir)
+
+	assert.False(t, dockerRuntimeAvailable())
 }

@@ -13,6 +13,7 @@ var (
 	dockerRuntimeMu      sync.Mutex
 	dockerRuntimeChecked bool
 	dockerRuntimeOK      bool
+	dockerRuntimeCommand string
 )
 
 var availabilityProbeTimeout = 2 * time.Second
@@ -33,7 +34,7 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 	dockerRuntimeMu.Lock()
 	defer dockerRuntimeMu.Unlock()
 
-	if dockerRuntimeChecked {
+	if dockerRuntimeChecked && dockerRuntimeOK && dockerRuntimeCommand == dockerCommand {
 		return dockerRuntimeOK
 	}
 
@@ -46,8 +47,9 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 		return false
 	}
 
-	dockerRuntimeChecked = true
+	dockerRuntimeCommand = dockerCommand
 	dockerRuntimeOK = err == nil
+	dockerRuntimeChecked = dockerRuntimeOK
 
 	return dockerRuntimeOK
 }
