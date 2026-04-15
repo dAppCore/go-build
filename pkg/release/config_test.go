@@ -158,6 +158,46 @@ checksum:
 		assert.Equal(t, "sha256", cfg.Checksum.Algorithm)
 		assert.Equal(t, "checksums.txt", cfg.Checksum.File)
 	})
+
+	t.Run("loads config from a custom medium", func(t *testing.T) {
+		medium := io.NewMemoryMedium()
+		dir := "project"
+		configPath := ConfigPath(dir)
+		require.NoError(t, medium.EnsureDir(ax.Dir(configPath)))
+		require.NoError(t, medium.Write(configPath, `
+version: 1
+project:
+  name: medium-app
+  repository: owner/medium-app
+sdk:
+  spec: docs/openapi.yaml
+  languages: [go]
+`))
+
+		cfg, err := LoadConfigWithMedium(medium, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "medium-app", cfg.Project.Name)
+		assert.Equal(t, "owner/medium-app", cfg.Project.Repository)
+		require.NotNil(t, cfg.SDK)
+		assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
+		assert.Equal(t, []string{"go"}, cfg.SDK.Languages)
+		assert.Equal(t, dir, cfg.projectDir)
+	})
+
+	t.Run("returns defaults from a custom medium when config is missing", func(t *testing.T) {
+		dir := "virtual-project"
+
+		cfg, err := LoadConfigWithMedium(io.NewMemoryMedium(), dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		defaults := DefaultConfig()
+		assert.Equal(t, defaults.Version, cfg.Version)
+		assert.Equal(t, defaults.Publishers, cfg.Publishers)
+		assert.Equal(t, dir, cfg.projectDir)
+	})
 }
 
 func TestConfig_LoadConfig_ExpandEnv_Good(t *testing.T) {

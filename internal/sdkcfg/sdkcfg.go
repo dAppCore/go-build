@@ -19,7 +19,7 @@ func LoadProjectConfig(fs io.Medium, projectDir string) (*sdk.Config, error) {
 		return sdk.CloneConfig(buildCfg.SDK), nil
 	}
 
-	releaseCfg, err := release.LoadConfig(projectDir)
+	releaseCfg, err := release.LoadConfigWithMedium(fs, projectDir)
 	if err != nil {
 		return nil, err
 	}

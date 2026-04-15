@@ -208,36 +208,53 @@ func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 //
 // cfg, err := release.LoadConfig(".")
 func LoadConfig(dir string) (*Config, error) {
-	configPath := ax.Join(dir, ConfigDir, ConfigFileName)
+	return LoadConfigWithMedium(coreio.Local, dir)
+}
 
-	// Resolve path with AX-aware helpers.
-	absPath, err := ax.Abs(configPath)
+// LoadConfigWithMedium loads release configuration from the provided medium.
+// This mirrors build config loading so callers that virtualise project files
+// via io.Medium can still resolve release settings consistently.
+//
+// cfg, err := release.LoadConfigWithMedium(io.NewMemoryMedium(), "project")
+func LoadConfigWithMedium(filesystem coreio.Medium, dir string) (*Config, error) {
+	cfg, err := LoadConfigAtPath(filesystem, ConfigPath(dir))
 	if err != nil {
-		return nil, coreerr.E("release.LoadConfig", "failed to resolve path", err)
+		return nil, err
 	}
 
-	content, err := ax.ReadFile(absPath)
+	cfg.projectDir = dir
+	return cfg, nil
+}
+
+// LoadConfigAtPath loads release configuration from an explicit path in the
+// provided medium. If the path does not point to a file, it returns
+// DefaultConfig().
+//
+// cfg, err := release.LoadConfigAtPath(io.Local, "/tmp/project/.core/release.yaml")
+func LoadConfigAtPath(filesystem coreio.Medium, configPath string) (*Config, error) {
+	if filesystem == nil {
+		filesystem = coreio.Local
+	}
+
+	content, err := filesystem.Read(configPath)
 	if err != nil {
-		if !ax.IsFile(absPath) {
-			cfg := DefaultConfig()
-			cfg.projectDir = dir
-			return cfg, nil
+		if !filesystem.IsFile(configPath) {
+			return DefaultConfig(), nil
 		}
-		return nil, coreerr.E("release.LoadConfig", "failed to read config file", err)
+		return nil, coreerr.E("release.LoadConfigAtPath", "failed to read config file", err)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal([]byte(content), &cfg); err != nil {
-		return nil, coreerr.E("release.LoadConfig", "failed to parse config file", err)
+		return nil, coreerr.E("release.LoadConfigAtPath", "failed to parse config file", err)
 	}
 
-	// Apply defaults for any missing fields
+	// Apply defaults for any missing fields.
 	applyDefaults(&cfg)
 	cfg.ExpandEnv()
 	if cfg.SDK != nil {
 		cfg.SDK.ApplyDefaults()
 	}
-	cfg.projectDir = dir
 
 	return &cfg, nil
 }
