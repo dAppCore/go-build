@@ -28,6 +28,19 @@ func (p *GitHubPublisher) Name() string {
 	return "github"
 }
 
+// Validate checks that the GitHub publisher has a release to publish.
+func (p *GitHubPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	_ = pubCfg
+	_ = relCfg
+	return validatePublisherRelease(p.Name(), release)
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *GitHubPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to GitHub using the gh CLI.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false) // dryRun=true to preview

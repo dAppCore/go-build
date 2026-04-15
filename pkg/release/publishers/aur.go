@@ -48,6 +48,26 @@ func (p *AURPublisher) Name() string {
 	return "aur"
 }
 
+// Validate checks the AUR publisher configuration before publishing.
+func (p *AURPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	cfg := p.parseConfig(pubCfg, relCfg)
+	if cfg.Maintainer == "" {
+		return coreerr.E("aur.Validate", "maintainer is required (set publish.aur.maintainer in config)", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *AURPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to AUR.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)

@@ -46,6 +46,26 @@ func (p *ScoopPublisher) Name() string {
 	return "scoop"
 }
 
+// Validate checks the Scoop publisher configuration before publishing.
+func (p *ScoopPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	cfg := p.parseConfig(pubCfg, relCfg)
+	if cfg.Bucket == "" && (cfg.Official == nil || !cfg.Official.Enabled) {
+		return coreerr.E("scoop.Validate", "bucket is required (set publish.scoop.bucket in config)", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *ScoopPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to Scoop.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)

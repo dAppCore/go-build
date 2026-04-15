@@ -45,6 +45,26 @@ func (p *NpmPublisher) Name() string {
 	return "npm"
 }
 
+// Validate checks the npm publisher configuration before publishing.
+func (p *NpmPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	npmCfg := p.parseConfig(pubCfg, relCfg)
+	if npmCfg.Package == "" {
+		return coreerr.E("npm.Validate", "package name is required (set publish.npm.package in config)", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *NpmPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to npm as a binary wrapper package.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)

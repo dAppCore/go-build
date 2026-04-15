@@ -36,18 +36,8 @@ var (
 //
 // sdkcmd.AddSDKCommands(root)
 func AddSDKCommands(c *core.Core) {
-	c.Command("sdk", core.Command{
-		Description: "cmd.sdk.long",
-		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runSDKGenerate(
-				cmdutil.ContextOrBackground(),
-				cmdutil.OptionString(opts, "spec"),
-				cmdutil.OptionString(opts, "lang"),
-				cmdutil.OptionString(opts, "version"),
-				cmdutil.OptionBool(opts, "dry-run"),
-			))
-		},
-	})
+	registerSDKGenerateCommand(c, "sdk")
+	registerSDKGenerateCommand(c, "sdk/generate")
 
 	c.Command("sdk/diff", core.Command{
 		Description: "cmd.sdk.diff.long",
@@ -65,6 +55,21 @@ func AddSDKCommands(c *core.Core) {
 		Action: func(opts core.Options) core.Result {
 			return cmdutil.ResultFromError(runSDKValidate(
 				cmdutil.OptionString(opts, "spec"),
+			))
+		},
+	})
+}
+
+func registerSDKGenerateCommand(c *core.Core, path string) {
+	c.Command(path, core.Command{
+		Description: "cmd.sdk.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runSDKGenerate(
+				cmdutil.ContextOrBackground(),
+				cmdutil.OptionString(opts, "spec"),
+				cmdutil.OptionString(opts, "lang"),
+				cmdutil.OptionString(opts, "version"),
+				cmdutil.OptionBool(opts, "dry-run"),
 			))
 		},
 	})

@@ -4,8 +4,10 @@ package publishers
 import (
 	"context"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // Release represents a release to be published.
@@ -52,9 +54,13 @@ type ReleaseConfig interface {
 type Publisher interface {
 	// Name returns the publisher's identifier.
 	Name() string
+	// Validate checks the runtime release and publisher configuration before publish.
+	Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error
 	// Publish publishes the release to the target.
 	// If dryRun is true, it prints what would be done without executing.
 	Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error
+	// Supports reports whether the publisher handles the named target.
+	Supports(target string) bool
 }
 
 // NewRelease creates a Release from the release package's Release type.
@@ -81,4 +87,18 @@ func NewPublisherConfig(pubType string, prerelease, draft bool, extended any) Pu
 		Draft:      draft,
 		Extended:   extended,
 	}
+}
+
+func validatePublisherRelease(name string, release *Release) error {
+	if release == nil {
+		return coreerr.E(name+".Validate", "release is nil", nil)
+	}
+	if release.FS == nil {
+		return coreerr.E(name+".Validate", "release filesystem (FS) is nil", nil)
+	}
+	return nil
+}
+
+func supportsPublisherTarget(name, target string) bool {
+	return core.Lower(core.Trim(target)) == core.Lower(name)
 }

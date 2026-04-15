@@ -116,6 +116,12 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 
 			extendedConfig := buildExtendedConfig(publisherConfig)
 			publisherRuntimeConfig := publishers.NewPublisherConfig(publisherConfig.Type, publisherConfig.Prerelease, publisherConfig.Draft, extendedConfig)
+			if !publisher.Supports(publisherConfig.Type) {
+				return release, coreerr.E("release.Publish", "publisher does not support target "+publisherConfig.Type, nil)
+			}
+			if err := publisher.Validate(ctx, pubRelease, publisherRuntimeConfig, cfg); err != nil {
+				return release, coreerr.E("release.Publish", "validate publisher "+publisherConfig.Type+" failed", err)
+			}
 			if err := publisher.Publish(ctx, pubRelease, publisherRuntimeConfig, cfg, dryRun); err != nil {
 				return release, coreerr.E("release.Publish", "publish to "+publisherConfig.Type+" failed", err)
 			}
@@ -383,6 +389,12 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 			// Build extended config for publisher-specific settings
 			extendedConfig := buildExtendedConfig(publisherConfig)
 			publisherRuntimeConfig := publishers.NewPublisherConfig(publisherConfig.Type, publisherConfig.Prerelease, publisherConfig.Draft, extendedConfig)
+			if !publisher.Supports(publisherConfig.Type) {
+				return release, coreerr.E("release.Run", "publisher does not support target "+publisherConfig.Type, nil)
+			}
+			if err := publisher.Validate(ctx, pubRelease, publisherRuntimeConfig, cfg); err != nil {
+				return release, coreerr.E("release.Run", "validate publisher "+publisherConfig.Type+" failed", err)
+			}
 			if err := publisher.Publish(ctx, pubRelease, publisherRuntimeConfig, cfg, dryRun); err != nil {
 				return release, coreerr.E("release.Run", "publish to "+publisherConfig.Type+" failed", err)
 			}

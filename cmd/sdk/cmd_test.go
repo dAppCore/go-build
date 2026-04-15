@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/cli/pkg/cli"
 
@@ -31,6 +32,17 @@ func TestRunSDKValidate_Good(t *testing.T) {
 
 	err := runSDKValidateInDir(context.Background(), tmpDir, "")
 	assert.NoError(t, err)
+}
+
+func TestAddSDKCommands_RegistersGenerateAlias_Good(t *testing.T) {
+	c := core.New()
+
+	AddSDKCommands(c)
+
+	assert.True(t, c.Command("sdk").OK)
+	assert.True(t, c.Command("sdk/generate").OK)
+	assert.True(t, c.Command("sdk/diff").OK)
+	assert.True(t, c.Command("sdk/validate").OK)
 }
 
 func TestRunSDKGenerateInDir_ValidSpecDryRun_Good(t *testing.T) {

@@ -252,6 +252,22 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 	})
 }
 
+func TestRelease_Publish_ValidatesPublisherBeforePublish_Bad(t *testing.T) {
+	dir := t.TempDir()
+	distDir := ax.Join(dir, "dist")
+	require.NoError(t, ax.MkdirAll(distDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0o644))
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.SetVersion("v1.0.0")
+	cfg.Publishers = []PublisherConfig{{Type: "npm"}}
+
+	_, err := Publish(context.Background(), cfg, true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validate publisher npm failed")
+}
+
 func TestRelease_FindArtifacts_Bad(t *testing.T) {
 	t.Run("returns error when dist directory does not exist", func(t *testing.T) {
 		dir := t.TempDir()

@@ -43,6 +43,30 @@ func (p *LinuxKitPublisher) Name() string {
 	return "linuxkit"
 }
 
+// Validate checks the LinuxKit publisher configuration before publishing.
+func (p *LinuxKitPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	_ = relCfg
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	lkCfg := p.parseConfig(pubCfg, release.ProjectDir)
+	if !release.FS.Exists(lkCfg.Config) {
+		return coreerr.E("linuxkit.Validate", "config file not found: "+lkCfg.Config, nil)
+	}
+	if len(lkCfg.Formats) == 0 {
+		return coreerr.E("linuxkit.Validate", "at least one LinuxKit format is required", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *LinuxKitPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish builds LinuxKit images and uploads them to the GitHub release.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)

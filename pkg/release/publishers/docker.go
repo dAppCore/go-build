@@ -48,6 +48,29 @@ func (p *DockerPublisher) Name() string {
 	return "docker"
 }
 
+// Validate checks the Docker publisher configuration before publishing.
+func (p *DockerPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	dockerCfg := p.parseConfig(release.FS, pubCfg, relCfg, release.ProjectDir)
+	if !release.FS.Exists(dockerCfg.Dockerfile) {
+		return coreerr.E("docker.Validate", "Dockerfile not found: "+dockerCfg.Dockerfile, nil)
+	}
+	if dockerCfg.Image == "" {
+		return coreerr.E("docker.Validate", "image name is required", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *DockerPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish builds and pushes Docker images.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)

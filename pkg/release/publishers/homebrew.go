@@ -58,6 +58,26 @@ func (p *HomebrewPublisher) Name() string {
 	return "homebrew"
 }
 
+// Validate checks the Homebrew publisher configuration before publishing.
+func (p *HomebrewPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	cfg := p.parseConfig(pubCfg, relCfg)
+	if cfg.Tap == "" && (cfg.Official == nil || !cfg.Official.Enabled) {
+		return coreerr.E("homebrew.Validate", "tap is required (set publish.homebrew.tap in config)", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *HomebrewPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to Homebrew.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)

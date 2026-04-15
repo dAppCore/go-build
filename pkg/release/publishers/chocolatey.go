@@ -49,6 +49,19 @@ func (p *ChocolateyPublisher) Name() string {
 	return "chocolatey"
 }
 
+// Validate checks that the Chocolatey publisher has a release to publish.
+func (p *ChocolateyPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	_ = pubCfg
+	_ = relCfg
+	return validatePublisherRelease(p.Name(), release)
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *ChocolateyPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to Chocolatey.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
