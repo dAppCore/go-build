@@ -38,9 +38,17 @@ The generated release workflow mirrors the composable `dAppCore/build@v3` action
 
 1. Discovery gathers repository markers, Git metadata, distro hints, and stack suggestions.
 2. Option computation folds config defaults, CLI overrides, and discovery-derived flags into a single build option set.
-3. Toolchain setup installs only the required runtimes and CLIs for the detected stack.
-4. Stack-specific builders perform the actual build, with Wails, C++, Docs, Docker, LinuxKit, and Taskfile all owning their own execution details.
-5. Signing and packaging run last so the same build outputs can be archived, checksummed, uploaded, or published.
+3. Setup planning computes the required runtimes, CLIs, frontend directories, and Linux packages before any installer logic runs.
+4. Toolchain setup installs only the required runtimes and CLIs for the detected stack.
+5. Stack-specific builders perform the actual build, with Wails, C++, Docs, Docker, LinuxKit, and Taskfile all owning their own execution details.
+6. Signing and packaging run last so the same build outputs can be archived, checksummed, uploaded, or published.
+
+The pure Go equivalents are:
+
+- `DiscoverFull()` for the action-style discovery pass
+- `ComputeOptions()` for deterministic build flag derivation
+- `ComputeSetupPlan()` for setup orchestration inputs such as Go, Node, Wails, Deno, Task, Python, Conan, MkDocs, PHP/Composer, and Rust requirements
+- builder implementations in `pkg/build/builders/` for stack-specific execution
 
 This keeps the Go package aligned with the action architecture without copying the action repository's bash and PowerShell implementation split.
 

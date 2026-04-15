@@ -11,6 +11,7 @@ description: Build, release, Apple packaging, SDK generation, and GitHub workflo
 
 - Auto-detecting builders for Go, Wails, Node, PHP, Python, Rust, Docs, Docker, LinuxKit, C++, and Taskfile projects
 - Action-oriented discovery hints for `wails2`, `cpp`, `docs`, `node`, and `go`
+- Pure Go discovery, option, and setup planning APIs via `DiscoverFull`, `ComputeOptions`, and `ComputeSetupPlan`
 - Generated reusable GitHub release workflow with conditional Go/Node/PHP/Python/Rust/Deno/Task setup, Conan/MkDocs hooks, distro-aware WebKit packages, cache restore/save, and canonical artifact naming
 - macOS Apple pipeline with `core build apple`, DMG packaging, notarisation, Xcode Cloud script generation, TestFlight, and App Store submission
 - Release orchestration with eight publishers

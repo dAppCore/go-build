@@ -21,9 +21,10 @@ The runtime flow is:
 
 1. Discovery gathers repository markers, frontend layout, distro hints, and git metadata.
 2. Option computation merges config, CLI overrides, and discovery-derived flags.
-3. Toolchain setup stays conditional and stack-aware.
-4. Builders own stack-specific execution.
-5. Signing, checksums, archiving, release publishing, and workflow packaging happen last.
+3. Setup planning derives the required runtimes, CLIs, frontend directories, and Linux packages through `ComputeSetupPlan`.
+4. Toolchain setup stays conditional and stack-aware.
+5. Builders own stack-specific execution.
+6. Signing, checksums, archiving, release publishing, and workflow packaging happen last.
 
 ## GitHub Action Surface
 
@@ -88,6 +89,7 @@ The Go implementation intentionally ports the high-signal action features:
 - Ubuntu 20.04/22.04 vs 24.04 WebKit dependency handling
 - `webkit2_41` build-tag injection for Wails on Ubuntu 24.04+
 - subtree frontend scanning for monorepos
+- setup planning for Go, Node, Wails, Deno, Task, Python, Conan, MkDocs, PHP/Composer, and Rust toolchains
 - MkDocs detection and setup hooks
 - Conan setup hooks for C++
 - NSIS packaging for Windows Wails builds
