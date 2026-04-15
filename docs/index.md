@@ -45,7 +45,7 @@ core ci
 | `cmd/ci/` | `core ci` publish/version/changelog commands |
 | `cmd/sdk/` | `core sdk`, `core sdk diff`, and `core sdk validate` |
 
-See also: [Architecture](architecture.md) and [Stacks](stacks.md).
+See also: [RFC](RFC.md), [Architecture](architecture.md), and [Stacks](stacks.md).
 
 ## Builder Detection
 
