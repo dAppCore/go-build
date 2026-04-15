@@ -42,20 +42,18 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 		return false
 	}
 
+	if cached, ok := cachedDockerRuntimeAvailability(dockerCommand, commandState); ok {
+		return cached
+	}
+
 	err = ax.Exec(ctx, dockerCommand, "--help")
 	if err != nil && ctx.Err() != nil {
 		return false
 	}
 
-	dockerRuntimeMu.Lock()
-	defer dockerRuntimeMu.Unlock()
-
-	dockerRuntimeCommand = dockerCommand
-	dockerRuntimeState = commandState
-	dockerRuntimeOK = err == nil
-	dockerRuntimeChecked = true
-
-	return dockerRuntimeOK
+	available := err == nil
+	storeDockerRuntimeAvailability(dockerCommand, commandState, available)
+	return available
 }
 
 func resolveDockerRuntimeCli(paths ...string) (string, error) {
@@ -89,4 +87,27 @@ func dockerRuntimeCommandState(command string) (string, error) {
 	return command + "|" +
 		strconv.FormatInt(info.Size(), 10) + "|" +
 		strconv.FormatInt(info.ModTime().UnixNano(), 10), nil
+}
+
+func cachedDockerRuntimeAvailability(command, state string) (bool, bool) {
+	dockerRuntimeMu.Lock()
+	defer dockerRuntimeMu.Unlock()
+
+	if !dockerRuntimeChecked {
+		return false, false
+	}
+	if dockerRuntimeCommand != command || dockerRuntimeState != state {
+		return false, false
+	}
+	return dockerRuntimeOK, true
+}
+
+func storeDockerRuntimeAvailability(command, state string, available bool) {
+	dockerRuntimeMu.Lock()
+	defer dockerRuntimeMu.Unlock()
+
+	dockerRuntimeCommand = command
+	dockerRuntimeState = state
+	dockerRuntimeOK = available
+	dockerRuntimeChecked = true
 }

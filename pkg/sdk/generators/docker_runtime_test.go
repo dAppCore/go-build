@@ -2,6 +2,7 @@ package generators
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -68,6 +69,40 @@ func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
 	assert.True(t, NewPythonGenerator().Available())
 	assert.True(t, NewTypeScriptGenerator().Available())
 	assert.True(t, NewPHPGenerator().Available())
+}
+
+func TestSDK_DockerRuntimeAvailabilityCachesSuccessfulProbe_Good(t *testing.T) {
+	resetDockerRuntimeState()
+	t.Cleanup(resetDockerRuntimeState)
+
+	dockerDir := t.TempDir()
+	countFile := ax.Join(dockerDir, "count.txt")
+	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  echo probe >> '"+countFile+"'\n  exit 0\nfi\nexit 0\n")
+	t.Setenv("PATH", dockerDir)
+
+	assert.True(t, dockerRuntimeAvailable())
+	assert.True(t, dockerRuntimeAvailable())
+
+	content, err := ax.ReadFile(countFile)
+	require.NoError(t, err)
+	assert.Len(t, strings.Fields(string(content)), 1)
+}
+
+func TestSDK_DockerRuntimeAvailabilityCachesFailedProbe_Bad(t *testing.T) {
+	resetDockerRuntimeState()
+	t.Cleanup(resetDockerRuntimeState)
+
+	dockerDir := t.TempDir()
+	countFile := ax.Join(dockerDir, "count.txt")
+	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  echo probe >> '"+countFile+"'\n  exit 1\nfi\nexit 0\n")
+	t.Setenv("PATH", dockerDir)
+
+	assert.False(t, dockerRuntimeAvailable())
+	assert.False(t, dockerRuntimeAvailable())
+
+	content, err := ax.ReadFile(countFile)
+	require.NoError(t, err)
+	assert.Len(t, strings.Fields(string(content)), 1)
 }
 
 func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T) {
