@@ -244,6 +244,46 @@ func CacheKey(fs io.Medium, dir, goos, goarch string) string {
 	return core.Join("-", "go", goos, goarch, suffix)
 }
 
+// CacheKeyWithConfig returns a deterministic cache key and applies the optional
+// cache key prefix from configuration.
+//
+//	key := build.CacheKeyWithConfig(io.Local, ".", "linux", "amd64", &cfg.Cache)
+//	// "demo-go-linux-amd64-abc123..."
+func CacheKeyWithConfig(fs io.Medium, dir, goos, goarch string, cfg *CacheConfig) string {
+	key := CacheKey(fs, dir, goos, goarch)
+	if cfg == nil {
+		return key
+	}
+
+	prefix := core.Trim(cfg.KeyPrefix)
+	if prefix == "" {
+		return key
+	}
+
+	return core.Join("-", prefix, key)
+}
+
+// CacheRestoreKeys returns the configured restore-key prefixes in stable order.
+//
+//	keys := build.CacheRestoreKeys(&build.CacheConfig{
+//	    KeyPrefix: "demo",
+//	    RestoreKeys: []string{"go-", "core-"},
+//	})
+//	// ["demo", "go-", "core-"]
+func CacheRestoreKeys(cfg *CacheConfig) []string {
+	if cfg == nil {
+		return nil
+	}
+
+	keys := make([]string, 0, 1+len(cfg.RestoreKeys))
+	if prefix := core.Trim(cfg.KeyPrefix); prefix != "" {
+		keys = append(keys, prefix)
+	}
+	keys = append(keys, cfg.RestoreKeys...)
+
+	return deduplicateStrings(keys)
+}
+
 // CacheEnvironment returns environment variables derived from the cache config.
 //
 //	env := build.CacheEnvironment(&build.CacheConfig{Enabled: true, Paths: []string{"/tmp/go-build"}})
