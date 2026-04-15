@@ -138,6 +138,7 @@ func TestCache_SetupBuildCache_Good_Disabled(t *testing.T) {
 func TestCache_CacheKey_Good(t *testing.T) {
 	fs := io.NewMemoryMedium()
 	require.NoError(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
+	require.NoError(t, fs.Write("/workspace/project/go.work.sum", "workspace.example v1.0.0 h1:def456"))
 
 	first := CacheKey(fs, "/workspace/project", "linux", "amd64")
 	second := CacheKey(fs, "/workspace/project", "linux", "amd64")
@@ -146,6 +147,17 @@ func TestCache_CacheKey_Good(t *testing.T) {
 	assert.Equal(t, first, second)
 	assert.NotEqual(t, first, third)
 	assert.Contains(t, first, "go-linux-amd64-")
+}
+
+func TestCache_CacheKey_Good_GoWorkSumChangesKey(t *testing.T) {
+	fs := io.NewMemoryMedium()
+	require.NoError(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
+
+	baseline := CacheKey(fs, "/workspace/project", "linux", "amd64")
+	require.NoError(t, fs.Write("/workspace/project/go.work.sum", "workspace.example v1.0.0 h1:def456"))
+	updated := CacheKey(fs, "/workspace/project", "linux", "amd64")
+
+	assert.NotEqual(t, baseline, updated)
 }
 
 func TestCache_CacheEnvironment_Good(t *testing.T) {

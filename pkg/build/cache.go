@@ -138,19 +138,24 @@ func SetupBuildCache(fs io.Medium, dir string, cfg *BuildConfig) error {
 	return SetupCache(fs, dir, &cfg.Build.Cache)
 }
 
-// CacheKey returns a deterministic cache key from go.sum content and the target platform.
+// CacheKey returns a deterministic cache key from go.sum, go.work.sum, and the target platform.
 //
 //	key := build.CacheKey(io.Local, ".", "linux", "amd64") // "go-linux-amd64-abc123..."
 func CacheKey(fs io.Medium, dir, goos, goarch string) string {
 	var seed []byte
 
 	if fs != nil {
-		if content, err := fs.Read(ax.Join(dir, "go.sum")); err == nil {
-			seed = append(seed, content...)
+		for _, name := range []string{"go.sum", "go.work.sum"} {
+			if content, err := fs.Read(ax.Join(dir, name)); err == nil {
+				seed = append(seed, content...)
+				seed = append(seed, '\n')
+			}
+		}
+		if len(seed) == 0 {
+			seed = append(seed, '\n')
 		}
 	}
 
-	seed = append(seed, '\n')
 	seed = append(seed, goos...)
 	seed = append(seed, '\n')
 	seed = append(seed, goarch...)

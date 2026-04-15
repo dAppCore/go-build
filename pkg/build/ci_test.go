@@ -85,9 +85,9 @@ func TestCi_FormatGitHubAnnotation_Bad(t *testing.T) {
 }
 
 func TestCi_FormatGitHubAnnotation_Ugly(t *testing.T) {
-	t.Run("message with newline is included as-is", func(t *testing.T) {
+	t.Run("message with newline is escaped", func(t *testing.T) {
 		s := FormatGitHubAnnotation("error", "main.go", 1, "line one\nline two")
-		assert.Contains(t, s, "line one\nline two")
+		assert.Contains(t, s, "line one%0Aline two")
 	})
 
 	t.Run("message with colons does not break format", func(t *testing.T) {
@@ -105,6 +105,11 @@ func TestCi_FormatGitHubAnnotation_Ugly(t *testing.T) {
 	t.Run("unicode message is preserved", func(t *testing.T) {
 		s := FormatGitHubAnnotation("error", "main.go", 1, "résumé: 日本語")
 		assert.Contains(t, s, "résumé: 日本語")
+	})
+
+	t.Run("percent characters are escaped for GitHub annotations", func(t *testing.T) {
+		s := FormatGitHubAnnotation("error", "main.go", 1, "100% done")
+		assert.Contains(t, s, "100%25 done")
 	})
 }
 

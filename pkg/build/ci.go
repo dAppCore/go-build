@@ -68,7 +68,20 @@ type artifactMeta struct {
 //	s := build.FormatGitHubAnnotation("warning", "pkg/build/ci.go", 10, "unused import")
 //	// "::warning file=pkg/build/ci.go,line=10::unused import"
 func FormatGitHubAnnotation(level, file string, line int, message string) string {
-	return core.Sprintf("::%s file=%s,line=%d::%s", level, file, line, message)
+	return core.Sprintf(
+		"::%s file=%s,line=%d::%s",
+		escapeGitHubAnnotationValue(level),
+		escapeGitHubAnnotationValue(file),
+		line,
+		escapeGitHubAnnotationValue(message),
+	)
+}
+
+func escapeGitHubAnnotationValue(value string) string {
+	value = strings.ReplaceAll(value, "%", "%25")
+	value = strings.ReplaceAll(value, "\r", "%0D")
+	value = strings.ReplaceAll(value, "\n", "%0A")
+	return value
 }
 
 // DetectCI reads GitHub Actions environment variables and returns a populated CIContext.
