@@ -190,7 +190,15 @@ func (p *AURPublisher) dryRunPublish(m coreio.Medium, data aurTemplateData, cfg 
 	publisherPrintln("---")
 	publisherPrintln()
 
-	publisherPrint("Would push to AUR: ssh://aur@aur.archlinux.org/%s-bin.git", data.PackageName)
+	if aurOfficialMode(cfg) {
+		output := cfg.Official.Output
+		if output == "" {
+			output = "dist/aur"
+		}
+		publisherPrint("Would write files for official PR to: %s", output)
+	} else {
+		publisherPrint("Would push to AUR: ssh://aur@aur.archlinux.org/%s-bin.git", data.PackageName)
+	}
 	publisherPrintln()
 	publisherPrintln("=== END DRY RUN ===")
 
@@ -209,7 +217,7 @@ func (p *AURPublisher) executePublish(ctx context.Context, projectDir string, da
 	}
 
 	// If official config is enabled, write to output directory
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if aurOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = ax.Join(projectDir, "dist", "aur")
@@ -234,13 +242,17 @@ func (p *AURPublisher) executePublish(ctx context.Context, projectDir string, da
 	}
 
 	// Push to AUR if not in official-only mode
-	if cfg.Official == nil || !cfg.Official.Enabled {
+	if !aurOfficialMode(cfg) {
 		if err := p.pushToAUR(ctx, data, pkgbuild, srcinfo); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func aurOfficialMode(cfg AURConfig) bool {
+	return cfg.Official != nil && cfg.Official.Enabled
 }
 
 func (p *AURPublisher) pushToAUR(ctx context.Context, data aurTemplateData, pkgbuild, srcinfo string) error {

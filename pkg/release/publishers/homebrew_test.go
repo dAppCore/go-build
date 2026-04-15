@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
 	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
@@ -265,6 +266,30 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 		assert.Contains(t, output, "Would write files for official PR to: custom/path")
 	})
 
+	t.Run("suppresses tap publish output in official mode", func(t *testing.T) {
+		data := homebrewTemplateData{
+			FormulaClass: "MyApp",
+			Version:      "1.0.0",
+			BinaryName:   "myapp",
+			Checksums:    ChecksumMap{},
+		}
+		cfg := HomebrewConfig{
+			Tap: "owner/homebrew-tap",
+			Official: &OfficialConfig{
+				Enabled: true,
+				Output:  "custom/path",
+			},
+		}
+
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
+		require.NoError(t, err)
+		assert.Contains(t, output, "Would write files for official PR to: custom/path")
+		assert.NotContains(t, output, "Would commit to tap:")
+	})
+
 	t.Run("uses default official output path when not specified", func(t *testing.T) {
 		data := homebrewTemplateData{
 			FormulaClass: "MyApp",
@@ -302,6 +327,35 @@ func TestHomebrew_HomebrewPublisherPublish_Bad(t *testing.T) {
 		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "tap is required")
+	})
+
+	t.Run("official mode writes files without requiring tap publish tooling", func(t *testing.T) {
+		projectDir := t.TempDir()
+		t.Setenv("PATH", "/definitely-missing")
+
+		release := &Release{
+			Version:    "v1.0.0",
+			ProjectDir: projectDir,
+			FS:         io.Local,
+			Artifacts: []build.Artifact{
+				{Path: "dist/myapp-linux-amd64.tar.gz", OS: "linux", Arch: "amd64", Checksum: "abc123"},
+			},
+		}
+		pubCfg := PublisherConfig{
+			Type: "homebrew",
+			Extended: map[string]any{
+				"tap": "owner/homebrew-tap",
+				"official": map[string]any{
+					"enabled": true,
+					"output":  "dist/homebrew-pr",
+				},
+			},
+		}
+		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "myapp"}
+
+		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
+		require.NoError(t, err)
+		assert.FileExists(t, ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb"))
 	})
 }
 

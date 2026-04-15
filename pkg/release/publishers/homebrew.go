@@ -214,10 +214,10 @@ func (p *HomebrewPublisher) dryRunPublish(m coreio.Medium, data homebrewTemplate
 	publisherPrintln("---")
 	publisherPrintln()
 
-	if cfg.Tap != "" {
+	if cfg.Tap != "" && !homebrewOfficialMode(cfg) {
 		publisherPrint("Would commit to tap: %s", cfg.Tap)
 	}
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if homebrewOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = "dist/homebrew"
@@ -239,7 +239,7 @@ func (p *HomebrewPublisher) executePublish(ctx context.Context, projectDir strin
 	}
 
 	// If official config is enabled, write to output directory
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if homebrewOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = ax.Join(projectDir, "dist", "homebrew")
@@ -258,14 +258,18 @@ func (p *HomebrewPublisher) executePublish(ctx context.Context, projectDir strin
 		publisherPrint("Wrote Homebrew formula for official PR: %s", formulaPath)
 	}
 
-	// If tap is configured, commit to it
-	if cfg.Tap != "" {
+	// Official repo mode generates PR-ready files and does not publish directly.
+	if cfg.Tap != "" && !homebrewOfficialMode(cfg) {
 		if err := p.commitToTap(ctx, cfg.Tap, data, formula); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func homebrewOfficialMode(cfg HomebrewConfig) bool {
+	return cfg.Official != nil && cfg.Official.Enabled
 }
 
 // commitToTap commits the formula to the tap repository.

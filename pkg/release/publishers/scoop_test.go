@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/io"
 
 	"github.com/stretchr/testify/assert"
@@ -205,6 +207,30 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 		assert.Contains(t, output, "Would write files for official PR to: custom/scoop/path")
 	})
 
+	t.Run("suppresses bucket publish output in official mode", func(t *testing.T) {
+		data := scoopTemplateData{
+			PackageName: "myapp",
+			Version:     "1.0.0",
+			BinaryName:  "myapp",
+			Checksums:   ChecksumMap{},
+		}
+		cfg := ScoopConfig{
+			Bucket: "owner/scoop-bucket",
+			Official: &OfficialConfig{
+				Enabled: true,
+				Output:  "custom/scoop/path",
+			},
+		}
+
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
+		require.NoError(t, err)
+		assert.Contains(t, output, "Would write files for official PR to: custom/scoop/path")
+		assert.NotContains(t, output, "Would commit to bucket:")
+	})
+
 	t.Run("uses default official output path when not specified", func(t *testing.T) {
 		data := scoopTemplateData{
 			PackageName: "myapp",
@@ -242,6 +268,35 @@ func TestScoop_ScoopPublisherPublish_Bad(t *testing.T) {
 		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "bucket is required")
+	})
+
+	t.Run("official mode writes files without requiring bucket publish tooling", func(t *testing.T) {
+		projectDir := t.TempDir()
+		t.Setenv("PATH", "/definitely-missing")
+
+		release := &Release{
+			Version:    "v1.0.0",
+			ProjectDir: projectDir,
+			FS:         io.Local,
+			Artifacts: []build.Artifact{
+				{Path: "dist/myapp-windows-amd64.zip", OS: "windows", Arch: "amd64", Checksum: "abc123"},
+			},
+		}
+		pubCfg := PublisherConfig{
+			Type: "scoop",
+			Extended: map[string]any{
+				"bucket": "owner/scoop-bucket",
+				"official": map[string]any{
+					"enabled": true,
+					"output":  "dist/scoop-pr",
+				},
+			},
+		}
+		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "myapp"}
+
+		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
+		require.NoError(t, err)
+		assert.FileExists(t, ax.Join(projectDir, "dist", "scoop-pr", "myapp.json"))
 	})
 }
 

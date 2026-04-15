@@ -168,10 +168,10 @@ func (p *ScoopPublisher) dryRunPublish(m coreio.Medium, data scoopTemplateData, 
 	publisherPrintln("---")
 	publisherPrintln()
 
-	if cfg.Bucket != "" {
+	if cfg.Bucket != "" && !scoopOfficialMode(cfg) {
 		publisherPrint("Would commit to bucket: %s", cfg.Bucket)
 	}
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if scoopOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = "dist/scoop"
@@ -191,7 +191,7 @@ func (p *ScoopPublisher) executePublish(ctx context.Context, projectDir string, 
 	}
 
 	// If official config is enabled, write to output directory
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if scoopOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = ax.Join(projectDir, "dist", "scoop")
@@ -210,14 +210,18 @@ func (p *ScoopPublisher) executePublish(ctx context.Context, projectDir string, 
 		publisherPrint("Wrote Scoop manifest for official PR: %s", manifestPath)
 	}
 
-	// If bucket is configured, commit to it
-	if cfg.Bucket != "" {
+	// Official repo mode generates PR-ready files and does not publish directly.
+	if cfg.Bucket != "" && !scoopOfficialMode(cfg) {
 		if err := p.commitToBucket(ctx, cfg.Bucket, data, manifest); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func scoopOfficialMode(cfg ScoopConfig) bool {
+	return cfg.Official != nil && cfg.Official.Enabled
 }
 
 func (p *ScoopPublisher) commitToBucket(ctx context.Context, bucket string, data scoopTemplateData, manifest string) error {

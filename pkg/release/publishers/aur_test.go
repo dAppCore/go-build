@@ -181,6 +181,32 @@ func TestAUR_AURPublisherDryRunPublish_Good(t *testing.T) {
 		assert.Contains(t, output, "Would push to AUR: ssh://aur@aur.archlinux.org/myapp-bin.git")
 		assert.Contains(t, output, "END DRY RUN")
 	})
+
+	t.Run("shows official output path instead of push in official mode", func(t *testing.T) {
+		data := aurTemplateData{
+			PackageName: "myapp",
+			Version:     "1.0.0",
+			Maintainer:  "John Doe <john@example.com>",
+			Repository:  "owner/repo",
+			BinaryName:  "myapp",
+			Checksums:   ChecksumMap{},
+		}
+		cfg := AURConfig{
+			Maintainer: "John Doe <john@example.com>",
+			Official: &OfficialConfig{
+				Enabled: true,
+				Output:  "dist/aur-files",
+			},
+		}
+
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(io.Local, data, cfg)
+		})
+		require.NoError(t, err)
+		assert.Contains(t, output, "Would write files for official PR to: dist/aur-files")
+		assert.NotContains(t, output, "Would push to AUR:")
+	})
 }
 
 func TestAUR_AURPublisherPublish_Bad(t *testing.T) {
