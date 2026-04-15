@@ -60,6 +60,45 @@ printf 'linuxkit image\n' > "$dir/$name$ext"
 	require.NoError(t, ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755))
 }
 
+func setupFakeDockerImageCLI(t *testing.T, binDir string) {
+	t.Helper()
+
+	script := `#!/bin/sh
+set -eu
+
+log_file="${DOCKER_LOG:?DOCKER_LOG is required}"
+
+case "${1:-}" in
+	image)
+		shift
+		case "${1:-}" in
+			load)
+				shift
+				printf 'docker image load %s\n' "$*" >> "$log_file"
+				echo "Loaded image: imported:latest"
+				;;
+			tag)
+				shift
+				printf 'docker image tag %s\n' "$*" >> "$log_file"
+				;;
+			push)
+				shift
+				printf 'docker image push %s\n' "$*" >> "$log_file"
+				;;
+			*)
+				printf 'docker image %s\n' "$*" >> "$log_file"
+				;;
+		esac
+		;;
+	*)
+		printf 'docker %s\n' "$*" >> "$log_file"
+		;;
+esac
+`
+
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, "docker"), []byte(script), 0o755))
+}
+
 func TestBuildCmd_AddImageCommand_Good(t *testing.T) {
 	c := core.New()
 
@@ -171,4 +210,51 @@ func TestBuildCmd_allImageArtifactsExist_ValidatesVersionlessCacheMetadata_Good(
 	changedCfg := cfg
 	changedCfg.GPU = true
 	assert.False(t, allImageArtifactsExist(io.Local, builder, outputDir, imageName, changedCfg, ""))
+}
+
+func TestBuildCmd_retainVersionedImageArtifacts_Good(t *testing.T) {
+	outputDir := t.TempDir()
+	tarPath := ax.Join(outputDir, "core-dev.tar")
+	aciPath := ax.Join(outputDir, "core-dev.aci")
+
+	require.NoError(t, ax.WriteFile(tarPath, []byte("oci image"), 0o644))
+	require.NoError(t, ax.WriteFile(aciPath, []byte("apple image"), 0o644))
+
+	versionedPaths, err := retainVersionedImageArtifacts(io.Local, []build.Artifact{
+		{Path: tarPath},
+		{Path: aciPath},
+	}, "v1.2.3")
+	require.NoError(t, err)
+
+	expected := []string{
+		ax.Join(outputDir, "core-dev-1.2.3.tar"),
+		ax.Join(outputDir, "core-dev-1.2.3.aci"),
+	}
+	assert.ElementsMatch(t, expected, versionedPaths)
+
+	for _, path := range expected {
+		assert.FileExists(t, path)
+	}
+}
+
+func TestBuildCmd_publishOCIImageArchive_Good(t *testing.T) {
+	binDir := t.TempDir()
+	logPath := ax.Join(t.TempDir(), "docker.log")
+	setupFakeDockerImageCLI(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("DOCKER_LOG", logPath)
+
+	projectDir := t.TempDir()
+	artifactPath := ax.Join(projectDir, "core-dev.tar")
+	require.NoError(t, ax.WriteFile(artifactPath, []byte("oci image"), 0o644))
+
+	ref, err := publishOCIImageArchive(context.Background(), projectDir, artifactPath, "ghcr.io/dappcore", "core-dev", "v1.2.3")
+	require.NoError(t, err)
+	assert.Equal(t, "ghcr.io/dappcore/core-dev:1.2.3", ref)
+
+	logContent, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(logContent), "docker image load --input "+artifactPath)
+	assert.Contains(t, string(logContent), "docker image tag imported:latest ghcr.io/dappcore/core-dev:1.2.3")
+	assert.Contains(t, string(logContent), "docker image push ghcr.io/dappcore/core-dev:1.2.3")
 }
