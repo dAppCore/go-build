@@ -42,7 +42,7 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 		return false
 	}
 
-	err = ax.Exec(ctx, dockerCommand, "info")
+	err = ax.Exec(ctx, dockerCommand, "--help")
 	if err != nil && ctx.Err() != nil {
 		return false
 	}
@@ -57,6 +57,7 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 func resolveDockerRuntimeCli(paths ...string) (string, error) {
 	if len(paths) == 0 {
 		paths = []string{
+			"/usr/bin/docker",
 			"/usr/local/bin/docker",
 			"/opt/homebrew/bin/docker",
 			"/Applications/Docker.app/Contents/Resources/bin/docker",

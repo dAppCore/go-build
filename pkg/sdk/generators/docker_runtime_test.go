@@ -59,7 +59,7 @@ func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
 	t.Cleanup(resetDockerRuntimeState)
 
 	dockerDir := t.TempDir()
-	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 0\nfi\nexit 0\n")
+	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
 
 	assert.True(t, dockerRuntimeAvailable())
@@ -90,7 +90,7 @@ func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
 	setAvailabilityProbeTimeout(t, 20*time.Millisecond)
 
 	dockerDir := t.TempDir()
-	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  while :; do :; done\nfi\nexit 0\n")
+	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  while :; do :; done\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
 
 	started := time.Now()
@@ -103,12 +103,12 @@ func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailure_Good(t *testing.T) {
 	t.Cleanup(resetDockerRuntimeState)
 
 	dockerDir := t.TempDir()
-	dockerPath := writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 1\nfi\nexit 0\n")
+	dockerPath := writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
 
 	assert.False(t, dockerRuntimeAvailable())
 
-	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 0\nfi\nexit 0\n"), 0o755))
+	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n"), 0o755))
 	assert.True(t, dockerRuntimeAvailable())
 }
 
@@ -117,13 +117,13 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChanges
 	t.Cleanup(resetDockerRuntimeState)
 
 	successDir := t.TempDir()
-	writeFakeDockerRuntime(t, successDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 0\nfi\nexit 0\n")
+	writeFakeDockerRuntime(t, successDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n")
 	t.Setenv("PATH", successDir)
 
 	assert.True(t, dockerRuntimeAvailable())
 
 	failureDir := t.TempDir()
-	writeFakeDockerRuntime(t, failureDir, "#!/bin/sh\nif [ \"$1\" = \"info\" ]; then\n  exit 1\nfi\nexit 0\n")
+	writeFakeDockerRuntime(t, failureDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n")
 	t.Setenv("PATH", failureDir)
 
 	assert.False(t, dockerRuntimeAvailable())

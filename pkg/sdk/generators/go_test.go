@@ -27,7 +27,7 @@ func TestGo_GoGeneratorAvailable_Good(t *testing.T) {
 
 func TestGo_GoGeneratorGenerate_Good(t *testing.T) {
 	g := NewGoGenerator()
-	if !g.Available() && !dockerAvailable() {
+	if _, err := g.resolveNativeCli(); err != nil && !dockerAvailable() {
 		t.Skip("no Go generator available (neither native nor docker)")
 	}
 

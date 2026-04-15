@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// dockerAvailable checks if docker is available for fallback generation.
+// dockerAvailable checks whether Docker can run fallback generation.
 func dockerAvailable() bool {
 	return ax.Exec(context.Background(), "docker", "info") == nil
 }

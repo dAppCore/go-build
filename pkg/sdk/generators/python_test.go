@@ -27,7 +27,7 @@ func TestPython_PythonGeneratorAvailable_Good(t *testing.T) {
 
 func TestPython_PythonGeneratorGenerate_Good(t *testing.T) {
 	g := NewPythonGenerator()
-	if !g.Available() && !dockerAvailable() {
+	if _, err := g.resolveNativeCli(); err != nil && !dockerAvailable() {
 		t.Skip("no Python generator available (neither native nor docker)")
 	}
 

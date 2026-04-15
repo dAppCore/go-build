@@ -26,10 +26,11 @@ func TestPHP_PHPGeneratorAvailable_Good(t *testing.T) {
 }
 
 func TestPHP_PHPGeneratorGenerate_Good(t *testing.T) {
-	g := NewPHPGenerator()
-	if !g.Available() {
+	if !dockerAvailable() {
 		t.Skip("no PHP generator available (docker not installed)")
 	}
+
+	g := NewPHPGenerator()
 
 	// Create temp directories
 	tmpDir := t.TempDir()
