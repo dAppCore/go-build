@@ -348,7 +348,6 @@ sign:
 		assert.False(t, cfg.Sign.Windows.Signtool)
 		assert.Equal(t, "C:/certs/core.pfx", cfg.Sign.Windows.Certificate)
 	})
-
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
 		dir := t.TempDir()
 
