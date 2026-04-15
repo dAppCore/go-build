@@ -645,6 +645,9 @@ func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []b
 	}
 
 	for _, artifact := range artifacts {
+		if artifact.OS == "" || artifact.Arch == "" {
+			continue
+		}
 		metaPath := ax.Join(ax.Dir(artifact.Path), "artifact_meta.json")
 		if err := build.WriteArtifactMeta(filesystem, metaPath, buildName, build.Target{OS: artifact.OS, Arch: artifact.Arch}, ci); err != nil {
 			return err

@@ -3,6 +3,7 @@ package buildcmd
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
@@ -15,6 +16,31 @@ import (
 func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	require.NoError(t, ax.ExecDir(context.Background(), dir, "git", args...))
+}
+
+func setupFakeGPG(t *testing.T, binDir string) {
+	t.Helper()
+
+	script := `#!/bin/sh
+set -eu
+
+output=""
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--output)
+		shift
+		output="${1:-}"
+		;;
+	esac
+	shift
+done
+
+: "${output:?missing --output}"
+mkdir -p "$(dirname "$output")"
+printf 'signature\n' > "$output"
+`
+
+	require.NoError(t, ax.WriteFile(ax.Join(binDir, "gpg"), []byte(script), 0o755))
 }
 
 func TestBuildCmd_GetBuilder_Good(t *testing.T) {
@@ -324,6 +350,100 @@ func TestBuildCmd_writeArtifactMetadata_Good(t *testing.T) {
 
 	verifyArtifactMeta(ax.Join(linuxDir, "artifact_meta.json"), "linux", "amd64")
 	verifyArtifactMeta(ax.Join(windowsDir, "artifact_meta.json"), "windows", "amd64")
+}
+
+func TestBuildCmd_writeArtifactMetadata_SkipsChecksumArtifacts_Good(t *testing.T) {
+	t.Setenv("GITHUB_SHA", "abc1234def5678")
+	t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
+	t.Setenv("GITHUB_REPOSITORY", "owner/repo")
+
+	fs := io.Local
+	dir := t.TempDir()
+	distDir := ax.Join(dir, "dist")
+	require.NoError(t, ax.MkdirAll(distDir, 0o755))
+
+	checksumPath := ax.Join(distDir, "CHECKSUMS.txt")
+	signaturePath := checksumPath + ".asc"
+	require.NoError(t, ax.WriteFile(checksumPath, []byte("checksums"), 0o644))
+	require.NoError(t, ax.WriteFile(signaturePath, []byte("signature"), 0o644))
+
+	err := writeArtifactMetadata(fs, "sample", []build.Artifact{
+		{Path: checksumPath},
+		{Path: signaturePath},
+	})
+	require.NoError(t, err)
+
+	assert.NoFileExists(t, ax.Join(distDir, "artifact_meta.json"))
+}
+
+func TestBuildCmd_computeAndWriteChecksums_IncludesChecksumArtifacts_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	outputDir := ax.Join(projectDir, "dist")
+	artifactPath := ax.Join(outputDir, "sample_linux_amd64.tar.gz")
+	require.NoError(t, ax.MkdirAll(outputDir, 0o755))
+	require.NoError(t, ax.WriteFile(artifactPath, []byte("archive"), 0o644))
+
+	signCfg := build.DefaultConfig().Sign
+	signCfg.Enabled = false
+
+	artifacts, err := computeAndWriteChecksums(
+		context.Background(),
+		io.Local,
+		projectDir,
+		outputDir,
+		[]build.Artifact{{Path: artifactPath, OS: "linux", Arch: "amd64"}},
+		signCfg,
+		false,
+		false,
+	)
+	require.NoError(t, err)
+
+	paths := make([]string, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		paths = append(paths, artifact.Path)
+	}
+
+	assert.Contains(t, paths, artifactPath)
+	assert.Contains(t, paths, ax.Join(outputDir, "CHECKSUMS.txt"))
+	assert.NotContains(t, paths, ax.Join(outputDir, "CHECKSUMS.txt.asc"))
+	assert.FileExists(t, ax.Join(outputDir, "CHECKSUMS.txt"))
+}
+
+func TestBuildCmd_computeAndWriteChecksums_IncludesSignatureArtifact_Good(t *testing.T) {
+	binDir := t.TempDir()
+	setupFakeGPG(t, binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	outputDir := ax.Join(projectDir, "dist")
+	artifactPath := ax.Join(outputDir, "sample_linux_amd64.tar.gz")
+	require.NoError(t, ax.MkdirAll(outputDir, 0o755))
+	require.NoError(t, ax.WriteFile(artifactPath, []byte("archive"), 0o644))
+
+	signCfg := build.DefaultConfig().Sign
+	signCfg.Enabled = true
+	signCfg.GPG.Key = "ABCD1234"
+
+	artifacts, err := computeAndWriteChecksums(
+		context.Background(),
+		io.Local,
+		projectDir,
+		outputDir,
+		[]build.Artifact{{Path: artifactPath, OS: "linux", Arch: "amd64"}},
+		signCfg,
+		false,
+		false,
+	)
+	require.NoError(t, err)
+
+	paths := make([]string, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		paths = append(paths, artifact.Path)
+	}
+
+	assert.Contains(t, paths, ax.Join(outputDir, "CHECKSUMS.txt"))
+	assert.Contains(t, paths, ax.Join(outputDir, "CHECKSUMS.txt.asc"))
+	assert.FileExists(t, ax.Join(outputDir, "CHECKSUMS.txt.asc"))
 }
 
 func TestBuildCmd_selectOutputArtifacts_Good(t *testing.T) {

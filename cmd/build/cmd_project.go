@@ -519,6 +519,9 @@ func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []b
 	}
 
 	for _, artifact := range artifacts {
+		if artifact.OS == "" || artifact.Arch == "" {
+			continue
+		}
 		metaPath := ax.Join(ax.Dir(artifact.Path), "artifact_meta.json")
 		if err := build.WriteArtifactMeta(filesystem, metaPath, buildName, build.Target{OS: artifact.OS, Arch: artifact.Arch}, ci); err != nil {
 			return err
@@ -603,9 +606,29 @@ func computeAndWriteChecksums(ctx context.Context, filesystem io.Medium, project
 			buildSuccessStyle.Render("*"),
 			buildTargetStyle.Render(relChecksumPath),
 		)
+
+		signaturePath := checksumPath + ".asc"
+		if filesystem.Exists(signaturePath) {
+			relSignaturePath, err := ax.Rel(projectDir, signaturePath)
+			if err != nil {
+				relSignaturePath = signaturePath
+			}
+			cli.Print("  %s %s\n",
+				buildSuccessStyle.Render("*"),
+				buildTargetStyle.Render(relSignaturePath),
+			)
+		}
 	}
 
-	return checksummedArtifacts, nil
+	outputArtifacts := append([]build.Artifact(nil), checksummedArtifacts...)
+	outputArtifacts = append(outputArtifacts, build.Artifact{Path: checksumPath})
+
+	signaturePath := checksumPath + ".asc"
+	if filesystem.Exists(signaturePath) {
+		outputArtifacts = append(outputArtifacts, build.Artifact{Path: signaturePath})
+	}
+
+	return outputArtifacts, nil
 }
 
 // parseTargets parses a comma-separated list of OS/arch pairs.
