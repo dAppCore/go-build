@@ -4,10 +4,10 @@ package release
 import (
 	"context"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/sdk"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -55,6 +55,9 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 		if err != nil {
 			return nil, coreerr.E("release.RunSDK", "failed to determine version", err)
 		}
+	}
+	if err := ValidateVersionIdentifier(version); err != nil {
+		return nil, coreerr.E("release.RunSDK", "invalid SDK release version override", err)
 	}
 
 	// Run diff check if enabled

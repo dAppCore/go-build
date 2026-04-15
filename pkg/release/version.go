@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 )
@@ -150,6 +151,23 @@ func ParseVersion(version string) (int, int, int, string, string, error) {
 // if release.ValidateVersion("v1.2.3") { ... }
 func ValidateVersion(version string) bool {
 	return semverRegex.MatchString(version)
+}
+
+// ValidateVersionIdentifier reports whether a version override is safe to
+// interpolate into release metadata and command arguments.
+//
+// This is intentionally looser than semver validation so release automation can
+// accept safe non-semver labels such as "dev" when needed.
+func ValidateVersionIdentifier(version string) error {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return nil
+	}
+	if err := build.ValidateVersionIdentifier(version); err != nil {
+		return coreerr.E("release.ValidateVersionIdentifier", "version contains unsupported characters", err)
+	}
+
+	return nil
 }
 
 // normalizeVersion ensures the version starts with 'v'.

@@ -8,12 +8,12 @@ import (
 	"os"
 	"slices"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/release/publishers"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -76,6 +76,9 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 		if err != nil {
 			return nil, coreerr.E("release.Publish", "failed to determine version", err)
 		}
+	}
+	if err := ValidateVersionIdentifier(version); err != nil {
+		return nil, coreerr.E("release.Publish", "invalid release version override", err)
 	}
 
 	// Step 2: Find pre-built artifacts in dist/
