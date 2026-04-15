@@ -481,6 +481,30 @@ func TestDiscovery_IsNodeProject_Good(t *testing.T) {
 		assert.True(t, IsNodeProject(fs, dir))
 	})
 
+	t.Run("true with frontend package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		frontend := ax.Join(dir, "frontend")
+		require.NoError(t, ax.MkdirAll(frontend, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(frontend, "package.json"), []byte("{}"), 0o644))
+		assert.True(t, IsNodeProject(fs, dir))
+	})
+
+	t.Run("true with nested package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "apps", "web")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
+		assert.True(t, IsNodeProject(fs, dir))
+	})
+
+	t.Run("true with nested deno.json", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "apps", "docs")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "deno.json"), []byte("{}"), 0o644))
+		assert.True(t, IsNodeProject(fs, dir))
+	})
+
 	t.Run("false without markers", func(t *testing.T) {
 		assert.False(t, IsNodeProject(fs, t.TempDir()))
 	})

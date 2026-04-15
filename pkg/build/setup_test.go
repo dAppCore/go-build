@@ -126,6 +126,20 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		assert.Equal(t, "wails2", plan.PrimaryStackSuggestion)
 	})
 
+	t.Run("configured wails stack derives Linux packages from distro when discovery is partial", func(t *testing.T) {
+		dir := t.TempDir()
+
+		cfg := DefaultConfig()
+		cfg.Build.Type = "wails"
+
+		plan, err := ComputeSetupPlan(io.Local, dir, cfg, &DiscoveryResult{
+			Distro: "24.04",
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"libwebkit2gtk-4.1-dev"}, plan.LinuxPackages)
+	})
+
 	t.Run("deno override enables Deno and fallback frontend dir", func(t *testing.T) {
 		dir := t.TempDir()
 

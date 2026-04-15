@@ -89,13 +89,14 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 		primaryStack = configuredType
 		primaryStackSuggestion = SuggestStack([]ProjectType{ProjectType(configuredType)})
 	}
+	linuxPackages := resolveSetupLinuxPackages(fs, configuredType, discovery, hasWails)
 
 	plan := &SetupPlan{
 		ProjectDir:             dir,
 		PrimaryStack:           primaryStack,
 		PrimaryStackSuggestion: primaryStackSuggestion,
 		FrontendDirs:           ResolveFrontendSetupDirs(fs, dir, denoRequested),
-		LinuxPackages:          append([]string{}, discovery.LinuxPackages...),
+		LinuxPackages:          linuxPackages,
 	}
 
 	if hasGo {
@@ -242,6 +243,28 @@ func resolveConfiguredBuildType(cfg *BuildConfig, discovery *DiscoveryResult) st
 		return core.Lower(core.Trim(discovery.ConfiguredType))
 	}
 	return ""
+}
+
+func resolveSetupLinuxPackages(fs io.Medium, configuredType string, discovery *DiscoveryResult, hasWails bool) []string {
+	if discovery == nil {
+		return nil
+	}
+
+	packages := deduplicateStrings(append([]string{}, discovery.LinuxPackages...))
+	if len(packages) > 0 {
+		return packages
+	}
+
+	if !hasWails && configuredType != string(ProjectTypeWails) {
+		return nil
+	}
+
+	distro := core.Trim(discovery.Distro)
+	if distro == "" {
+		distro = detectDistroVersion(fs)
+	}
+
+	return ResolveLinuxPackages([]ProjectType{ProjectTypeWails}, distro)
 }
 
 func (p *SetupPlan) addStep(tool SetupTool, reason string) {

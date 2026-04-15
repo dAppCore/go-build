@@ -157,13 +157,14 @@ func IsWailsProject(fs io.Medium, dir string) bool {
 		hasSubtreeFrontendManifest(fs, dir)
 }
 
-// IsNodeProject checks if the directory contains a Node.js project.
+// IsNodeProject checks if the directory contains a Node.js or Deno frontend
+// project at the root, under frontend/, or in a visible nested subtree.
 //
 // if build.IsNodeProject(io.Local, ".") { ... }
 func IsNodeProject(fs io.Medium, dir string) bool {
-	return fileExists(fs, ax.Join(dir, markerNodePackage)) ||
-		fileExists(fs, ax.Join(dir, markerDenoJSON)) ||
-		fileExists(fs, ax.Join(dir, markerDenoJSONC))
+	return hasFrontendManifest(fs, dir) ||
+		hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
+		hasSubtreeFrontendManifest(fs, dir)
 }
 
 // IsPHPProject checks if the directory contains a PHP project.
