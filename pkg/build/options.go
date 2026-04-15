@@ -143,6 +143,10 @@ func shouldInjectWebKitTag(cfg *BuildConfig, discovery *DiscoveryResult) bool {
 		return false
 	}
 
+	if discovery.OS != "" && core.Lower(core.Trim(discovery.OS)) != "linux" {
+		return false
+	}
+
 	if cfg != nil && core.Lower(core.Trim(cfg.Build.Type)) == string(ProjectTypeWails) {
 		return true
 	}
