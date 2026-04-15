@@ -109,6 +109,94 @@ func TestPipeline_Plan_UsesExplicitBuildTypeOverride_Good(t *testing.T) {
 	assert.Equal(t, []Target{{OS: "darwin", Arch: "arm64"}}, plan.Targets)
 }
 
+func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
+
+	cfg := DefaultConfig()
+	cfg.Build.BuildTags = []string{"integration"}
+
+	pipeline := &Pipeline{
+		FS: io.Local,
+		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+			assert.Equal(t, ProjectTypeWails, projectType)
+			return &stubPipelineBuilder{}, nil
+		},
+	}
+
+	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+		ProjectDir:    dir,
+		BuildConfig:   cfg,
+		BuildTags:     []string{"mlx", "release", "mlx"},
+		Obfuscate:     true,
+		ObfuscateSet:  true,
+		NSIS:          true,
+		NSISSet:       true,
+		WebView2:      "download",
+		WebView2Set:   true,
+		DenoBuild:     "deno task bundle",
+		DenoBuildSet:  true,
+		BuildCache:    true,
+		BuildCacheSet: true,
+	})
+	require.NoError(t, err)
+
+	assert.Contains(t, plan.Options.Tags, "mlx")
+	assert.Contains(t, plan.Options.Tags, "release")
+	assert.NotContains(t, plan.Options.Tags, "integration")
+	assert.True(t, plan.Options.Obfuscate)
+	assert.True(t, plan.Options.NSIS)
+	assert.Equal(t, "download", plan.Options.WebView2)
+	assert.Equal(t, "deno task bundle", plan.BuildConfig.Build.DenoBuild)
+	assert.True(t, plan.BuildConfig.Build.Cache.Enabled)
+	assert.Equal(t, ax.Join(dir, ".core", "cache"), plan.BuildConfig.Build.Cache.Directory)
+	assert.Equal(t, []string{
+		ax.Join(dir, "cache", "go-build"),
+		ax.Join(dir, "cache", "go-mod"),
+	}, plan.BuildConfig.Build.Cache.Paths)
+	assert.True(t, plan.RuntimeConfig.Cache.Enabled)
+	assert.Equal(t, plan.BuildConfig.Build.Cache.Directory, plan.RuntimeConfig.Cache.Directory)
+	assert.Equal(t, plan.BuildConfig.Build.Cache.Paths, plan.RuntimeConfig.Cache.Paths)
+	assert.Contains(t, setupTools(plan.SetupPlan), SetupToolDeno)
+}
+
+func TestPipeline_Plan_DoesNotMutateCallerBuildConfig_Good(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
+
+	cfg := DefaultConfig()
+	cfg.Build.BuildTags = []string{"integration"}
+
+	pipeline := &Pipeline{
+		FS: io.Local,
+		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+			return &stubPipelineBuilder{}, nil
+		},
+	}
+
+	_, err := pipeline.Plan(context.Background(), PipelineRequest{
+		ProjectDir:    dir,
+		BuildConfig:   cfg,
+		BuildTags:     []string{"mlx"},
+		Obfuscate:     true,
+		ObfuscateSet:  true,
+		DenoBuild:     "deno task bundle",
+		DenoBuildSet:  true,
+		BuildCache:    true,
+		BuildCacheSet: true,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"integration"}, cfg.Build.BuildTags)
+	assert.False(t, cfg.Build.Obfuscate)
+	assert.Empty(t, cfg.Build.DenoBuild)
+	assert.False(t, cfg.Build.Cache.Enabled)
+	assert.Empty(t, cfg.Build.Cache.Directory)
+	assert.Empty(t, cfg.Build.Cache.Paths)
+}
+
 func TestPipeline_Run_Good(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))

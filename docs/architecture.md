@@ -123,7 +123,7 @@ In practice that means the public action's `inputs > environment > defaults` rul
 - environment-driven overrides for opt-in features that the action also exposes through `env:`
 - package defaults such as cache paths, archive format, and stack fallbacks
 
-That orchestration is now exposed directly as `build.Pipeline`, so CLI and API callers can share one gateway instead of duplicating detection, option application, setup planning, and builder resolution.
+`build.Pipeline` now resolves those action-style overrides directly from `PipelineRequest` before discovery, option computation, setup planning, and builder execution, so callers do not need to mutate `BuildConfig` up front.
 
 ## Builder Layer
 

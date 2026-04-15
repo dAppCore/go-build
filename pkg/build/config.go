@@ -393,6 +393,91 @@ func CloneStringMap(values map[string]string) map[string]string {
 	return result
 }
 
+// CloneBuildConfig returns a deep copy of a build config so callers can apply
+// runtime overrides without mutating the persisted or caller-owned config.
+//
+//	clone := build.CloneBuildConfig(cfg)
+func CloneBuildConfig(cfg *BuildConfig) *BuildConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	clone := *cfg
+	clone.Build = cloneBuild(cfg.Build)
+	clone.Apple = cloneAppleConfig(cfg.Apple)
+	clone.Targets = append([]TargetConfig(nil), cfg.Targets...)
+
+	return &clone
+}
+
+func cloneBuild(value Build) Build {
+	return Build{
+		Type:           value.Type,
+		CGO:            value.CGO,
+		Obfuscate:      value.Obfuscate,
+		DenoBuild:      value.DenoBuild,
+		NSIS:           value.NSIS,
+		WebView2:       value.WebView2,
+		Flags:          append([]string(nil), value.Flags...),
+		LDFlags:        append([]string(nil), value.LDFlags...),
+		BuildTags:      append([]string(nil), value.BuildTags...),
+		ArchiveFormat:  value.ArchiveFormat,
+		Env:            append([]string(nil), value.Env...),
+		Cache:          cloneCacheConfig(value.Cache),
+		Dockerfile:     value.Dockerfile,
+		Registry:       value.Registry,
+		Image:          value.Image,
+		Tags:           append([]string(nil), value.Tags...),
+		BuildArgs:      CloneStringMap(value.BuildArgs),
+		Push:           value.Push,
+		Load:           value.Load,
+		LinuxKitConfig: value.LinuxKitConfig,
+		Formats:        append([]string(nil), value.Formats...),
+	}
+}
+
+func cloneCacheConfig(value CacheConfig) CacheConfig {
+	return CacheConfig{
+		Enabled:     value.Enabled,
+		Directory:   value.Directory,
+		KeyPrefix:   value.KeyPrefix,
+		Paths:       append([]string(nil), value.Paths...),
+		RestoreKeys: append([]string(nil), value.RestoreKeys...),
+	}
+}
+
+func cloneAppleConfig(value AppleConfig) AppleConfig {
+	clone := value
+
+	if value.Sign != nil {
+		sign := *value.Sign
+		clone.Sign = &sign
+	}
+	if value.Notarise != nil {
+		notarise := *value.Notarise
+		clone.Notarise = &notarise
+	}
+	if value.DMG != nil {
+		dmg := *value.DMG
+		clone.DMG = &dmg
+	}
+	if value.TestFlight != nil {
+		testFlight := *value.TestFlight
+		clone.TestFlight = &testFlight
+	}
+	if value.AppStore != nil {
+		appStore := *value.AppStore
+		clone.AppStore = &appStore
+	}
+
+	clone.XcodeCloud = XcodeCloudConfig{
+		Workflow: value.XcodeCloud.Workflow,
+		Triggers: append([]XcodeCloudTrigger(nil), value.XcodeCloud.Triggers...),
+	}
+
+	return clone
+}
+
 // expandEnv expands $VAR or ${VAR} using the current process environment.
 func expandEnv(s string) string {
 	if !core.Contains(s, "$") {

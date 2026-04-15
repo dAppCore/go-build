@@ -31,16 +31,27 @@ type Pipeline struct {
 
 // PipelineRequest captures the inputs required to plan or run a build.
 type PipelineRequest struct {
-	ProjectDir  string
-	ConfigPath  string
-	BuildConfig *BuildConfig
-	BuildType   string
-	OutputDir   string
-	BuildName   string
-	Targets     []Target
-	Push        bool
-	ImageName   string
-	Version     string
+	ProjectDir    string
+	ConfigPath    string
+	BuildConfig   *BuildConfig
+	BuildType     string
+	BuildTags     []string
+	Obfuscate     bool
+	ObfuscateSet  bool
+	NSIS          bool
+	NSISSet       bool
+	WebView2      string
+	WebView2Set   bool
+	DenoBuild     string
+	DenoBuildSet  bool
+	BuildCache    bool
+	BuildCacheSet bool
+	OutputDir     string
+	BuildName     string
+	Targets       []Target
+	Push          bool
+	ImageName     string
+	Version       string
 }
 
 // PipelinePlan is the fully resolved gateway state before the builder runs.
@@ -92,6 +103,8 @@ func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) (*PipelinePlan
 	if err != nil {
 		return nil, err
 	}
+	buildConfig = CloneBuildConfig(buildConfig)
+	applyPipelineBuildOverrides(buildConfig, req)
 
 	if err := SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
 		return nil, coreerr.E("build.Pipeline.Plan", "failed to set up build cache", err)
@@ -285,4 +298,50 @@ func resolvePipelineProjectType(filesystem io.Medium, projectDir, buildType stri
 	}
 
 	return projectType, nil
+}
+
+func applyPipelineBuildOverrides(cfg *BuildConfig, req PipelineRequest) {
+	if cfg == nil {
+		return
+	}
+
+	if len(req.BuildTags) > 0 {
+		cfg.Build.BuildTags = deduplicateTags(append([]string(nil), req.BuildTags...))
+	}
+	if req.ObfuscateSet {
+		cfg.Build.Obfuscate = req.Obfuscate
+	}
+	if req.NSISSet {
+		cfg.Build.NSIS = req.NSIS
+	}
+	if req.WebView2Set {
+		cfg.Build.WebView2 = req.WebView2
+	}
+	if req.DenoBuildSet {
+		cfg.Build.DenoBuild = req.DenoBuild
+	}
+	if req.BuildCacheSet {
+		if req.BuildCache {
+			enableDefaultPipelineBuildCache(&cfg.Build.Cache)
+		} else {
+			cfg.Build.Cache.Enabled = false
+		}
+	}
+}
+
+func enableDefaultPipelineBuildCache(cfg *CacheConfig) {
+	if cfg == nil {
+		return
+	}
+
+	cfg.Enabled = true
+	if cfg.Directory == "" {
+		cfg.Directory = ax.Join(ConfigDir, "cache")
+	}
+	if len(cfg.Paths) == 0 {
+		cfg.Paths = []string{
+			ax.Join("cache", "go-build"),
+			ax.Join("cache", "go-mod"),
+		}
+	}
 }

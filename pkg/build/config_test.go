@@ -436,6 +436,72 @@ func TestConfig_DefaultConfig_Good(t *testing.T) {
 	})
 }
 
+func TestConfig_CloneBuildConfig_Good(t *testing.T) {
+	sign := true
+	notarise := false
+	dmg := true
+
+	cfg := &BuildConfig{
+		Build: Build{
+			Flags:     []string{"-trimpath"},
+			LDFlags:   []string{"-s", "-w"},
+			BuildTags: []string{"integration"},
+			Env:       []string{"FOO=bar"},
+			Cache:     CacheConfig{Enabled: true, Directory: ".core/cache", Paths: []string{"cache/go-build"}, RestoreKeys: []string{"main"}},
+			Tags:      []string{"latest"},
+			BuildArgs: map[string]string{"VERSION": "v1.2.3"},
+			Formats:   []string{"iso"},
+		},
+		Apple: AppleConfig{
+			Sign:     &sign,
+			Notarise: &notarise,
+			DMG:      &dmg,
+			XcodeCloud: XcodeCloudConfig{
+				Workflow: "Release",
+				Triggers: []XcodeCloudTrigger{{Branch: "main", Action: "testflight"}},
+			},
+		},
+		Targets: []TargetConfig{{OS: "linux", Arch: "amd64"}},
+	}
+
+	clone := CloneBuildConfig(cfg)
+	require.NotNil(t, clone)
+
+	clone.Build.Flags[0] = "-mod=readonly"
+	clone.Build.LDFlags[0] = "-X"
+	clone.Build.BuildTags[0] = "release"
+	clone.Build.Env[0] = "BAR=baz"
+	clone.Build.Cache.Paths[0] = "cache/go-mod"
+	clone.Build.Cache.RestoreKeys[0] = "fallback"
+	clone.Build.Tags[0] = "stable"
+	clone.Build.BuildArgs["VERSION"] = "v2.0.0"
+	clone.Build.Formats[0] = "qcow2"
+	*clone.Apple.Sign = false
+	*clone.Apple.Notarise = true
+	*clone.Apple.DMG = false
+	clone.Apple.XcodeCloud.Triggers[0].Branch = "dev"
+	clone.Targets[0].OS = "darwin"
+
+	assert.Equal(t, []string{"-trimpath"}, cfg.Build.Flags)
+	assert.Equal(t, []string{"-s", "-w"}, cfg.Build.LDFlags)
+	assert.Equal(t, []string{"integration"}, cfg.Build.BuildTags)
+	assert.Equal(t, []string{"FOO=bar"}, cfg.Build.Env)
+	assert.Equal(t, []string{"cache/go-build"}, cfg.Build.Cache.Paths)
+	assert.Equal(t, []string{"main"}, cfg.Build.Cache.RestoreKeys)
+	assert.Equal(t, []string{"latest"}, cfg.Build.Tags)
+	assert.Equal(t, map[string]string{"VERSION": "v1.2.3"}, cfg.Build.BuildArgs)
+	assert.Equal(t, []string{"iso"}, cfg.Build.Formats)
+	require.NotNil(t, cfg.Apple.Sign)
+	require.NotNil(t, cfg.Apple.Notarise)
+	require.NotNil(t, cfg.Apple.DMG)
+	assert.True(t, *cfg.Apple.Sign)
+	assert.False(t, *cfg.Apple.Notarise)
+	assert.True(t, *cfg.Apple.DMG)
+	require.Len(t, cfg.Apple.XcodeCloud.Triggers, 1)
+	assert.Equal(t, "main", cfg.Apple.XcodeCloud.Triggers[0].Branch)
+	assert.Equal(t, []TargetConfig{{OS: "linux", Arch: "amd64"}}, cfg.Targets)
+}
+
 func TestConfig_ConfigPath_Good(t *testing.T) {
 	t.Run("returns correct path", func(t *testing.T) {
 		path := ConfigPath("/project/root")
