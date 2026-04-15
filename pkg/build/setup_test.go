@@ -108,6 +108,24 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		}, setupTools(plan))
 	})
 
+	t.Run("configured wails stack adds Go Node and Wails without frontend markers", func(t *testing.T) {
+		dir := t.TempDir()
+
+		cfg := DefaultConfig()
+		cfg.Build.Type = "wails"
+
+		plan, err := ComputeSetupPlan(io.Local, dir, cfg, &DiscoveryResult{})
+		require.NoError(t, err)
+
+		assert.Equal(t, []SetupTool{
+			SetupToolGo,
+			SetupToolNode,
+			SetupToolWails,
+		}, setupTools(plan))
+		assert.Equal(t, "wails", plan.PrimaryStack)
+		assert.Equal(t, "wails2", plan.PrimaryStackSuggestion)
+	})
+
 	t.Run("deno override enables Deno and fallback frontend dir", func(t *testing.T) {
 		dir := t.TempDir()
 

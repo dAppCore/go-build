@@ -80,7 +80,7 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 	hasDocs := configuredType == string(ProjectTypeDocs) || containsProjectType(discovery.Types, ProjectTypeDocs) || discovery.HasDocsConfig
 	hasPHP := configuredType == string(ProjectTypePHP) || containsProjectType(discovery.Types, ProjectTypePHP) || discovery.HasRootComposerJSON
 	hasRust := configuredType == string(ProjectTypeRust) || containsProjectType(discovery.Types, ProjectTypeRust) || discovery.HasRootCargoToml
-	hasNode := configuredType == string(ProjectTypeNode) || discovery.HasPackageJSON || discovery.PrimaryStackSuggestion == "wails2"
+	hasNode := configuredType == string(ProjectTypeNode) || hasWails || discovery.HasPackageJSON
 	hasGo := configuredType == string(ProjectTypeGo) || hasWails || hasTaskfile || discovery.HasGoToolchain || containsProjectType(discovery.Types, ProjectTypeGo)
 
 	primaryStack := discovery.PrimaryStack

@@ -136,6 +136,7 @@ func TestPipeline_Plan_NormalisesConfiguredBuildType_Good(t *testing.T) {
 	assert.Equal(t, "wails", plan.BuildConfig.Build.Type)
 	assert.Equal(t, "wails2", plan.SetupPlan.PrimaryStackSuggestion)
 	assert.Contains(t, setupTools(plan.SetupPlan), SetupToolWails)
+	assert.Contains(t, setupTools(plan.SetupPlan), SetupToolNode)
 }
 
 func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
