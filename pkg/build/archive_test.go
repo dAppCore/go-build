@@ -83,6 +83,23 @@ func TestArchive_Archive_Good(t *testing.T) {
 		verifyTarGzContent(t, result.Path, "myapp")
 	})
 
+	t.Run("keeps CI-stamped binary names without double-appending the platform", func(t *testing.T) {
+		binaryPath, outputDir := setupArchiveTestFile(t, "myapp_linux_amd64_v1.2.3", "linux", "amd64")
+
+		artifact := Artifact{
+			Path: binaryPath,
+			OS:   "linux",
+			Arch: "amd64",
+		}
+
+		result, err := Archive(fs, artifact)
+		require.NoError(t, err)
+
+		expectedPath := ax.Join(outputDir, "myapp_linux_amd64_v1.2.3.tar.gz")
+		assert.Equal(t, expectedPath, result.Path)
+		assert.FileExists(t, result.Path)
+	})
+
 	t.Run("creates tar.gz for darwin", func(t *testing.T) {
 		binaryPath, outputDir := setupArchiveTestFile(t, "myapp", "darwin", "arm64")
 

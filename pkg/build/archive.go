@@ -10,8 +10,8 @@ import (
 	stdfs "io/fs"
 	"slices"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	io_interface "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"github.com/Snider/Borg/pkg/compress"
@@ -160,9 +160,12 @@ func archiveFilename(artifact Artifact, ext string) string {
 
 	// Get the binary or bundle name without packaging extensions.
 	binaryName := archiveBaseName(artifact.Path)
+	if !archiveBaseNameHasPlatformSuffix(binaryName, artifact.OS, artifact.Arch) {
+		binaryName = core.Sprintf("%s_%s_%s", binaryName, artifact.OS, artifact.Arch)
+	}
 
 	// Construct archive name: myapp_linux_amd64.tar.gz
-	archiveName := core.Sprintf("%s_%s_%s%s", binaryName, artifact.OS, artifact.Arch, ext)
+	archiveName := core.Concat(binaryName, ext)
 
 	return ax.Join(outputDir, archiveName)
 }
@@ -172,6 +175,15 @@ func archiveBaseName(path string) string {
 	name = core.TrimSuffix(name, ".exe")
 	name = core.TrimSuffix(name, ".app")
 	return name
+}
+
+func archiveBaseNameHasPlatformSuffix(name, os, arch string) bool {
+	if name == "" || os == "" || arch == "" {
+		return false
+	}
+
+	platform := core.Sprintf("_%s_%s", os, arch)
+	return core.HasSuffix(name, platform) || core.Contains(name, platform+"_")
 }
 
 // createTarXzArchive creates a tar.xz archive containing a file or directory tree.

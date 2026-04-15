@@ -195,6 +195,12 @@ func runProjectBuild(req ProjectBuildRequest) (err error) {
 		return err
 	}
 	artifacts := pipelineResult.Artifacts
+	if req.CIMode {
+		artifacts, err = rewriteArtifactsForCI(filesystem, plan.BuildName, artifacts)
+		if err != nil {
+			return err
+		}
+	}
 
 	if req.Verbose && !req.CIMode {
 		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}))
@@ -531,10 +537,7 @@ func selectOutputArtifacts(rawArtifacts, archivedArtifacts, checksummedArtifacts
 
 // writeArtifactMetadata writes artifact_meta.json files next to built artifacts when CI metadata is available.
 func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []build.Artifact) error {
-	ci := build.DetectCI()
-	if ci == nil {
-		ci = build.DetectGitHubMetadata()
-	}
+	ci := resolveCIContext()
 	if ci == nil {
 		return nil
 	}
@@ -550,6 +553,42 @@ func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []b
 	}
 
 	return nil
+}
+
+func rewriteArtifactsForCI(filesystem io.Medium, buildName string, artifacts []build.Artifact) ([]build.Artifact, error) {
+	ci := resolveCIContext()
+	if ci == nil {
+		return artifacts, nil
+	}
+
+	rewritten := make([]build.Artifact, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		ciPath := build.CIArtifactPath(buildName, ci, artifact)
+		if ciPath == "" || ciPath == artifact.Path {
+			rewritten = append(rewritten, artifact)
+			continue
+		}
+
+		if err := filesystem.EnsureDir(ax.Dir(ciPath)); err != nil {
+			return nil, coreerr.E("build.rewriteArtifactsForCI", "failed to create artifact directory", err)
+		}
+		if err := io.Copy(filesystem, artifact.Path, filesystem, ciPath); err != nil {
+			return nil, coreerr.E("build.rewriteArtifactsForCI", "failed to copy artifact", err)
+		}
+
+		artifact.Path = ciPath
+		rewritten = append(rewritten, artifact)
+	}
+
+	return rewritten, nil
+}
+
+func resolveCIContext() *build.CIContext {
+	if ci := build.DetectCI(); ci != nil {
+		return ci
+	}
+
+	return build.DetectGitHubMetadata()
 }
 
 // buildRuntimeConfig maps persisted build configuration onto the runtime builder config.

@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	io_interface "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -286,4 +286,68 @@ func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, ta
 	}
 
 	return nil
+}
+
+// CIArtifactPath returns the CI-stamped artifact path for a build output.
+// The filename keeps the original packaging suffix, such as `.tar.gz`, `.zip`,
+// `.exe`, or `.app`.
+//
+//	path := build.CIArtifactPath("core", ci, build.Artifact{
+//	    Path: "/tmp/dist/linux_amd64/core.tar.gz",
+//	    OS: "linux",
+//	    Arch: "amd64",
+//	})
+func CIArtifactPath(buildName string, ci *CIContext, artifact Artifact) string {
+	if ci == nil || artifact.Path == "" || artifact.OS == "" || artifact.Arch == "" {
+		return artifact.Path
+	}
+
+	return replaceArtifactBaseName(artifact.Path, ArtifactName(buildName, ci, Target{
+		OS:   artifact.OS,
+		Arch: artifact.Arch,
+	}))
+}
+
+func replaceArtifactBaseName(artifactPath, replacement string) string {
+	if artifactPath == "" || replacement == "" {
+		return artifactPath
+	}
+
+	baseName := ax.Base(artifactPath)
+	suffix := artifactPathSuffix(baseName)
+	if suffix == "" {
+		return ax.Join(ax.Dir(artifactPath), replacement)
+	}
+
+	return ax.Join(ax.Dir(artifactPath), replacement+suffix)
+}
+
+func artifactPathSuffix(fileName string) string {
+	switch {
+	case strings.HasSuffix(fileName, ".tar.gz"):
+		return ".tar.gz"
+	case strings.HasSuffix(fileName, ".tar.xz"):
+		return ".tar.xz"
+	case strings.HasSuffix(fileName, ".tar.zst"):
+		return ".tar.zst"
+	case strings.HasSuffix(fileName, ".tar.bz2"):
+		return ".tar.bz2"
+	case strings.HasSuffix(fileName, ".tgz"):
+		return ".tgz"
+	case strings.HasSuffix(fileName, ".txz"):
+		return ".txz"
+	case strings.HasSuffix(fileName, ".zip"):
+		return ".zip"
+	case strings.HasSuffix(fileName, ".exe"):
+		return ".exe"
+	case strings.HasSuffix(fileName, ".dmg"):
+		return ".dmg"
+	case strings.HasSuffix(fileName, ".app"):
+		return ".app"
+	default:
+		if idx := strings.LastIndex(fileName, "."); idx > 0 {
+			return fileName[idx:]
+		}
+		return ""
+	}
 }

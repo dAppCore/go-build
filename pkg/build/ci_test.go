@@ -387,3 +387,46 @@ func TestCi_WriteArtifactMeta_Good(t *testing.T) {
 		assert.Contains(t, string(content), "  ")
 	})
 }
+
+func TestCi_CIArtifactPath_Good(t *testing.T) {
+	t.Run("stamps tar.gz artifacts with tag names", func(t *testing.T) {
+		ci := &CIContext{
+			IsTag:    true,
+			Tag:      "v1.2.3",
+			ShortSHA: "abc1234",
+		}
+
+		path := CIArtifactPath("core", ci, Artifact{
+			Path: "/tmp/dist/linux_amd64/core.tar.gz",
+			OS:   "linux",
+			Arch: "amd64",
+		})
+
+		assert.Equal(t, "/tmp/dist/linux_amd64/core_linux_amd64_v1.2.3.tar.gz", path)
+	})
+
+	t.Run("stamps app bundles without losing the bundle suffix", func(t *testing.T) {
+		ci := &CIContext{
+			IsTag:    false,
+			ShortSHA: "abc1234",
+		}
+
+		path := CIArtifactPath("core", ci, Artifact{
+			Path: "/tmp/dist/darwin_arm64/Core.app",
+			OS:   "darwin",
+			Arch: "arm64",
+		})
+
+		assert.Equal(t, "/tmp/dist/darwin_arm64/core_darwin_arm64_abc1234.app", path)
+	})
+
+	t.Run("returns the original path when CI metadata is unavailable", func(t *testing.T) {
+		artifact := Artifact{
+			Path: "/tmp/dist/linux_amd64/core",
+			OS:   "linux",
+			Arch: "amd64",
+		}
+
+		assert.Equal(t, artifact.Path, CIArtifactPath("core", nil, artifact))
+	})
+}

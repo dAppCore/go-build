@@ -724,6 +724,36 @@ func TestBuildCmd_runProjectBuild_NoConfigGoCIModeUsesPipeline_Good(t *testing.T
 	assert.FileExists(t, ax.Join(projectDir, "dist", "linux_amd64", buildName))
 }
 
+func TestBuildCmd_runProjectBuild_CIModeCopiesCIStampedArtifacts_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	originalGetwd := getProjectBuildWorkingDir
+	t.Cleanup(func() {
+		getProjectBuildWorkingDir = originalGetwd
+	})
+	getProjectBuildWorkingDir = func() (string, error) {
+		return projectDir, nil
+	}
+
+	t.Setenv("GITHUB_SHA", "abc1234def5678901234567890123456789012345")
+	t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
+	t.Setenv("GITHUB_REPOSITORY", "owner/repo")
+
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	err := runProjectBuild(ProjectBuildRequest{
+		Context:     context.Background(),
+		CIMode:      true,
+		TargetsFlag: "linux/amd64",
+	})
+	require.NoError(t, err)
+
+	ciArtifactPath := ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir)+"_linux_amd64_v1.2.3")
+	assert.FileExists(t, ciArtifactPath)
+	assert.FileExists(t, ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir)))
+	assert.FileExists(t, ax.Join(projectDir, "dist", "linux_amd64", "artifact_meta.json"))
+}
+
 func TestBuildCmd_runProjectBuild_NoConfigGoArchiveRequestUsesPipeline_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	originalGetwd := getProjectBuildWorkingDir
