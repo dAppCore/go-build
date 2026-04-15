@@ -34,6 +34,8 @@ const (
 	VariantGo InstallerVariant = "go"
 	// VariantAgent generates agent.sh — installs core CLI + core-agent + Claude Code (~30MB).
 	VariantAgent InstallerVariant = "agent"
+	// VariantAgentic is the RFC-documented alias for the AI agent installer variant.
+	VariantAgentic InstallerVariant = VariantAgent
 	// VariantDev generates dev.sh — installs core CLI + pulls core-dev LinuxKit image (~500MB).
 	VariantDev InstallerVariant = "dev"
 )
@@ -67,7 +69,7 @@ func Variants() []InstallerVariant {
 
 // OutputName returns the generated script filename for a variant.
 func OutputName(variant InstallerVariant) string {
-	entry, ok := variantTemplates[variant]
+	entry, ok := variantTemplates[canonicalVariant(variant)]
 	if !ok {
 		return ""
 	}
@@ -100,6 +102,7 @@ type InstallerConfig struct {
 //	})
 func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, error) {
 	cfg = normalizeInstallerConfig(cfg)
+	variant = canonicalVariant(variant)
 
 	entry, ok := variantTemplates[variant]
 	if !ok {
@@ -154,4 +157,12 @@ func normalizeInstallerConfig(cfg InstallerConfig) InstallerConfig {
 	}
 	cfg.ScriptBaseURL = baseURL
 	return cfg
+}
+
+func canonicalVariant(variant InstallerVariant) InstallerVariant {
+	normalized := InstallerVariant(strings.ToLower(strings.TrimSpace(string(variant))))
+	if normalized == "agentic" {
+		return VariantAgent
+	}
+	return normalized
 }

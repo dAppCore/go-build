@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -105,7 +105,7 @@ func TestBuildCmd_runBuildInstallersInDir_UsesGitRemoteWhenReleaseConfigMissing_
 		return "host-uk/core-build", nil
 	}
 
-	err := runBuildInstallersInDir(context.Background(), projectDir, "agent", "v1.2.3", "", "", "core")
+	err := runBuildInstallersInDir(context.Background(), projectDir, "agentic", "v1.2.3", "", "", "core")
 	require.NoError(t, err)
 
 	content, err := io.Local.Read(ax.Join(projectDir, "dist", "installers", "agent.sh"))
@@ -162,4 +162,12 @@ func TestBuild_GenerateInstallerWrappers_Good(t *testing.T) {
 		build.VariantDev,
 	}, build.InstallerVariants())
 	assert.Equal(t, "ci.sh", build.InstallerOutputName(build.VariantCI))
+	assert.Equal(t, build.VariantAgent, build.VariantAgentic)
+	agenticScript, err := build.GenerateInstaller(build.VariantAgentic, build.InstallerConfig{
+		Version:    "v1.2.3",
+		Repo:       "dappcore/core",
+		BinaryName: "core",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, agenticScript, "dappcore/core")
 }

@@ -53,6 +53,13 @@ func TestInstaller_GenerateInstaller_CustomScriptBaseURL_Good(t *testing.T) {
 	assert.NotContains(t, script, "https://downloads.example.com//setup.sh")
 }
 
+func TestInstaller_GenerateInstaller_AgenticAlias_Good(t *testing.T) {
+	script, err := GenerateInstaller("agentic", validConfig)
+	require.NoError(t, err)
+	assert.NotEmpty(t, script)
+	assert.Contains(t, script, DefaultScriptBaseURL)
+}
+
 func TestInstaller_GenerateInstaller_DevVariantUsesVersionedImage_Good(t *testing.T) {
 	script, err := GenerateInstaller(VariantDev, validConfig)
 	require.NoError(t, err)
@@ -153,6 +160,7 @@ func TestInstaller_OutputName_Good(t *testing.T) {
 	assert.Equal(t, "php.sh", OutputName(VariantPHP))
 	assert.Equal(t, "go.sh", OutputName(VariantGo))
 	assert.Equal(t, "agent.sh", OutputName(VariantAgent))
+	assert.Equal(t, "agent.sh", OutputName("agentic"))
 	assert.Equal(t, "dev.sh", OutputName(VariantDev))
 	assert.Empty(t, OutputName("bogus"))
 }

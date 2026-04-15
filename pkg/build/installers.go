@@ -16,6 +16,8 @@ const (
 	VariantGo InstallerVariant = buildinstallers.VariantGo
 	// VariantAgent generates agent.sh — installs core CLI + core-agent + Claude Code.
 	VariantAgent InstallerVariant = buildinstallers.VariantAgent
+	// VariantAgentic is the RFC-documented alias for the AI agent installer variant.
+	VariantAgentic InstallerVariant = buildinstallers.VariantAgentic
 	// VariantDev generates dev.sh — installs core CLI + pulls the core-dev LinuxKit image.
 	VariantDev InstallerVariant = buildinstallers.VariantDev
 )

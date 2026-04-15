@@ -4,12 +4,12 @@ import (
 	"context"
 	"strings"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/release/publishers"
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -182,7 +182,7 @@ func normalizeInstallersVariant(value string) (build.InstallerVariant, bool) {
 		return build.VariantPHP, true
 	case "go", "go.sh":
 		return build.VariantGo, true
-	case "agent", "agent.sh":
+	case "agent", "agentic", "agent.sh":
 		return build.VariantAgent, true
 	case "dev", "dev.sh":
 		return build.VariantDev, true
