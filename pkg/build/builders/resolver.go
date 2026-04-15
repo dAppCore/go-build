@@ -8,6 +8,10 @@ import (
 	"dappco.re/go/core/build/pkg/build"
 )
 
+func init() {
+	build.RegisterDefaultBuilderResolver(ResolveBuilder)
+}
+
 // ResolveBuilder returns a concrete builder implementation for the project type.
 //
 //	builder, err := builders.ResolveBuilder(build.ProjectTypeGo)
