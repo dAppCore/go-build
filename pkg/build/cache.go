@@ -49,14 +49,37 @@ func DefaultBuildCachePaths(baseDir string) []string {
 type CacheConfig struct {
 	// Enabled turns cache setup on for the build.
 	Enabled bool `json:"enabled" yaml:"enabled"`
-	// Directory is where cache metadata is stored.
-	Directory string `json:"dir,omitempty" yaml:"dir,omitempty"`
+	// Dir is where cache metadata is stored.
+	Dir string `json:"dir,omitempty" yaml:"dir,omitempty"`
+	// Directory is the deprecated alias for Dir.
+	Directory string `json:"-" yaml:"-"`
 	// KeyPrefix prefixes the generated cache key.
 	KeyPrefix string `json:"key_prefix,omitempty" yaml:"key_prefix,omitempty"`
 	// Paths are cache directories that should exist before the build starts.
 	Paths []string `json:"paths,omitempty" yaml:"paths,omitempty"`
 	// RestoreKeys are fallback prefixes used when the exact cache key is not present.
 	RestoreKeys []string `json:"restore_keys,omitempty" yaml:"restore_keys,omitempty"`
+}
+
+// MarshalYAML emits the documented cache configuration shape with the Dir field.
+//
+//	data, err := yaml.Marshal(build.CacheConfig{Enabled: true, Dir: ".core/cache"})
+func (c CacheConfig) MarshalYAML() (any, error) {
+	type rawCacheConfig struct {
+		Enabled     bool     `yaml:"enabled"`
+		Dir         string   `yaml:"dir,omitempty"`
+		KeyPrefix   string   `yaml:"key_prefix,omitempty"`
+		Paths       []string `yaml:"paths,omitempty"`
+		RestoreKeys []string `yaml:"restore_keys,omitempty"`
+	}
+
+	return rawCacheConfig{
+		Enabled:     c.Enabled,
+		Dir:         c.effectiveDirectory(),
+		KeyPrefix:   c.KeyPrefix,
+		Paths:       c.Paths,
+		RestoreKeys: c.RestoreKeys,
+	}, nil
 }
 
 // UnmarshalYAML accepts both the concise build config keys and the longer aliases.
@@ -79,7 +102,8 @@ func (c *CacheConfig) UnmarshalYAML(value *yaml.Node) error {
 	}
 
 	c.Enabled = raw.Enabled
-	c.Directory = firstNonEmpty(raw.Directory, raw.Dir)
+	c.Dir = firstNonEmpty(raw.Dir, raw.Directory)
+	c.Directory = c.Dir
 	c.KeyPrefix = firstNonEmpty(raw.KeyPrefix, raw.Key)
 	c.Paths = raw.Paths
 	c.RestoreKeys = raw.RestoreKeys
@@ -99,15 +123,18 @@ func SetupCache(fs io.Medium, dir string, cfg *CacheConfig) error {
 		return nil
 	}
 
-	if cfg.Directory == "" {
-		cfg.Directory = ax.Join(dir, DefaultCacheDirectory)
+	directory := cfg.effectiveDirectory()
+	if directory == "" {
+		directory = ax.Join(dir, DefaultCacheDirectory)
 	}
-	cfg.Directory = normaliseCachePath(dir, cfg.Directory)
+	directory = normaliseCachePath(dir, directory)
+	cfg.Dir = directory
+	cfg.Directory = directory
 	if len(cfg.Paths) == 0 {
 		cfg.Paths = DefaultBuildCachePaths(dir)
 	}
 
-	if err := fs.EnsureDir(cfg.Directory); err != nil {
+	if err := fs.EnsureDir(directory); err != nil {
 		return coreerr.E("build.SetupCache", "failed to create cache directory", err)
 	}
 
@@ -262,4 +289,11 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func (c CacheConfig) effectiveDirectory() string {
+	if core.Trim(c.Dir) != "" {
+		return c.Dir
+	}
+	return c.Directory
 }

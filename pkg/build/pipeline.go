@@ -402,8 +402,14 @@ func enableDefaultPipelineBuildCache(cfg *CacheConfig) {
 	}
 
 	cfg.Enabled = true
+	if cfg.Dir == "" && cfg.Directory == "" {
+		cfg.Dir = ax.Join(ConfigDir, "cache")
+	}
+	if cfg.Dir == "" {
+		cfg.Dir = cfg.Directory
+	}
 	if cfg.Directory == "" {
-		cfg.Directory = ax.Join(ConfigDir, "cache")
+		cfg.Directory = cfg.Dir
 	}
 	if len(cfg.Paths) == 0 {
 		cfg.Paths = DefaultBuildCachePaths("")

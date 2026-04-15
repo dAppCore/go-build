@@ -422,6 +422,7 @@ func applyDefaults(cfg *BuildConfig) {
 
 func cacheConfigConfigured(cfg CacheConfig) bool {
 	return cfg.Enabled ||
+		cfg.Dir != "" ||
 		cfg.Directory != "" ||
 		cfg.KeyPrefix != "" ||
 		len(cfg.Paths) > 0 ||
@@ -525,7 +526,8 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.LinuxKit = normalizeLinuxKitConfig(cfg.LinuxKit)
 	cfg.Apple.XcodeCloud.Triggers = expandXcodeCloudTriggers(cfg.Apple.XcodeCloud.Triggers)
 
-	cfg.Build.Cache.Directory = expandEnv(cfg.Build.Cache.Directory)
+	cfg.Build.Cache.Dir = expandEnv(cfg.Build.Cache.Dir)
+	cfg.Build.Cache.Directory = cfg.Build.Cache.Dir
 	cfg.Build.Cache.KeyPrefix = expandEnv(cfg.Build.Cache.KeyPrefix)
 	cfg.Build.Cache.Paths = expandEnvSlice(cfg.Build.Cache.Paths)
 	cfg.Build.Cache.RestoreKeys = expandEnvSlice(cfg.Build.Cache.RestoreKeys)
@@ -662,9 +664,11 @@ func cloneBuild(value Build) Build {
 }
 
 func cloneCacheConfig(value CacheConfig) CacheConfig {
+	directory := value.effectiveDirectory()
 	return CacheConfig{
 		Enabled:     value.Enabled,
-		Directory:   value.Directory,
+		Dir:         directory,
+		Directory:   directory,
 		KeyPrefix:   value.KeyPrefix,
 		Paths:       append([]string(nil), value.Paths...),
 		RestoreKeys: append([]string(nil), value.RestoreKeys...),
