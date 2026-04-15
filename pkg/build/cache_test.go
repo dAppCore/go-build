@@ -136,33 +136,16 @@ func TestCache_SetupBuildCache_Good_Disabled(t *testing.T) {
 }
 
 func TestCache_CacheKey_Good(t *testing.T) {
-	first := CacheKey("core-build", Target{OS: "linux", Arch: "amd64"}, &CacheConfig{
-		KeyPrefix: "main",
-		Paths: []string{
-			"cache/go-build",
-			"cache/go-mod",
-		},
-		RestoreKeys: []string{
-			"main-linux",
-		},
-	})
-	second := CacheKey("core-build", Target{OS: "linux", Arch: "amd64"}, &CacheConfig{
-		KeyPrefix: "main",
-		Paths: []string{
-			"cache/go-mod",
-			"cache/go-build",
-		},
-		RestoreKeys: []string{
-			"main-linux",
-		},
-	})
-	third := CacheKey("core-build", Target{OS: "darwin", Arch: "arm64"}, &CacheConfig{
-		KeyPrefix: "main",
-	})
+	fs := io.NewMemoryMedium()
+	require.NoError(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
+
+	first := CacheKey(fs, "/workspace/project", "linux", "amd64")
+	second := CacheKey(fs, "/workspace/project", "linux", "amd64")
+	third := CacheKey(fs, "/workspace/project", "darwin", "arm64")
 
 	assert.Equal(t, first, second)
 	assert.NotEqual(t, first, third)
-	assert.Contains(t, first, "main-linux-amd64-")
+	assert.Contains(t, first, "go-linux-amd64-")
 }
 
 func TestCache_CacheEnvironment_Good(t *testing.T) {

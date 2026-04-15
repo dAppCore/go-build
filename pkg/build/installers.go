@@ -1,6 +1,12 @@
 package build
 
-import buildinstallers "dappco.re/go/build/pkg/build/installers"
+import (
+	"strings"
+
+	"dappco.re/go/build/internal/ax"
+	buildinstallers "dappco.re/go/build/pkg/build/installers"
+	"dappco.re/go/core"
+)
 
 // InstallerVariant identifies an installer script profile.
 type InstallerVariant = buildinstallers.InstallerVariant
@@ -22,17 +28,18 @@ const (
 	VariantDev InstallerVariant = buildinstallers.VariantDev
 )
 
-// InstallerConfig supplies template values for installer generation.
-type InstallerConfig = buildinstallers.InstallerConfig
-
-// GenerateInstaller renders a single installer script variant.
-func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, error) {
-	return buildinstallers.GenerateInstaller(variant, cfg)
+// GenerateInstaller renders a single installer script variant from the release version and repository.
+//
+//	script, err := build.GenerateInstaller(build.VariantCI, "v1.2.3", "dappcore/core")
+func GenerateInstaller(variant InstallerVariant, version, repo string) (string, error) {
+	return buildinstallers.GenerateInstaller(variant, installerConfig(version, repo))
 }
 
-// GenerateAll renders every installer script variant.
-func GenerateAll(cfg InstallerConfig) (map[string]string, error) {
-	return buildinstallers.GenerateAll(cfg)
+// GenerateAll renders every installer script variant from the release version and repository.
+//
+//	scripts, err := build.GenerateAll("v1.2.3", "dappcore/core")
+func GenerateAll(version, repo string) (map[string]string, error) {
+	return buildinstallers.GenerateAll(installerConfig(version, repo))
 }
 
 // InstallerVariants returns the supported variants in stable output order.
@@ -43,4 +50,21 @@ func InstallerVariants() []InstallerVariant {
 // InstallerOutputName returns the filename emitted for a variant.
 func InstallerOutputName(variant InstallerVariant) string {
 	return buildinstallers.OutputName(variant)
+}
+
+func installerConfig(version, repo string) buildinstallers.InstallerConfig {
+	repo = core.Trim(repo)
+	binaryName := ""
+	if repo != "" {
+		binaryName = strings.TrimSuffix(ax.Base(repo), ".git")
+		if binaryName == "" {
+			binaryName = repo
+		}
+	}
+
+	return buildinstallers.InstallerConfig{
+		Version:    core.Trim(version),
+		Repo:       repo,
+		BinaryName: binaryName,
+	}
 }

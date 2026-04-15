@@ -5,11 +5,9 @@ package build
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"slices"
-	"strconv"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
@@ -116,26 +114,27 @@ func SetupBuildCache(fs io.Medium, dir string, cfg *BuildConfig) error {
 	return SetupCache(fs, dir, &cfg.Build.Cache)
 }
 
-// CacheKey returns a deterministic cache key for the build configuration and target.
+// CacheKey returns a deterministic cache key from go.sum content and the target platform.
 //
-//	key := build.CacheKey("core-build", build.Target{OS: "linux", Arch: "amd64"}, &build.CacheConfig{
-//	    KeyPrefix: "main",
-//	})
-func CacheKey(buildName string, target Target, cfg *CacheConfig) string {
-	if buildName == "" {
-		buildName = "build"
+//	key := build.CacheKey(io.Local, ".", "linux", "amd64") // "go-linux-amd64-abc123..."
+func CacheKey(fs io.Medium, dir, goos, goarch string) string {
+	var seed []byte
+
+	if fs != nil {
+		if content, err := fs.Read(ax.Join(dir, "go.sum")); err == nil {
+			seed = append(seed, content...)
+		}
 	}
 
-	keyPrefix := buildName
-	if cfg != nil && cfg.KeyPrefix != "" {
-		keyPrefix = cfg.KeyPrefix
-	}
+	seed = append(seed, '\n')
+	seed = append(seed, goos...)
+	seed = append(seed, '\n')
+	seed = append(seed, goarch...)
 
-	snapshot := cacheKeySnapshot(buildName, target, cfg)
-	sum := sha256.Sum256([]byte(snapshot))
+	sum := sha256.Sum256(seed)
 	suffix := hex.EncodeToString(sum[:])[:12]
 
-	return core.Join("-", keyPrefix, target.OS, target.Arch, suffix)
+	return core.Join("-", "go", goos, goarch, suffix)
 }
 
 // CacheEnvironment returns environment variables derived from the cache config.
@@ -158,35 +157,6 @@ func CacheEnvironment(cfg *CacheConfig) []string {
 	}
 
 	return deduplicateStrings(env)
-}
-
-func cacheKeySnapshot(buildName string, target Target, cfg *CacheConfig) string {
-	parts := []string{
-		"build",
-		buildName,
-		target.OS,
-		target.Arch,
-	}
-
-	if cfg == nil {
-		return core.Join("\n", parts...)
-	}
-
-	parts = append(parts,
-		strconv.FormatBool(cfg.Enabled),
-		cfg.Directory,
-		cfg.KeyPrefix,
-	)
-
-	paths := deduplicateStrings(append([]string(nil), cfg.Paths...))
-	slices.Sort(paths)
-	parts = append(parts, "paths:"+core.Join(",", paths...))
-
-	restoreKeys := deduplicateStrings(append([]string(nil), cfg.RestoreKeys...))
-	slices.Sort(restoreKeys)
-	parts = append(parts, "restore:"+core.Join(",", restoreKeys...))
-
-	return core.Join("\n", parts...)
 }
 
 func cacheEnvironmentName(path string) string {

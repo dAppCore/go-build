@@ -146,11 +146,7 @@ func TestBuildCmd_runBuildInstallersInDir_MissingRepository_Bad(t *testing.T) {
 }
 
 func TestBuild_GenerateInstallerWrappers_Good(t *testing.T) {
-	script, err := build.GenerateInstaller(build.VariantCI, build.InstallerConfig{
-		Version:    "v1.2.3",
-		Repo:       "dappcore/core",
-		BinaryName: "core",
-	})
+	script, err := build.GenerateInstaller(build.VariantCI, "v1.2.3", "dappcore/core")
 	require.NoError(t, err)
 	assert.Contains(t, script, "dappcore/core")
 	assert.Equal(t, []build.InstallerVariant{
@@ -163,11 +159,11 @@ func TestBuild_GenerateInstallerWrappers_Good(t *testing.T) {
 	}, build.InstallerVariants())
 	assert.Equal(t, "ci.sh", build.InstallerOutputName(build.VariantCI))
 	assert.Equal(t, build.VariantAgent, build.VariantAgentic)
-	agenticScript, err := build.GenerateInstaller(build.VariantAgentic, build.InstallerConfig{
-		Version:    "v1.2.3",
-		Repo:       "dappcore/core",
-		BinaryName: "core",
-	})
+	agenticScript, err := build.GenerateInstaller(build.VariantAgentic, "v1.2.3", "dappcore/core")
 	require.NoError(t, err)
 	assert.Contains(t, agenticScript, "dappcore/core")
+
+	scripts, err := build.GenerateAll("v1.2.3", "dappcore/core")
+	require.NoError(t, err)
+	assert.Contains(t, scripts["setup.sh"], "dappcore/core")
 }

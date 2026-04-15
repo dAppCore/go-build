@@ -7,6 +7,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
+	buildinstallers "dappco.re/go/build/pkg/build/installers"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/release/publishers"
 	"dappco.re/go/core"
@@ -98,7 +99,7 @@ func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, 
 		return coreerr.E("build.runBuildInstallers", "failed to create output directory", err)
 	}
 
-	cfg := build.InstallerConfig{
+	cfg := buildinstallers.InstallerConfig{
 		Version:    installerVersion,
 		Repo:       installerRepo,
 		BinaryName: build.ResolveBuildName(projectDir, buildConfig, binaryName),
@@ -124,13 +125,13 @@ func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, 
 	return nil
 }
 
-func writeInstallerVariant(filesystem io.Medium, projectDir, outputDir string, variant build.InstallerVariant, cfg build.InstallerConfig) error {
+func writeInstallerVariant(filesystem io.Medium, projectDir, outputDir string, variant build.InstallerVariant, cfg buildinstallers.InstallerConfig) error {
 	scriptName := build.InstallerOutputName(variant)
 	if scriptName == "" {
 		return coreerr.E("build.writeInstallerVariant", "unknown installer variant: "+string(variant), nil)
 	}
 
-	script, err := build.GenerateInstaller(variant, cfg)
+	script, err := buildinstallers.GenerateInstaller(variant, cfg)
 	if err != nil {
 		return coreerr.E("build.writeInstallerVariant", "failed to generate "+scriptName, err)
 	}

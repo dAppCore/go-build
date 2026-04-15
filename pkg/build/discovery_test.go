@@ -604,6 +604,14 @@ func TestDiscovery_IsMkDocsProject_Good(t *testing.T) {
 		assert.True(t, IsMkDocsProject(fs, dir))
 	})
 
+	t.Run("true with nested mkdocs.yml", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "docs", "guide")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "mkdocs.yml"), []byte("site_name: Guide"), 0o644))
+		assert.True(t, IsMkDocsProject(fs, dir))
+	})
+
 	t.Run("false without mkdocs.yml", func(t *testing.T) {
 		dir := t.TempDir()
 		assert.False(t, IsMkDocsProject(fs, dir))
@@ -826,6 +834,19 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		assert.True(t, result.Markers["go.mod"])
 		assert.True(t, result.Markers["main.go"])
 		assert.False(t, result.Markers["wails.json"])
+	})
+
+	t.Run("detects nested MkDocs configuration", func(t *testing.T) {
+		dir := t.TempDir()
+		nested := ax.Join(dir, "docs", "guide")
+		require.NoError(t, ax.MkdirAll(nested, 0o755))
+		require.NoError(t, ax.WriteFile(ax.Join(nested, "mkdocs.yaml"), []byte("site_name: Guide"), 0o644))
+
+		result, err := DiscoverFull(fs, dir)
+		require.NoError(t, err)
+		assert.True(t, result.HasDocsConfig)
+		assert.Equal(t, "docs", result.PrimaryStack)
+		assert.Equal(t, "docs", result.SuggestedStack)
 	})
 
 	t.Run("captures GitHub metadata when available", func(t *testing.T) {

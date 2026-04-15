@@ -3,8 +3,8 @@ package build
 import (
 	"runtime"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 )
 
@@ -199,6 +199,11 @@ func ResolveMkDocsConfigPath(fs io.Medium, dir string) string {
 			return path
 		}
 	}
+
+	if path := findMkDocsConfigInSubtree(fs, dir, 0); path != "" {
+		return path
+	}
+
 	return ""
 }
 
@@ -612,6 +617,41 @@ func hasSubtreeDenoManifest(fs io.Medium, dir string) bool {
 	return hasSubtreeManifest(fs, dir, 0, func(fs io.Medium, candidate string) bool {
 		return fs.IsFile(ax.Join(candidate, markerDenoJSON)) || fs.IsFile(ax.Join(candidate, markerDenoJSONC))
 	})
+}
+
+func findMkDocsConfigInSubtree(fs io.Medium, dir string, depth int) string {
+	if depth >= 2 {
+		return ""
+	}
+
+	entries, err := fs.List(dir)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if shouldSkipSubtreeDir(name) {
+			continue
+		}
+
+		candidateDir := ax.Join(dir, name)
+		for _, marker := range []string{markerMkDocs, markerMkDocsYAML} {
+			if fileExists(fs, ax.Join(candidateDir, marker)) {
+				return ax.Join(candidateDir, marker)
+			}
+		}
+
+		if nested := findMkDocsConfigInSubtree(fs, candidateDir, depth+1); nested != "" {
+			return nested
+		}
+	}
+
+	return ""
 }
 
 func hasNestedGoToolchain(fs io.Medium, dir string, depth int) bool {
