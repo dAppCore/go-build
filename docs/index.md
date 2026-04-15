@@ -74,8 +74,8 @@ Monorepo frontend discovery scans subtree manifests to depth 2 and ignores `node
 2. Installs Go, Node, PHP/Composer, Python, Rust, Deno, Task, and Wails only when needed, plus frontend package dependencies and optional garble for obfuscated builds.
 3. Restores build caches under `.core/cache` and `cache/`.
 4. Applies Ubuntu 24.04 WebKit 4.1 handling for Wails Linux builds.
-5. Runs `core build --archive --checksum`.
-6. Uploads artifacts with action-style names and publishes with `core ci`.
+5. Runs `core build --ci --archive --checksum`.
+6. Writes `artifact_meta.json`, uploads artifacts with action-style names, and publishes with `core ci`.
 
 ## Apple Pipeline
 

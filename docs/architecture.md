@@ -46,6 +46,27 @@ In go-build the equivalents are:
 - `pkg/build/signing/` and `pkg/build/apple.go` for signing/notarisation
 - `pkg/build/archive.go`, `pkg/build/checksum.go`, and `pkg/release/` for packaging and publishing
 
+## Public Action Layout
+
+The root action still behaves like a gateway: discovery runs first, the selected stack wrapper owns the middle of the pipeline, and packaging runs last.
+
+```text
+action.yml
+  -> actions/discovery/
+  -> actions/options/
+  -> actions/setup/
+     -> go/
+     -> npm/
+     -> deno/
+     -> conan/
+  -> actions/build/
+     -> wails2/
+  -> actions/sign/
+  -> actions/package/
+```
+
+That layout matters because go-build keeps the same separation of concerns. `build.Pipeline` is the gateway, `DiscoverFull` and `ComputeOptions` are pure upstream context builders, `ComputeSetupPlan` is the setup orchestrator, and each builder owns its stack-specific execution details.
+
 ## Data Flow
 
 The action design relies on outputs flowing downstream. The Go implementation keeps the same rule.
@@ -176,20 +197,28 @@ The generated workflow includes:
 2. conditional Go, Node, Task, Deno, Wails, Python, PHP/Composer, Rust, Conan, and MkDocs setup
 3. Linux distro-aware WebKit dependency selection for Wails
 4. cache restore/save for `.core/cache` and `cache/`
-5. `core build --archive --checksum`
-6. action-style artifact naming and upload
+5. `core build --ci --archive --checksum`
+6. action-style `artifact_meta.json` generation, artifact naming, and upload
 7. tag-gated `core ci` release publishing
 
 The workflow keeps the public action inputs visible at the CLI layer:
 
+- `build`
+- `sign`
+- `package`
 - `build-name`
 - `build-platform`
 - `build-tags`
 - `build-obfuscate`
+- `core-version`
+- `go-version`
+- `node-version`
+- `wails-version`
 - `nsis`
 - `deno-build`
 - `wails-build-webview2`
 - `build-cache`
+- `archive-format`
 
 ## Packaging and Release
 
@@ -224,6 +253,8 @@ These layers reuse the same config and build metadata model rather than creating
 - Stack ownership: each builder owns its own execution details and packaging expectations.
 
 ## Testing Strategy
+
+The repo keeps CI gating explicit rather than treating the generated workflow as static prose. Changes to discovery, setup planning, public inputs, or artifact naming are expected to show up in tests immediately.
 
 The repo tests the action-parity surfaces directly instead of treating the generated workflow as opaque text:
 

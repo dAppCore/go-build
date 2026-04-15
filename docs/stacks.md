@@ -5,12 +5,13 @@ description: Stack-specific behaviour for detection, setup planning, builders, a
 
 # Stacks
 
-The public action historically centred on Wails v2, but go-build now carries the same architecture across Wails, frontend, docs, C++, container, and language-native stacks.
+The public action historically centred on Wails v2, and go-build keeps that as the default desktop-app path while carrying the same architecture across Wails, frontend, docs, C++, container, and language-native stacks.
 
 ## Wails v2
 
 Wails remains the primary desktop-app path and the closest match to the public `dAppCore/build@v3` action.
 
+- This is the default stack shape in the generated workflow when Wails markers are present.
 - Detection accepts `wails.json` directly and also Go roots that contain frontend manifests at the root, under `frontend/`, or in a visible subtree up to depth 2.
 - Setup installs Go, Node, frontend dependencies, the Wails CLI, distro-specific Linux WebKit packages, and optional garble when obfuscation is enabled.
 - Build uses `wails build` for Wails v2 and forwards build-name, build tags, ldflags, obfuscation, NSIS, and WebView2 options.
@@ -39,6 +40,7 @@ Node-style frontend projects are first-class stacks in their own right.
 
 Deno is integrated into the frontend path instead of being treated as a separate product surface.
 
+- It can run as a standalone frontend stack or as a companion prebuild step for Wails and Node-backed repositories.
 - Detection accepts `deno.json` and `deno.jsonc` at the root, under `frontend/`, or in visible nested directories up to depth 2.
 - Setup enables Deno when manifests are present or when `DENO_ENABLE`, `DENO_BUILD`, or the `deno-build` input explicitly request it.
 - Build honours `DENO_BUILD` first and otherwise defaults to `deno task build`.
