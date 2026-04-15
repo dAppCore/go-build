@@ -38,6 +38,12 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 		projectDir = "."
 	}
 
+	s := sdk.New(projectDir, cfg.SDK)
+	sdkConfig := s.Config()
+	if sdkConfig == nil {
+		return nil, coreerr.E("release.RunSDK", "sdk not configured in .core/release.yaml", nil)
+	}
+
 	// Determine version
 	version := cfg.version
 	if version == "" {
@@ -49,8 +55,8 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	}
 
 	// Run diff check if enabled
-	if cfg.SDK.Diff.Enabled {
-		breaking, err := checkBreakingChanges(ctx, projectDir, cfg.SDK)
+	if sdkConfig.Diff.Enabled {
+		breaking, err := checkBreakingChanges(ctx, projectDir, sdkConfig)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, coreerr.E("release.RunSDK", "diff check cancelled", ctx.Err())
@@ -58,7 +64,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 			// Non-fatal: warn and continue
 			core.Print(nil, "Warning: diff check failed: %v", err)
 		} else if breaking {
-			if cfg.SDK.Diff.FailOnBreaking {
+			if sdkConfig.Diff.FailOnBreaking {
 				return nil, coreerr.E("release.RunSDK", "breaking API changes detected", nil)
 			}
 			core.Print(nil, "Warning: breaking API changes detected")
@@ -66,11 +72,11 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	}
 
 	// Prepare result
-	output := resolveSDKOutputRoot(cfg.SDK)
+	output := resolveSDKOutputRoot(sdkConfig)
 
 	result := &SDKRelease{
 		Version:   version,
-		Languages: cfg.SDK.Languages,
+		Languages: append([]string(nil), sdkConfig.Languages...),
 		Output:    output,
 	}
 
@@ -79,7 +85,6 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	}
 
 	// Generate SDKs
-	s := sdk.New(projectDir, cfg.SDK)
 	s.SetVersion(version)
 
 	if err := s.Generate(ctx); err != nil {

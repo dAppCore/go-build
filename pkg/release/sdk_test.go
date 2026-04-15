@@ -67,6 +67,20 @@ func TestSDK_RunSDKDryRunDefaultOutput_Good(t *testing.T) {
 	assert.Equal(t, "sdk", result.Output)
 }
 
+func TestSDK_RunSDKDryRunDefaultsLanguages_Good(t *testing.T) {
+	cfg := &Config{
+		SDK: &SDKConfig{},
+	}
+	cfg.projectDir = t.TempDir()
+	cfg.version = "v2.0.0"
+
+	result, err := RunSDK(context.Background(), cfg, true)
+	require.NoError(t, err)
+
+	assert.Equal(t, "sdk", result.Output)
+	assert.Equal(t, []string{"typescript", "python", "go", "php"}, result.Languages)
+}
+
 func TestSDK_RunSDKDryRunDefaultProjectDir_Good(t *testing.T) {
 	cfg := &Config{
 		SDK: &SDKConfig{

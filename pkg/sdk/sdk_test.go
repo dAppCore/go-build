@@ -82,6 +82,19 @@ func TestSDK_New_Good(t *testing.T) {
 		s := New("/tmp", cfg)
 		assert.Equal(t, "custom", s.config.Output)
 	})
+
+	t.Run("applies defaults and does not mutate the caller config", func(t *testing.T) {
+		cfg := &Config{
+			Languages: []string{"ts", "python", "py"},
+		}
+
+		s := New("/tmp", cfg)
+
+		assert.Equal(t, []string{"typescript", "python"}, s.config.Languages)
+		assert.Equal(t, "sdk", s.config.Output)
+		assert.Equal(t, []string{"ts", "python", "py"}, cfg.Languages)
+		assert.Empty(t, cfg.Output)
+	})
 }
 
 func TestSDK_GenerateLanguage_Bad(t *testing.T) {

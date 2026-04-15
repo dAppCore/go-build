@@ -74,9 +74,7 @@ type SDK struct {
 //
 // s := sdk.New(".", &sdk.Config{Languages: []string{"typescript"}, Output: "sdk"})
 func New(projectDir string, config *Config) *SDK {
-	if config == nil {
-		config = DefaultConfig()
-	}
+	config = resolveRuntimeConfig(config)
 	return &SDK{
 		config:     config,
 		projectDir: projectDir,
@@ -92,6 +90,14 @@ func CloneConfig(config *Config) *Config {
 	clone := *config
 	clone.Languages = append([]string(nil), config.Languages...)
 	return &clone
+}
+
+// Config returns a copy of the SDK's resolved runtime configuration.
+func (s *SDK) Config() *Config {
+	if s == nil {
+		return nil
+	}
+	return CloneConfig(s.config)
 }
 
 // ApplyDefaults fills in documented defaults for partial SDK configs.
@@ -335,4 +341,24 @@ func (s *SDK) resolvePackageVersion() string {
 // placeholder that should be rendered at generation time.
 func containsVersionTemplate(value string) bool {
 	return core.Contains(value, "{{.Version}}") || core.Contains(value, "{{Version}}")
+}
+
+func resolveRuntimeConfig(config *Config) *Config {
+	if config == nil {
+		return DefaultConfig()
+	}
+
+	clone := CloneConfig(config)
+	defaults := DefaultConfig()
+
+	if len(clone.Languages) == 0 {
+		clone.Languages = append([]string(nil), defaults.Languages...)
+	}
+	clone.Languages = normaliseLanguages(clone.Languages)
+
+	if clone.Output == "" {
+		clone.Output = defaults.Output
+	}
+
+	return clone
 }
