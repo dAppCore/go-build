@@ -214,6 +214,10 @@ func Run(opts ...RunOption) ([]Artifact, error) {
 }
 
 func resolveRunOutputRoot(projectDir, outputDir string, output coreio.Medium) string {
+	if outputDir == "" && !mediumEquals(output, coreio.Local) {
+		return ""
+	}
+
 	if outputDir == "" {
 		outputDir = "dist"
 	}
@@ -254,7 +258,7 @@ func mirrorArtifacts(source, destination coreio.Medium, sourceRoot, destinationR
 			relativePath = ax.Base(artifact.Path)
 		}
 
-		destinationPath := ax.Join(destinationRoot, relativePath)
+		destinationPath := joinOutputPath(destinationRoot, relativePath)
 		if err := copyMediumPath(source, artifact.Path, destination, destinationPath); err != nil {
 			return nil, coreerr.E("build.Run", "failed to mirror artifact "+artifact.Path, err)
 		}
@@ -265,6 +269,16 @@ func mirrorArtifacts(source, destination coreio.Medium, sourceRoot, destinationR
 	}
 
 	return mirrored, nil
+}
+
+func joinOutputPath(root, path string) string {
+	if root == "" || root == "." {
+		return ax.Clean(path)
+	}
+	if path == "" || path == "." {
+		return ax.Clean(root)
+	}
+	return ax.Join(root, path)
 }
 
 func copyMediumPath(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) error {

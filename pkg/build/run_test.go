@@ -83,6 +83,32 @@ func TestRun_UsesOutputMedium_Good(t *testing.T) {
 	assert.Equal(t, "artifact:linux/amd64", content)
 }
 
+func TestRun_UsesOutputMediumRootWhenOutputDirUnset_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	output := coreio.NewMemoryMedium()
+
+	artifacts, err := Run(
+		WithContext(context.Background()),
+		WithProjectDir(projectDir),
+		WithBuildConfig(DefaultConfig()),
+		WithBuildType(string(ProjectTypeGo)),
+		WithBuildName("core-build"),
+		WithTargets(Target{OS: "linux", Arch: "amd64"}),
+		WithOutput(output),
+		WithBuilderResolver(func(projectType ProjectType) (Builder, error) {
+			return &runTestBuilder{}, nil
+		}),
+	)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	assert.Equal(t, ax.Join("linux_amd64", "core-build"), artifacts[0].Path)
+
+	content, err := output.Read(ax.Join("linux_amd64", "core-build"))
+	require.NoError(t, err)
+	assert.Equal(t, "artifact:linux/amd64", content)
+}
+
 func TestRun_MirrorsDirectoryArtifacts_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	output := coreio.NewMemoryMedium()

@@ -686,6 +686,25 @@ func TestRelease_Publish_Good(t *testing.T) {
 		assert.Contains(t, release.Artifacts, build.Artifact{Path: "releases/app-linux-amd64.tar.gz"})
 		assert.Contains(t, release.Artifacts, build.Artifact{Path: "releases/CHECKSUMS.txt"})
 	})
+
+	t.Run("reads artifacts from medium root when output dir is unset", func(t *testing.T) {
+		medium := io.NewMemoryMedium()
+		require.NoError(t, medium.Write("app-linux-amd64.tar.gz", "artifact"))
+		require.NoError(t, medium.Write("CHECKSUMS.txt", "checksums"))
+
+		cfg := DefaultConfig()
+		cfg.SetProjectDir(t.TempDir())
+		cfg.SetVersion("v1.0.0")
+		cfg.SetOutputMedium(medium)
+		cfg.Publishers = nil
+
+		release, err := Publish(context.Background(), cfg, true)
+		require.NoError(t, err)
+
+		require.Len(t, release.Artifacts, 2)
+		assert.Contains(t, release.Artifacts, build.Artifact{Path: "app-linux-amd64.tar.gz"})
+		assert.Contains(t, release.Artifacts, build.Artifact{Path: "CHECKSUMS.txt"})
+	})
 }
 
 func TestRelease_Publish_Bad(t *testing.T) {
@@ -821,6 +840,35 @@ func main() {}
 			assert.True(t, core.HasPrefix(artifact.Path, "releases/"), "expected mirrored artifact path %s to use configured output root", artifact.Path)
 		}
 		assert.True(t, medium.Exists("releases/CHECKSUMS.txt"))
+	})
+
+	t.Run("mirrors artifacts to medium root when output dir is unset", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module testapp\n\ngo 1.21\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+		medium := io.NewMemoryMedium()
+
+		cfg := DefaultConfig()
+		cfg.SetProjectDir(dir)
+		cfg.SetVersion("v1.0.0")
+		cfg.SetOutputMedium(medium)
+		cfg.Project.Name = "testapp"
+		cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+		cfg.Publishers = nil
+
+		release, err := Run(context.Background(), cfg, true)
+		require.NoError(t, err)
+		require.NotNil(t, release)
+		require.Equal(t, medium, release.ArtifactFS)
+		require.NotEmpty(t, release.Artifacts)
+
+		for _, artifact := range release.Artifacts {
+			assert.True(t, medium.Exists(artifact.Path), "expected mirrored artifact %s to exist", artifact.Path)
+			assert.False(t, core.HasPrefix(artifact.Path, "dist/"), "expected mirrored artifact path %s to omit the local dist prefix", artifact.Path)
+			assert.False(t, core.HasPrefix(artifact.Path, "/"), "expected mirrored artifact path %s to stay relative to the medium root", artifact.Path)
+		}
+		assert.True(t, medium.Exists("CHECKSUMS.txt"))
 	})
 }
 

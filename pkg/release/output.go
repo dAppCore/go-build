@@ -20,9 +20,17 @@ func resolveReleaseOutputMedium(cfg *Config) coreio.Medium {
 }
 
 func resolveReleaseOutputRoot(projectDir string, cfg *Config, output coreio.Medium) string {
-	outputDir := "dist"
-	if cfg != nil && cfg.outputDir != "" {
+	outputDir := ""
+	if cfg != nil {
 		outputDir = cfg.outputDir
+	}
+
+	if outputDir == "" && !mediumEquals(output, coreio.Local) {
+		return ""
+	}
+
+	if outputDir == "" {
+		outputDir = "dist"
 	}
 
 	if !ax.IsAbs(outputDir) && mediumEquals(output, coreio.Local) {
@@ -47,7 +55,7 @@ func mirrorReleaseArtifacts(source, destination coreio.Medium, sourceRoot, desti
 			relativePath = ax.Base(artifact.Path)
 		}
 
-		destinationPath := ax.Join(destinationRoot, relativePath)
+		destinationPath := joinReleasePath(destinationRoot, relativePath)
 		if err := copyReleaseMediumPath(source, artifact.Path, destination, destinationPath); err != nil {
 			return nil, coreerr.E("release.mirrorReleaseArtifacts", "failed to mirror artifact "+artifact.Path, err)
 		}
@@ -61,6 +69,16 @@ func mirrorReleaseArtifacts(source, destination coreio.Medium, sourceRoot, desti
 	}
 
 	return mirrored, nil
+}
+
+func joinReleasePath(root, path string) string {
+	if root == "" || root == "." {
+		return ax.Clean(path)
+	}
+	if path == "" || path == "." {
+		return ax.Clean(root)
+	}
+	return ax.Join(root, path)
 }
 
 func mediumEquals(left, right coreio.Medium) bool {

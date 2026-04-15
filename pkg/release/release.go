@@ -138,7 +138,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 
 // findArtifacts discovers pre-built artifacts in the dist directory.
 func findArtifacts(filesystem io.Medium, distDir string) ([]build.Artifact, error) {
-	if !filesystem.IsDir(distDir) {
+	if distDir != "" && !filesystem.IsDir(distDir) {
 		return nil, coreerr.E("release.findArtifacts", "dist/ directory not found", nil)
 	}
 
@@ -173,7 +173,7 @@ func findReleaseArtifacts(filesystem io.Medium, currentDir string) ([]build.Arti
 
 	var artifacts []build.Artifact
 	for _, entry := range entries {
-		path := ax.Join(currentDir, entry.Name())
+		path := joinReleasePath(currentDir, entry.Name())
 		if entry.IsDir() {
 			nestedArtifacts, err := findReleaseArtifacts(filesystem, path)
 			if err != nil {
@@ -212,7 +212,7 @@ func collectPlatformArtifacts(filesystem io.Medium, currentDir string, artifacts
 			continue
 		}
 
-		path := ax.Join(currentDir, entry.Name())
+		path := joinReleasePath(currentDir, entry.Name())
 		osValue, archValue, ok := parsePlatformDir(entry.Name())
 		if ok {
 			files, err := filesystem.List(path)
@@ -224,7 +224,7 @@ func collectPlatformArtifacts(filesystem io.Medium, currentDir string, artifacts
 				if file.IsDir() {
 					if shouldPublishAppBundle(file.Name()) {
 						*artifacts = append(*artifacts, build.Artifact{
-							Path: ax.Join(path, file.Name()),
+							Path: joinReleasePath(path, file.Name()),
 							OS:   osValue,
 							Arch: archValue,
 						})
@@ -238,7 +238,7 @@ func collectPlatformArtifacts(filesystem io.Medium, currentDir string, artifacts
 				}
 
 				*artifacts = append(*artifacts, build.Artifact{
-					Path: ax.Join(path, name),
+					Path: joinReleasePath(path, name),
 					OS:   osValue,
 					Arch: archValue,
 				})
@@ -599,7 +599,7 @@ func resolveChecksumPath(outputDir string, cfg *Config) string {
 	if ax.IsAbs(fileName) {
 		return ax.Clean(fileName)
 	}
-	return ax.Join(outputDir, fileName)
+	return joinReleasePath(outputDir, fileName)
 }
 
 func appendConfiguredChecksumArtifacts(filesystem io.Medium, distDir string, artifacts []build.Artifact, cfg *Config) []build.Artifact {
