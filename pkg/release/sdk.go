@@ -6,7 +6,9 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/build/pkg/build"
 	"dappco.re/go/core/build/pkg/sdk"
+	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -29,25 +31,26 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	if cfg == nil {
 		return nil, coreerr.E("release.RunSDK", "config is nil", nil)
 	}
-	if cfg.SDK == nil {
-		return nil, coreerr.E("release.RunSDK", "sdk not configured in .core/release.yaml", nil)
-	}
 
 	projectDir := cfg.projectDir
 	if projectDir == "" {
 		projectDir = "."
 	}
 
-	s := sdk.New(projectDir, cfg.SDK)
-	sdkConfig := s.Config()
+	sdkConfig, err := resolveReleaseSDKConfig(projectDir, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	s := sdk.New(projectDir, sdkConfig)
+	sdkConfig = s.Config()
 	if sdkConfig == nil {
-		return nil, coreerr.E("release.RunSDK", "sdk not configured in .core/release.yaml", nil)
+		return nil, coreerr.E("release.RunSDK", "failed to resolve sdk config", nil)
 	}
 
 	// Determine version
 	version := cfg.version
 	if version == "" {
-		var err error
 		version, err = DetermineVersionWithContext(ctx, projectDir)
 		if err != nil {
 			return nil, coreerr.E("release.RunSDK", "failed to determine version", err)
@@ -179,6 +182,28 @@ func materializeTaggedSDKSpec(ctx context.Context, projectDir, tag, specPath str
 	return tempPath, func() {
 		_ = ax.RemoveAll(tempDir)
 	}, nil
+}
+
+func resolveReleaseSDKConfig(projectDir string, cfg *Config) (*sdk.Config, error) {
+	if cfg != nil && cfg.SDK != nil {
+		resolved := toSDKConfig(cfg.SDK)
+		resolved.ApplyDefaults()
+		return resolved, nil
+	}
+
+	buildCfg, err := build.LoadConfig(io.Local, projectDir)
+	if err != nil {
+		return nil, coreerr.E("release.resolveReleaseSDKConfig", "failed to load build config", err)
+	}
+	if buildCfg != nil && buildCfg.SDK != nil {
+		resolved := sdk.CloneConfig(buildCfg.SDK)
+		resolved.ApplyDefaults()
+		return resolved, nil
+	}
+
+	resolved := sdk.DefaultConfig()
+	resolved.ApplyDefaults()
+	return resolved, nil
 }
 
 // toSDKConfig clones release SDK config into the runtime SDK config type.

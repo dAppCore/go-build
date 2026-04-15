@@ -20,15 +20,38 @@ func TestSDK_RunSDKNilConfig_Bad(t *testing.T) {
 	assert.Contains(t, err.Error(), "config is nil")
 }
 
-func TestSDK_RunSDKNoSDKConfig_Bad(t *testing.T) {
-	cfg := &Config{
-		SDK: nil,
-	}
-	cfg.projectDir = "/tmp"
+func TestSDK_RunSDKNoSDKConfig_FallsBackToDefaults_Good(t *testing.T) {
+	cfg := &Config{}
+	cfg.projectDir = t.TempDir()
+	cfg.version = "v1.0.0"
 
-	_, err := RunSDK(context.Background(), cfg, true)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "sdk not configured")
+	result, err := RunSDK(context.Background(), cfg, true)
+	require.NoError(t, err)
+	assert.Equal(t, "v1.0.0", result.Version)
+	assert.Equal(t, "sdk", result.Output)
+	assert.Equal(t, []string{"typescript", "python", "go", "php"}, result.Languages)
+}
+
+func TestSDK_RunSDKNoSDKConfig_UsesBuildConfig_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	buildConfig := `version: 1
+sdk:
+  spec: api/openapi.yaml
+  languages: [typescript, go]
+  output: generated/sdk
+`
+	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(buildConfig), 0o644))
+
+	cfg := &Config{}
+	cfg.projectDir = projectDir
+	cfg.version = "v2.0.0"
+
+	result, err := RunSDK(context.Background(), cfg, true)
+	require.NoError(t, err)
+	assert.Equal(t, "v2.0.0", result.Version)
+	assert.Equal(t, "generated/sdk", result.Output)
+	assert.Equal(t, []string{"typescript", "go"}, result.Languages)
 }
 
 func TestSDK_RunSDKDryRun_Good(t *testing.T) {

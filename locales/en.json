@@ -117,7 +117,7 @@
         "completed": "Release published successfully",
         "dry_run_hint": "Dry run — no artefacts will be published",
         "error": {
-          "no_config": "No build configuration found"
+          "no_config": "No release configuration found"
         },
         "flag": {
           "draft": "Create release as draft",
@@ -126,7 +126,7 @@
           "version": "Release version (e.g. v1.2.3)"
         },
         "hint": {
-          "create_config": "Create a .core/build.yaml to configure builds"
+          "create_config": "Create a .core/release.yaml to configure releases"
         },
         "label": {
           "artifacts": "Artefacts:",
