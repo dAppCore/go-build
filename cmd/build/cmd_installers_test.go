@@ -121,6 +121,14 @@ func TestBuildCmd_runBuildInstallersInDir_UnknownVariant_Bad(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown installer variant")
 }
 
+func TestBuildCmd_runBuildInstallersInDir_RejectsUnsafeVersion_Bad(t *testing.T) {
+	projectDir := t.TempDir()
+
+	err := runBuildInstallersInDir(context.Background(), projectDir, "ci", "v1.2.3 --bad", "", "dappcore/core", "core")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid installer version")
+}
+
 func TestBuildCmd_runBuildInstallersInDir_MissingRepository_Bad(t *testing.T) {
 	projectDir := t.TempDir()
 

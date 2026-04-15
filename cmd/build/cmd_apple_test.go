@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
+	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -144,6 +144,37 @@ sign:
 	})
 	require.NoError(t, err)
 	assert.True(t, called)
+}
+
+func TestBuildCmd_runAppleBuildInDir_RejectsUnsafeVersion_Bad(t *testing.T) {
+	projectDir := t.TempDir()
+	coreDir := ax.Join(projectDir, ".core")
+	require.NoError(t, ax.MkdirAll(coreDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
+project:
+  name: Core
+  binary: Core
+apple:
+  bundle_id: ai.lthn.core
+  sign: false
+`), 0o644))
+
+	oldBuildApple := buildAppleFn
+	t.Cleanup(func() {
+		buildAppleFn = oldBuildApple
+	})
+
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+		t.Fatal("buildAppleFn must not be called for unsafe versions")
+		return nil, nil
+	}
+
+	err := runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
+		Version:     "v1.2.3 --bad",
+		BuildNumber: "42",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid build version")
 }
 
 func TestBuildCmd_runAppleBuildInDir_SetsUpBuildCache_Good(t *testing.T) {

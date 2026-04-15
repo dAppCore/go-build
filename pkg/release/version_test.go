@@ -123,6 +123,16 @@ func TestVersion_DetermineVersion_Bad(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorIs(t, err, context.Canceled)
 	})
+
+	t.Run("rejects unsafe release tags", func(t *testing.T) {
+		dir := setupGitRepo(t)
+		createCommit(t, dir, "feat: initial commit")
+		createTag(t, dir, "v1.0.0;bad")
+
+		_, err := DetermineVersion(dir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsafe release tag")
+	})
 }
 
 func TestVersion_GetTagOnHead_Good(t *testing.T) {

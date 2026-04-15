@@ -18,3 +18,9 @@ func TestVersionLinkerFlag_Bad(t *testing.T) {
 	assert.Error(t, err)
 	assert.Empty(t, flag)
 }
+
+func TestValidateVersionIdentifier_Bad(t *testing.T) {
+	assert.NoError(t, ValidateVersionIdentifier("v1.2.3"))
+	assert.NoError(t, ValidateVersionIdentifier("dev"))
+	assert.Error(t, ValidateVersionIdentifier("v1.2.3\n--flag"))
+}

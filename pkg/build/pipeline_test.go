@@ -249,6 +249,27 @@ func TestPipeline_Plan_UsesExplicitVersionOverride_Good(t *testing.T) {
 	assert.False(t, versionResolverCalled)
 }
 
+func TestPipeline_Plan_RejectsUnsafeVersionOverride_Bad(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+
+	pipeline := &Pipeline{
+		FS: io.Local,
+		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+			return &stubPipelineBuilder{}, nil
+		},
+	}
+
+	_, err := pipeline.Plan(context.Background(), PipelineRequest{
+		ProjectDir:  dir,
+		BuildConfig: DefaultConfig(),
+		Version:     "v1.2.3 --bad",
+		Targets:     []Target{{OS: "linux", Arch: "amd64"}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid build version override")
+}
+
 func TestPipeline_Plan_DoesNotMutateCallerBuildConfig_Good(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))

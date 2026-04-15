@@ -80,6 +80,9 @@ func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, 
 			return coreerr.E("build.runBuildInstallers", "failed to determine installer version; use --version to override", err)
 		}
 	}
+	if err := build.ValidateVersionIdentifier(installerVersion); err != nil {
+		return coreerr.E("build.runBuildInstallers", "invalid installer version; use a safe release identifier", err)
+	}
 
 	installerRepo := strings.TrimSpace(repo)
 	if installerRepo == "" {

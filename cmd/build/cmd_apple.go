@@ -4,10 +4,10 @@ import (
 	"context"
 	"regexp"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
@@ -104,6 +104,9 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 		if err != nil {
 			return coreerr.E("build.apple", "failed to determine version", err)
 		}
+	}
+	if err := build.ValidateVersionIdentifier(version); err != nil {
+		return coreerr.E("build.apple", "invalid build version; use a safe release identifier", err)
 	}
 
 	buildNumber := opts.BuildNumber

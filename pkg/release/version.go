@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -37,7 +37,11 @@ func DetermineVersionWithContext(ctx context.Context, dir string) (string, error
 	// Check if HEAD has a tag
 	headTag, err := getTagOnHeadWithContext(ctx, dir)
 	if err == nil && headTag != "" {
-		return normalizeVersion(headTag), nil
+		headTag = normalizeVersion(headTag)
+		if !ValidateVersion(headTag) {
+			return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+headTag, nil)
+		}
+		return headTag, nil
 	}
 	if err != nil && ctx.Err() != nil {
 		return "", coreerr.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err())
@@ -51,6 +55,9 @@ func DetermineVersionWithContext(ctx context.Context, dir string) (string, error
 	if err != nil || latestTag == "" {
 		// No tags exist, return default
 		return "v0.0.1", nil
+	}
+	if !ValidateVersion(latestTag) {
+		return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+latestTag, nil)
 	}
 
 	// Increment patch version

@@ -94,6 +94,23 @@ func TestBuildCmd_runRelease_TargetSDK_Good(t *testing.T) {
 	assert.True(t, called)
 }
 
+func TestBuildCmd_runRelease_RejectsUnsafeVersion_Bad(t *testing.T) {
+	projectDir := t.TempDir()
+	originalGetwd := getReleaseWorkingDir
+	originalConfigExists := releaseConfigExistsFn
+	t.Cleanup(func() {
+		getReleaseWorkingDir = originalGetwd
+		releaseConfigExistsFn = originalConfigExists
+	})
+
+	getReleaseWorkingDir = func() (string, error) { return projectDir, nil }
+	releaseConfigExistsFn = func(dir string) bool { return true }
+
+	err := runRelease(context.Background(), true, false, "release", "v1.2.3 --bad", false, false, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid release version override")
+}
+
 func TestBuildCmd_runRelease_CIModeEmitsGitHubAnnotationOnError_Bad(t *testing.T) {
 	projectDir := t.TempDir()
 	originalGetwd := getReleaseWorkingDir

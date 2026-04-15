@@ -116,6 +116,9 @@ func runBuildImage(req ImageBuildRequest) error {
 
 	versionInfo := resolveImmutableImageVersion(ctx, projectDir)
 	version := versionInfo.BuildVersion
+	if err := build.ValidateVersionIdentifier(version); err != nil {
+		return coreerr.E("build.runBuildImage", "unsafe release tag detected for immutable image", err)
+	}
 
 	imageName := buildConfig.LinuxKit.Base
 	if imageName == "" {

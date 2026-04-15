@@ -86,6 +86,9 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 
 	// Apply CLI overrides
 	if version != "" {
+		if !release.ValidateVersion(version) {
+			return coreerr.E("release", "invalid release version override", nil)
+		}
 		cfg.SetVersion(version)
 	}
 	if err := applyReleaseArchiveFormatOverride(cfg, archiveFormat); err != nil {
