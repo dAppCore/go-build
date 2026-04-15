@@ -201,7 +201,7 @@ func parseImageFormats(value string) []string {
 	formats := make([]string, 0, len(parts))
 	seen := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
-		part = strings.TrimSpace(part)
+		part = strings.ToLower(strings.TrimSpace(part))
 		if part == "" {
 			continue
 		}
@@ -231,9 +231,9 @@ func cachedImageArtifacts(imageBuilder *builders.LinuxKitImageBuilder, outputDir
 }
 
 func containsImageFormat(formats []string, want string) bool {
-	want = strings.TrimSpace(want)
+	want = strings.ToLower(strings.TrimSpace(want))
 	for _, format := range formats {
-		if strings.TrimSpace(format) == want {
+		if strings.ToLower(strings.TrimSpace(format)) == want {
 			return true
 		}
 	}

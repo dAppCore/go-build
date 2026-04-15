@@ -1,5 +1,7 @@
 package build
 
+import "strings"
+
 // LinuxKitImage models an immutable LinuxKit image definition.
 //
 //	image := build.LinuxKit(
@@ -46,13 +48,18 @@ func LinuxKit(opts ...LinuxKitOption) *LinuxKitImage {
 			opt(&cfg)
 		}
 	}
+	cfg.Base = strings.TrimSpace(cfg.Base)
+	cfg.Registry = strings.TrimSpace(cfg.Registry)
+	cfg.Packages = normalizeLinuxKitValues(cfg.Packages)
+	cfg.Mounts = normalizeLinuxKitValues(cfg.Mounts)
+	cfg.Formats = normalizeLinuxKitFormats(cfg.Formats)
 	return &LinuxKitImage{Config: cfg}
 }
 
 // WithBase overrides the base image template name.
 func WithBase(base string) LinuxKitOption {
 	return func(cfg *LinuxKitConfig) {
-		cfg.Base = base
+		cfg.Base = strings.TrimSpace(base)
 	}
 }
 
@@ -66,6 +73,7 @@ func WithPackages(packages ...string) LinuxKitOption {
 // WithMount appends a writable mount point exposed inside the image.
 func WithMount(path string) LinuxKitOption {
 	return func(cfg *LinuxKitConfig) {
+		path = strings.TrimSpace(path)
 		if path == "" {
 			return
 		}
@@ -83,13 +91,57 @@ func WithGPU(enabled bool) LinuxKitOption {
 // WithFormats overrides the requested output formats.
 func WithFormats(formats ...string) LinuxKitOption {
 	return func(cfg *LinuxKitConfig) {
-		cfg.Formats = append([]string{}, formats...)
+		cfg.Formats = normalizeLinuxKitFormats(formats)
 	}
 }
 
 // WithRegistry sets the OCI registry namespace for image publication metadata.
 func WithRegistry(registry string) LinuxKitOption {
 	return func(cfg *LinuxKitConfig) {
-		cfg.Registry = registry
+		cfg.Registry = strings.TrimSpace(registry)
 	}
+}
+
+func normalizeLinuxKitValues(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+
+	return result
+}
+
+func normalizeLinuxKitFormats(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+
+	return result
 }

@@ -118,7 +118,7 @@ func TestBuildCmd_AddImageCommand_Good(t *testing.T) {
 }
 
 func TestBuildCmd_parseImageFormats_Good(t *testing.T) {
-	assert.Equal(t, []string{"oci", "apple"}, parseImageFormats("oci, apple,oci"))
+	assert.Equal(t, []string{"oci", "apple"}, parseImageFormats(" OCI , apple,Apple, oci "))
 }
 
 func TestBuildCmd_buildPwaCommandAcceptsPath_Good(t *testing.T) {

@@ -38,6 +38,10 @@ func TestBuildCmd_AddReleaseCommand_RegistersTopLevelAlias_Good(t *testing.T) {
 func TestBuildCmd_resolveReleaseDryRun_Good(t *testing.T) {
 	assert.False(t, resolveReleaseDryRun(false, false, false))
 	assert.True(t, resolveReleaseDryRun(true, false, false))
+	assert.False(t, resolveReleaseDryRun(false, true, false))
+	assert.False(t, resolveReleaseDryRun(true, true, false))
+	assert.False(t, resolveReleaseDryRun(false, false, true))
+	assert.False(t, resolveReleaseDryRun(true, false, true))
 }
 
 func TestBuildCmd_runRelease_TargetSDK_Good(t *testing.T) {

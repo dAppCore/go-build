@@ -163,7 +163,10 @@ func applyReleaseArchiveFormatOverride(cfg *release.Config, archiveFormat string
 	return nil
 }
 
-func resolveReleaseDryRun(dryRun, _ bool, _ bool) bool {
+func resolveReleaseDryRun(dryRun, publish, weAreGoForLaunch bool) bool {
+	if publish || weAreGoForLaunch {
+		return false
+	}
 	return dryRun
 }
 

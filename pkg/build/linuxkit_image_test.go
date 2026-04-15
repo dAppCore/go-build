@@ -37,6 +37,27 @@ func TestBuild_LinuxKit_Good(t *testing.T) {
 	}, image.Config)
 }
 
+func TestBuild_LinuxKit_NormalizesOptionValues_Good(t *testing.T) {
+	image := LinuxKit(
+		WithBase(" core-dev "),
+		WithPackages(" git ", "git", "task"),
+		WithMount("/workspace"),
+		WithMount(" /src "),
+		WithFormats(" OCI ", "apple", "APPLE", ""),
+		WithRegistry(" ghcr.io/dappcore "),
+	)
+
+	require.NotNil(t, image)
+	assert.Equal(t, LinuxKitConfig{
+		Base:     "core-dev",
+		Packages: []string{"git", "task"},
+		Mounts:   []string{"/workspace", "/src"},
+		GPU:      false,
+		Formats:  []string{"oci", "apple"},
+		Registry: "ghcr.io/dappcore",
+	}, image.Config)
+}
+
 func TestBuild_LinuxKitBaseTemplate_Good(t *testing.T) {
 	images := LinuxKitBaseImages()
 	require.Len(t, images, 3)

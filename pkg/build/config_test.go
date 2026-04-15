@@ -305,6 +305,44 @@ linuxkit:
 		assert.Equal(t, "ghcr.io/dappcore", cfg.LinuxKit.Registry)
 	})
 
+	t.Run("normalizes LinuxKit list values and formats", func(t *testing.T) {
+		content := `
+version: 1
+build:
+  formats:
+    - " OCI "
+    - apple
+    - APPLE
+linuxkit:
+  base: " core-dev "
+  packages:
+    - " git "
+    - git
+    - task
+  mounts:
+    - " /workspace "
+    - /workspace
+    - /src
+  formats:
+    - " OCI "
+    - apple
+    - APPLE
+  registry: " ghcr.io/dappcore "
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, []string{"oci", "apple"}, cfg.Build.Formats)
+		assert.Equal(t, "core-dev", cfg.LinuxKit.Base)
+		assert.Equal(t, []string{"git", "task"}, cfg.LinuxKit.Packages)
+		assert.Equal(t, []string{"/workspace", "/src"}, cfg.LinuxKit.Mounts)
+		assert.Equal(t, []string{"oci", "apple"}, cfg.LinuxKit.Formats)
+		assert.Equal(t, "ghcr.io/dappcore", cfg.LinuxKit.Registry)
+	})
+
 	t.Run("loads sdk config from build yaml with shorthand diff and defaults", func(t *testing.T) {
 		t.Setenv("SDK_SPEC", "docs/openapi.yaml")
 		t.Setenv("SDK_LANG", "typescript")
