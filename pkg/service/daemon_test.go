@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -51,4 +53,23 @@ func TestDiffSnapshots_Good(t *testing.T) {
 	changed := diffSnapshots(before, after)
 
 	assert.Equal(t, []string{"/tmp/a", "/tmp/b", "/tmp/c"}, changed)
+}
+
+func TestDefaultRunWatchedBuild_WithoutBuildConfig_UsesLocalTarget_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "go.mod"), []byte("module example.com/daemon\n\ngo 1.20\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	err := defaultRunWatchedBuild(context.Background(), projectDir)
+	require.NoError(t, err)
+
+	distDir := filepath.Join(projectDir, "dist")
+	entries, err := os.ReadDir(distDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, runtime.GOOS+"_"+runtime.GOARCH, entries[0].Name())
+
+	platformEntries, err := os.ReadDir(filepath.Join(distDir, entries[0].Name()))
+	require.NoError(t, err)
+	assert.Len(t, platformEntries, 1)
 }

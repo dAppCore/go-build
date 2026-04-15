@@ -8,16 +8,17 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
-	coreapi "dappco.re/go/core/api"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
+	coreapi "dappco.re/go/core/api"
 	"dappco.re/go/core/io"
 	"dappco.re/go/core/ws"
 	"github.com/gorilla/websocket"
@@ -1213,6 +1214,57 @@ targets:
 	checksums, err := io.Local.Read(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))
 	require.NoError(t, err)
 	assert.Contains(t, checksums, "api-build_linux_amd64.tar.xz")
+}
+
+func TestProvider_TriggerBuild_WithoutBuildConfig_UsesLocalTarget_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	oldGetBuilder := providerGetBuilder
+	oldDetermineVersion := providerDetermineVersion
+	t.Cleanup(func() {
+		providerGetBuilder = oldGetBuilder
+		providerDetermineVersion = oldDetermineVersion
+	})
+
+	var capturedTargets []build.Target
+	providerGetBuilder = func(projectType build.ProjectType) (build.Builder, error) {
+		return &capturingBuilder{
+			name: "go",
+			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+				capturedTargets = append([]build.Target{}, targets...)
+
+				artifactDir := ax.Join(cfg.OutputDir, runtime.GOOS+"_"+runtime.GOARCH)
+				require.NoError(t, cfg.FS.EnsureDir(artifactDir))
+				artifactPath := ax.Join(artifactDir, "provider")
+				require.NoError(t, cfg.FS.WriteMode(artifactPath, "binary", 0o755))
+
+				return []build.Artifact{{
+					Path: artifactPath,
+					OS:   runtime.GOOS,
+					Arch: runtime.GOARCH,
+				}}, nil
+			},
+		}, nil
+	}
+	providerDetermineVersion = func(ctx context.Context, dir string) (string, error) {
+		return "v0.0.1", nil
+	}
+
+	p := NewProvider(projectDir, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/build", nil)
+
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+
+	p.triggerBuild(ctx)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}, capturedTargets)
 }
 
 func TestProvider_TriggerRelease_UsesFullReleasePipeline_Good(t *testing.T) {

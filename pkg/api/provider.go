@@ -14,8 +14,6 @@ import (
 	"runtime"
 	"sort"
 
-	"dappco.re/go/core/api"
-	"dappco.re/go/core/api/pkg/provider"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/projectdetect"
 	"dappco.re/go/build/internal/sdkcfg"
@@ -24,6 +22,8 @@ import (
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/sdk"
+	"dappco.re/go/core/api"
+	"dappco.re/go/core/api/pkg/provider"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"dappco.re/go/core/ws"
@@ -423,11 +423,14 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		return
 	}
 
-	// Load build config
-	cfg, err := build.LoadConfig(p.medium, dir)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
-		return
+	hasBuildConfig := build.ConfigExists(p.medium, dir)
+	var cfg *build.BuildConfig
+	if hasBuildConfig {
+		cfg, err = build.LoadConfig(p.medium, dir)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+			return
+		}
 	}
 
 	projectTypes, err := build.Discover(p.medium, dir)

@@ -144,9 +144,13 @@ func Run(ctx context.Context, cfg Config) error {
 func defaultRunWatchedBuild(ctx context.Context, projectDir string) error {
 	filesystem := io.Local
 
-	buildConfig, err := build.LoadConfig(filesystem, projectDir)
-	if err != nil {
-		return coreerr.E("service.defaultRunWatchedBuild", "failed to load build config", err)
+	var buildConfig *build.BuildConfig
+	if build.ConfigExists(filesystem, projectDir) {
+		var err error
+		buildConfig, err = build.LoadConfig(filesystem, projectDir)
+		if err != nil {
+			return coreerr.E("service.defaultRunWatchedBuild", "failed to load build config", err)
+		}
 	}
 
 	pipeline := &build.Pipeline{
