@@ -300,6 +300,46 @@ func TestNode_NodeBuilderBuild_Good_DenoOverrideFromEnvWins(t *testing.T) {
 	assert.Equal(t, "--env", lines[1])
 }
 
+func TestNode_NodeBuilderBuild_Good_NpmOverrideFromConfig(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	binDir := t.TempDir()
+	setupFakeNodeToolchain(t, binDir)
+	setupFakeNodeCommand(t, binDir, "npm-build")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	projectDir := t.TempDir()
+	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{"name":"testapp","scripts":{"build":"node build.js"}}`), 0o644))
+
+	outputDir := t.TempDir()
+	logPath := ax.Join(t.TempDir(), "npm-override.log")
+	t.Setenv("NODE_BUILD_LOG_FILE", logPath)
+
+	builder := NewNodeBuilder()
+	cfg := &build.Config{
+		FS:         io.Local,
+		ProjectDir: projectDir,
+		OutputDir:  outputDir,
+		Name:       "npmapp",
+		NpmBuild:   "npm-build --scope app",
+	}
+
+	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	content, err := ax.ReadFile(logPath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	require.GreaterOrEqual(t, len(lines), 3)
+	assert.Equal(t, "npm-build", lines[0])
+	assert.Equal(t, "--scope", lines[1])
+	assert.Equal(t, "app", lines[2])
+}
+
 func TestNode_NodeBuilderBuild_Good_DenoEnableWithoutManifest(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

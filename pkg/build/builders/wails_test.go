@@ -845,6 +845,37 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 		assert.Equal(t, "build", lines[2])
 	})
 
+	t.Run("uses configured npm build command when provided", func(t *testing.T) {
+		binDir := t.TempDir()
+		setupFakeFrontendCommand(t, binDir, "npm")
+		setupFakeFrontendCommand(t, binDir, "npm-build")
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		projectDir := setupWailsTestProject(t)
+		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+
+		logPath := ax.Join(t.TempDir(), "frontend-npm-custom.log")
+		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
+
+		builder := NewWailsBuilder()
+		cfg := &build.Config{
+			FS:         io.Local,
+			ProjectDir: projectDir,
+			NpmBuild:   "npm-build --scope app",
+		}
+
+		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+
+		content, err := ax.ReadFile(logPath)
+		require.NoError(t, err)
+
+		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+		require.Len(t, lines, 3)
+		assert.Equal(t, "npm-build", lines[0])
+		assert.Equal(t, "--scope", lines[1])
+		assert.Equal(t, "app", lines[2])
+	})
+
 	t.Run("prefers deno when DENO_ENABLE is set without a deno manifest", func(t *testing.T) {
 		binDir := t.TempDir()
 		setupFakeFrontendCommand(t, binDir, "deno")

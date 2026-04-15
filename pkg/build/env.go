@@ -39,6 +39,17 @@ func DenoRequested(configuredBuild string) bool {
 	return core.Trim(configuredBuild) != ""
 }
 
+// NpmRequested reports whether the current build should prefer an npm-backed
+// frontend build. It honours the action-style environment override first and
+// then the persisted/configured command override.
+func NpmRequested(configuredBuild string) bool {
+	if core.Trim(core.Env("NPM_BUILD")) != "" {
+		return true
+	}
+
+	return core.Trim(configuredBuild) != ""
+}
+
 func truthyEnv(value string) bool {
 	switch core.Lower(core.Trim(value)) {
 	case "1", "true", "yes", "on":

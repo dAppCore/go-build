@@ -6,9 +6,9 @@ import (
 	"os"
 	"runtime"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -261,6 +261,14 @@ func (b *WailsBuilder) resolveFrontendBuild(cfg *build.Config) (string, string, 
 
 	if b.hasDenoConfig(fs, frontendDir) || build.DenoRequested(cfg.DenoBuild) {
 		command, args, err := resolveDenoBuildCommand(cfg, b.resolveDenoCli)
+		if err != nil {
+			return "", "", nil, err
+		}
+		return frontendDir, command, args, nil
+	}
+
+	if build.NpmRequested(cfg.NpmBuild) {
+		command, args, err := resolveNpmBuildCommand(cfg, b.resolveNpmCli)
 		if err != nil {
 			return "", "", nil, err
 		}

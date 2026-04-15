@@ -6,9 +6,9 @@ import (
 	"path"
 	"runtime"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -191,6 +191,10 @@ func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, proje
 		return resolveDenoBuildCommand(cfg, b.resolveDenoCli)
 	}
 
+	if build.NpmRequested(configuredNpmBuild(cfg)) {
+		return resolveNpmBuildCommand(cfg, b.resolveNpmCli)
+	}
+
 	packageManager, err := b.resolvePackageManager(fs, projectDir)
 	if err != nil {
 		return "", nil, err
@@ -222,6 +226,13 @@ func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, proje
 	}
 }
 
+func configuredNpmBuild(cfg *build.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	return cfg.NpmBuild
+}
+
 func (b *NodeBuilder) resolveDenoCli(paths ...string) (string, error) {
 	if len(paths) == 0 {
 		paths = []string{
@@ -233,6 +244,22 @@ func (b *NodeBuilder) resolveDenoCli(paths ...string) (string, error) {
 	command, err := ax.ResolveCommand("deno", paths...)
 	if err != nil {
 		return "", coreerr.E("NodeBuilder.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", err)
+	}
+
+	return command, nil
+}
+
+func (b *NodeBuilder) resolveNpmCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/npm",
+			"/opt/homebrew/bin/npm",
+		}
+	}
+
+	command, err := ax.ResolveCommand("npm", paths...)
+	if err != nil {
+		return "", coreerr.E("NodeBuilder.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", err)
 	}
 
 	return command, nil

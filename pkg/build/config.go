@@ -86,6 +86,8 @@ type Build struct {
 	Obfuscate bool `json:"obfuscate" yaml:"obfuscate"`
 	// DenoBuild overrides the default `deno task build` invocation for Deno-backed builds.
 	DenoBuild string `json:"deno_build,omitempty" yaml:"deno_build,omitempty"`
+	// NpmBuild overrides the default `npm run build` invocation for npm-backed builds.
+	NpmBuild string `json:"npm_build,omitempty" yaml:"npm_build,omitempty"`
 	// NSIS enables Windows NSIS installer generation (Wails projects only).
 	NSIS bool `json:"nsis" yaml:"nsis"`
 	// WebView2 sets the WebView2 delivery method: download|embed|browser|error.
@@ -199,6 +201,7 @@ type buildYAML struct {
 	CGO            bool              `json:"cgo" yaml:"cgo"`
 	Obfuscate      bool              `json:"obfuscate" yaml:"obfuscate"`
 	DenoBuild      string            `json:"deno_build,omitempty" yaml:"deno_build,omitempty"`
+	NpmBuild       string            `json:"npm_build,omitempty" yaml:"npm_build,omitempty"`
 	NSIS           bool              `json:"nsis" yaml:"nsis"`
 	WebView2       string            `json:"webview2,omitempty" yaml:"webview2,omitempty"`
 	Flags          []string          `json:"flags" yaml:"flags"`
@@ -284,6 +287,7 @@ func buildYAMLFromBuild(value Build) buildYAML {
 		CGO:            value.CGO,
 		Obfuscate:      value.Obfuscate,
 		DenoBuild:      value.DenoBuild,
+		NpmBuild:       value.NpmBuild,
 		NSIS:           value.NSIS,
 		WebView2:       value.WebView2,
 		Flags:          value.Flags,
@@ -477,6 +481,7 @@ func (cfg *BuildConfig) ExpandEnv() {
 
 	cfg.Build.Type = expandEnv(cfg.Build.Type)
 	cfg.Build.DenoBuild = expandEnv(cfg.Build.DenoBuild)
+	cfg.Build.NpmBuild = expandEnv(cfg.Build.NpmBuild)
 	cfg.Build.WebView2 = expandEnv(cfg.Build.WebView2)
 	cfg.Build.ArchiveFormat = expandEnv(cfg.Build.ArchiveFormat)
 	cfg.Build.Dockerfile = expandEnv(cfg.Build.Dockerfile)
@@ -635,6 +640,7 @@ func cloneBuild(value Build) Build {
 		CGO:            value.CGO,
 		Obfuscate:      value.Obfuscate,
 		DenoBuild:      value.DenoBuild,
+		NpmBuild:       value.NpmBuild,
 		NSIS:           value.NSIS,
 		WebView2:       value.WebView2,
 		Flags:          append([]string(nil), value.Flags...),
