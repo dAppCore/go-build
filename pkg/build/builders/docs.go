@@ -39,7 +39,7 @@ func (b *DocsBuilder) Name() string {
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *DocsBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return build.IsMkDocsProject(fs, dir), nil
+	return build.IsDocsProject(fs, dir), nil
 }
 
 // Build runs mkdocs build and packages the generated site into a zip archive.

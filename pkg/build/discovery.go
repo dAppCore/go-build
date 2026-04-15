@@ -59,7 +59,7 @@ var discoveryRules = []discoveryRule{
 	{projectType: ProjectTypeDocker, matches: IsDockerProject},
 	{projectType: ProjectTypeLinuxKit, matches: IsLinuxKitProject},
 	{projectType: ProjectTypeTaskfile, matches: IsTaskfileProject},
-	{projectType: ProjectTypeDocs, matches: IsMkDocsProject},
+	{projectType: ProjectTypeDocs, matches: IsDocsProject},
 }
 
 var discoveryMarkerPaths = []string{
@@ -170,6 +170,13 @@ func IsCPPProject(fs io.Medium, dir string) bool {
 //	ok := build.IsMkDocsProject(io.Local, ".")
 func IsMkDocsProject(fs io.Medium, dir string) bool {
 	return ResolveMkDocsConfigPath(fs, dir) != ""
+}
+
+// IsDocsProject is the predictable alias for IsMkDocsProject.
+//
+//	ok := build.IsDocsProject(io.Local, ".")
+func IsDocsProject(fs io.Medium, dir string) bool {
+	return IsMkDocsProject(fs, dir)
 }
 
 // ResolveMkDocsConfigPath returns the first MkDocs config path that exists.
