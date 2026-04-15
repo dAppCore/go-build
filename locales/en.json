@@ -236,6 +236,28 @@
         "valid": "Spec is valid",
         "validating": "Validating spec..."
       }
+    },
+    "service": {
+      "short": "Manage background build daemon services",
+      "long": "Install, start, stop, uninstall, export, or run the background build daemon for the current project.",
+      "install": {
+        "long": "Register the current project as a native OS service using the current executable and project directory."
+      },
+      "start": {
+        "long": "Start the installed background build daemon service."
+      },
+      "stop": {
+        "long": "Stop the installed background build daemon service."
+      },
+      "uninstall": {
+        "long": "Remove the installed background build daemon service from the OS service manager."
+      },
+      "export": {
+        "long": "Generate the native service definition for the current platform, such as a launchd plist or systemd unit."
+      },
+      "run": {
+        "long": "Run the background build daemon in the foreground."
+      }
     }
   }
 }

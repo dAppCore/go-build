@@ -13,6 +13,7 @@ require (
 	dappco.re/go/core/ws v0.4.0
 	github.com/Snider/Borg v0.2.0
 	github.com/gin-gonic/gin v1.12.0
+	github.com/kardianos/service v1.2.4
 	github.com/leaanthony/debme v1.2.1
 	github.com/leaanthony/gosod v1.0.4
 	github.com/oasdiff/kin-openapi v0.136.1
