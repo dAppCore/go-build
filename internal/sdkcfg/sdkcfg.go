@@ -16,7 +16,9 @@ func LoadProjectConfig(fs io.Medium, projectDir string) (*sdk.Config, error) {
 		return nil, err
 	}
 	if buildCfg != nil && buildCfg.SDK != nil {
-		return sdk.CloneConfig(buildCfg.SDK), nil
+		cfg := sdk.CloneConfig(buildCfg.SDK)
+		cfg.ApplyDefaults()
+		return cfg, nil
 	}
 
 	releaseCfg, err := release.LoadConfigWithMedium(fs, projectDir)
@@ -24,8 +26,12 @@ func LoadProjectConfig(fs io.Medium, projectDir string) (*sdk.Config, error) {
 		return nil, err
 	}
 	if releaseCfg != nil && releaseCfg.SDK != nil {
-		return sdk.CloneConfig(releaseCfg.SDK), nil
+		cfg := sdk.CloneConfig(releaseCfg.SDK)
+		cfg.ApplyDefaults()
+		return cfg, nil
 	}
 
-	return sdk.DefaultConfig(), nil
+	cfg := sdk.DefaultConfig()
+	cfg.ApplyDefaults()
+	return cfg, nil
 }

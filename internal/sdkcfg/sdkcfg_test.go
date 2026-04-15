@@ -60,4 +60,25 @@ sdk:
 		assert.Equal(t, "openapi.yaml", cfg.Spec)
 		assert.Equal(t, []string{"typescript"}, cfg.Languages)
 	})
+
+	t.Run("applies documented defaults to partial sdk config", func(t *testing.T) {
+		medium := io.NewMemoryMedium()
+		projectDir := "project"
+
+		require.NoError(t, medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)))
+		require.NoError(t, medium.Write(build.ConfigPath(projectDir), `
+version: 1
+sdk:
+  spec: openapi.yaml
+`))
+
+		cfg, err := LoadProjectConfig(medium, projectDir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "openapi.yaml", cfg.Spec)
+		assert.Equal(t, []string{"typescript", "python", "go", "php"}, cfg.Languages)
+		assert.Equal(t, "sdk", cfg.Output)
+		assert.True(t, cfg.Diff.Enabled)
+	})
 }

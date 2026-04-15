@@ -4,9 +4,9 @@ package sdk
 import (
 	"context"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/sdk/generators"
+	"dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
 )
@@ -349,16 +349,6 @@ func resolveRuntimeConfig(config *Config) *Config {
 	}
 
 	clone := CloneConfig(config)
-	defaults := DefaultConfig()
-
-	if len(clone.Languages) == 0 {
-		clone.Languages = append([]string(nil), defaults.Languages...)
-	}
-	clone.Languages = normaliseLanguages(clone.Languages)
-
-	if clone.Output == "" {
-		clone.Output = defaults.Output
-	}
-
+	clone.ApplyDefaults()
 	return clone
 }

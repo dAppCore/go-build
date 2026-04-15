@@ -81,6 +81,7 @@ func TestSDK_New_Good(t *testing.T) {
 		cfg := &Config{Output: "custom"}
 		s := New("/tmp", cfg)
 		assert.Equal(t, "custom", s.config.Output)
+		assert.True(t, s.config.Diff.Enabled)
 	})
 
 	t.Run("applies defaults and does not mutate the caller config", func(t *testing.T) {
@@ -92,6 +93,7 @@ func TestSDK_New_Good(t *testing.T) {
 
 		assert.Equal(t, []string{"typescript", "python"}, s.config.Languages)
 		assert.Equal(t, "sdk", s.config.Output)
+		assert.True(t, s.config.Diff.Enabled)
 		assert.Equal(t, []string{"ts", "python", "py"}, cfg.Languages)
 		assert.Empty(t, cfg.Output)
 	})

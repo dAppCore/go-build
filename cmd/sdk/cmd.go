@@ -11,11 +11,11 @@ package sdkcmd
 import (
 	"context"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/internal/sdkcfg"
 	"dappco.re/go/build/pkg/sdk"
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
@@ -97,6 +97,7 @@ func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, versio
 	if version != "" {
 		s.SetVersion(version)
 	}
+	resolvedConfig := s.Config()
 
 	cli.Print("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.build.sdk.label")), i18n.T("cmd.build.sdk.generating"))
 	if dryRun {
@@ -115,7 +116,7 @@ func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, versio
 		if lang != "" {
 			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.language_label"), sdkTargetStyle.Render(lang))
 		} else {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.languages_label"), sdkTargetStyle.Render(core.Join(", ", config.Languages...)))
+			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.languages_label"), sdkTargetStyle.Render(core.Join(", ", resolvedConfig.Languages...)))
 		}
 		cli.Blank()
 		cli.Print("%s %s\n", sdkSuccessStyle.Render(i18n.T("cmd.build.label.ok")), i18n.T("cmd.build.sdk.would_generate"))
@@ -133,7 +134,7 @@ func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, versio
 			cli.Print("%s %v\n", sdkErrorStyle.Render(i18n.T("common.label.error")), err)
 			return err
 		}
-		cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), sdkTargetStyle.Render(core.Join(", ", config.Languages...)))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), sdkTargetStyle.Render(core.Join(", ", resolvedConfig.Languages...)))
 	}
 
 	cli.Blank()
