@@ -1,20 +1,20 @@
-# Maintainer: {{.Maintainer}}
-pkgname={{.PackageName}}-bin
-pkgver={{.Version}}
+# Maintainer: {{ jsComment .Maintainer }}
+pkgname={{ shellQuote (printf "%s-bin" .PackageName) }}
+pkgver={{ shellQuote .Version }}
 pkgrel=1
-pkgdesc="{{.Description}}"
+pkgdesc={{ shellQuote .Description }}
 arch=('x86_64' 'aarch64')
-url="https://github.com/{{.Repository}}"
-license=('{{.License}}')
-provides=('{{.PackageName}}')
-conflicts=('{{.PackageName}}')
+url={{ shellQuote (printf "https://github.com/%s" .Repository) }}
+license=({{ shellQuote .License }})
+provides=({{ shellQuote .PackageName }})
+conflicts=({{ shellQuote .PackageName }})
 
-source_x86_64=("${pkgname}-${pkgver}-x86_64.tar.gz::https://github.com/{{.Repository}}/releases/download/v${pkgver}/{{.Checksums.LinuxAmd64File}}")
-source_aarch64=("${pkgname}-${pkgver}-aarch64.tar.gz::https://github.com/{{.Repository}}/releases/download/v${pkgver}/{{.Checksums.LinuxArm64File}}")
+source_x86_64=("${pkgname}-${pkgver}-x86_64.tar.gz::https://github.com/"{{ shellQuote .Repository }}"/releases/download/v${pkgver}/"{{ shellQuote .Checksums.LinuxAmd64File }})
+source_aarch64=("${pkgname}-${pkgver}-aarch64.tar.gz::https://github.com/"{{ shellQuote .Repository }}"/releases/download/v${pkgver}/"{{ shellQuote .Checksums.LinuxArm64File }})
 
-sha256sums_x86_64=('{{.Checksums.LinuxAmd64}}')
-sha256sums_aarch64=('{{.Checksums.LinuxArm64}}')
+sha256sums_x86_64=({{ shellQuote .Checksums.LinuxAmd64 }})
+sha256sums_aarch64=({{ shellQuote .Checksums.LinuxArm64 }})
 
 package() {
-    install -Dm755 {{.BinaryName}} "${pkgdir}/usr/bin/{{.BinaryName}}"
+    install -Dm755 {{ shellQuote .BinaryName }} "${pkgdir}/usr/bin/"{{ shellQuote .BinaryName }}
 }

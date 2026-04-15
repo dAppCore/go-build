@@ -153,7 +153,7 @@ func TestNpm_NpmPublisherRenderTemplate_Good(t *testing.T) {
 		result, err := p.renderTemplate(io.Local, "templates/npm/install.js.tmpl", data)
 		require.NoError(t, err)
 
-		assert.Contains(t, result, `const CHECKSUM_FILE = 'CHECKSUMS.txt';`)
+		assert.Contains(t, result, `const CHECKSUM_FILE = "CHECKSUMS.txt";`)
 		assert.Contains(t, result, `myapp_linux_amd64.tar.gz`)
 		assert.Contains(t, result, `myapp_windows_amd64.zip`)
 		assert.NotContains(t, result, `/checksums.txt`)

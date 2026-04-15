@@ -286,7 +286,7 @@ func (p *ScoopPublisher) renderTemplate(m coreio.Medium, name string, data scoop
 		}
 	}
 
-	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("scoop.renderTemplate", "failed to parse template "+name, err)
 	}

@@ -2,36 +2,36 @@
 # frozen_string_literal: true
 
 class {{.FormulaClass}} < Formula
-  desc "{{.Description}}"
-  homepage "https://github.com/{{.Repository}}"
-  version "{{.Version}}"
-  license "{{.License}}"
+  desc {{ rubyQuote .Description }}
+  homepage {{ rubyQuote (printf "https://github.com/%s" .Repository) }}
+  version {{ rubyQuote .Version }}
+  license {{ rubyQuote .License }}
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.DarwinArm64File}}"
-      sha256 "{{.Checksums.DarwinArm64}}"
+      url {{ rubyQuote (printf "https://github.com/%s/releases/download/v%s/%s" .Repository .Version .Checksums.DarwinArm64File) }}
+      sha256 {{ rubyQuote .Checksums.DarwinArm64 }}
     else
-      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.DarwinAmd64File}}"
-      sha256 "{{.Checksums.DarwinAmd64}}"
+      url {{ rubyQuote (printf "https://github.com/%s/releases/download/v%s/%s" .Repository .Version .Checksums.DarwinAmd64File) }}
+      sha256 {{ rubyQuote .Checksums.DarwinAmd64 }}
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.LinuxArm64File}}"
-      sha256 "{{.Checksums.LinuxArm64}}"
+      url {{ rubyQuote (printf "https://github.com/%s/releases/download/v%s/%s" .Repository .Version .Checksums.LinuxArm64File) }}
+      sha256 {{ rubyQuote .Checksums.LinuxArm64 }}
     else
-      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.LinuxAmd64File}}"
-      sha256 "{{.Checksums.LinuxAmd64}}"
+      url {{ rubyQuote (printf "https://github.com/%s/releases/download/v%s/%s" .Repository .Version .Checksums.LinuxAmd64File) }}
+      sha256 {{ rubyQuote .Checksums.LinuxAmd64 }}
     end
   end
 
   def install
-    bin.install "{{.BinaryName}}"
+    bin.install {{ rubyQuote .BinaryName }}
   end
 
   test do
-    system "#{bin}/{{.BinaryName}}", "--version"
+    system "#{bin}/" + {{ rubyQuote .BinaryName }}, "--version"
   end
 end

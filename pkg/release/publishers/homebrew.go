@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"strings"
 	"text/template"
+	"unicode"
 
 	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
@@ -327,7 +329,7 @@ func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data ho
 		}
 	}
 
-	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("homebrew.renderTemplate", "failed to parse template "+name, err)
 	}
@@ -342,12 +344,20 @@ func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data ho
 
 // toFormulaClass converts a package name to a Ruby class name.
 func toFormulaClass(name string) string {
-	// Convert kebab-case to PascalCase
-	parts := core.Split(name, "-")
-	for i, part := range parts {
-		if len(part) > 0 {
-			parts[i] = core.Upper(part[:1]) + part[1:]
-		}
+	parts := strings.FieldsFunc(name, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	if len(parts) == 0 {
+		return "Core"
 	}
+
+	for i, part := range parts {
+		if len(part) == 0 {
+			continue
+		}
+		runes := []rune(part)
+		parts[i] = core.Upper(string(runes[0])) + string(runes[1:])
+	}
+
 	return core.Join("", parts...)
 }

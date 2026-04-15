@@ -276,7 +276,7 @@ func (p *NpmPublisher) renderTemplate(m coreio.Medium, name string, data npmTemp
 		}
 	}
 
-	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("npm.renderTemplate", "failed to parse template "+name, err)
 	}

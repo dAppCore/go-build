@@ -430,7 +430,7 @@ func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffects_Good(t *tes
 
 		// Verify generated formula content
 		assert.Contains(t, output, "class MyCli < Formula")
-		assert.Contains(t, output, `version "2.1.0"`)
+		assert.Contains(t, output, `version '2.1.0'`)
 		assert.Contains(t, output, "sha256_darwin_amd64")
 		assert.Contains(t, output, "sha256_darwin_arm64")
 		assert.Contains(t, output, "sha256_linux_amd64")
@@ -497,9 +497,9 @@ func TestIntegration_HomebrewPublisherIntegrationFormulaGeneration_Good(t *testi
 		assert.Contains(t, formula, "class CoreCli < Formula")
 
 		// Verify metadata
-		assert.Contains(t, formula, `desc "Core CLI tool"`)
-		assert.Contains(t, formula, `version "3.0.0"`)
-		assert.Contains(t, formula, `license "MIT"`)
+		assert.Contains(t, formula, `desc 'Core CLI tool'`)
+		assert.Contains(t, formula, `version '3.0.0'`)
+		assert.Contains(t, formula, `license 'MIT'`)
 
 		// Verify checksums for all platforms
 		assert.Contains(t, formula, "a1b2c3d4e5f6")
@@ -508,7 +508,7 @@ func TestIntegration_HomebrewPublisherIntegrationFormulaGeneration_Good(t *testi
 		assert.Contains(t, formula, "665544332211")
 
 		// Verify binary install
-		assert.Contains(t, formula, `bin.install "core"`)
+		assert.Contains(t, formula, `bin.install 'core'`)
 	})
 
 	t.Run("toFormulaClass handles various naming patterns", func(t *testing.T) {
@@ -615,8 +615,8 @@ func TestIntegration_AURPublisherIntegrationDryRunNoSideEffects_Good(t *testing.
 		assert.Contains(t, output, "Version:    2.0.0")
 		assert.Contains(t, output, "Maintainer: Test User <test@example.com>")
 		assert.Contains(t, output, "Generated PKGBUILD:")
-		assert.Contains(t, output, "pkgname=myapp-bin")
-		assert.Contains(t, output, "pkgver=2.0.0")
+		assert.Contains(t, output, "pkgname='myapp-bin'")
+		assert.Contains(t, output, "pkgver='2.0.0'")
 		assert.Contains(t, output, "Generated .SRCINFO:")
 		assert.Contains(t, output, "pkgbase = myapp-bin")
 		assert.Contains(t, output, "Would push to AUR:")

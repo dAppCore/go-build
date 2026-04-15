@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Binary installer for {{.Package}}
+ * Binary installer for {{ jsComment .Package }}
  * Downloads the correct binary for the current platform from GitHub releases.
  */
 
@@ -10,22 +10,22 @@ const https = require('https');
 const { spawnSync } = require('child_process');
 const crypto = require('crypto');
 
-const PACKAGE_VERSION = '{{.Version}}';
-const GITHUB_REPO = '{{.Repository}}';
-const BINARY_NAME = '{{.BinaryName}}';
-const CHECKSUM_FILE = '{{.Checksums.ChecksumFile}}';
+const PACKAGE_VERSION = {{ jsonString .Version }};
+const GITHUB_REPO = {{ jsonString .Repository }};
+const BINARY_NAME = {{ jsonString .BinaryName }};
+const CHECKSUM_FILE = {{ jsonString .Checksums.ChecksumFile }};
 const ASSETS = {
   darwin: {
-    amd64: { file: '{{.Checksums.DarwinAmd64File}}', checksum: '{{.Checksums.DarwinAmd64}}' },
-    arm64: { file: '{{.Checksums.DarwinArm64File}}', checksum: '{{.Checksums.DarwinArm64}}' },
+    amd64: { file: {{ jsonString .Checksums.DarwinAmd64File }}, checksum: {{ jsonString .Checksums.DarwinAmd64 }} },
+    arm64: { file: {{ jsonString .Checksums.DarwinArm64File }}, checksum: {{ jsonString .Checksums.DarwinArm64 }} },
   },
   linux: {
-    amd64: { file: '{{.Checksums.LinuxAmd64File}}', checksum: '{{.Checksums.LinuxAmd64}}' },
-    arm64: { file: '{{.Checksums.LinuxArm64File}}', checksum: '{{.Checksums.LinuxArm64}}' },
+    amd64: { file: {{ jsonString .Checksums.LinuxAmd64File }}, checksum: {{ jsonString .Checksums.LinuxAmd64 }} },
+    arm64: { file: {{ jsonString .Checksums.LinuxArm64File }}, checksum: {{ jsonString .Checksums.LinuxArm64 }} },
   },
   windows: {
-    amd64: { file: '{{.Checksums.WindowsAmd64File}}', checksum: '{{.Checksums.WindowsAmd64}}' },
-    arm64: { file: '{{.Checksums.WindowsArm64File}}', checksum: '{{.Checksums.WindowsArm64}}' },
+    amd64: { file: {{ jsonString .Checksums.WindowsAmd64File }}, checksum: {{ jsonString .Checksums.WindowsAmd64 }} },
+    arm64: { file: {{ jsonString .Checksums.WindowsArm64File }}, checksum: {{ jsonString .Checksums.WindowsArm64 }} },
   },
 };
 

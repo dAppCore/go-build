@@ -189,15 +189,15 @@ func TestHomebrew_HomebrewPublisherRenderTemplate_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Contains(t, result, "class MyApp < Formula")
-		assert.Contains(t, result, `desc "My awesome CLI"`)
-		assert.Contains(t, result, `version "1.2.3"`)
-		assert.Contains(t, result, `license "MIT"`)
+		assert.Contains(t, result, `desc 'My awesome CLI'`)
+		assert.Contains(t, result, `version '1.2.3'`)
+		assert.Contains(t, result, `license 'MIT'`)
 		assert.Contains(t, result, "owner/myapp")
 		assert.Contains(t, result, "abc123")
 		assert.Contains(t, result, "def456")
 		assert.Contains(t, result, "ghi789")
 		assert.Contains(t, result, "jkl012")
-		assert.Contains(t, result, `bin.install "myapp"`)
+		assert.Contains(t, result, `bin.install 'myapp'`)
 	})
 }
 
