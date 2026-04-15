@@ -48,11 +48,7 @@ func LinuxKit(opts ...LinuxKitOption) *LinuxKitImage {
 			opt(&cfg)
 		}
 	}
-	cfg.Base = strings.TrimSpace(cfg.Base)
-	cfg.Registry = strings.TrimSpace(cfg.Registry)
-	cfg.Packages = normalizeLinuxKitValues(cfg.Packages)
-	cfg.Mounts = normalizeLinuxKitValues(cfg.Mounts)
-	cfg.Formats = normalizeLinuxKitFormats(cfg.Formats)
+	cfg = normalizeLinuxKitConfig(cfg)
 	return &LinuxKitImage{Config: cfg}
 }
 
@@ -144,4 +140,34 @@ func normalizeLinuxKitFormats(values []string) []string {
 	}
 
 	return result
+}
+
+func normalizeLinuxKitConfig(cfg LinuxKitConfig) LinuxKitConfig {
+	cfg = applyLinuxKitDefaults(cfg)
+
+	cfg.Base = strings.TrimSpace(cfg.Base)
+	cfg.Registry = strings.TrimSpace(cfg.Registry)
+	cfg.Packages = normalizeLinuxKitValues(cfg.Packages)
+
+	cfg.Mounts = normalizeLinuxKitValues(cfg.Mounts)
+	cfg.Formats = normalizeLinuxKitFormats(cfg.Formats)
+	cfg = applyLinuxKitDefaults(cfg)
+
+	return cfg
+}
+
+func applyLinuxKitDefaults(cfg LinuxKitConfig) LinuxKitConfig {
+	defaults := DefaultLinuxKitConfig()
+
+	if strings.TrimSpace(cfg.Base) == "" {
+		cfg.Base = defaults.Base
+	}
+	if len(cfg.Mounts) == 0 {
+		cfg.Mounts = append([]string(nil), defaults.Mounts...)
+	}
+	if len(cfg.Formats) == 0 {
+		cfg.Formats = append([]string(nil), defaults.Formats...)
+	}
+
+	return cfg
 }

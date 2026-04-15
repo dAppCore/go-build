@@ -100,6 +100,22 @@ func TestLinuxKitImage_RenderTemplateUsesImmutableServiceImage_Good(t *testing.T
 	assert.NotContains(t, rendered, "apk add --no-cache")
 }
 
+func TestLinuxKitImage_RenderTemplateRestoresDefaultWorkspaceMount_Good(t *testing.T) {
+	builder := NewLinuxKitImageBuilder()
+	baseImage, ok := build.LookupLinuxKitBaseImage("core-dev")
+	require.True(t, ok)
+
+	rendered, err := builder.renderTemplate(baseImage, build.LinuxKitConfig{
+		Base:    "core-dev",
+		Mounts:  []string{""},
+		Formats: []string{"oci"},
+	}, "v1.2.3", "core-build-linuxkit/core-dev:test")
+	require.NoError(t, err)
+
+	assert.Contains(t, rendered, "binds:")
+	assert.Contains(t, rendered, "- /workspace:/workspace")
+}
+
 func TestLinuxKitImage_LinuxKitImageBuilderBuild_Good(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

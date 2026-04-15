@@ -5,10 +5,10 @@ package build
 import (
 	"iter"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/sdk"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
@@ -324,16 +324,7 @@ func applyDefaults(cfg *BuildConfig) {
 		cfg.Targets = append([]TargetConfig(nil), defaults.Targets...)
 	}
 
-	if cfg.LinuxKit.Base == "" {
-		cfg.LinuxKit.Base = defaults.LinuxKit.Base
-	}
-	if cfg.LinuxKit.Mounts == nil {
-		cfg.LinuxKit.Mounts = append([]string(nil), defaults.LinuxKit.Mounts...)
-	}
-	if cfg.LinuxKit.Formats == nil {
-		cfg.LinuxKit.Formats = append([]string(nil), defaults.LinuxKit.Formats...)
-	}
-
+	cfg.LinuxKit = applyLinuxKitDefaults(cfg.LinuxKit)
 }
 
 func cacheConfigConfigured(cfg CacheConfig) bool {
@@ -432,11 +423,12 @@ func (cfg *BuildConfig) ExpandEnv() {
 	cfg.Build.Env = expandEnvSlice(cfg.Build.Env)
 	cfg.Build.Tags = expandEnvSlice(cfg.Build.Tags)
 	cfg.Build.Formats = normalizeLinuxKitFormats(expandEnvSlice(cfg.Build.Formats))
-	cfg.LinuxKit.Base = core.Trim(expandEnv(cfg.LinuxKit.Base))
-	cfg.LinuxKit.Packages = normalizeLinuxKitValues(expandEnvSlice(cfg.LinuxKit.Packages))
-	cfg.LinuxKit.Mounts = normalizeLinuxKitValues(expandEnvSlice(cfg.LinuxKit.Mounts))
-	cfg.LinuxKit.Formats = normalizeLinuxKitFormats(expandEnvSlice(cfg.LinuxKit.Formats))
-	cfg.LinuxKit.Registry = core.Trim(expandEnv(cfg.LinuxKit.Registry))
+	cfg.LinuxKit.Base = expandEnv(cfg.LinuxKit.Base)
+	cfg.LinuxKit.Packages = expandEnvSlice(cfg.LinuxKit.Packages)
+	cfg.LinuxKit.Mounts = expandEnvSlice(cfg.LinuxKit.Mounts)
+	cfg.LinuxKit.Formats = expandEnvSlice(cfg.LinuxKit.Formats)
+	cfg.LinuxKit.Registry = expandEnv(cfg.LinuxKit.Registry)
+	cfg.LinuxKit = normalizeLinuxKitConfig(cfg.LinuxKit)
 	cfg.Apple.XcodeCloud.Triggers = expandXcodeCloudTriggers(cfg.Apple.XcodeCloud.Triggers)
 
 	cfg.Build.Cache.Directory = expandEnv(cfg.Build.Cache.Directory)

@@ -343,6 +343,31 @@ linuxkit:
 		assert.Equal(t, "ghcr.io/dappcore", cfg.LinuxKit.Registry)
 	})
 
+	t.Run("restores default LinuxKit base mounts and formats when expansion resolves empty", func(t *testing.T) {
+		t.Setenv("CORE_IMAGE_BASE", "")
+		t.Setenv("CORE_IMAGE_MOUNT", "")
+		t.Setenv("CORE_IMAGE_FORMAT", "")
+
+		content := `
+version: 1
+linuxkit:
+  base: ${CORE_IMAGE_BASE}
+  mounts:
+    - ${CORE_IMAGE_MOUNT}
+  formats:
+    - ${CORE_IMAGE_FORMAT}
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "core-dev", cfg.LinuxKit.Base)
+		assert.Equal(t, []string{"/workspace"}, cfg.LinuxKit.Mounts)
+		assert.Equal(t, []string{"oci", "apple"}, cfg.LinuxKit.Formats)
+	})
+
 	t.Run("loads sdk config from build yaml with shorthand diff and defaults", func(t *testing.T) {
 		t.Setenv("SDK_SPEC", "docs/openapi.yaml")
 		t.Setenv("SDK_LANG", "typescript")

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"text/template"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -150,10 +150,57 @@ func mergeLinuxKitImageConfig(defaults, override build.LinuxKitConfig) build.Lin
 	if override.Registry != "" {
 		cfg.Registry = override.Registry
 	}
+	return normalizeLinuxKitImageConfig(cfg)
+}
+
+func normalizeLinuxKitImageConfig(cfg build.LinuxKitConfig) build.LinuxKitConfig {
+	defaults := build.DefaultLinuxKitConfig()
+
+	cfg.Base = strings.TrimSpace(cfg.Base)
+	if cfg.Base == "" {
+		cfg.Base = defaults.Base
+	}
+
+	cfg.Registry = strings.TrimSpace(cfg.Registry)
+	cfg.Packages = uniqueStrings(cfg.Packages)
+	cfg.Mounts = uniqueStrings(cfg.Mounts)
+	if len(cfg.Mounts) == 0 {
+		cfg.Mounts = append([]string(nil), defaults.Mounts...)
+	}
+
+	cfg.Formats = normalizeLinuxKitImageFormats(cfg.Formats)
+	if len(cfg.Formats) == 0 {
+		cfg.Formats = append([]string(nil), defaults.Formats...)
+	}
+
 	return cfg
 }
 
+func normalizeLinuxKitImageFormats(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+
+	return result
+}
+
 func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig, version, serviceImage string) (string, error) {
+	cfg = normalizeLinuxKitImageConfig(cfg)
+
 	templateContent, err := build.LinuxKitBaseTemplate(baseImage.Name)
 	if err != nil {
 		return "", err
@@ -187,6 +234,8 @@ func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage,
 }
 
 func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectDir, imageName string, baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) (string, func(), error) {
+	cfg = normalizeLinuxKitImageConfig(cfg)
+
 	dockerCommand, err := (&DockerBuilder{}).resolveDockerCli()
 	if err != nil {
 		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to resolve docker CLI for immutable service image build", err)
@@ -247,6 +296,8 @@ func renderLinuxKitServiceDockerfile(imageName string, packages, mounts []string
 }
 
 func buildLinuxKitServiceImageReference(imageName string, baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) string {
+	cfg = normalizeLinuxKitImageConfig(cfg)
+
 	parts := []string{
 		baseImage.Name,
 		baseImage.Version,
