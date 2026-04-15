@@ -4,14 +4,16 @@ package publishers
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"errors"
 	stdio "io"
 	"io/fs"
 	"net/url"
 	"sort"
 	"strings"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -365,7 +367,11 @@ func detectRepository(ctx context.Context, dir string) (string, error) {
 		return "", coreerr.E("github.detectRepository", "failed to list git remotes", err)
 	}
 	if len(remotes) == 0 {
-		return "", coreerr.E("github.detectRepository", "no git remotes configured", nil)
+		repo, ghErr := detectRepositoryViaGh(ctx, dir)
+		if ghErr == nil {
+			return repo, nil
+		}
+		return "", coreerr.E("github.detectRepository", "no git remotes configured", ghErr)
 	}
 
 	var parseErr error
@@ -379,7 +385,43 @@ func detectRepository(ctx context.Context, dir string) (string, error) {
 		}
 	}
 
+	repo, ghErr := detectRepositoryViaGh(ctx, dir)
+	if ghErr == nil {
+		return repo, nil
+	}
+	if parseErr == nil {
+		parseErr = ghErr
+	} else if ghErr != nil {
+		parseErr = errors.Join(parseErr, ghErr)
+	}
+
 	return "", coreerr.E("github.detectRepository", "no GitHub remote found", parseErr)
+}
+
+func detectRepositoryViaGh(ctx context.Context, dir string) (string, error) {
+	ghCommand, err := resolveGhCli()
+	if err != nil {
+		return "", coreerr.E("github.detectRepositoryViaGh", "gh CLI not available for repository fallback", err)
+	}
+
+	output, err := ax.CombinedOutput(ctx, dir, nil, ghCommand, "repo", "view", "--json", "nameWithOwner")
+	if err != nil {
+		return "", coreerr.E("github.detectRepositoryViaGh", "gh repo view failed", err)
+	}
+
+	var payload struct {
+		NameWithOwner string `json:"nameWithOwner"`
+	}
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		return "", coreerr.E("github.detectRepositoryViaGh", "failed to parse gh repo view output", err)
+	}
+
+	repo := strings.TrimSpace(payload.NameWithOwner)
+	if repo == "" {
+		return "", coreerr.E("github.detectRepositoryViaGh", "gh repo view did not report a repository", nil)
+	}
+
+	return repo, nil
 }
 
 // parseGitHubRepo extracts owner/repo from a GitHub URL.

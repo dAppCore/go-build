@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 
 	"github.com/stretchr/testify/assert"
@@ -49,7 +49,7 @@ func TestRunSDKGenerateInDir_ValidSpecDryRun_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(validOpenAPISpec), 0o644))
 
-	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "go", "", true)
+	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "go", "", true, false)
 	assert.NoError(t, err)
 }
 
@@ -66,7 +66,7 @@ sdk:
     - go
 `), 0o644))
 
-	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "", "", true)
+	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "", "", true, false)
 	assert.NoError(t, err)
 }
 
@@ -78,7 +78,7 @@ info:
 paths: {}
 `), 0o644))
 
-	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "", "", true)
+	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "", "", true, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid OpenAPI spec")
 }

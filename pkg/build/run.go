@@ -2,11 +2,11 @@ package build
 
 import (
 	"context"
-	"os"
+	"io/fs"
 	"reflect"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -169,11 +169,11 @@ func Run(opts ...RunOption) ([]Artifact, error) {
 
 	destinationRoot := resolveRunOutputRoot(projectDir, cfg.OutputDir, output)
 
-	stageRoot, err := os.MkdirTemp("", "core-build-*")
+	stageRoot, err := ax.MkdirTemp("core-build-*")
 	if err != nil {
 		return nil, coreerr.E("build.Run", "failed to create build staging directory", err)
 	}
-	defer func() { _ = os.RemoveAll(stageRoot) }()
+	defer func() { _ = ax.RemoveAll(stageRoot) }()
 
 	stageOutputDir := ax.Join(stageRoot, "dist")
 
@@ -315,7 +315,7 @@ func copyMediumDir(source coreio.Medium, sourcePath string, destination coreio.M
 	return nil
 }
 
-func copyMediumFile(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string, mode os.FileMode) error {
+func copyMediumFile(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string, mode fs.FileMode) error {
 	if err := destination.EnsureDir(ax.Dir(destinationPath)); err != nil {
 		return err
 	}

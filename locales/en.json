@@ -159,6 +159,7 @@
         "flag": {
           "dry_run": "Preview without generating files",
           "lang": "Target language (e.g. go, typescript, python)",
+          "skip_unavailable": "Skip SDK generators that are unavailable on this machine",
           "version": "SDK version to generate"
         }
       }

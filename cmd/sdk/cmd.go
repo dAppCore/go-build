@@ -70,27 +70,31 @@ func registerSDKGenerateCommand(c *core.Core, path string) {
 				cmdutil.OptionString(opts, "lang"),
 				cmdutil.OptionString(opts, "version"),
 				cmdutil.OptionBool(opts, "dry-run"),
+				cmdutil.OptionBool(opts, "skip-unavailable", "skip_unavailable"),
 			))
 		},
 	})
 }
 
-func runSDKGenerate(ctx context.Context, specPath, lang, version string, dryRun bool) error {
+func runSDKGenerate(ctx context.Context, specPath, lang, version string, dryRun bool, skipUnavailable bool) error {
 	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("sdk.Generate", "failed to get working directory", err)
 	}
 
-	return runSDKGenerateInDir(ctx, projectDir, specPath, lang, version, dryRun)
+	return runSDKGenerateInDir(ctx, projectDir, specPath, lang, version, dryRun, skipUnavailable)
 }
 
-func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool) error {
+func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool, skipUnavailable bool) error {
 	config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
 	if err != nil {
 		return coreerr.E("sdk.Generate", "failed to load sdk config", err)
 	}
 	if specPath != "" {
 		config.Spec = specPath
+	}
+	if skipUnavailable {
+		config.SkipUnavailable = true
 	}
 
 	s := sdk.New(projectDir, config)
@@ -124,17 +128,38 @@ func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, versio
 	}
 
 	if lang != "" {
-		if err := s.GenerateLanguage(ctx, lang); err != nil {
+		result, err := s.GenerateLanguageWithStatus(ctx, lang)
+		if err != nil {
 			cli.Print("%s %v\n", sdkErrorStyle.Render(i18n.T("common.label.error")), err)
 			return err
 		}
-		cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), sdkTargetStyle.Render(lang))
+		if result.Skipped {
+			cli.Print("  %s %s\n", "Skipped:", sdkTargetStyle.Render(result.Language))
+		} else {
+			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), sdkTargetStyle.Render(result.Language))
+		}
 	} else {
-		if err := s.Generate(ctx); err != nil {
+		results, err := s.GenerateWithStatus(ctx)
+		if err != nil {
 			cli.Print("%s %v\n", sdkErrorStyle.Render(i18n.T("common.label.error")), err)
 			return err
 		}
-		cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), sdkTargetStyle.Render(core.Join(", ", resolvedConfig.Languages...)))
+		generated := make([]string, 0, len(results))
+		skipped := make([]string, 0)
+		for _, result := range results {
+			if result.Generated {
+				generated = append(generated, result.Language)
+			}
+			if result.Skipped {
+				skipped = append(skipped, result.Language)
+			}
+		}
+		if len(generated) > 0 {
+			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), sdkTargetStyle.Render(core.Join(", ", generated...)))
+		}
+		if len(skipped) > 0 {
+			cli.Print("  %s %s\n", "Skipped:", sdkTargetStyle.Render(core.Join(", ", skipped...)))
+		}
 	}
 
 	cli.Blank()

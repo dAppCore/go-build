@@ -82,6 +82,20 @@ func TestLinuxKitImage_LinuxKitImageBuilderArtifactPath_Good(t *testing.T) {
 	assert.Equal(t, "/dist/core-dev.iso", builder.ArtifactPath("/dist", "core-dev", "iso"))
 }
 
+func TestLinuxKitImage_BuildLinuxKitServiceImageReference_UsesVersionTag_Good(t *testing.T) {
+	assert.Equal(t, "core-build-linuxkit/core-dev:1.2.3", buildLinuxKitServiceImageReference("core-dev", "v1.2.3"))
+	assert.Equal(t, "core-build-linuxkit/core-dev:dev", buildLinuxKitServiceImageReference("core-dev", ""))
+}
+
+func TestLinuxKitImage_RenderLinuxKitServiceDockerfile_IncludesMetadata_Good(t *testing.T) {
+	rendered := renderLinuxKitServiceDockerfile("core-dev", "v1.2.3", "2026.04.08", "abc123", []string{"git"}, []string{"/workspace"}, false)
+
+	assert.Contains(t, rendered, "LABEL org.opencontainers.image.version=1.2.3")
+	assert.Contains(t, rendered, "LABEL dappcore.core-build.content-hash=abc123")
+	assert.Contains(t, rendered, "ENV CORE_IMAGE_VERSION=1.2.3")
+	assert.Contains(t, rendered, "ENV CORE_IMAGE_CONTENT_HASH=abc123")
+}
+
 func TestLinuxKitImage_RenderTemplateUsesImmutableServiceImage_Good(t *testing.T) {
 	builder := NewLinuxKitImageBuilder()
 	baseImage, ok := build.LookupLinuxKitBaseImage("core-dev")

@@ -2,12 +2,13 @@ package publishers
 
 import (
 	"context"
+	"os"
 	"runtime"
 	"testing"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -448,6 +449,23 @@ func TestGitHub_DetectRepository_Good(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "mirror-owner/mirror-repo", repo)
 	})
+
+	t.Run("falls back to gh repo view when forge is the only remote", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		runPublisherCommand(t, tmpDir, "git", "init")
+		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "ssh://git@forge.example.com:2223/core/repo.git")
+
+		commandDir := t.TempDir()
+		commandPath := ax.Join(commandDir, "gh")
+		require.NoError(t, ax.WriteFile(commandPath, []byte(`#!/bin/sh
+printf '{"nameWithOwner":"mirror-owner/mirror-repo"}'
+`), 0o755))
+		t.Setenv("PATH", commandDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		repo, err := detectRepository(context.Background(), tmpDir)
+		require.NoError(t, err)
+		assert.Equal(t, "mirror-owner/mirror-repo", repo)
+	})
 }
 
 func TestGitHub_DetectRepository_Bad(t *testing.T) {
@@ -468,6 +486,10 @@ func TestGitHub_DetectRepository_Bad(t *testing.T) {
 		tmpDir := t.TempDir()
 		runPublisherCommand(t, tmpDir, "git", "init")
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@gitlab.com:owner/repo.git")
+		commandDir := t.TempDir()
+		commandPath := ax.Join(commandDir, "gh")
+		require.NoError(t, ax.WriteFile(commandPath, []byte("#!/bin/sh\nexit 1\n"), 0o755))
+		t.Setenv("PATH", commandDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 		_, err := detectRepository(context.Background(), tmpDir)
 		assert.Error(t, err)

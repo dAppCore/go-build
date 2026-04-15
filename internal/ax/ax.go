@@ -144,6 +144,13 @@ func TempDir(prefix string) (string, error) {
 	return dir, nil
 }
 
+// MkdirTemp creates a temporary directory via Core's filesystem primitive.
+//
+// Usage example: dir, err := ax.MkdirTemp("core-build-*")
+func MkdirTemp(prefix string) (string, error) {
+	return TempDir(prefix)
+}
+
 // ReadFile reads a file into bytes via io.Local.
 //
 // Usage example: data, err := ax.ReadFile("go.mod")

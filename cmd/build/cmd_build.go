@@ -4,9 +4,9 @@ package buildcmd
 import (
 	"embed"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/cmdutil"
 	_ "dappco.re/go/build/locales" // registers locale translations
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 )
 
@@ -122,6 +122,7 @@ func AddBuildCommands(c *core.Core) {
 				cmdutil.OptionString(opts, "lang"),
 				cmdutil.OptionString(opts, "version"),
 				cmdutil.OptionBool(opts, "dry-run"),
+				cmdutil.OptionBool(opts, "skip-unavailable", "skip_unavailable"),
 			))
 		},
 	})

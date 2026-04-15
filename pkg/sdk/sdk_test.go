@@ -5,10 +5,22 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/sdk/generators"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type unavailableGenerator struct {
+	language string
+}
+
+func (g unavailableGenerator) Language() string { return g.language }
+func (g unavailableGenerator) Generate(ctx context.Context, opts generators.Options) error {
+	return assert.AnError
+}
+func (g unavailableGenerator) Available() bool { return false }
+func (g unavailableGenerator) Install() string { return "install me" }
 
 func TestSDK_SetVersion_Good(t *testing.T) {
 	s := New("/tmp", nil)
@@ -60,6 +72,17 @@ func TestSDK_ApplyDefaultsNormalisesLanguageAliases_Good(t *testing.T) {
 	cfg.ApplyDefaults()
 
 	assert.Equal(t, []string{"typescript", "python", "go", "php"}, cfg.Languages)
+}
+
+func TestSDK_ApplyDefaults_PreservesExplicitEmptyLanguages_Good(t *testing.T) {
+	cfg := &Config{
+		Languages: []string{},
+	}
+
+	cfg.ApplyDefaults()
+
+	require.NotNil(t, cfg.Languages)
+	assert.Empty(t, cfg.Languages)
 }
 
 func TestSDK_normaliseLanguage_Good(t *testing.T) {
@@ -121,4 +144,28 @@ func TestSDK_GenerateLanguage_Bad(t *testing.T) {
 
 	})
 
+}
+
+func TestSDK_GenerateWithStatus_SkipsUnavailableWhenConfigured_Good(t *testing.T) {
+	original := newGeneratorRegistry
+	t.Cleanup(func() {
+		newGeneratorRegistry = original
+	})
+	newGeneratorRegistry = func() *generators.Registry {
+		registry := generators.NewRegistry()
+		registry.Register(unavailableGenerator{language: "php"})
+		return registry
+	}
+
+	s := New(t.TempDir(), &Config{
+		Languages:       []string{"php"},
+		SkipUnavailable: true,
+	})
+
+	results, err := s.GenerateWithStatus(context.Background())
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.True(t, results[0].Skipped)
+	assert.False(t, results[0].Generated)
+	assert.Contains(t, results[0].Reason, "generator not available")
 }

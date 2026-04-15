@@ -393,6 +393,7 @@ sdk:
   spec: ${SDK_SPEC}
   languages:
     - ${SDK_LANG}
+  skip_unavailable: true
   diff: true
 `
 		dir := setupConfigTestDir(t, content)
@@ -405,8 +406,26 @@ sdk:
 		assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
 		assert.Equal(t, []string{"typescript"}, cfg.SDK.Languages)
 		assert.Equal(t, "sdk", cfg.SDK.Output)
+		assert.True(t, cfg.SDK.SkipUnavailable)
 		assert.True(t, cfg.SDK.Diff.Enabled)
 		assert.False(t, cfg.SDK.Diff.FailOnBreaking)
+	})
+
+	t.Run("preserves explicit empty sdk languages list", func(t *testing.T) {
+		content := `
+version: 1
+sdk:
+  languages: []
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		require.NotNil(t, cfg.SDK)
+
+		require.NotNil(t, cfg.SDK.Languages)
+		assert.Empty(t, cfg.SDK.Languages)
 	})
 
 	t.Run("honours explicit windows signtool disablement", func(t *testing.T) {

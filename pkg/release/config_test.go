@@ -126,6 +126,7 @@ project:
 version: 1
 sdk:
   spec: docs/openapi.yaml
+  skip_unavailable: true
   diff: true
 `
 		dir := setupConfigTestDir(t, content)
@@ -138,8 +139,26 @@ sdk:
 		assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
 		assert.Equal(t, []string{"typescript", "python", "go", "php"}, cfg.SDK.Languages)
 		assert.Equal(t, "sdk", cfg.SDK.Output)
+		assert.True(t, cfg.SDK.SkipUnavailable)
 		assert.True(t, cfg.SDK.Diff.Enabled)
 		assert.False(t, cfg.SDK.Diff.FailOnBreaking)
+	})
+
+	t.Run("preserves explicit empty sdk languages list", func(t *testing.T) {
+		content := `
+version: 1
+sdk:
+  languages: []
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		require.NotNil(t, cfg.SDK)
+
+		require.NotNil(t, cfg.SDK.Languages)
+		assert.Empty(t, cfg.SDK.Languages)
 	})
 
 	t.Run("loads checksum config", func(t *testing.T) {

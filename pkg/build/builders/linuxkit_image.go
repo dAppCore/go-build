@@ -84,7 +84,7 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 		imageName = imageCfg.Base
 	}
 
-	serviceImage, cleanup, err := b.prepareServiceImage(ctx, cfg.ProjectDir, imageName, baseImage, imageCfg)
+	serviceImage, cleanup, err := b.prepareServiceImage(ctx, cfg.ProjectDir, imageName, cfg.Version, baseImage, imageCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage,
 	return rendered.String(), nil
 }
 
-func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectDir, imageName string, baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) (string, func(), error) {
+func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectDir, imageName, version string, baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) (string, func(), error) {
 	cfg = normalizeLinuxKitImageConfig(cfg)
 
 	dockerCommand, err := (&DockerBuilder{}).resolveDockerCli()
@@ -250,9 +250,18 @@ func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectD
 		_ = ax.RemoveAll(tempDir)
 	}
 
-	serviceImage := buildLinuxKitServiceImageReference(imageName, baseImage, cfg)
+	contentHash := linuxKitServiceImageContentHash(baseImage, cfg)
+	serviceImage := buildLinuxKitServiceImageReference(imageName, version)
 	mounts := uniqueStrings(append([]string{"/workspace"}, cfg.Mounts...))
-	dockerfile := renderLinuxKitServiceDockerfile(imageName, append(append([]string{}, baseImage.DefaultPackages...), cfg.Packages...), mounts, cfg.GPU)
+	dockerfile := renderLinuxKitServiceDockerfile(
+		imageName,
+		version,
+		baseImage.Version,
+		contentHash,
+		append(append([]string{}, baseImage.DefaultPackages...), cfg.Packages...),
+		mounts,
+		cfg.GPU,
+	)
 	if err := ax.WriteString(ax.Join(tempDir, "Dockerfile"), dockerfile, 0o644); err != nil {
 		cleanup()
 		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to write service image Dockerfile", err)
@@ -266,7 +275,7 @@ func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectD
 	return serviceImage, cleanup, nil
 }
 
-func renderLinuxKitServiceDockerfile(imageName string, packages, mounts []string, gpu bool) string {
+func renderLinuxKitServiceDockerfile(imageName, version, baseVersion, contentHash string, packages, mounts []string, gpu bool) string {
 	lines := []string{
 		"FROM alpine:3.19",
 	}
@@ -287,7 +296,14 @@ func renderLinuxKitServiceDockerfile(imageName string, packages, mounts []string
 
 	lines = append(lines,
 		"WORKDIR /workspace",
+		"LABEL org.opencontainers.image.title="+imageName,
+		"LABEL org.opencontainers.image.version="+normalizeLinuxKitServiceVersionTag(version),
+		"LABEL dappcore.core-build.base-version="+normalizeLinuxKitServiceTag(baseVersion),
+		"LABEL dappcore.core-build.content-hash="+normalizeLinuxKitServiceTag(contentHash),
 		"ENV CORE_IMAGE="+imageName,
+		"ENV CORE_IMAGE_VERSION="+normalizeLinuxKitServiceVersionTag(version),
+		"ENV CORE_IMAGE_BASE_VERSION="+normalizeLinuxKitServiceTag(baseVersion),
+		"ENV CORE_IMAGE_CONTENT_HASH="+normalizeLinuxKitServiceTag(contentHash),
 		core.Sprintf("ENV CORE_GPU=%d", boolToInt(gpu)),
 		`CMD ["/bin/sh", "-lc", "tail -f /dev/null"]`,
 	)
@@ -295,9 +311,13 @@ func renderLinuxKitServiceDockerfile(imageName string, packages, mounts []string
 	return core.Join("\n", lines...) + "\n"
 }
 
-func buildLinuxKitServiceImageReference(imageName string, baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) string {
-	cfg = normalizeLinuxKitImageConfig(cfg)
+func buildLinuxKitServiceImageReference(imageName, version string) string {
+	tag := normalizeLinuxKitServiceVersionTag(version)
+	return core.Sprintf("core-build-linuxkit/%s:%s", imageName, tag)
+}
 
+func linuxKitServiceImageContentHash(baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) string {
+	cfg = normalizeLinuxKitImageConfig(cfg)
 	parts := []string{
 		baseImage.Name,
 		baseImage.Version,
@@ -307,8 +327,16 @@ func buildLinuxKitServiceImageReference(imageName string, baseImage build.LinuxK
 		core.Sprintf("%t", cfg.GPU),
 	}
 	sum := sha256.Sum256([]byte(core.Join("\n", parts...)))
-	tag := normalizeLinuxKitServiceTag(baseImage.Version + "-" + hex.EncodeToString(sum[:6]))
-	return core.Sprintf("core-build-linuxkit/%s:%s", imageName, tag)
+	return hex.EncodeToString(sum[:6])
+}
+
+func normalizeLinuxKitServiceVersionTag(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.TrimPrefix(value, "v")
+	if value == "" {
+		value = "dev"
+	}
+	return normalizeLinuxKitServiceTag(value)
 }
 
 func normalizeLinuxKitServiceTag(value string) string {

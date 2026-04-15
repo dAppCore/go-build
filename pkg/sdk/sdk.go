@@ -11,6 +11,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var newGeneratorRegistry = generators.NewRegistry
+
 // Config holds SDK generation configuration for SDK commands and releases.
 //
 // cfg := &sdk.Config{Languages: []string{"typescript"}, Output: "sdk"}
@@ -21,6 +23,8 @@ type Config struct {
 	Languages []string `json:"languages,omitempty" yaml:"languages,omitempty"`
 	// Output directory (default: sdk/).
 	Output string `json:"output,omitempty" yaml:"output,omitempty"`
+	// SkipUnavailable skips generators that are unavailable on this machine.
+	SkipUnavailable bool `json:"skip_unavailable,omitempty" yaml:"skip_unavailable,omitempty"`
 	// Package naming configuration.
 	Package PackageConfig `json:"package,omitempty" yaml:"package,omitempty"`
 	// Diff configuration for breaking change detection.
@@ -70,6 +74,15 @@ type SDK struct {
 	version    string
 }
 
+// LanguageResult reports the outcome of a single SDK language generation attempt.
+type LanguageResult struct {
+	Language  string
+	OutputDir string
+	Generated bool
+	Skipped   bool
+	Reason    string
+}
+
 // New creates a new SDK instance.
 //
 // s := sdk.New(".", &sdk.Config{Languages: []string{"typescript"}, Output: "sdk"})
@@ -88,7 +101,7 @@ func CloneConfig(config *Config) *Config {
 	}
 
 	clone := *config
-	clone.Languages = append([]string(nil), config.Languages...)
+	clone.Languages = cloneStringSlice(config.Languages)
 	return &clone
 }
 
@@ -107,8 +120,8 @@ func (c *Config) ApplyDefaults() {
 	}
 
 	defaults := DefaultConfig()
-	if len(c.Languages) == 0 {
-		c.Languages = append([]string(nil), defaults.Languages...)
+	if c.Languages == nil {
+		c.Languages = cloneStringSlice(defaults.Languages)
 	}
 	c.Languages = normaliseLanguages(c.Languages)
 	if c.Output == "" {
@@ -197,14 +210,23 @@ func (c *DiffConfig) UnmarshalYAML(value *yaml.Node) error {
 //
 // err := s.Generate(ctx) // generates sdk/typescript/, sdk/python/, etc.
 func (s *SDK) Generate(ctx context.Context) error {
-	// Generate for each language
+	_, err := s.GenerateWithStatus(ctx)
+	return err
+}
+
+// GenerateWithStatus generates SDKs for all configured languages and returns
+// per-language status information.
+func (s *SDK) GenerateWithStatus(ctx context.Context) ([]LanguageResult, error) {
+	results := make([]LanguageResult, 0, len(s.config.Languages))
 	for _, lang := range s.config.Languages {
-		if err := s.GenerateLanguage(ctx, lang); err != nil {
-			return err
+		result, err := s.GenerateLanguageWithStatus(ctx, lang)
+		if err != nil {
+			return results, err
 		}
+		results = append(results, result)
 	}
 
-	return nil
+	return results, nil
 }
 
 // outputRoot returns the directory that should contain generated SDKs.
@@ -238,44 +260,68 @@ func (s *SDK) outputDir(lang string) string {
 //
 // err := s.GenerateLanguage(ctx, "typescript") // generates sdk/typescript/
 func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
-	lang = normaliseLanguage(lang)
+	_, err := s.GenerateLanguageWithStatus(ctx, lang)
+	return err
+}
 
-	specPath, err := s.DetectSpec()
-	if err != nil {
-		return err
+// GenerateLanguageWithStatus generates SDK for a specific language and reports
+// whether it was generated or skipped.
+func (s *SDK) GenerateLanguageWithStatus(ctx context.Context, lang string) (LanguageResult, error) {
+	lang = normaliseLanguage(lang)
+	result := LanguageResult{
+		Language:  lang,
+		OutputDir: s.outputDir(lang),
 	}
 
-	registry := generators.NewRegistry()
+	registry := newGeneratorRegistry()
+	if registry == nil {
+		registry = generators.NewRegistry()
+	}
 
 	gen, ok := registry.Get(lang)
 	if !ok {
-		return coreerr.E("sdk.GenerateLanguage", "unknown language: "+lang, nil)
+		return result, coreerr.E("sdk.GenerateLanguage", "unknown language: "+lang, nil)
 	}
 
 	if !gen.Available() {
-		core.Print(nil, "Warning: %s generator not available. Install with: %s", lang, gen.Install())
+		reason := core.Sprintf("%s generator not available. Install with: %s", lang, gen.Install())
+		if s.skipUnavailable() {
+			result.Skipped = true
+			result.Reason = reason
+			core.Print(nil, "Warning: skipping %s SDK: %s", lang, reason)
+			return result, nil
+		}
+		core.Print(nil, "Warning: %s", reason)
 	}
 
-	outputDir := s.outputDir(lang)
+	specPath, err := s.DetectSpec()
+	if err != nil {
+		return result, err
+	}
+
 	opts := generators.Options{
 		SpecPath:    specPath,
-		OutputDir:   outputDir,
+		OutputDir:   result.OutputDir,
 		PackageName: s.config.Package.Name,
 		Version:     s.resolvePackageVersion(),
 	}
 
 	core.Print(nil, "Generating %s SDK...", lang)
 	if err := gen.Generate(ctx, opts); err != nil {
-		return coreerr.E("sdk.GenerateLanguage", lang+" generation failed", err)
+		return result, coreerr.E("sdk.GenerateLanguage", lang+" generation failed", err)
 	}
-	core.Print(nil, "Generated %s SDK at %s", lang, outputDir)
+	core.Print(nil, "Generated %s SDK at %s", lang, result.OutputDir)
+	result.Generated = true
 
-	return nil
+	return result, nil
 }
 
 func normaliseLanguages(values []string) []string {
-	if len(values) == 0 {
+	if values == nil {
 		return nil
+	}
+	if len(values) == 0 {
+		return []string{}
 	}
 
 	result := make([]string, 0, len(values))
@@ -351,4 +397,15 @@ func resolveRuntimeConfig(config *Config) *Config {
 	clone := CloneConfig(config)
 	clone.ApplyDefaults()
 	return clone
+}
+
+func (s *SDK) skipUnavailable() bool {
+	return s != nil && s.config != nil && s.config.SkipUnavailable
+}
+
+func cloneStringSlice(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	return append([]string{}, values...)
 }

@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
-	coreapi "dappco.re/go/core/api"
-	providerpkg "dappco.re/go/core/api/pkg/provider"
+	"dappco.re/go/build/internal/ax"
 	buildapi "dappco.re/go/build/pkg/api"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
 	"dappco.re/go/build/pkg/release"
+	coreapi "dappco.re/go/core/api"
+	providerpkg "dappco.re/go/core/api/pkg/provider"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"dappco.re/go/core/process"
@@ -56,7 +57,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 
 	cfg = cfg.Normalized()
-	if err := os.MkdirAll(filepath.Dir(cfg.PIDFile), 0o755); err != nil {
+	if err := ax.MkdirAll(filepath.Dir(cfg.PIDFile), 0o755); err != nil {
 		return coreerr.E("service.Run", "failed to create pid directory", err)
 	}
 

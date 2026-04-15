@@ -26,7 +26,7 @@ func TestRunBuildSDKInDir_ValidSpecDryRun_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	require.NoError(t, ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(validBuildOpenAPISpec), 0o644))
 
-	err := runBuildSDKInDir(context.Background(), tmpDir, "", "go", "", true)
+	err := runBuildSDKInDir(context.Background(), tmpDir, "", "go", "", true, false)
 	require.NoError(t, err)
 }
 
@@ -43,7 +43,7 @@ sdk:
     - go
 `), 0o644))
 
-	err := runBuildSDKInDir(context.Background(), tmpDir, "", "", "", true)
+	err := runBuildSDKInDir(context.Background(), tmpDir, "", "", "", true, false)
 	require.NoError(t, err)
 }
 
@@ -55,7 +55,7 @@ info:
 paths: {}
 `), 0o644))
 
-	err := runBuildSDKInDir(context.Background(), tmpDir, "", "", "", true)
+	err := runBuildSDKInDir(context.Background(), tmpDir, "", "", "", true, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid OpenAPI spec")
 }
