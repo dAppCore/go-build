@@ -9,7 +9,7 @@ import (
 )
 
 func TestCache_SetupCache_Good(t *testing.T) {
-	fs := io.NewMockMedium()
+	fs := io.NewMemoryMedium()
 	cfg := &CacheConfig{
 		Enabled: true,
 		Paths: []string{
@@ -34,7 +34,7 @@ func TestCache_SetupCache_Good(t *testing.T) {
 }
 
 func TestCache_SetupBuildCache_Good(t *testing.T) {
-	fs := io.NewMockMedium()
+	fs := io.NewMemoryMedium()
 	cfg := &BuildConfig{
 		Build: Build{
 			Cache: CacheConfig{
@@ -57,7 +57,7 @@ func TestCache_SetupBuildCache_Good(t *testing.T) {
 }
 
 func TestCache_SetupCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
-	fs := io.NewMockMedium()
+	fs := io.NewMemoryMedium()
 	cfg := &CacheConfig{
 		Enabled: true,
 	}
@@ -77,7 +77,7 @@ func TestCache_SetupCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
 }
 
 func TestCache_SetupBuildCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
-	fs := io.NewMockMedium()
+	fs := io.NewMemoryMedium()
 	cfg := &BuildConfig{
 		Build: Build{
 			Cache: CacheConfig{
@@ -101,7 +101,7 @@ func TestCache_SetupBuildCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
 }
 
 func TestCache_SetupCache_Good_Disabled(t *testing.T) {
-	fs := io.NewMockMedium()
+	fs := io.NewMemoryMedium()
 	cfg := &CacheConfig{
 		Enabled: false,
 		Paths:   []string{"cache/go-build"},
@@ -111,13 +111,13 @@ func TestCache_SetupCache_Good_Disabled(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.False(t, fs.Exists("/workspace/project/.core/cache"))
-	assert.Empty(t, fs.Files)
+	assert.False(t, fs.Exists("/workspace/project/cache/go-build"))
 	assert.Empty(t, cfg.Directory)
 	assert.Equal(t, []string{"cache/go-build"}, cfg.Paths)
 }
 
 func TestCache_SetupBuildCache_Good_Disabled(t *testing.T) {
-	fs := io.NewMockMedium()
+	fs := io.NewMemoryMedium()
 	cfg := &BuildConfig{
 		Build: Build{
 			Cache: CacheConfig{

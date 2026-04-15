@@ -12,7 +12,7 @@ import (
 
 func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	t.Run("writes the embedded template to the default path", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		err := WriteReleaseWorkflow(fs, "")
 		require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	})
 
 	t.Run("writes to a custom path", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		err := WriteReleaseWorkflow(fs, "custom/workflow.yml")
 		require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	})
 
 	t.Run("trims surrounding whitespace from the output path", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		err := WriteReleaseWorkflow(fs, "  ci  ")
 		require.NoError(t, err)
@@ -185,7 +185,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	})
 
 	t.Run("writes release.yml for a bare directory-style path", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		err := WriteReleaseWorkflow(fs, "ci")
 		require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	})
 
 	t.Run("writes release.yml for directory-style output paths", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		err := WriteReleaseWorkflow(fs, "ci/")
 		require.NoError(t, err)
@@ -254,7 +254,7 @@ func TestWorkflow_ReleaseWorkflowPath_Good(t *testing.T) {
 
 func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path := ResolveReleaseWorkflowOutputPathWithMedium(fs, "/tmp/project", "ci")
@@ -262,7 +262,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Good(t *testing.T) 
 	})
 
 	t.Run("keeps explicit file paths unchanged", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path := ResolveReleaseWorkflowOutputPathWithMedium(fs, "/tmp/project", "ci/release.yml")
 		assert.Equal(t, "/tmp/project/ci/release.yml", path)
@@ -400,7 +400,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Bad(t *testing.T) {
 
 func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "")
@@ -409,7 +409,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("treats a bare directory-style path as a workflow directory", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "")
 		require.NoError(t, err)
@@ -417,7 +417,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("treats a current-directory-prefixed directory-style path as a workflow directory", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "./ci", "")
 		require.NoError(t, err)
@@ -425,7 +425,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("treats the conventional workflows directory as a workflow directory", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", ".github/workflows", "")
 		require.NoError(t, err)
@@ -433,7 +433,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("treats current-directory-prefixed workflows directories as workflow directories", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "./.github/workflows", "")
 		require.NoError(t, err)
@@ -441,7 +441,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("keeps a file path unchanged when the target is not a directory", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci/release.yml", "")
 		require.NoError(t, err)
@@ -449,7 +449,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("normalizes matching directory aliases", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "ci/")
@@ -458,7 +458,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("trims surrounding whitespace before resolving", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "  ci  ", "  ")
@@ -469,7 +469,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 
 func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	t.Run("accepts the preferred path input", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci", "", "", "")
 		require.NoError(t, err)
@@ -477,7 +477,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the workflowPath alias", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "ci", "", "")
 		require.NoError(t, err)
@@ -485,7 +485,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the workflow_path alias", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "ci", "")
 		require.NoError(t, err)
@@ -493,7 +493,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the workflow-path alias", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 
 		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "", "ci")
 		require.NoError(t, err)
@@ -501,7 +501,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("normalises matching aliases", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 		require.NoError(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/", "./ci", "ci", "")
@@ -511,7 +511,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 }
 
 func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Bad(t *testing.T) {
-	fs := io.NewMockMedium()
+	fs := io.NewMemoryMedium()
 
 	path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/release.yml", "ops/release.yml", "", "")
 	assert.Error(t, err)
@@ -627,7 +627,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testi
 	})
 
 	t.Run("treats an existing absolute directory as a workflow directory", func(t *testing.T) {
-		fs := io.NewMockMedium()
+		fs := io.NewMemoryMedium()
 		require.NoError(t, fs.EnsureDir(absoluteDirectory))
 
 		path, err := ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(fs, projectDir, "", "", "", "", absoluteDirectory, "", "", "", "")

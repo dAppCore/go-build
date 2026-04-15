@@ -1083,7 +1083,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	})
 
 	t.Run("reports distro-aware Linux packages for Wails projects", func(t *testing.T) {
-		mock := io.NewMockMedium()
+		mock := io.NewMemoryMedium()
 		require.NoError(t, mock.EnsureDir("/project"))
 		require.NoError(t, mock.Write("/project/go.mod", "module example"))
 		require.NoError(t, mock.Write("/project/package.json", "{}"))
@@ -1345,7 +1345,7 @@ ID=ubuntu
 }
 
 func TestDiscovery_DetectDistroVersion_Good(t *testing.T) {
-	fs := io.NewMockMedium()
+	fs := io.NewMemoryMedium()
 	require.NoError(t, fs.Write("/etc/os-release", `
 ID=ubuntu
 VERSION_ID="24.04"
@@ -1355,7 +1355,7 @@ VERSION_ID="24.04"
 }
 
 func TestDiscovery_DetectDistroVersion_Bad(t *testing.T) {
-	fs := io.NewMockMedium()
+	fs := io.NewMemoryMedium()
 	require.NoError(t, fs.Write("/etc/os-release", `
 ID=fedora
 VERSION_ID=41

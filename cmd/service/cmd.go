@@ -18,10 +18,6 @@ import (
 	coreerr "dappco.re/go/core/log"
 )
 
-func init() {
-	cli.RegisterCommands(AddServiceCommands)
-}
-
 var (
 	serviceHeaderStyle  = cli.TitleStyle
 	serviceValueStyle   = cli.ValueStyle

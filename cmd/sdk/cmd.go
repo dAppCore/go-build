@@ -23,10 +23,6 @@ import (
 	"github.com/oasdiff/oasdiff/checker"
 )
 
-func init() {
-	cli.RegisterCommands(AddSDKCommands)
-}
-
 // SDK styles (aliases to shared)
 var (
 	sdkHeaderStyle  = cli.TitleStyle
