@@ -3,14 +3,18 @@
 # Installs: core CLI + pulls core-dev LinuxKit Docker image (~500MB)
 #
 # Usage:
-#   curl -sL https://raw.githubusercontent.com/{{.Repo}}/main/dev.sh | bash
+#   curl -sL {{.ScriptBaseURL}}/dev.sh | bash
 set -euo pipefail
 
 BINARY_NAME="{{.BinaryName}}"
 VERSION="{{.Version}}"
 REPO="{{.Repo}}"
 GITHUB_BASE="https://github.com/${REPO}"
-DEV_IMAGE="ghcr.io/dappcore/core-dev:latest"
+DEV_IMAGE_VERSION="${VERSION#v}"
+if [ -z "${DEV_IMAGE_VERSION}" ]; then
+    DEV_IMAGE_VERSION="latest"
+fi
+DEV_IMAGE="ghcr.io/dappcore/core-dev:${DEV_IMAGE_VERSION}"
 
 detect_os() {
     case "$(uname -s)" in

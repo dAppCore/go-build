@@ -4,7 +4,7 @@
 # Adds to GITHUB_PATH when running inside GitHub Actions.
 #
 # Usage:
-#   curl -sL https://raw.githubusercontent.com/{{.Repo}}/main/ci.sh | bash
+#   curl -sL {{.ScriptBaseURL}}/ci.sh | bash
 set -euo pipefail
 
 BINARY_NAME="{{.BinaryName}}"

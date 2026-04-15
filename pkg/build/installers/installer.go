@@ -5,6 +5,7 @@ package installers
 import (
 	"bytes"
 	"embed"
+	"strings"
 	"text/template"
 
 	coreerr "dappco.re/go/core/log"
@@ -12,6 +13,10 @@ import (
 
 //go:embed templates/*.tmpl
 var installerTemplates embed.FS
+
+// DefaultScriptBaseURL is the RFC-documented CDN origin for generated
+// installer scripts.
+const DefaultScriptBaseURL = "https://lthn.sh"
 
 // InstallerVariant represents an installer script variant.
 //
@@ -83,6 +88,9 @@ type InstallerConfig struct {
 	Repo string
 	// BinaryName is the name of the installed binary (e.g. "core").
 	BinaryName string
+	// ScriptBaseURL is the public base URL that hosts the generated installer scripts.
+	// Empty values default to the RFC CDN origin.
+	ScriptBaseURL string
 }
 
 // GenerateInstaller renders an installer script for the given variant.
@@ -91,6 +99,8 @@ type InstallerConfig struct {
 //	    Version: "v1.2.3", Repo: "dappcore/core", BinaryName: "core",
 //	})
 func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, error) {
+	cfg = normalizeInstallerConfig(cfg)
+
 	entry, ok := variantTemplates[variant]
 	if !ok {
 		return "", coreerr.E("installers.GenerateInstaller", "unknown variant: "+string(variant), nil)
@@ -135,4 +145,13 @@ func GenerateAll(cfg InstallerConfig) (map[string]string, error) {
 	}
 
 	return out, nil
+}
+
+func normalizeInstallerConfig(cfg InstallerConfig) InstallerConfig {
+	baseURL := strings.TrimRight(strings.TrimSpace(cfg.ScriptBaseURL), "/")
+	if baseURL == "" {
+		baseURL = DefaultScriptBaseURL
+	}
+	cfg.ScriptBaseURL = baseURL
+	return cfg
 }

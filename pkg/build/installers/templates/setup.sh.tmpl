@@ -3,8 +3,8 @@
 # Downloads the binary, installs to /usr/local/bin (or ~/.local/bin), sets up PATH and shell completions.
 #
 # Usage:
-#   curl -sL https://raw.githubusercontent.com/{{.Repo}}/main/setup.sh | bash
-#   curl -sL https://raw.githubusercontent.com/{{.Repo}}/main/setup.sh | bash -s -- --version {{.Version}}
+#   curl -sL {{.ScriptBaseURL}}/setup.sh | bash
+#   curl -sL {{.ScriptBaseURL}}/setup.sh | bash -s -- --version {{.Version}}
 set -euo pipefail
 
 BINARY_NAME="{{.BinaryName}}"

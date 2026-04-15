@@ -47,6 +47,12 @@ project:
 	assert.Contains(t, content, "corex")
 	assert.Contains(t, content, "v1.2.3")
 	assert.Contains(t, content, "dappcore/core")
+	assert.Contains(t, content, "https://lthn.sh/setup.sh")
+
+	devContent, err := io.Local.Read(ax.Join(outputDir, "dev.sh"))
+	require.NoError(t, err)
+	assert.Contains(t, devContent, `DEV_IMAGE_VERSION="${VERSION#v}"`)
+	assert.Contains(t, devContent, `DEV_IMAGE="ghcr.io/dappcore/core-dev:${DEV_IMAGE_VERSION}"`)
 }
 
 func TestBuildCmd_runBuildInstallersInDir_GeneratesSingleVariant_Good(t *testing.T) {

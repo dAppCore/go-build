@@ -36,8 +36,29 @@ func TestInstaller_GenerateInstaller_Good(t *testing.T) {
 			assert.Contains(t, script, validConfig.BinaryName, "script must reference binary name")
 			assert.Contains(t, script, validConfig.Version, "script must reference version")
 			assert.Contains(t, script, validConfig.Repo, "script must reference repo")
+			assert.Contains(t, script, DefaultScriptBaseURL, "script must reference the RFC installer host")
 		})
 	}
+}
+
+func TestInstaller_GenerateInstaller_CustomScriptBaseURL_Good(t *testing.T) {
+	script, err := GenerateInstaller(VariantFull, InstallerConfig{
+		Version:       "v1.2.3",
+		Repo:          "dappcore/core",
+		BinaryName:    "core",
+		ScriptBaseURL: "https://downloads.example.com/",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, script, "https://downloads.example.com/setup.sh")
+	assert.NotContains(t, script, "https://downloads.example.com//setup.sh")
+}
+
+func TestInstaller_GenerateInstaller_DevVariantUsesVersionedImage_Good(t *testing.T) {
+	script, err := GenerateInstaller(VariantDev, validConfig)
+	require.NoError(t, err)
+	assert.Contains(t, script, `DEV_IMAGE_VERSION="${VERSION#v}"`)
+	assert.Contains(t, script, `DEV_IMAGE="ghcr.io/dappcore/core-dev:${DEV_IMAGE_VERSION}"`)
+	assert.NotContains(t, script, "core-dev:latest")
 }
 
 // TestInstaller_GenerateInstaller_Bad verifies that an unknown variant returns an error and empty output.
@@ -110,6 +131,7 @@ func TestInstaller_GenerateAll_Good(t *testing.T) {
 			assert.NotEmpty(t, content)
 			assert.Contains(t, content, "#!/usr/bin/env bash")
 			assert.Contains(t, content, validConfig.BinaryName)
+			assert.Contains(t, content, DefaultScriptBaseURL)
 		})
 	}
 }
