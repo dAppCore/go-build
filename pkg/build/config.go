@@ -182,6 +182,41 @@ type TargetConfig struct {
 	Arch string `json:"arch" yaml:"arch"`
 }
 
+type buildConfigYAML struct {
+	Version  int                `json:"version" yaml:"version"`
+	Project  Project            `json:"project" yaml:"project"`
+	Build    buildYAML          `json:"build" yaml:"build"`
+	Cache    *CacheConfig       `json:"cache,omitempty" yaml:"cache,omitempty"`
+	Apple    AppleConfig        `json:"apple,omitempty" yaml:"apple,omitempty"`
+	Targets  []TargetConfig     `json:"targets" yaml:"targets"`
+	Sign     signing.SignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
+	SDK      *sdk.Config        `json:"sdk,omitempty" yaml:"sdk,omitempty"`
+	LinuxKit LinuxKitConfig     `json:"linuxkit,omitempty" yaml:"linuxkit,omitempty"`
+}
+
+type buildYAML struct {
+	Type           string            `json:"type" yaml:"type"`
+	CGO            bool              `json:"cgo" yaml:"cgo"`
+	Obfuscate      bool              `json:"obfuscate" yaml:"obfuscate"`
+	DenoBuild      string            `json:"deno_build,omitempty" yaml:"deno_build,omitempty"`
+	NSIS           bool              `json:"nsis" yaml:"nsis"`
+	WebView2       string            `json:"webview2,omitempty" yaml:"webview2,omitempty"`
+	Flags          []string          `json:"flags" yaml:"flags"`
+	LDFlags        []string          `json:"ldflags" yaml:"ldflags"`
+	BuildTags      []string          `json:"build_tags,omitempty" yaml:"build_tags,omitempty"`
+	ArchiveFormat  string            `json:"archive_format,omitempty" yaml:"archive_format,omitempty"`
+	Env            []string          `json:"env" yaml:"env"`
+	Dockerfile     string            `json:"dockerfile,omitempty" yaml:"dockerfile,omitempty"`
+	Registry       string            `json:"registry,omitempty" yaml:"registry,omitempty"`
+	Image          string            `json:"image,omitempty" yaml:"image,omitempty"`
+	Tags           []string          `json:"tags,omitempty" yaml:"tags,omitempty"`
+	BuildArgs      map[string]string `json:"build_args,omitempty" yaml:"build_args,omitempty"`
+	Push           bool              `json:"push,omitempty" yaml:"push,omitempty"`
+	Load           bool              `json:"load,omitempty" yaml:"load,omitempty"`
+	LinuxKitConfig string            `json:"linuxkit_config,omitempty" yaml:"linuxkit_config,omitempty"`
+	Formats        []string          `json:"formats,omitempty" yaml:"formats,omitempty"`
+}
+
 // UnmarshalYAML accepts both the documented top-level `cache:` block and the
 // legacy nested `build.cache:` shape. When both are present, the nested
 // `build.cache` form wins to preserve compatibility with existing callers.
@@ -219,6 +254,53 @@ func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) error {
 	cfg.Sign = mergeSignConfig(raw.Sign)
 
 	return nil
+}
+
+// MarshalYAML emits the documented `.core/build.yaml` shape, including the
+// top-level `cache:` block, while continuing to use Build.Cache internally.
+func (cfg BuildConfig) MarshalYAML() (any, error) {
+	raw := buildConfigYAML{
+		Version:  cfg.Version,
+		Project:  cfg.Project,
+		Build:    buildYAMLFromBuild(cfg.Build),
+		Apple:    cfg.Apple,
+		Targets:  cfg.Targets,
+		Sign:     cfg.Sign,
+		SDK:      cfg.SDK,
+		LinuxKit: cfg.LinuxKit,
+	}
+
+	if cacheConfigConfigured(cfg.Build.Cache) {
+		cache := cfg.Build.Cache
+		raw.Cache = &cache
+	}
+
+	return raw, nil
+}
+
+func buildYAMLFromBuild(value Build) buildYAML {
+	return buildYAML{
+		Type:           value.Type,
+		CGO:            value.CGO,
+		Obfuscate:      value.Obfuscate,
+		DenoBuild:      value.DenoBuild,
+		NSIS:           value.NSIS,
+		WebView2:       value.WebView2,
+		Flags:          value.Flags,
+		LDFlags:        value.LDFlags,
+		BuildTags:      value.BuildTags,
+		ArchiveFormat:  value.ArchiveFormat,
+		Env:            value.Env,
+		Dockerfile:     value.Dockerfile,
+		Registry:       value.Registry,
+		Image:          value.Image,
+		Tags:           value.Tags,
+		BuildArgs:      value.BuildArgs,
+		Push:           value.Push,
+		Load:           value.Load,
+		LinuxKitConfig: value.LinuxKitConfig,
+		Formats:        value.Formats,
+	}
 }
 
 // LoadConfig loads build configuration from the .core/build.yaml file in the given directory.

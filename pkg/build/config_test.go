@@ -9,6 +9,7 @@ import (
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // setupConfigTestDir creates a temp directory with optional .core/build.yaml content.
@@ -528,6 +529,55 @@ targets:
 		assert.Empty(t, cfg.Build.BuildTags)
 		// Targets explicitly set
 		assert.Len(t, cfg.Targets, 1)
+	})
+}
+
+func TestConfig_MarshalYAML_Good(t *testing.T) {
+	type marshalledBuildConfig struct {
+		Build map[string]any `yaml:"build"`
+		Cache map[string]any `yaml:"cache"`
+	}
+
+	t.Run("emits the RFC top-level cache block", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Project.Name = "demo"
+		cfg.Build.Cache = CacheConfig{
+			Enabled:     true,
+			Directory:   ".core/cache",
+			KeyPrefix:   "demo",
+			Paths:       []string{"cache/go-build", "cache/go-mod"},
+			RestoreKeys: []string{"go-"},
+		}
+
+		data, err := yaml.Marshal(cfg)
+		require.NoError(t, err)
+
+		var decoded marshalledBuildConfig
+		require.NoError(t, yaml.Unmarshal(data, &decoded))
+
+		require.NotNil(t, decoded.Cache)
+		assert.Equal(t, true, decoded.Cache["enabled"])
+		assert.Equal(t, ".core/cache", decoded.Cache["dir"])
+		assert.Equal(t, "demo", decoded.Cache["key_prefix"])
+
+		_, hasNestedCache := decoded.Build["cache"]
+		assert.False(t, hasNestedCache)
+	})
+
+	t.Run("omits cache when it is not configured", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Build.Cache = CacheConfig{}
+
+		data, err := yaml.Marshal(cfg)
+		require.NoError(t, err)
+
+		var decoded marshalledBuildConfig
+		require.NoError(t, yaml.Unmarshal(data, &decoded))
+
+		assert.Nil(t, decoded.Cache)
+
+		_, hasNestedCache := decoded.Build["cache"]
+		assert.False(t, hasNestedCache)
 	})
 }
 
