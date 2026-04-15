@@ -41,30 +41,37 @@ const (
 	markerLinuxKitNestedYAML = ".core/linuxkit/*.yaml"
 )
 
-// projectMarker maps a marker file to its project type.
-type projectMarker struct {
-	file        string
+type discoveryRule struct {
 	projectType ProjectType
+	matches     func(io.Medium, string) bool
 }
 
-// markers defines the core marker lookups used by discovery helpers.
-// Detection order is applied explicitly in Discover() to keep it aligned with
-// the RFC priority list.
-var markers = []projectMarker{
-	{markerWails, ProjectTypeWails},
-	{markerGoMod, ProjectTypeGo},
-	{markerGoWork, ProjectTypeGo},
-	{markerNodePackage, ProjectTypeNode},
-	{markerDenoJSON, ProjectTypeNode},
-	{markerDenoJSONC, ProjectTypeNode},
-	{markerComposer, ProjectTypePHP},
-	{markerPyProject, ProjectTypePython},
-	{markerRequirements, ProjectTypePython},
-	{markerCargo, ProjectTypeRust},
-	{markerMkDocs, ProjectTypeDocs},
-	{markerMkDocsYAML, ProjectTypeDocs},
-	{markerDocsMkDocs, ProjectTypeDocs},
-	{markerDocsMkDocsYAML, ProjectTypeDocs},
+var discoveryRules = []discoveryRule{
+	{projectType: ProjectTypeWails, matches: IsWailsProject},
+	{projectType: ProjectTypeGo, matches: func(fs io.Medium, dir string) bool {
+		return fileExists(fs, ax.Join(dir, markerGoMod)) || fileExists(fs, ax.Join(dir, markerGoWork))
+	}},
+	{projectType: ProjectTypeNode, matches: IsNodeProject},
+	{projectType: ProjectTypePHP, matches: IsPHPProject},
+	{projectType: ProjectTypePython, matches: IsPythonProject},
+	{projectType: ProjectTypeRust, matches: IsRustProject},
+	{projectType: ProjectTypeCPP, matches: IsCPPProject},
+	{projectType: ProjectTypeDocker, matches: IsDockerProject},
+	{projectType: ProjectTypeLinuxKit, matches: IsLinuxKitProject},
+	{projectType: ProjectTypeTaskfile, matches: IsTaskfileProject},
+	{projectType: ProjectTypeDocs, matches: IsMkDocsProject},
+}
+
+var discoveryMarkerPaths = []string{
+	markerBuildConfig,
+	markerGoMod, markerGoWork, markerMainGo, markerWails, markerNodePackage, markerDenoJSON, markerDenoJSONC, markerComposer,
+	markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
+	markerPyProject, markerRequirements, markerCargo,
+	"CMakeLists.txt", markerDockerfile, "Containerfile", "dockerfile", "containerfile",
+	markerFrontendPackage, markerFrontendDenoJSON, markerFrontendDenoJSONC,
+	markerLinuxKitYAML, markerLinuxKitYAMLAlt,
+	markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,
+	markerTaskfileLowerYML, markerTaskfileLowerYAML,
 }
 
 // Discover detects project types in the given directory by checking for marker files.
@@ -86,29 +93,9 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		detected = append(detected, projectType)
 	}
 
-	// RFC detection order:
-	// 1. Wails
-	// 2. Go
-	// 3. Node
-	// 4. PHP
-	// 5. Python
-	// 6. Rust
-	// 7. C++
-	// 8. Docker
-	// 9. LinuxKit
-	// 10. Taskfile
-	// 11. Docs
-	appendType(ProjectTypeWails, IsWailsProject(fs, dir))
-	appendType(ProjectTypeGo, fileExists(fs, ax.Join(dir, markerGoMod)) || fileExists(fs, ax.Join(dir, markerGoWork)))
-	appendType(ProjectTypeNode, IsNodeProject(fs, dir))
-	appendType(ProjectTypePHP, IsPHPProject(fs, dir))
-	appendType(ProjectTypePython, IsPythonProject(fs, dir))
-	appendType(ProjectTypeRust, IsRustProject(fs, dir))
-	appendType(ProjectTypeCPP, IsCPPProject(fs, dir))
-	appendType(ProjectTypeDocker, IsDockerProject(fs, dir))
-	appendType(ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir))
-	appendType(ProjectTypeTaskfile, IsTaskfileProject(fs, dir))
-	appendType(ProjectTypeDocs, IsMkDocsProject(fs, dir))
+	for _, rule := range discoveryRules {
+		appendType(rule.projectType, rule.matches(fs, dir))
+	}
 
 	return detected, nil
 }
@@ -381,20 +368,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	}
 
 	// Record raw marker presence
-	allMarkers := []string{
-		markerBuildConfig,
-		markerGoMod, markerGoWork, markerMainGo, markerWails, markerNodePackage, markerDenoJSON, markerDenoJSONC, markerComposer,
-		markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
-		markerPyProject, markerRequirements, markerCargo,
-		"CMakeLists.txt", markerDockerfile, "Containerfile", "dockerfile", "containerfile",
-		markerFrontendPackage, markerFrontendDenoJSON, markerFrontendDenoJSONC,
-		markerLinuxKitYAML, markerLinuxKitYAMLAlt,
-		markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,
-		markerTaskfileLowerYML, markerTaskfileLowerYAML,
-	}
-	for _, m := range allMarkers {
-		result.Markers[m] = fileExists(fs, ax.Join(dir, m))
-	}
+	result.Markers = collectMarkerPresence(fs, dir, discoveryMarkerPaths)
 
 	result.HasRootPackageJSON = result.Markers[markerNodePackage]
 	result.HasFrontendPackageJSON = result.Markers[markerFrontendPackage]
@@ -743,6 +717,14 @@ func hasGoRootMarker(fs io.Medium, dir string) bool {
 // fileExists checks if a file exists and is not a directory.
 func fileExists(fs io.Medium, path string) bool {
 	return fs.IsFile(path)
+}
+
+func collectMarkerPresence(fs io.Medium, dir string, paths []string) map[string]bool {
+	markers := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		markers[path] = fileExists(fs, ax.Join(dir, path))
+	}
+	return markers
 }
 
 func shouldSkipSubtreeDir(name string) bool {
