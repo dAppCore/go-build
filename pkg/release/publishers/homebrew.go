@@ -9,7 +9,6 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -121,7 +120,7 @@ func (p *HomebrewPublisher) Publish(ctx context.Context, release *Release, pubCf
 	version := core.TrimPrefix(release.Version, "v")
 
 	// Build checksums map from artifacts
-	checksums := buildChecksumMap(release.Artifacts)
+	checksums := buildChecksumMapFromRelease(release)
 
 	// Template data
 	data := homebrewTemplateData{
@@ -150,18 +149,6 @@ type homebrewTemplateData struct {
 	License      string
 	BinaryName   string
 	Checksums    ChecksumMap
-}
-
-// ChecksumMap holds checksums for different platform/arch combinations.
-//
-// data.Checksums.LinuxAMD64 = "abc123..."
-type ChecksumMap struct {
-	DarwinAmd64  string
-	DarwinArm64  string
-	LinuxAmd64   string
-	LinuxArm64   string
-	WindowsAmd64 string
-	WindowsArm64 string
 }
 
 // parseConfig extracts Homebrew-specific configuration.
@@ -363,32 +350,4 @@ func toFormulaClass(name string) string {
 		}
 	}
 	return core.Join("", parts...)
-}
-
-// buildChecksumMap extracts checksums from artifacts into a structured map.
-func buildChecksumMap(artifacts []build.Artifact) ChecksumMap {
-	checksums := ChecksumMap{}
-
-	for _, a := range artifacts {
-		// Parse artifact name to determine platform
-		name := ax.Base(a.Path)
-		checksum := a.Checksum
-
-		switch {
-		case core.Contains(name, "darwin-amd64"):
-			checksums.DarwinAmd64 = checksum
-		case core.Contains(name, "darwin-arm64"):
-			checksums.DarwinArm64 = checksum
-		case core.Contains(name, "linux-amd64"):
-			checksums.LinuxAmd64 = checksum
-		case core.Contains(name, "linux-arm64"):
-			checksums.LinuxArm64 = checksum
-		case core.Contains(name, "windows-amd64"):
-			checksums.WindowsAmd64 = checksum
-		case core.Contains(name, "windows-arm64"):
-			checksums.WindowsArm64 = checksum
-		}
-	}
-
-	return checksums
 }

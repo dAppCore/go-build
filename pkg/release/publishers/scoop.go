@@ -9,7 +9,6 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -98,7 +97,7 @@ func (p *ScoopPublisher) Publish(ctx context.Context, release *Release, pubCfg P
 	}
 
 	version := core.TrimPrefix(release.Version, "v")
-	checksums := buildChecksumMap(release.Artifacts)
+	checksums := buildChecksumMapFromRelease(release)
 
 	data := scoopTemplateData{
 		PackageName: projectName,
@@ -299,6 +298,3 @@ func (p *ScoopPublisher) renderTemplate(m coreio.Medium, name string, data scoop
 
 	return buf.String(), nil
 }
-
-// Ensure build package is used
-var _ = build.Artifact{}

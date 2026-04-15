@@ -9,20 +9,20 @@ class {{.FormulaClass}} < Formula
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-darwin-arm64.tar.gz"
+      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.DarwinArm64File}}"
       sha256 "{{.Checksums.DarwinArm64}}"
     else
-      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-darwin-amd64.tar.gz"
+      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.DarwinAmd64File}}"
       sha256 "{{.Checksums.DarwinAmd64}}"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-linux-arm64.tar.gz"
+      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.LinuxArm64File}}"
       sha256 "{{.Checksums.LinuxArm64}}"
     else
-      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-linux-amd64.tar.gz"
+      url "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.LinuxAmd64File}}"
       sha256 "{{.Checksums.LinuxAmd64}}"
     end
   end

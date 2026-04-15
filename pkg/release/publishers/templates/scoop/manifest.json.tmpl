@@ -5,11 +5,11 @@
     "license": "{{.License}}",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-windows-amd64.zip",
+            "url": "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.WindowsAmd64File}}",
             "hash": "{{.Checksums.WindowsAmd64}}"
         },
         "arm64": {
-            "url": "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-windows-arm64.zip",
+            "url": "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.WindowsArm64File}}",
             "hash": "{{.Checksums.WindowsArm64}}"
         }
     },
@@ -20,10 +20,10 @@
     "autoupdate": {
         "architecture": {
             "64bit": {
-                "url": "https://github.com/{{.Repository}}/releases/download/v$version/{{.BinaryName}}-windows-amd64.zip"
+                "url": "https://github.com/{{.Repository}}/releases/download/v$version/{{.Checksums.WindowsAmd64File}}"
             },
             "arm64": {
-                "url": "https://github.com/{{.Repository}}/releases/download/v$version/{{.BinaryName}}-windows-arm64.zip"
+                "url": "https://github.com/{{.Repository}}/releases/download/v$version/{{.Checksums.WindowsArm64File}}"
             }
         }
     }

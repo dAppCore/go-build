@@ -130,6 +130,34 @@ func TestNpm_NpmPublisherRenderTemplate_Good(t *testing.T) {
 
 		assert.Contains(t, result, `"access": "restricted"`)
 	})
+
+	t.Run("renders install.js with resolved release asset names", func(t *testing.T) {
+		data := npmTemplateData{
+			Package:     "@myorg/mycli",
+			Version:     "1.2.3",
+			Description: "My awesome CLI",
+			License:     "MIT",
+			Repository:  "owner/myapp",
+			BinaryName:  "myapp",
+			ProjectName: "myapp",
+			Access:      "public",
+			Checksums: ChecksumMap{
+				LinuxAmd64:       "abc123",
+				LinuxAmd64File:   "myapp_linux_amd64.tar.gz",
+				WindowsAmd64:     "def456",
+				WindowsAmd64File: "myapp_windows_amd64.zip",
+				ChecksumFile:     "CHECKSUMS.txt",
+			},
+		}
+
+		result, err := p.renderTemplate(io.Local, "templates/npm/install.js.tmpl", data)
+		require.NoError(t, err)
+
+		assert.Contains(t, result, `const CHECKSUM_FILE = 'CHECKSUMS.txt';`)
+		assert.Contains(t, result, `myapp_linux_amd64.tar.gz`)
+		assert.Contains(t, result, `myapp_windows_amd64.zip`)
+		assert.NotContains(t, result, `/checksums.txt`)
+	})
 }
 
 func TestNpm_NpmPublisherRenderTemplate_Bad(t *testing.T) {

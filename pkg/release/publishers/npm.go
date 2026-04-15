@@ -103,6 +103,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 
 	// Strip leading 'v' from version for npm
 	version := core.TrimPrefix(release.Version, "v")
+	checksums := buildChecksumMapFromRelease(release)
 
 	// Template data
 	data := npmTemplateData{
@@ -114,6 +115,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 		BinaryName:  projectName,
 		ProjectName: projectName,
 		Access:      npmCfg.Access,
+		Checksums:   checksums,
 	}
 
 	if dryRun {
@@ -153,6 +155,7 @@ type npmTemplateData struct {
 	BinaryName  string
 	ProjectName string
 	Access      string
+	Checksums   ChecksumMap
 }
 
 // dryRunPublish shows what would be done without actually publishing.

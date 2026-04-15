@@ -102,8 +102,10 @@ func TestScoop_ScoopPublisherRenderTemplate_Good(t *testing.T) {
 			License:     "MIT",
 			BinaryName:  "myapp",
 			Checksums: ChecksumMap{
-				WindowsAmd64: "abc123",
-				WindowsArm64: "def456",
+				WindowsAmd64:     "abc123",
+				WindowsArm64:     "def456",
+				WindowsAmd64File: "myapp_windows_amd64.zip",
+				WindowsArm64File: "myapp_windows_arm64.zip",
 			},
 		}
 
@@ -116,8 +118,8 @@ func TestScoop_ScoopPublisherRenderTemplate_Good(t *testing.T) {
 		assert.Contains(t, result, `"license": "MIT"`)
 		assert.Contains(t, result, `"64bit"`)
 		assert.Contains(t, result, `"arm64"`)
-		assert.Contains(t, result, "myapp-windows-amd64.zip")
-		assert.Contains(t, result, "myapp-windows-arm64.zip")
+		assert.Contains(t, result, "myapp_windows_amd64.zip")
+		assert.Contains(t, result, "myapp_windows_arm64.zip")
 		assert.Contains(t, result, `"hash": "abc123"`)
 		assert.Contains(t, result, `"hash": "def456"`)
 		assert.Contains(t, result, `"bin": "myapp.exe"`)

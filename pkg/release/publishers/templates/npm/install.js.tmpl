@@ -13,6 +13,21 @@ const crypto = require('crypto');
 const PACKAGE_VERSION = '{{.Version}}';
 const GITHUB_REPO = '{{.Repository}}';
 const BINARY_NAME = '{{.BinaryName}}';
+const CHECKSUM_FILE = '{{.Checksums.ChecksumFile}}';
+const ASSETS = {
+  darwin: {
+    amd64: { file: '{{.Checksums.DarwinAmd64File}}', checksum: '{{.Checksums.DarwinAmd64}}' },
+    arm64: { file: '{{.Checksums.DarwinArm64File}}', checksum: '{{.Checksums.DarwinArm64}}' },
+  },
+  linux: {
+    amd64: { file: '{{.Checksums.LinuxAmd64File}}', checksum: '{{.Checksums.LinuxAmd64}}' },
+    arm64: { file: '{{.Checksums.LinuxArm64File}}', checksum: '{{.Checksums.LinuxArm64}}' },
+  },
+  windows: {
+    amd64: { file: '{{.Checksums.WindowsAmd64File}}', checksum: '{{.Checksums.WindowsAmd64}}' },
+    arm64: { file: '{{.Checksums.WindowsArm64File}}', checksum: '{{.Checksums.WindowsArm64}}' },
+  },
+};
 
 // Platform/arch mapping
 const PLATFORM_MAP = {
@@ -38,14 +53,24 @@ function getPlatformInfo() {
   return { platform, arch };
 }
 
-function getDownloadUrl(platform, arch) {
-  const ext = platform === 'windows' ? '.zip' : '.tar.gz';
-  const name = `${BINARY_NAME}-${platform}-${arch}${ext}`;
-  return `https://github.com/${GITHUB_REPO}/releases/download/v${PACKAGE_VERSION}/${name}`;
+function getAsset(platform, arch) {
+  const asset = ASSETS[platform] && ASSETS[platform][arch];
+  if (!asset || !asset.file) {
+    console.error(`No release asset for ${platform}/${arch}`);
+    process.exit(1);
+  }
+  return asset;
+}
+
+function getDownloadUrl(asset) {
+  return `https://github.com/${GITHUB_REPO}/releases/download/v${PACKAGE_VERSION}/${asset.file}`;
 }
 
 function getChecksumsUrl() {
-  return `https://github.com/${GITHUB_REPO}/releases/download/v${PACKAGE_VERSION}/checksums.txt`;
+  if (!CHECKSUM_FILE) {
+    return null;
+  }
+  return `https://github.com/${GITHUB_REPO}/releases/download/v${PACKAGE_VERSION}/${CHECKSUM_FILE}`;
 }
 
 function download(url) {
@@ -74,8 +99,12 @@ function download(url) {
 }
 
 async function fetchChecksums() {
+  const url = getChecksumsUrl();
+  if (!url) {
+    return null;
+  }
   try {
-    const data = await download(getChecksumsUrl());
+    const data = await download(url);
     const checksums = {};
     data.toString().split('\n').forEach((line) => {
       const parts = line.trim().split(/\s+/);
@@ -122,6 +151,7 @@ function extract(data, destDir, platform) {
 
 async function main() {
   const { platform, arch } = getPlatformInfo();
+  const asset = getAsset(platform, arch);
   const binDir = path.join(__dirname, 'bin');
   const binaryPath = path.join(binDir, platform === 'windows' ? `${BINARY_NAME}.exe` : BINARY_NAME);
 
@@ -142,16 +172,14 @@ async function main() {
   const checksums = await fetchChecksums();
 
   // Download binary
-  const url = getDownloadUrl(platform, arch);
+  const url = getDownloadUrl(asset);
   console.log(`Downloading from ${url}`);
 
   const data = await download(url);
 
   // Verify checksum if available
-  if (checksums) {
-    const ext = platform === 'windows' ? '.zip' : '.tar.gz';
-    const filename = `${BINARY_NAME}-${platform}-${arch}${ext}`;
-    const expectedHash = checksums[filename];
+  const expectedHash = (checksums && checksums[asset.file]) || asset.checksum;
+  if (expectedHash) {
     if (expectedHash && !verifyChecksum(data, expectedHash)) {
       console.error('Checksum verification failed!');
       process.exit(1);

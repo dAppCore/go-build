@@ -143,7 +143,8 @@ func TestChocolatey_ChocolateyPublisherRenderTemplate_Good(t *testing.T) {
 			Version:     "1.2.3",
 			BinaryName:  "myapp",
 			Checksums: ChecksumMap{
-				WindowsAmd64: "abc123def456",
+				WindowsAmd64:     "abc123def456",
+				WindowsAmd64File: "myapp_windows_amd64.zip",
 			},
 		}
 
@@ -151,7 +152,7 @@ func TestChocolatey_ChocolateyPublisherRenderTemplate_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Contains(t, result, "$ErrorActionPreference = 'Stop'")
-		assert.Contains(t, result, "https://github.com/owner/myapp/releases/download/v1.2.3/myapp-windows-amd64.zip")
+		assert.Contains(t, result, "https://github.com/owner/myapp/releases/download/v1.2.3/myapp_windows_amd64.zip")
 		assert.Contains(t, result, "packageName    = 'myapp'")
 		assert.Contains(t, result, "checksum64     = 'abc123def456'")
 		assert.Contains(t, result, "checksumType64 = 'sha256'")

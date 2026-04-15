@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $toolsDir = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$url64 = 'https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-windows-amd64.zip'
+$url64 = 'https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.Checksums.WindowsAmd64File}}'
 
 $packageArgs = @{
   packageName    = '{{.PackageName}}'

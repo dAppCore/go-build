@@ -91,8 +91,10 @@ func TestAUR_AURPublisherRenderTemplate_Good(t *testing.T) {
 			BinaryName:  "myapp",
 			Maintainer:  "John Doe <john@example.com>",
 			Checksums: ChecksumMap{
-				LinuxAmd64: "abc123",
-				LinuxArm64: "def456",
+				LinuxAmd64:     "abc123",
+				LinuxArm64:     "def456",
+				LinuxAmd64File: "myapp_linux_amd64.tar.gz",
+				LinuxArm64File: "myapp_linux_arm64.tar.gz",
 			},
 		}
 
