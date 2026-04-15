@@ -11,6 +11,10 @@ import (
 	stdio "io"
 	"net/http"
 	"net/url"
+	"path"
+	"strconv"
+	"strings"
+	"unicode"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -32,6 +36,21 @@ var (
 // Tests replace this to avoid invoking the real build toolchain.
 var runLocalPwaBuild = runBuild
 
+const defaultPWADescription = "A web application enclaved by Core."
+
+type pwaMetadata struct {
+	DisplayName string
+	Description string
+	ManifestURL string
+	Icons       []string
+}
+
+type pwaAppConfig struct {
+	ModuleName  string
+	DisplayName string
+	Description string
+}
+
 // runPwaBuild downloads a PWA from URL and builds it.
 func runPwaBuild(ctx context.Context, pwaURL string) error {
 	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.starting"), pwaURL)
@@ -52,7 +71,6 @@ func runPwaBuild(ctx context.Context, pwaURL string) error {
 
 // downloadPWA fetches a PWA from a URL and saves assets locally.
 func downloadPWA(ctx context.Context, baseURL, destDir string) error {
-	// Fetch the main HTML page
 	resp, err := getWithContext(ctx, baseURL)
 	if err != nil {
 		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch URL"})+" "+baseURL, err)
@@ -64,39 +82,52 @@ func downloadPWA(ctx context.Context, baseURL, destDir string) error {
 		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "read response body"}), err)
 	}
 
-	// Find the manifest URL from the HTML
-	manifestURL, err := findManifestURL(string(body), baseURL)
+	pageMetadata, assets, err := extractHTMLMetadataAndAssets(string(body), baseURL)
 	if err != nil {
-		// If no manifest, it's not a PWA, but we can still try to package it as a simple site.
+		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "parse HTML entry point"}), err)
+	}
+
+	if err := ax.WriteFile(ax.Join(destDir, "index.html"), body, 0o644); err != nil {
+		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
+	}
+
+	downloaded := map[string]struct{}{
+		normalizeAssetURL(baseURL): {},
+	}
+
+	if pageMetadata.ManifestURL == "" {
 		core.Print(nil, "%s %s", i18n.T("common.label.warning"), i18n.T("cmd.build.pwa.no_manifest"))
-		if err := ax.WriteString(ax.Join(destDir, "index.html"), string(body), 0o644); err != nil {
-			return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
+	} else {
+		core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.found_manifest"), pageMetadata.ManifestURL)
+
+		manifest, manifestBody, err := fetchManifest(ctx, pageMetadata.ManifestURL)
+		if err != nil {
+			return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch or parse manifest"}), err)
 		}
-		return nil
+
+		if err := writeURLAsset(destDir, pageMetadata.ManifestURL, manifestBody); err != nil {
+			return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write manifest"}), err)
+		}
+		downloaded[normalizeAssetURL(pageMetadata.ManifestURL)] = struct{}{}
+		assets = append(assets, collectAssets(manifest, pageMetadata.ManifestURL)...)
 	}
 
-	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.found_manifest"), manifestURL)
-
-	// Fetch and parse the manifest
-	manifest, err := fetchManifest(ctx, manifestURL)
-	if err != nil {
-		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch or parse manifest"}), err)
-	}
-
-	// Download all assets listed in the manifest
-	assets := collectAssets(manifest, manifestURL)
-	for _, assetURL := range assets {
+	for _, assetURL := range uniquePWAStrings(assets) {
+		normalized := normalizeAssetURL(assetURL)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := downloaded[normalized]; ok {
+			continue
+		}
 		if err := downloadAsset(ctx, assetURL, destDir); err != nil {
 			if ctx.Err() != nil {
 				return coreerr.E("pwa.downloadPWA", "download cancelled", ctx.Err())
 			}
 			core.Print(nil, "%s %s %s: %v", i18n.T("common.label.warning"), i18n.T("common.error.failed", map[string]any{"Action": "download asset"}), assetURL, err)
+			continue
 		}
-	}
-
-	// Also save the root index.html
-	if err := ax.WriteString(ax.Join(destDir, "index.html"), string(body), 0o644); err != nil {
-		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
+		downloaded[normalized] = struct{}{}
 	}
 
 	core.Println(i18n.T("cmd.build.pwa.download_complete"))
@@ -105,57 +136,90 @@ func downloadPWA(ctx context.Context, baseURL, destDir string) error {
 
 // findManifestURL extracts the manifest URL from HTML content.
 func findManifestURL(htmlContent, baseURL string) (string, error) {
-	doc, err := html.Parse(core.NewReader(htmlContent))
+	metadata, _, err := extractHTMLMetadataAndAssets(htmlContent, baseURL)
 	if err != nil {
 		return "", err
 	}
-
-	var manifestPath string
-	var f func(*html.Node)
-	f = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "link" {
-			var rel, href string
-			for _, a := range n.Attr {
-				if a.Key == "rel" {
-					rel = a.Val
-				}
-				if a.Key == "href" {
-					href = a.Val
-				}
-			}
-			if relIncludesManifest(rel) && href != "" {
-				manifestPath = href
-				return
-			}
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			f(c)
-		}
-	}
-	f(doc)
-
-	if manifestPath == "" {
+	if metadata.ManifestURL == "" {
 		return "", coreerr.E("pwa.findManifestURL", i18n.T("cmd.build.pwa.error.no_manifest_tag"), nil)
+	}
+	return metadata.ManifestURL, nil
+}
+
+func extractHTMLMetadataAndAssets(htmlContent, baseURL string) (pwaMetadata, []string, error) {
+	doc, err := html.Parse(core.NewReader(htmlContent))
+	if err != nil {
+		return pwaMetadata{}, nil, err
 	}
 
 	base, err := url.Parse(baseURL)
 	if err != nil {
-		return "", err
+		return pwaMetadata{}, nil, err
 	}
 
-	manifestURL, err := base.Parse(manifestPath)
-	if err != nil {
-		return "", err
-	}
+	var (
+		metadata pwaMetadata
+		assets   []string
+	)
 
-	return manifestURL.String(), nil
+	var walk func(*html.Node)
+	walk = func(node *html.Node) {
+		if node.Type == html.ElementNode {
+			switch strings.ToLower(strings.TrimSpace(node.Data)) {
+			case "title":
+				if metadata.DisplayName == "" {
+					metadata.DisplayName = strings.TrimSpace(nodeText(node))
+				}
+			case "meta":
+				content := strings.TrimSpace(attributeValue(node, "content"))
+				name := strings.ToLower(strings.TrimSpace(attributeValue(node, "name")))
+				property := strings.ToLower(strings.TrimSpace(attributeValue(node, "property")))
+				if content != "" && (name == "description" || property == "og:description" || property == "twitter:description") && metadata.Description == "" {
+					metadata.Description = content
+				}
+			case "link":
+				relValue := attributeValue(node, "rel")
+				href := attributeValue(node, "href")
+				rel := parseRelTokens(relValue)
+				resolved := resolveAssetURL(base, href)
+				if resolved != "" && relHasAny(rel, "stylesheet", "icon", "shortcut", "apple-touch-icon", "mask-icon", "preload", "modulepreload", "prefetch", "manifest") {
+					assets = append(assets, resolved)
+				}
+				if relIncludesManifest(relValue) && resolved != "" && metadata.ManifestURL == "" {
+					metadata.ManifestURL = resolved
+				}
+				if resolved != "" && relHasAny(rel, "icon", "apple-touch-icon", "mask-icon") {
+					metadata.Icons = append(metadata.Icons, resolved)
+				}
+			case "script":
+				appendResolvedAsset(&assets, base, attributeValue(node, "src"))
+			case "img":
+				appendResolvedAsset(&assets, base, attributeValue(node, "src"))
+				appendResolvedSrcSet(&assets, base, attributeValue(node, "srcset"))
+			case "source":
+				appendResolvedAsset(&assets, base, attributeValue(node, "src"))
+				appendResolvedSrcSet(&assets, base, attributeValue(node, "srcset"))
+			case "video":
+				appendResolvedAsset(&assets, base, attributeValue(node, "poster"))
+			}
+		}
+
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+
+	metadata.Icons = uniquePWAStrings(metadata.Icons)
+	assets = uniquePWAStrings(assets)
+	return metadata, assets, nil
 }
 
 // relIncludesManifest reports whether a rel attribute declares a manifest link.
 // HTML allows multiple space-separated tokens and case-insensitive values.
 func relIncludesManifest(rel string) bool {
-	for _, token := range core.Split(core.Trim(rel), " ") {
-		if core.Lower(core.Trim(token)) == "manifest" {
+	for _, token := range parseRelTokens(rel) {
+		if token == "manifest" {
 			return true
 		}
 	}
@@ -163,50 +227,28 @@ func relIncludesManifest(rel string) bool {
 }
 
 // fetchManifest downloads and parses a PWA manifest.
-func fetchManifest(ctx context.Context, manifestURL string) (map[string]any, error) {
+func fetchManifest(ctx context.Context, manifestURL string) (map[string]any, []byte, error) {
 	resp, err := getWithContext(ctx, manifestURL)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := stdio.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var manifest map[string]any
 	if err := ax.JSONUnmarshal(body, &manifest); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return manifest, nil
+	return manifest, body, nil
 }
 
 // collectAssets extracts asset URLs from a PWA manifest.
 func collectAssets(manifest map[string]any, manifestURL string) []string {
-	var assets []string
-	base, _ := url.Parse(manifestURL)
-
-	// Add start_url
-	if startURL, ok := manifest["start_url"].(string); ok {
-		if resolved, err := base.Parse(startURL); err == nil {
-			assets = append(assets, resolved.String())
-		}
-	}
-
-	// Add icons
-	if icons, ok := manifest["icons"].([]any); ok {
-		for _, icon := range icons {
-			if iconMap, ok := icon.(map[string]any); ok {
-				if src, ok := iconMap["src"].(string); ok {
-					if resolved, err := base.Parse(src); err == nil {
-						assets = append(assets, resolved.String())
-					}
-				}
-			}
-		}
-	}
-
+	_, assets := manifestMetadataAndAssets(manifest, manifestURL)
 	return assets
 }
 
@@ -218,25 +260,23 @@ func downloadAsset(ctx context.Context, assetURL, destDir string) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	u, err := url.Parse(assetURL)
+	body, err := stdio.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	assetPath := core.TrimPrefix(ax.FromSlash(u.Path), ax.DS())
-	path := ax.Join(destDir, assetPath)
-	if err := ax.MkdirAll(ax.Dir(path), 0o755); err != nil {
-		return err
-	}
+	return writeURLAsset(destDir, assetURL, body)
+}
 
-	out, err := ax.Create(path)
+func writeURLAsset(destDir, assetURL string, body []byte) error {
+	targetPath, err := resolveAssetDestination(destDir, assetURL)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = out.Close() }()
-
-	_, err = stdio.Copy(out, resp.Body)
-	return err
+	if err := ax.MkdirAll(ax.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+	return ax.WriteFile(targetPath, body, 0o644)
 }
 
 // runBuild builds a desktop application from a local directory.
@@ -249,11 +289,8 @@ func runBuild(ctx context.Context, fromPath string) error {
 
 	buildDir := ".core/build/app"
 	htmlDir := ax.Join(buildDir, "html")
-	appName := ax.Base(fromPath)
-	if core.HasPrefix(appName, "core-pwa-build-") {
-		appName = "pwa-app"
-	}
-	outputExe := appName
+	appConfig := resolvePWAAppConfig(fromPath)
+	outputExe := appConfig.ModuleName
 
 	if err := ax.RemoveAll(buildDir); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "clean build directory"}), err)
@@ -270,7 +307,11 @@ func runBuild(ctx context.Context, fromPath string) error {
 		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "create new sod instance"}), nil)
 	}
 
-	templateData := map[string]string{"AppName": appName}
+	templateData := map[string]string{
+		"AppModule":             appConfig.ModuleName,
+		"AppDisplayNameLiteral": strconv.Quote(appConfig.DisplayName),
+		"AppDescriptionLiteral": strconv.Quote(appConfig.Description),
+	}
 	if err := sod.Extract(buildDir, templateData); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "extract template"}), err)
 	}
@@ -297,6 +338,76 @@ func runBuild(ctx context.Context, fromPath string) error {
 	core.Println()
 	core.Print(nil, "%s %s/%s", i18n.T("cmd.build.from_path.success"), buildDir, outputExe)
 	return nil
+}
+
+func resolvePWAAppConfig(fromPath string) pwaAppConfig {
+	fallbackName := ax.Base(fromPath)
+	if core.HasPrefix(fallbackName, "core-pwa-build-") {
+		fallbackName = "PWA App"
+	}
+
+	metadata := loadLocalPWAMetadata(fromPath)
+	displayName := strings.TrimSpace(metadata.DisplayName)
+	if displayName == "" {
+		displayName = fallbackName
+	}
+
+	description := strings.TrimSpace(metadata.Description)
+	if description == "" {
+		description = defaultPWADescription
+	}
+
+	moduleName := slugifyPWAName(displayName)
+	if moduleName == "" {
+		moduleName = slugifyPWAName(fallbackName)
+	}
+	if moduleName == "" {
+		moduleName = "pwa-app"
+	}
+
+	return pwaAppConfig{
+		ModuleName:  moduleName,
+		DisplayName: displayName,
+		Description: description,
+	}
+}
+
+func loadLocalPWAMetadata(dir string) pwaMetadata {
+	indexPath := ax.Join(dir, "index.html")
+	if !ax.IsFile(indexPath) {
+		return pwaMetadata{}
+	}
+
+	content, err := ax.ReadFile(indexPath)
+	if err != nil {
+		return pwaMetadata{}
+	}
+
+	metadata, _, err := extractHTMLMetadataAndAssets(string(content), "https://local.core/")
+	if err != nil {
+		return pwaMetadata{}
+	}
+
+	for _, manifestPath := range localManifestCandidates(dir, metadata.ManifestURL) {
+		if !ax.IsFile(manifestPath) {
+			continue
+		}
+
+		manifestBody, err := ax.ReadFile(manifestPath)
+		if err != nil {
+			continue
+		}
+
+		relativePath, err := ax.Rel(dir, manifestPath)
+		if err != nil {
+			continue
+		}
+		manifestURL := "https://local.core/" + strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(relativePath, ax.DS(), "/")), "/")
+		manifestMetadata, _ := manifestMetadataAndAssetsFromBytes(manifestBody, manifestURL)
+		return mergePWAMetadata(metadata, manifestMetadata)
+	}
+
+	return metadata
 }
 
 func getWithContext(ctx context.Context, targetURL string) (*http.Response, error) {
@@ -355,4 +466,252 @@ func copyDir(src, dst string) error {
 	}
 
 	return nil
+}
+
+func manifestMetadataAndAssets(manifest map[string]any, manifestURL string) (pwaMetadata, []string) {
+	metadata := pwaMetadata{}
+	var assets []string
+	base, _ := url.Parse(manifestURL)
+
+	if name, ok := manifest["name"].(string); ok && strings.TrimSpace(name) != "" {
+		metadata.DisplayName = strings.TrimSpace(name)
+	} else if shortName, ok := manifest["short_name"].(string); ok {
+		metadata.DisplayName = strings.TrimSpace(shortName)
+	}
+
+	if description, ok := manifest["description"].(string); ok {
+		metadata.Description = strings.TrimSpace(description)
+	}
+
+	if startURL, ok := manifest["start_url"].(string); ok {
+		appendResolvedAsset(&assets, base, startURL)
+	}
+
+	if icons, ok := manifest["icons"].([]any); ok {
+		for _, icon := range icons {
+			iconMap, ok := icon.(map[string]any)
+			if !ok {
+				continue
+			}
+			src, _ := iconMap["src"].(string)
+			resolved := resolveAssetURL(base, src)
+			if resolved == "" {
+				continue
+			}
+			metadata.Icons = append(metadata.Icons, resolved)
+			assets = append(assets, resolved)
+		}
+	}
+
+	metadata.Icons = uniquePWAStrings(metadata.Icons)
+	assets = uniquePWAStrings(assets)
+	return metadata, assets
+}
+
+func manifestMetadataAndAssetsFromBytes(body []byte, manifestURL string) (pwaMetadata, []string) {
+	var manifest map[string]any
+	if err := ax.JSONUnmarshal(body, &manifest); err != nil {
+		return pwaMetadata{}, nil
+	}
+	return manifestMetadataAndAssets(manifest, manifestURL)
+}
+
+func mergePWAMetadata(base, override pwaMetadata) pwaMetadata {
+	merged := base
+	if strings.TrimSpace(override.DisplayName) != "" {
+		merged.DisplayName = strings.TrimSpace(override.DisplayName)
+	}
+	if strings.TrimSpace(override.Description) != "" {
+		merged.Description = strings.TrimSpace(override.Description)
+	}
+	if strings.TrimSpace(override.ManifestURL) != "" {
+		merged.ManifestURL = strings.TrimSpace(override.ManifestURL)
+	}
+	merged.Icons = uniquePWAStrings(append(append([]string{}, base.Icons...), override.Icons...))
+	return merged
+}
+
+func attributeValue(node *html.Node, name string) string {
+	for _, attribute := range node.Attr {
+		if strings.EqualFold(attribute.Key, name) {
+			return attribute.Val
+		}
+	}
+	return ""
+}
+
+func nodeText(node *html.Node) string {
+	var b strings.Builder
+	var walk func(*html.Node)
+	walk = func(current *html.Node) {
+		if current.Type == html.TextNode {
+			b.WriteString(current.Data)
+		}
+		for child := current.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(node)
+	return b.String()
+}
+
+func parseRelTokens(value string) []string {
+	return uniquePWAStrings(strings.Fields(strings.ToLower(strings.TrimSpace(value))))
+}
+
+func relHasAny(tokens []string, candidates ...string) bool {
+	for _, token := range tokens {
+		for _, candidate := range candidates {
+			if token == candidate {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func resolveAssetURL(base *url.URL, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.HasPrefix(raw, "#") {
+		return ""
+	}
+
+	lower := strings.ToLower(raw)
+	if strings.HasPrefix(lower, "data:") || strings.HasPrefix(lower, "javascript:") || strings.HasPrefix(lower, "mailto:") {
+		return ""
+	}
+
+	resolved, err := base.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	if resolved.Scheme != "http" && resolved.Scheme != "https" {
+		return ""
+	}
+	resolved.Fragment = ""
+	return resolved.String()
+}
+
+func appendResolvedAsset(assets *[]string, base *url.URL, raw string) {
+	resolved := resolveAssetURL(base, raw)
+	if resolved != "" {
+		*assets = append(*assets, resolved)
+	}
+}
+
+func appendResolvedSrcSet(assets *[]string, base *url.URL, raw string) {
+	for _, candidate := range strings.Split(raw, ",") {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		fields := strings.Fields(candidate)
+		if len(fields) == 0 {
+			continue
+		}
+		appendResolvedAsset(assets, base, fields[0])
+	}
+}
+
+func uniquePWAStrings(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
+}
+
+func normalizeAssetURL(raw string) string {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return ""
+	}
+	parsed.Fragment = ""
+	return parsed.String()
+}
+
+func resolveAssetDestination(destDir, assetURL string) (string, error) {
+	parsed, err := url.Parse(assetURL)
+	if err != nil {
+		return "", err
+	}
+
+	relativePath := path.Clean("/" + parsed.Path)
+	switch {
+	case relativePath == "/" || relativePath == ".":
+		relativePath = "/index.html"
+	case strings.HasSuffix(parsed.Path, "/"):
+		relativePath = path.Join(relativePath, "index.html")
+	}
+
+	return ax.Join(destDir, ax.FromSlash(strings.TrimPrefix(relativePath, "/"))), nil
+}
+
+func localManifestCandidates(dir, manifestURL string) []string {
+	candidates := make([]string, 0, 3)
+	if manifestURL != "" {
+		if localPath := localAssetPath(dir, manifestURL); localPath != "" {
+			candidates = append(candidates, localPath)
+		}
+	}
+	candidates = append(candidates, ax.Join(dir, "manifest.json"), ax.Join(dir, "manifest.webmanifest"))
+	return uniquePWAStrings(candidates)
+}
+
+func localAssetPath(dir, assetURL string) string {
+	parsed, err := url.Parse(assetURL)
+	if err != nil {
+		return ""
+	}
+
+	relativePath := path.Clean("/" + parsed.Path)
+	if relativePath == "/" || relativePath == "." {
+		relativePath = "/index.html"
+	}
+	return ax.Join(dir, ax.FromSlash(strings.TrimPrefix(relativePath, "/")))
+}
+
+func slugifyPWAName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r <= unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r)):
+			b.WriteRune(r)
+			lastDash = false
+		case unicode.IsSpace(r) || r == '-' || r == '_' || r == '.':
+			if b.Len() == 0 || lastDash {
+				continue
+			}
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+
+	slug := strings.Trim(b.String(), "-")
+	if slug == "" {
+		return ""
+	}
+	if slug[0] >= '0' && slug[0] <= '9' {
+		return "app-" + slug
+	}
+	return slug
 }

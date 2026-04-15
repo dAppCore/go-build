@@ -12,8 +12,8 @@ var assets embed.FS
 
 func main() {
 	app := application.New(application.Options{
-		Name:        "{{.AppName}}",
-		Description: "A web application enclaved by Core.",
+		Name:        {{.AppDisplayNameLiteral}},
+		Description: {{.AppDescriptionLiteral}},
 		Assets: application.AssetOptions{
 			FS: assets,
 		},
