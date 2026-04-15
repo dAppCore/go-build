@@ -457,6 +457,11 @@ func TestDocker_DockerPublisherResolveTagsEdgeCases_Good(t *testing.T) {
 		tags := p.resolveTags([]string{"{{.Version}}", "{{Version}}", "latest"}, "v3.0.0")
 		assert.Equal(t, []string{"v3.0.0", "v3.0.0", "latest"}, tags)
 	})
+
+	t.Run("supports tag aliases and RFC version prefixing", func(t *testing.T) {
+		tags := p.resolveTags([]string{"v{{.Version}}", "{{.Tag}}", "release-{{Tag}}"}, "v3.0.0")
+		assert.Equal(t, []string{"v3.0.0", "v3.0.0", "release-v3.0.0"}, tags)
+	})
 }
 
 func TestDocker_DockerPublisherBuildBuildxArgsEdgeCases_Good(t *testing.T) {
@@ -530,6 +535,38 @@ func TestDocker_DockerPublisherBuildBuildxArgsEdgeCases_Good(t *testing.T) {
 		assert.True(t, foundVersionArg || foundAutoVersion, "VERSION build arg not found")
 		assert.True(t, foundSimpleArg, "SIMPLE_VER build arg not expanded")
 		assert.True(t, foundStaticArg, "STATIC_VALUE build arg not found")
+	})
+
+	t.Run("supports tag aliases and prefixed RFC templates in build args", func(t *testing.T) {
+		cfg := DockerConfig{
+			Registry:   "ghcr.io",
+			Image:      "owner/repo",
+			Dockerfile: "/Dockerfile",
+			Platforms:  []string{"linux/amd64"},
+			BuildArgs: map[string]string{
+				"IMAGE_TAG":   "v{{.Version}}",
+				"RELEASE_TAG": "{{.Tag}}",
+			},
+		}
+
+		args := p.buildBuildxArgs(cfg, []string{"latest"}, "v2.5.0")
+
+		foundImageTag := false
+		foundReleaseTag := false
+		for i, arg := range args {
+			if arg != "--build-arg" || i+1 >= len(args) {
+				continue
+			}
+			switch args[i+1] {
+			case "IMAGE_TAG=v2.5.0":
+				foundImageTag = true
+			case "RELEASE_TAG=v2.5.0":
+				foundReleaseTag = true
+			}
+		}
+
+		assert.True(t, foundImageTag, "IMAGE_TAG build arg not expanded")
+		assert.True(t, foundReleaseTag, "RELEASE_TAG build arg not expanded")
 	})
 
 	t.Run("handles empty registry", func(t *testing.T) {

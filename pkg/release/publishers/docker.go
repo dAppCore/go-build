@@ -224,11 +224,7 @@ func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, 
 func (p *DockerPublisher) resolveTags(tags []string, version string) []string {
 	resolved := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		// Replace {{.Version}} with actual version
-		resolvedTag := core.Replace(tag, "{{.Version}}", version)
-		// Also support simpler {{Version}} syntax
-		resolvedTag = core.Replace(resolvedTag, "{{Version}}", version)
-		resolved = append(resolved, resolvedTag)
+		resolved = append(resolved, build.ExpandVersionTemplate(tag, version))
 	}
 	return resolved
 }
@@ -262,9 +258,7 @@ func (p *DockerPublisher) buildBuildxArgs(cfg DockerConfig, tags []string, versi
 
 	// Build arguments
 	for k, v := range cfg.BuildArgs {
-		// Expand version in build args
-		expandedValue := core.Replace(v, "{{.Version}}", version)
-		expandedValue = core.Replace(expandedValue, "{{Version}}", version)
+		expandedValue := build.ExpandVersionTemplate(v, version)
 		args = append(args, "--build-arg", core.Sprintf("%s=%s", k, expandedValue))
 	}
 

@@ -106,9 +106,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	// Build full image references
 	var imageRefs []string
 	for _, tag := range tags {
-		// Expand version template
-		expandedTag := core.Replace(tag, "{{.Version}}", cfg.Version)
-		expandedTag = core.Replace(expandedTag, "{{Version}}", cfg.Version)
+		expandedTag := build.ExpandVersionTemplate(tag, cfg.Version)
 
 		if registry != "" {
 			imageRefs = append(imageRefs, core.Sprintf("%s/%s:%s", registry, imageName, expandedTag))
@@ -133,8 +131,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Build arguments
 	for k, v := range cfg.BuildArgs {
-		expandedValue := core.Replace(v, "{{.Version}}", cfg.Version)
-		expandedValue = core.Replace(expandedValue, "{{Version}}", cfg.Version)
+		expandedValue := build.ExpandVersionTemplate(v, cfg.Version)
 		args = append(args, "--build-arg", core.Sprintf("%s=%s", k, expandedValue))
 	}
 

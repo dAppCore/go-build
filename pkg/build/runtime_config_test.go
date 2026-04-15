@@ -99,3 +99,23 @@ func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {
 	assert.Equal(t, map[string]string{"VERSION": "1.2.3"}, source.Build.BuildArgs)
 	assert.Equal(t, []string{"git"}, source.LinuxKit.Packages)
 }
+
+func TestBuild_RuntimeConfigFromBuildConfig_ExpandsVersionTemplates_Good(t *testing.T) {
+	source := &BuildConfig{
+		Build: Build{
+			Flags:   []string{"-X-build=v{{.Version}}"},
+			LDFlags: []string{"-X main.Version={{.Tag}}"},
+			Env:     []string{"RELEASE_TAG={{.Tag}}", "IMAGE_TAG=v{{.Version}}"},
+		},
+	}
+
+	cfg := RuntimeConfigFromBuildConfig(io.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, false, "", "v1.2.3")
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, []string{"-X-build=v1.2.3"}, cfg.Flags)
+	assert.Equal(t, []string{"-X main.Version=v1.2.3"}, cfg.LDFlags)
+	assert.Equal(t, []string{"RELEASE_TAG=v1.2.3", "IMAGE_TAG=v1.2.3"}, cfg.Env)
+	assert.Equal(t, []string{"-X-build=v{{.Version}}"}, source.Build.Flags)
+	assert.Equal(t, []string{"-X main.Version={{.Tag}}"}, source.Build.LDFlags)
+	assert.Equal(t, []string{"RELEASE_TAG={{.Tag}}", "IMAGE_TAG=v{{.Version}}"}, source.Build.Env)
+}
