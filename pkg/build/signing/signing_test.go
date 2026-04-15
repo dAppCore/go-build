@@ -143,6 +143,7 @@ func TestSigning_SignChecksumsDisabled_Good(t *testing.T) {
 func TestSigning_DefaultSignConfig_Good(t *testing.T) {
 	cfg := DefaultSignConfig()
 	assert.True(t, cfg.Enabled)
+	assert.True(t, cfg.Windows.Signtool)
 }
 
 func TestSigning_SignConfigExpandEnv_Good(t *testing.T) {
@@ -156,7 +157,7 @@ func TestSigning_SignConfigExpandEnv_Good(t *testing.T) {
 
 func TestSigning_WindowsSigner_Good(t *testing.T) {
 	fs := io.Local
-	s := NewWindowsSigner(WindowsConfig{Certificate: "cert.pfx"})
+	s := NewWindowsSigner(WindowsConfig{Signtool: true, Certificate: "cert.pfx"})
 	assert.Equal(t, "signtool", s.Name())
 
 	if runtime.GOOS != "windows" {
@@ -167,6 +168,16 @@ func TestSigning_WindowsSigner_Good(t *testing.T) {
 
 	// On Windows, availability depends on the SDK toolchain being installed.
 	_ = s.Available()
+}
+
+func TestSigning_WindowsSignerHonoursSigntoolToggle_Good(t *testing.T) {
+	s := NewWindowsSigner(WindowsConfig{
+		Signtool:         false,
+		Certificate:      "cert.pfx",
+		signtoolExplicit: true,
+	})
+
+	assert.False(t, s.Available())
 }
 
 // mockSigner is a test double that records calls to Sign.

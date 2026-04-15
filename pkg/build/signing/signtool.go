@@ -37,6 +37,9 @@ func (s *WindowsSigner) Name() string {
 //
 // ok := s.Available() // → true if on Windows with certificate configured
 func (s *WindowsSigner) Available() bool {
+	if !s.config.signtoolEnabled() {
+		return false
+	}
 	if runtime.GOOS != "windows" {
 		return false
 	}

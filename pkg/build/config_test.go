@@ -331,6 +331,24 @@ sdk:
 		assert.False(t, cfg.SDK.Diff.FailOnBreaking)
 	})
 
+	t.Run("honours explicit windows signtool disablement", func(t *testing.T) {
+		content := `
+version: 1
+sign:
+  windows:
+    signtool: false
+    certificate: C:/certs/core.pfx
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.Sign.Windows.Signtool)
+		assert.Equal(t, "C:/certs/core.pfx", cfg.Sign.Windows.Certificate)
+	})
+
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
 		dir := t.TempDir()
 

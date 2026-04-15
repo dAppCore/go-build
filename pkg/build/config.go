@@ -48,10 +48,16 @@ type BuildConfig struct {
 }
 
 type rawSignConfig struct {
-	Enabled *bool                 `json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	GPG     signing.GPGConfig     `json:"gpg,omitempty" yaml:"gpg,omitempty"`
-	MacOS   signing.MacOSConfig   `json:"macos,omitempty" yaml:"macos,omitempty"`
-	Windows signing.WindowsConfig `json:"windows,omitempty" yaml:"windows,omitempty"`
+	Enabled *bool                `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	GPG     signing.GPGConfig    `json:"gpg,omitempty" yaml:"gpg,omitempty"`
+	MacOS   signing.MacOSConfig  `json:"macos,omitempty" yaml:"macos,omitempty"`
+	Windows rawWindowsSignConfig `json:"windows,omitempty" yaml:"windows,omitempty"`
+}
+
+type rawWindowsSignConfig struct {
+	Signtool    *bool  `json:"signtool,omitempty" yaml:"signtool,omitempty"`
+	Certificate string `json:"certificate,omitempty" yaml:"certificate,omitempty"`
+	Password    string `json:"password,omitempty" yaml:"password,omitempty"`
 }
 
 // Project holds project metadata.
@@ -368,6 +374,9 @@ func mergeSignConfig(raw *rawSignConfig) signing.SignConfig {
 	}
 	if raw.Windows.Password != "" {
 		cfg.Windows.Password = raw.Windows.Password
+	}
+	if raw.Windows.Signtool != nil {
+		cfg.Windows.SetSigntool(*raw.Windows.Signtool)
 	}
 
 	return cfg

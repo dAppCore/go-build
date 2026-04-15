@@ -293,6 +293,13 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeCPP, ProjectTypeDocker, ProjectTypeTaskfile}, types)
 	})
 
+	t.Run("keeps docs after taskfile and docker per RFC priority", func(t *testing.T) {
+		dir := setupTestDir(t, "mkdocs.yml", "Dockerfile", "Taskfile.yml")
+		types, err := Discover(fs, dir)
+		assert.NoError(t, err)
+		assert.Equal(t, []ProjectType{ProjectTypeDocker, ProjectTypeTaskfile, ProjectTypeDocs}, types)
+	})
+
 	t.Run("empty directory returns empty slice", func(t *testing.T) {
 		dir := t.TempDir()
 		types, err := Discover(fs, dir)

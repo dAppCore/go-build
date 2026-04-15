@@ -52,6 +52,24 @@ func TestSDK_DefaultConfig_Good(t *testing.T) {
 	assert.True(t, cfg.Diff.Enabled)
 }
 
+func TestSDK_ApplyDefaultsNormalisesLanguageAliases_Good(t *testing.T) {
+	cfg := &Config{
+		Languages: []string{"ts", "python", "py", "golang", "go", "php"},
+	}
+
+	cfg.ApplyDefaults()
+
+	assert.Equal(t, []string{"typescript", "python", "go", "php"}, cfg.Languages)
+}
+
+func TestSDK_normaliseLanguage_Good(t *testing.T) {
+	assert.Equal(t, "typescript", normaliseLanguage("ts"))
+	assert.Equal(t, "typescript", normaliseLanguage("TypeScript"))
+	assert.Equal(t, "python", normaliseLanguage("py"))
+	assert.Equal(t, "go", normaliseLanguage("golang"))
+	assert.Equal(t, "php", normaliseLanguage("php"))
+}
+
 func TestSDK_New_Good(t *testing.T) {
 	t.Run("with nil config", func(t *testing.T) {
 		s := New("/tmp", nil)

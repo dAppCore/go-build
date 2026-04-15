@@ -47,8 +47,9 @@ type projectMarker struct {
 	projectType ProjectType
 }
 
-// markers defines the detection order. More specific types come first.
-// Wails projects have both wails.json and go.mod, so wails is checked first.
+// markers defines the core marker lookups used by discovery helpers.
+// Detection order is applied explicitly in Discover() to keep it aligned with
+// the RFC priority list.
 var markers = []projectMarker{
 	{markerWails, ProjectTypeWails},
 	{markerGoMod, ProjectTypeGo},
@@ -78,40 +79,36 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		return []ProjectType{configuredType}, nil
 	}
 
-	hasRootFrontend := hasFrontendManifest(fs, dir)
-	hasFrontendDir := hasFrontendManifest(fs, ax.Join(dir, "frontend"))
-	hasNestedFrontend := hasSubtreeFrontendManifest(fs, dir)
-
-	if IsWailsProject(fs, dir) {
-		detected = append(detected, ProjectTypeWails)
-	}
-
-	for _, m := range markers {
-		path := ax.Join(dir, m.file)
-		if fileExists(fs, path) {
-			// Avoid duplicates (shouldn't happen with current markers, but defensive)
-			if !core.NewArray(detected...).Contains(m.projectType) {
-				detected = append(detected, m.projectType)
-			}
+	appendType := func(projectType ProjectType, ok bool) {
+		if !ok || core.NewArray(detected...).Contains(projectType) {
+			return
 		}
+		detected = append(detected, projectType)
 	}
 
-	additionalTypes := []struct {
-		projectType ProjectType
-		detected    bool
-	}{
-		{ProjectTypeNode, hasRootFrontend || hasFrontendDir || hasNestedFrontend},
-		{ProjectTypeCPP, IsCPPProject(fs, dir)},
-		{ProjectTypeDocker, IsDockerProject(fs, dir)},
-		{ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir)},
-		{ProjectTypeTaskfile, IsTaskfileProject(fs, dir)},
-		{ProjectTypeDocs, IsMkDocsProject(fs, dir)},
-	}
-	for _, candidate := range additionalTypes {
-		if candidate.detected && !core.NewArray(detected...).Contains(candidate.projectType) {
-			detected = append(detected, candidate.projectType)
-		}
-	}
+	// RFC detection order:
+	// 1. Wails
+	// 2. Go
+	// 3. Node
+	// 4. PHP
+	// 5. Python
+	// 6. Rust
+	// 7. C++
+	// 8. Docker
+	// 9. LinuxKit
+	// 10. Taskfile
+	// 11. Docs
+	appendType(ProjectTypeWails, IsWailsProject(fs, dir))
+	appendType(ProjectTypeGo, fileExists(fs, ax.Join(dir, markerGoMod)) || fileExists(fs, ax.Join(dir, markerGoWork)))
+	appendType(ProjectTypeNode, IsNodeProject(fs, dir))
+	appendType(ProjectTypePHP, IsPHPProject(fs, dir))
+	appendType(ProjectTypePython, IsPythonProject(fs, dir))
+	appendType(ProjectTypeRust, IsRustProject(fs, dir))
+	appendType(ProjectTypeCPP, IsCPPProject(fs, dir))
+	appendType(ProjectTypeDocker, IsDockerProject(fs, dir))
+	appendType(ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir))
+	appendType(ProjectTypeTaskfile, IsTaskfileProject(fs, dir))
+	appendType(ProjectTypeDocs, IsMkDocsProject(fs, dir))
 
 	return detected, nil
 }

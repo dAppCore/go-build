@@ -53,8 +53,11 @@ type MacOSConfig struct {
 //
 // cfg := signing.WindowsConfig{Certificate: "cert.pfx", Password: "secret"}
 type WindowsConfig struct {
+	Signtool    bool   `json:"signtool" yaml:"signtool"`       // Enable/disable signtool integration.
 	Certificate string `json:"certificate" yaml:"certificate"` // Path to .pfx
 	Password    string `json:"password" yaml:"password"`       // Certificate password
+
+	signtoolExplicit bool `json:"-" yaml:"-"`
 }
 
 // DefaultSignConfig returns sensible defaults.
@@ -73,6 +76,7 @@ func DefaultSignConfig() SignConfig {
 			AppPassword: core.Env("APPLE_APP_PASSWORD"),
 		},
 		Windows: WindowsConfig{
+			Signtool:    true,
 			Certificate: core.Env("SIGNTOOL_CERTIFICATE"),
 			Password:    core.Env("SIGNTOOL_PASSWORD"),
 		},
@@ -90,6 +94,22 @@ func (c *SignConfig) ExpandEnv() {
 	c.MacOS.AppPassword = expandEnv(c.MacOS.AppPassword)
 	c.Windows.Certificate = expandEnv(c.Windows.Certificate)
 	c.Windows.Password = expandEnv(c.Windows.Password)
+}
+
+func (c WindowsConfig) signtoolEnabled() bool {
+	if c.signtoolExplicit {
+		return c.Signtool
+	}
+	return true
+}
+
+// SetSigntool records an explicit signtool preference from config.
+func (c *WindowsConfig) SetSigntool(enabled bool) {
+	if c == nil {
+		return
+	}
+	c.Signtool = enabled
+	c.signtoolExplicit = true
 }
 
 // expandEnv expands $VAR or ${VAR} in a string.

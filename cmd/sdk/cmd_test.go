@@ -2,9 +2,11 @@ package sdkcmd
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/core/cli/pkg/cli"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,4 +97,63 @@ sdk:
 
 	err := runSDKValidateInDir(context.Background(), tmpDir, "")
 	assert.NoError(t, err)
+}
+
+func TestRunSDKDiffInDir_FailOnWarn_Good(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	baseSpec := `openapi: "3.0.0"
+info:
+  title: Test API
+  version: "1.0.0"
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  detail:
+                    type: string
+`
+	revSpec := `openapi: "3.0.0"
+info:
+  title: Test API
+  version: "1.1.0"
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+`
+	basePath := ax.Join(tmpDir, "base.yaml")
+	specPath := ax.Join(tmpDir, "openapi.yaml")
+	require.NoError(t, ax.WriteFile(basePath, []byte(baseSpec), 0o644))
+	require.NoError(t, ax.WriteFile(specPath, []byte(revSpec), 0o644))
+
+	err := runSDKDiffInDir(tmpDir, basePath, specPath, false)
+	assert.NoError(t, err)
+
+	err = runSDKDiffInDir(tmpDir, basePath, specPath, true)
+	require.Error(t, err)
+
+	var exitErr *cli.ExitError
+	require.True(t, errors.As(err, &exitErr))
+	assert.Equal(t, 1, exitErr.Code)
 }

@@ -20,6 +20,7 @@ import (
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+	"github.com/oasdiff/oasdiff/checker"
 )
 
 func init() {
@@ -58,6 +59,7 @@ func AddSDKCommands(c *core.Core) {
 			return cmdutil.ResultFromError(runSDKDiff(
 				cmdutil.OptionString(opts, "base"),
 				cmdutil.OptionString(opts, "spec"),
+				cmdutil.OptionBool(opts, "fail-on-warn", "fail_on_warn"),
 			))
 		},
 	})
@@ -138,12 +140,16 @@ func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, versio
 	return nil
 }
 
-func runSDKDiff(basePath, specPath string) error {
+func runSDKDiff(basePath, specPath string, failOnWarn bool) error {
 	projectDir, err := ax.Getwd()
 	if err != nil {
 		return coreerr.E("sdk.Diff", "failed to get working directory", err)
 	}
 
+	return runSDKDiffInDir(projectDir, basePath, specPath, failOnWarn)
+}
+
+func runSDKDiffInDir(projectDir, basePath, specPath string, failOnWarn bool) error {
 	if specPath == "" {
 		config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
 		if err != nil {
@@ -166,19 +172,30 @@ func runSDKDiff(basePath, specPath string) error {
 	cli.Print("  %s %s\n", i18n.Label("current"), sdkDimStyle.Render(specPath))
 	cli.Blank()
 
-	result, err := sdk.Diff(basePath, specPath)
+	diffOptions := sdk.DiffOptions{}
+	if failOnWarn {
+		diffOptions.MinimumLevel = checker.WARN
+	}
+
+	result, err := sdk.DiffWithOptions(basePath, specPath, diffOptions)
 	if err != nil {
 		return cli.Exit(2, cli.Wrap(err, i18n.Label("error")))
 	}
 
-	if result.Breaking {
+	if result.Breaking || (failOnWarn && result.HasWarnings) {
 		cli.Print("%s %s\n", sdkErrorStyle.Render(i18n.T("cmd.sdk.diff.breaking")), result.Summary)
 		for _, change := range result.Changes {
 			cli.Print("  - %s\n", change)
 		}
+		for _, warning := range result.Warnings {
+			cli.Print("  - warning: %s\n", warning)
+		}
 		return cli.Exit(1, cli.Err("%s", result.Summary))
 	}
 
+	for _, warning := range result.Warnings {
+		cli.Print("  - warning: %s\n", warning)
+	}
 	cli.Print("%s %s\n", sdkSuccessStyle.Render(i18n.T("cmd.sdk.label.ok")), result.Summary)
 	return nil
 }

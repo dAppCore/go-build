@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"dappco.re/go/core/build/internal/ax"
+	"github.com/oasdiff/oasdiff/checker"
 )
 
 func TestDiff_NoBreaking_Good(t *testing.T) {
@@ -97,5 +98,68 @@ paths:
 	}
 	if !result.Breaking {
 		t.Error("expected breaking change for removed endpoint")
+	}
+}
+
+func TestDiffWithOptions_Warnings_Good(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	baseSpec := `openapi: "3.0.0"
+info:
+  title: Test API
+  version: "1.0.0"
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  detail:
+                    type: string
+`
+	revSpec := `openapi: "3.0.0"
+info:
+  title: Test API
+  version: "1.1.0"
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+`
+	basePath := ax.Join(tmpDir, "base.yaml")
+	revPath := ax.Join(tmpDir, "rev.yaml")
+	_ = ax.WriteFile(basePath, []byte(baseSpec), 0644)
+	_ = ax.WriteFile(revPath, []byte(revSpec), 0644)
+
+	result, err := DiffWithOptions(basePath, revPath, DiffOptions{MinimumLevel: checker.WARN})
+	if err != nil {
+		t.Fatalf("DiffWithOptions failed: %v", err)
+	}
+	if result.Breaking {
+		t.Error("expected warning-only change for endpoint deprecation")
+	}
+	if !result.HasWarnings {
+		t.Fatal("expected warnings to be detected")
+	}
+	if len(result.Warnings) == 0 {
+		t.Fatal("expected warning details")
 	}
 }

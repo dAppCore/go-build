@@ -104,6 +104,7 @@ func (c *Config) ApplyDefaults() {
 	if len(c.Languages) == 0 {
 		c.Languages = append([]string(nil), defaults.Languages...)
 	}
+	c.Languages = normaliseLanguages(c.Languages)
 	if c.Output == "" {
 		c.Output = defaults.Output
 	}
@@ -231,6 +232,8 @@ func (s *SDK) outputDir(lang string) string {
 //
 // err := s.GenerateLanguage(ctx, "typescript") // generates sdk/typescript/
 func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
+	lang = normaliseLanguage(lang)
+
 	specPath, err := s.DetectSpec()
 	if err != nil {
 		return err
@@ -262,6 +265,43 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 	core.Print(nil, "Generated %s SDK at %s", lang, outputDir)
 
 	return nil
+}
+
+func normaliseLanguages(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = normaliseLanguage(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+
+	return result
+}
+
+func normaliseLanguage(value string) string {
+	switch core.Lower(core.Trim(value)) {
+	case "ts", "typescript":
+		return "typescript"
+	case "py", "python":
+		return "python"
+	case "go", "golang":
+		return "go"
+	case "php":
+		return "php"
+	default:
+		return core.Lower(core.Trim(value))
+	}
 }
 
 // resolvePackageVersion renders the configured package version against the
