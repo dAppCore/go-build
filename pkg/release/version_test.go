@@ -489,6 +489,13 @@ func TestVersion_CompareVersions_Good(t *testing.T) {
 		{"a greater than b patch", "v1.0.2", "v1.0.1", 1},
 		{"with and without v prefix", "v1.0.0", "1.0.0", 0},
 		{"different scales", "v1.10.0", "v1.9.0", 1},
+		{"prerelease is less than release", "v1.0.0-alpha", "v1.0.0", -1},
+		{"release is greater than prerelease", "v1.0.0", "v1.0.0-rc.1", 1},
+		{"prerelease identifiers compare lexically", "v1.0.0-alpha", "v1.0.0-beta", -1},
+		{"numeric prerelease identifiers compare numerically", "v1.0.0-rc.2", "v1.0.0-rc.10", -1},
+		{"numeric prerelease identifiers sort before text", "v1.0.0-1", "v1.0.0-alpha", -1},
+		{"longer prerelease wins when prefix matches", "v1.0.0-alpha.1", "v1.0.0-alpha", 1},
+		{"build metadata does not affect precedence", "v1.0.0+build.1", "v1.0.0+build.2", 0},
 	}
 
 	for _, tc := range tests {

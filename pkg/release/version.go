@@ -5,6 +5,7 @@ import (
 	"context"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"dappco.re/go/core"
 	"dappco.re/go/core/build/internal/ax"
@@ -173,8 +174,8 @@ func getLatestTagWithContext(ctx context.Context, dir string) (string, error) {
 //
 // result := release.CompareVersions("v1.2.3", "v1.2.4") // → -1
 func CompareVersions(a, b string) int {
-	aMajor, aMinor, aPatch, _, _, errA := ParseVersion(a)
-	bMajor, bMinor, bPatch, _, _, errB := ParseVersion(b)
+	aMajor, aMinor, aPatch, aPrerelease, _, errA := ParseVersion(a)
+	bMajor, bMinor, bPatch, bPrerelease, _, errB := ParseVersion(b)
 
 	// Invalid versions are considered less than valid ones
 	if errA != nil && errB != nil {
@@ -218,5 +219,75 @@ func CompareVersions(a, b string) int {
 		return 1
 	}
 
-	return 0
+	return comparePrereleaseVersions(aPrerelease, bPrerelease)
+}
+
+func comparePrereleaseVersions(a, b string) int {
+	switch {
+	case a == "" && b == "":
+		return 0
+	case a == "":
+		return 1
+	case b == "":
+		return -1
+	}
+
+	aParts := strings.Split(a, ".")
+	bParts := strings.Split(b, ".")
+	limit := len(aParts)
+	if len(bParts) < limit {
+		limit = len(bParts)
+	}
+
+	for i := 0; i < limit; i++ {
+		if aParts[i] == bParts[i] {
+			continue
+		}
+
+		aNumeric, aIsNumeric := parsePrereleaseNumber(aParts[i])
+		bNumeric, bIsNumeric := parsePrereleaseNumber(bParts[i])
+		switch {
+		case aIsNumeric && bIsNumeric:
+			if aNumeric < bNumeric {
+				return -1
+			}
+			return 1
+		case aIsNumeric:
+			return -1
+		case bIsNumeric:
+			return 1
+		case aParts[i] < bParts[i]:
+			return -1
+		default:
+			return 1
+		}
+	}
+
+	switch {
+	case len(aParts) < len(bParts):
+		return -1
+	case len(aParts) > len(bParts):
+		return 1
+	default:
+		return 0
+	}
+}
+
+func parsePrereleaseNumber(value string) (int, bool) {
+	if value == "" {
+		return 0, false
+	}
+
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, false
+	}
+
+	return n, true
 }

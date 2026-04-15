@@ -97,13 +97,15 @@ func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 
 // dryRunPublish shows what would be done without actually publishing.
 func (p *GitHubPublisher) dryRunPublish(release *Release, pubCfg PublisherConfig, repo string) error {
+	prerelease := shouldMarkGitHubPrerelease(release, pubCfg)
+
 	publisherPrintln()
 	publisherPrintln("=== DRY RUN: GitHub Release ===")
 	publisherPrintln()
 	publisherPrint("Repository: %s", repo)
 	publisherPrint("Version:    %s", release.Version)
 	publisherPrint("Draft:      %t", pubCfg.Draft)
-	publisherPrint("Prerelease: %t", pubCfg.Prerelease)
+	publisherPrint("Prerelease: %t", prerelease)
 	publisherPrintln()
 
 	publisherPrintln("Would create release with command:")
@@ -175,11 +177,60 @@ func (p *GitHubPublisher) buildCreateArgs(release *Release, pubCfg PublisherConf
 	}
 
 	// Add prerelease flag
-	if pubCfg.Prerelease {
+	if shouldMarkGitHubPrerelease(release, pubCfg) {
 		args = append(args, "--prerelease")
 	}
 
 	return args
+}
+
+func shouldMarkGitHubPrerelease(release *Release, pubCfg PublisherConfig) bool {
+	if pubCfg.Prerelease {
+		return true
+	}
+	if release == nil {
+		return false
+	}
+	return isSemverPrerelease(release.Version)
+}
+
+func isSemverPrerelease(version string) bool {
+	version = strings.TrimSpace(version)
+	version = strings.TrimPrefix(version, "v")
+	if version == "" {
+		return false
+	}
+
+	if buildIndex := strings.Index(version, "+"); buildIndex >= 0 {
+		version = version[:buildIndex]
+	}
+
+	dashIndex := strings.Index(version, "-")
+	if dashIndex <= 0 || dashIndex == len(version)-1 {
+		return false
+	}
+
+	return isCoreSemver(version[:dashIndex])
+}
+
+func isCoreSemver(version string) bool {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return false
+	}
+
+	for _, part := range parts {
+		if part == "" {
+			return false
+		}
+		for _, r := range part {
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func (p *GitHubPublisher) materializeArtifacts(release *Release) ([]string, func(), error) {

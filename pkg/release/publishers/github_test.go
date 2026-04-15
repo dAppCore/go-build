@@ -175,6 +175,20 @@ func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
 		assert.Contains(t, args, "--prerelease")
 	})
 
+	t.Run("auto-detects prerelease from semver version", func(t *testing.T) {
+		release := &Release{
+			Version: "v1.0.0-beta.1",
+			FS:      io.Local,
+		}
+		cfg := PublisherConfig{
+			Type: "github",
+		}
+
+		args := p.buildCreateArgs(release, cfg, "owner/repo")
+
+		assert.Contains(t, args, "--prerelease")
+	})
+
 	t.Run("generates notes when no changelog", func(t *testing.T) {
 		release := &Release{
 			Version:   "v1.0.0",
@@ -306,6 +320,27 @@ func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 		assert.Contains(t, output, "Draft:      true")
 		assert.Contains(t, output, "Prerelease: true")
 		assert.Contains(t, output, "--draft")
+		assert.Contains(t, output, "--prerelease")
+	})
+
+	t.Run("auto-detects prerelease flag from version in dry run output", func(t *testing.T) {
+		release := &Release{
+			Version:    "v1.0.0-rc.1",
+			Changelog:  "Release candidate",
+			ProjectDir: "/project",
+			FS:         io.Local,
+		}
+		cfg := PublisherConfig{
+			Type: "github",
+		}
+
+		var err error
+		output := capturePublisherOutput(t, func() {
+			err = p.dryRunPublish(release, cfg, "owner/repo")
+		})
+		require.NoError(t, err)
+
+		assert.Contains(t, output, "Prerelease: true")
 		assert.Contains(t, output, "--prerelease")
 	})
 }
