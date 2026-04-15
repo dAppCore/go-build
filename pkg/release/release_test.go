@@ -874,6 +874,47 @@ fi
 	assert.FileExists(t, ax.Join(dir, "dist", "CHECKSUMS.txt.asc"))
 }
 
+func TestRelease_BuildArtifacts_UsesConfiguredChecksumFile_Good(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+
+	oldSignChecksums := signReleaseChecksums
+	defer func() {
+		signReleaseChecksums = oldSignChecksums
+	}()
+
+	var checksumPaths []string
+	signReleaseChecksums = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, checksumFile string) error {
+		checksumPaths = append(checksumPaths, checksumFile)
+		return nil
+	}
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.Project.Name = "signedapp"
+	cfg.Checksum.File = "checksums.txt"
+	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+	cfg.Publishers = nil
+
+	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, "v1.0.0")
+	require.NoError(t, err)
+
+	customChecksumPath := ax.Join(dir, "dist", "checksums.txt")
+	assert.Equal(t, []string{customChecksumPath}, checksumPaths)
+	assert.FileExists(t, customChecksumPath)
+
+	var sawChecksum bool
+	for _, artifact := range artifacts {
+		if artifact.Path == customChecksumPath {
+			sawChecksum = true
+			break
+		}
+	}
+	assert.True(t, sawChecksum)
+}
+
 func TestRelease_BuildArtifacts_SignsBinariesBeforeArchiving_Good(t *testing.T) {
 	dir := t.TempDir()
 
@@ -956,6 +997,25 @@ targets:
 	}
 
 	assert.True(t, sawArchive)
+}
+
+func TestRelease_Publish_IncludesConfiguredChecksumArtifact_Good(t *testing.T) {
+	dir := t.TempDir()
+	distDir := ax.Join(dir, "dist")
+	require.NoError(t, ax.MkdirAll(distDir, 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.gz"), []byte("archive"), 0o644))
+	require.NoError(t, ax.WriteFile(ax.Join(distDir, "checksums.txt"), []byte("checksums"), 0o644))
+
+	cfg := DefaultConfig()
+	cfg.SetProjectDir(dir)
+	cfg.SetVersion("v1.0.0")
+	cfg.Checksum.File = "checksums.txt"
+	cfg.Publishers = nil
+
+	release, err := Publish(context.Background(), cfg, true)
+	require.NoError(t, err)
+
+	assert.Contains(t, release.Artifacts, build.Artifact{Path: ax.Join(distDir, "checksums.txt")})
 }
 
 func TestRelease_BuildArtifacts_WritesArtifactMetadata_Good(t *testing.T) {

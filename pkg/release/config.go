@@ -37,6 +37,8 @@ type Config struct {
 	Changelog ChangelogConfig `yaml:"changelog"`
 	// SDK configures SDK generation.
 	SDK *SDKConfig `yaml:"sdk,omitempty"`
+	// Checksum configures checksum generation for release artifacts.
+	Checksum ChecksumConfig `yaml:"checksum,omitempty"`
 
 	// Internal fields (not serialized)
 	projectDir string // Set by LoadConfig
@@ -62,6 +64,14 @@ type BuildConfig struct {
 	// ArchiveFormat selects the archive compression format for build outputs.
 	// Supported values are "gz", "xz", and "zip"; empty uses gzip.
 	ArchiveFormat string `yaml:"archive_format,omitempty"`
+}
+
+// ChecksumConfig controls release checksum generation.
+type ChecksumConfig struct {
+	// Algorithm selects the checksum algorithm. Currently sha256 is supported.
+	Algorithm string `yaml:"algorithm,omitempty"`
+	// File is the checksum file path relative to dist/ unless absolute.
+	File string `yaml:"file,omitempty"`
 }
 
 // TargetConfig defines a build target.
@@ -240,12 +250,7 @@ func DefaultConfig() *Config {
 			Repository: "",
 		},
 		Build: BuildConfig{
-			Targets: []TargetConfig{
-				{OS: "linux", Arch: "amd64"},
-				{OS: "linux", Arch: "arm64"},
-				{OS: "darwin", Arch: "arm64"},
-				{OS: "windows", Arch: "amd64"},
-			},
+			Targets: defaultTargetConfigs(),
 		},
 		Publishers: []PublisherConfig{
 			{
@@ -255,8 +260,13 @@ func DefaultConfig() *Config {
 			},
 		},
 		Changelog: ChangelogConfig{
+			Use:     "conventional",
 			Include: []string{"feat", "fix", "perf", "refactor"},
 			Exclude: []string{"chore", "docs", "style", "test", "ci"},
+		},
+		Checksum: ChecksumConfig{
+			Algorithm: "sha256",
+			File:      defaultChecksumFileName,
 		},
 	}
 }
@@ -294,9 +304,20 @@ func applyDefaults(cfg *Config) {
 		cfg.Publishers = defaults.Publishers
 	}
 
+	if cfg.Changelog.Use == "" {
+		cfg.Changelog.Use = defaults.Changelog.Use
+	}
+
 	if len(cfg.Changelog.Include) == 0 && len(cfg.Changelog.Exclude) == 0 {
 		cfg.Changelog.Include = defaults.Changelog.Include
 		cfg.Changelog.Exclude = defaults.Changelog.Exclude
+	}
+
+	if cfg.Checksum.Algorithm == "" {
+		cfg.Checksum.Algorithm = defaults.Checksum.Algorithm
+	}
+	if cfg.Checksum.File == "" {
+		cfg.Checksum.File = defaults.Checksum.File
 	}
 }
 
@@ -319,6 +340,8 @@ func (c *Config) ExpandEnv() {
 	c.Changelog.Use = expandEnv(c.Changelog.Use)
 	c.Changelog.Include = expandEnvSlice(c.Changelog.Include)
 	c.Changelog.Exclude = expandEnvSlice(c.Changelog.Exclude)
+	c.Checksum.Algorithm = expandEnv(c.Checksum.Algorithm)
+	c.Checksum.File = expandEnv(c.Checksum.File)
 
 	if c.SDK != nil {
 		c.SDK.Spec = expandEnv(c.SDK.Spec)
@@ -328,6 +351,16 @@ func (c *Config) ExpandEnv() {
 		c.SDK.Package.Version = expandEnv(c.SDK.Package.Version)
 		c.SDK.Publish.Repo = expandEnv(c.SDK.Publish.Repo)
 		c.SDK.Publish.Path = expandEnv(c.SDK.Publish.Path)
+	}
+}
+
+func defaultTargetConfigs() []TargetConfig {
+	return []TargetConfig{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "linux", Arch: "arm64"},
+		{OS: "darwin", Arch: "amd64"},
+		{OS: "darwin", Arch: "arm64"},
+		{OS: "windows", Arch: "amd64"},
 	}
 }
 

@@ -162,11 +162,11 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 		assert.Equal(t, []ProjectType{ProjectTypeDocs}, types)
 	})
 
-	t.Run("prefers docs over generic Node markers", func(t *testing.T) {
+	t.Run("keeps docs after generic Node markers", func(t *testing.T) {
 		dir := setupTestDir(t, "mkdocs.yml", "package.json")
 		types, err := Discover(fs, dir)
 		assert.NoError(t, err)
-		assert.Equal(t, []ProjectType{ProjectTypeDocs, ProjectTypeNode}, types)
+		assert.Equal(t, []ProjectType{ProjectTypeNode, ProjectTypeDocs}, types)
 	})
 
 	t.Run("detects docs project with mkdocs.yaml", func(t *testing.T) {
@@ -377,11 +377,11 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 		assert.Equal(t, ProjectTypeNode, primary)
 	})
 
-	t.Run("returns docs when mkdocs and package.json coexist", func(t *testing.T) {
+	t.Run("returns node when mkdocs and package.json coexist", func(t *testing.T) {
 		dir := setupTestDir(t, "mkdocs.yml", "package.json")
 		primary, err := PrimaryType(fs, dir)
 		assert.NoError(t, err)
-		assert.Equal(t, ProjectTypeDocs, primary)
+		assert.Equal(t, ProjectTypeNode, primary)
 	})
 
 	t.Run("returns wails for go.mod with nested frontend package.json", func(t *testing.T) {

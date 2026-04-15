@@ -26,6 +26,8 @@ var (
 	signReleaseChecksums    = signing.SignChecksums
 )
 
+const defaultChecksumFileName = "CHECKSUMS.txt"
+
 // Release represents a release with its version, artifacts, and changelog.
 //
 // rel, err := release.Publish(ctx, cfg, false)
@@ -79,6 +81,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	if err != nil {
 		return nil, coreerr.E("release.Publish", "failed to find artifacts", err)
 	}
+	artifacts = appendConfiguredChecksumArtifacts(filesystem, distDir, artifacts, cfg)
 
 	if len(artifacts) == 0 {
 		return nil, coreerr.E("release.Publish", "no artifacts found in dist/\nRun 'core build' first to create artifacts", nil)
@@ -372,6 +375,7 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		targets = []build.Target{
 			{OS: "linux", Arch: "amd64"},
 			{OS: "linux", Arch: "arm64"},
+			{OS: "darwin", Arch: "amd64"},
 			{OS: "darwin", Arch: "arm64"},
 			{OS: "windows", Arch: "amd64"},
 		}
@@ -458,8 +462,11 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		return nil, coreerr.E("release.buildArtifacts", "checksum failed", err)
 	}
 
-	// Write CHECKSUMS.txt
-	checksumPath := ax.Join(outputDir, "CHECKSUMS.txt")
+	if err := validateChecksumAlgorithm(cfg); err != nil {
+		return nil, err
+	}
+
+	checksumPath := resolveChecksumPath(outputDir, cfg)
 	if err := build.WriteChecksumFile(filesystem, checksummedArtifacts, checksumPath); err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to write checksums file", err)
 	}
@@ -484,6 +491,61 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	}
 
 	return checksummedArtifacts, nil
+}
+
+func validateChecksumAlgorithm(cfg *Config) error {
+	algorithm := core.Lower(core.Trim(resolveChecksumAlgorithm(cfg)))
+	switch algorithm {
+	case "", "sha256":
+		return nil
+	default:
+		return coreerr.E("release.buildArtifacts", "unsupported checksum algorithm: "+algorithm, nil)
+	}
+}
+
+func resolveChecksumAlgorithm(cfg *Config) string {
+	if cfg == nil {
+		return "sha256"
+	}
+	if cfg.Checksum.Algorithm != "" {
+		return cfg.Checksum.Algorithm
+	}
+	return "sha256"
+}
+
+func resolveChecksumPath(outputDir string, cfg *Config) string {
+	fileName := defaultChecksumFileName
+	if cfg != nil && cfg.Checksum.File != "" {
+		fileName = cfg.Checksum.File
+	}
+	if ax.IsAbs(fileName) {
+		return ax.Clean(fileName)
+	}
+	return ax.Join(outputDir, fileName)
+}
+
+func appendConfiguredChecksumArtifacts(filesystem io.Medium, distDir string, artifacts []build.Artifact, cfg *Config) []build.Artifact {
+	checksumPath := resolveChecksumPath(distDir, cfg)
+	if !filesystem.Exists(checksumPath) || containsArtifactPath(artifacts, checksumPath) {
+		return artifacts
+	}
+
+	artifacts = append(artifacts, build.Artifact{Path: checksumPath})
+	signaturePath := checksumPath + ".asc"
+	if filesystem.Exists(signaturePath) && !containsArtifactPath(artifacts, signaturePath) {
+		artifacts = append(artifacts, build.Artifact{Path: signaturePath})
+	}
+
+	return artifacts
+}
+
+func containsArtifactPath(artifacts []build.Artifact, path string) bool {
+	for _, artifact := range artifacts {
+		if artifact.Path == path {
+			return true
+		}
+	}
+	return false
 }
 
 func generateReleaseChangelog(ctx context.Context, projectDir, version string, cfg *Config) (string, error) {

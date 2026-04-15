@@ -53,10 +53,6 @@ var markers = []projectMarker{
 	{markerWails, ProjectTypeWails},
 	{markerGoMod, ProjectTypeGo},
 	{markerGoWork, ProjectTypeGo},
-	{markerMkDocs, ProjectTypeDocs},
-	{markerMkDocsYAML, ProjectTypeDocs},
-	{markerDocsMkDocs, ProjectTypeDocs},
-	{markerDocsMkDocsYAML, ProjectTypeDocs},
 	{markerNodePackage, ProjectTypeNode},
 	{markerDenoJSON, ProjectTypeNode},
 	{markerDenoJSONC, ProjectTypeNode},
@@ -64,6 +60,10 @@ var markers = []projectMarker{
 	{markerPyProject, ProjectTypePython},
 	{markerRequirements, ProjectTypePython},
 	{markerCargo, ProjectTypeRust},
+	{markerMkDocs, ProjectTypeDocs},
+	{markerMkDocsYAML, ProjectTypeDocs},
+	{markerDocsMkDocs, ProjectTypeDocs},
+	{markerDocsMkDocsYAML, ProjectTypeDocs},
 }
 
 // Discover detects project types in the given directory by checking for marker files.
@@ -101,11 +101,11 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		detected    bool
 	}{
 		{ProjectTypeNode, hasRootFrontend || hasFrontendDir || hasNestedFrontend},
-		{ProjectTypeDocs, IsMkDocsProject(fs, dir)},
 		{ProjectTypeCPP, IsCPPProject(fs, dir)},
 		{ProjectTypeDocker, IsDockerProject(fs, dir)},
 		{ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir)},
 		{ProjectTypeTaskfile, IsTaskfileProject(fs, dir)},
+		{ProjectTypeDocs, IsMkDocsProject(fs, dir)},
 	}
 	for _, candidate := range additionalTypes {
 		if candidate.detected && !core.NewArray(detected...).Contains(candidate.projectType) {

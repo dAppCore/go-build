@@ -50,9 +50,9 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
 
 		discovery := &DiscoveryResult{
-			Types:                  []ProjectType{ProjectTypeDocs, ProjectTypeNode},
-			PrimaryStack:           "docs",
-			PrimaryStackSuggestion: "docs",
+			Types:                  []ProjectType{ProjectTypeNode, ProjectTypeDocs},
+			PrimaryStack:           "node",
+			PrimaryStackSuggestion: "node",
 			HasDocsConfig:          true,
 			HasPackageJSON:         true,
 		}

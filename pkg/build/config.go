@@ -47,6 +47,13 @@ type BuildConfig struct {
 	LinuxKit LinuxKitConfig `json:"linuxkit,omitempty" yaml:"linuxkit,omitempty"`
 }
 
+type rawSignConfig struct {
+	Enabled *bool                 `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	GPG     signing.GPGConfig     `json:"gpg,omitempty" yaml:"gpg,omitempty"`
+	MacOS   signing.MacOSConfig   `json:"macos,omitempty" yaml:"macos,omitempty"`
+	Windows signing.WindowsConfig `json:"windows,omitempty" yaml:"windows,omitempty"`
+}
+
 // Project holds project metadata.
 //
 // cfg.Project.Binary = "core-build"
@@ -169,6 +176,45 @@ type TargetConfig struct {
 	Arch string `json:"arch" yaml:"arch"`
 }
 
+// UnmarshalYAML accepts both the documented top-level `cache:` block and the
+// legacy nested `build.cache:` shape. When both are present, the nested
+// `build.cache` form wins to preserve compatibility with existing callers.
+func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) error {
+	type rawBuildConfig struct {
+		Version  int            `json:"version" yaml:"version"`
+		Project  Project        `json:"project" yaml:"project"`
+		Build    Build          `json:"build" yaml:"build"`
+		Cache    CacheConfig    `json:"cache,omitempty" yaml:"cache,omitempty"`
+		Apple    AppleConfig    `json:"apple,omitempty" yaml:"apple,omitempty"`
+		Targets  []TargetConfig `json:"targets" yaml:"targets"`
+		Sign     *rawSignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
+		SDK      *sdk.Config    `json:"sdk,omitempty" yaml:"sdk,omitempty"`
+		LinuxKit LinuxKitConfig `json:"linuxkit,omitempty" yaml:"linuxkit,omitempty"`
+	}
+
+	var raw rawBuildConfig
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+
+	*cfg = BuildConfig{
+		Version:  raw.Version,
+		Project:  raw.Project,
+		Build:    raw.Build,
+		Apple:    raw.Apple,
+		Targets:  raw.Targets,
+		SDK:      raw.SDK,
+		LinuxKit: raw.LinuxKit,
+	}
+
+	if !cacheConfigConfigured(cfg.Build.Cache) && cacheConfigConfigured(raw.Cache) {
+		cfg.Build.Cache = raw.Cache
+	}
+	cfg.Sign = mergeSignConfig(raw.Sign)
+
+	return nil
+}
+
 // LoadConfig loads build configuration from the .core/build.yaml file in the given directory.
 // If the config file does not exist, it returns DefaultConfig().
 // Returns an error if the file exists but cannot be parsed.
@@ -228,14 +274,19 @@ func DefaultConfig() *BuildConfig {
 			LDFlags: []string{"-s", "-w"},
 			Env:     []string{},
 		},
-		Targets: []TargetConfig{
-			{OS: "linux", Arch: "amd64"},
-			{OS: "linux", Arch: "arm64"},
-			{OS: "darwin", Arch: "arm64"},
-			{OS: "windows", Arch: "amd64"},
-		},
+		Targets:  defaultTargetConfigs(),
 		Sign:     signing.DefaultSignConfig(),
 		LinuxKit: DefaultLinuxKitConfig(),
+	}
+}
+
+func defaultTargetConfigs() []TargetConfig {
+	return []TargetConfig{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "linux", Arch: "arm64"},
+		{OS: "darwin", Arch: "amd64"},
+		{OS: "darwin", Arch: "arm64"},
+		{OS: "windows", Arch: "amd64"},
 	}
 }
 
@@ -264,7 +315,7 @@ func applyDefaults(cfg *BuildConfig) {
 	}
 
 	if cfg.Targets == nil {
-		cfg.Targets = defaults.Targets
+		cfg.Targets = append([]TargetConfig(nil), defaults.Targets...)
 	}
 
 	if cfg.LinuxKit.Base == "" {
@@ -277,6 +328,49 @@ func applyDefaults(cfg *BuildConfig) {
 		cfg.LinuxKit.Formats = append([]string(nil), defaults.LinuxKit.Formats...)
 	}
 
+}
+
+func cacheConfigConfigured(cfg CacheConfig) bool {
+	return cfg.Enabled ||
+		cfg.Directory != "" ||
+		cfg.KeyPrefix != "" ||
+		len(cfg.Paths) > 0 ||
+		len(cfg.RestoreKeys) > 0
+}
+
+func mergeSignConfig(raw *rawSignConfig) signing.SignConfig {
+	cfg := signing.DefaultSignConfig()
+	if raw == nil {
+		return cfg
+	}
+
+	if raw.Enabled != nil {
+		cfg.Enabled = *raw.Enabled
+	}
+	if raw.GPG.Key != "" {
+		cfg.GPG.Key = raw.GPG.Key
+	}
+	if raw.MacOS.Identity != "" {
+		cfg.MacOS.Identity = raw.MacOS.Identity
+	}
+	cfg.MacOS.Notarize = raw.MacOS.Notarize
+	if raw.MacOS.AppleID != "" {
+		cfg.MacOS.AppleID = raw.MacOS.AppleID
+	}
+	if raw.MacOS.TeamID != "" {
+		cfg.MacOS.TeamID = raw.MacOS.TeamID
+	}
+	if raw.MacOS.AppPassword != "" {
+		cfg.MacOS.AppPassword = raw.MacOS.AppPassword
+	}
+	if raw.Windows.Certificate != "" {
+		cfg.Windows.Certificate = raw.Windows.Certificate
+	}
+	if raw.Windows.Password != "" {
+		cfg.Windows.Password = raw.Windows.Password
+	}
+
+	return cfg
 }
 
 // ExpandEnv expands environment variables across the build config.

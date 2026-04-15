@@ -139,6 +139,23 @@ sdk:
 		assert.True(t, cfg.SDK.Diff.Enabled)
 		assert.False(t, cfg.SDK.Diff.FailOnBreaking)
 	})
+
+	t.Run("loads checksum config", func(t *testing.T) {
+		content := `
+version: 1
+checksum:
+  algorithm: sha256
+  file: checksums.txt
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "sha256", cfg.Checksum.Algorithm)
+		assert.Equal(t, "checksums.txt", cfg.Checksum.File)
+	})
 }
 
 func TestConfig_LoadConfig_ExpandEnv_Good(t *testing.T) {
@@ -150,6 +167,7 @@ func TestConfig_LoadConfig_ExpandEnv_Good(t *testing.T) {
 	t.Setenv("SDK_SPEC", "docs/openapi.yaml")
 	t.Setenv("SDK_OUTPUT", "generated/sdk")
 	t.Setenv("SDK_LANGUAGE", "typescript")
+	t.Setenv("CHECKSUM_FILE", "dist/checksums.txt")
 
 	content := `
 version: 1
@@ -169,6 +187,8 @@ sdk:
   languages:
     - $SDK_LANGUAGE
   output: $SDK_OUTPUT
+checksum:
+  file: $CHECKSUM_FILE
 `
 	dir := setupConfigTestDir(t, content)
 
@@ -187,6 +207,7 @@ sdk:
 	assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
 	assert.Equal(t, []string{"typescript"}, cfg.SDK.Languages)
 	assert.Equal(t, "generated/sdk", cfg.SDK.Output)
+	assert.Equal(t, "dist/checksums.txt", cfg.Checksum.File)
 }
 
 func TestConfig_LoadConfig_Bad(t *testing.T) {
@@ -232,13 +253,17 @@ func TestConfig_DefaultConfig_Good(t *testing.T) {
 		assert.Empty(t, cfg.Project.Repository)
 
 		// Default targets
-		assert.Len(t, cfg.Build.Targets, 4)
+		assert.Len(t, cfg.Build.Targets, 5)
 		hasLinuxAmd64 := false
+		hasDarwinAmd64 := false
 		hasDarwinArm64 := false
 		hasWindowsAmd64 := false
 		for _, target := range cfg.Build.Targets {
 			if target.OS == "linux" && target.Arch == "amd64" {
 				hasLinuxAmd64 = true
+			}
+			if target.OS == "darwin" && target.Arch == "amd64" {
+				hasDarwinAmd64 = true
 			}
 			if target.OS == "darwin" && target.Arch == "arm64" {
 				hasDarwinArm64 = true
@@ -248,6 +273,7 @@ func TestConfig_DefaultConfig_Good(t *testing.T) {
 			}
 		}
 		assert.True(t, hasLinuxAmd64)
+		assert.True(t, hasDarwinAmd64)
 		assert.True(t, hasDarwinArm64)
 		assert.True(t, hasWindowsAmd64)
 
@@ -258,10 +284,13 @@ func TestConfig_DefaultConfig_Good(t *testing.T) {
 		assert.False(t, cfg.Publishers[0].Draft)
 
 		// Default changelog settings
+		assert.Equal(t, "conventional", cfg.Changelog.Use)
 		assert.Contains(t, cfg.Changelog.Include, "feat")
 		assert.Contains(t, cfg.Changelog.Include, "fix")
 		assert.Contains(t, cfg.Changelog.Exclude, "chore")
 		assert.Contains(t, cfg.Changelog.Exclude, "docs")
+		assert.Equal(t, "sha256", cfg.Checksum.Algorithm)
+		assert.Equal(t, "CHECKSUMS.txt", cfg.Checksum.File)
 	})
 }
 
@@ -440,7 +469,8 @@ func TestConfig_ApplyDefaults_Good(t *testing.T) {
 			},
 		}
 		applyDefaults(cfg)
-		// Should not apply defaults because Include is set
+		assert.Equal(t, "conventional", cfg.Changelog.Use)
+		// Include/Exclude defaults are only applied when both lists are empty.
 		assert.Equal(t, []string{"feat"}, cfg.Changelog.Include)
 		assert.Empty(t, cfg.Changelog.Exclude)
 	})

@@ -185,6 +185,30 @@ sign:
 		assert.Equal(t, "ABCD1234", cfg.Sign.GPG.Key)
 	})
 
+	t.Run("supports top-level cache block from the RFC", func(t *testing.T) {
+		content := `
+version: 1
+cache:
+  enabled: true
+  dir: .core/cache
+  paths:
+    - ~/.cache/go-build
+    - ~/go/pkg/mod
+  restore_keys:
+    - go-
+`
+		dir := setupConfigTestDir(t, content)
+
+		cfg, err := LoadConfig(fs, dir)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.Build.Cache.Enabled)
+		assert.Equal(t, ".core/cache", cfg.Build.Cache.Directory)
+		assert.Equal(t, []string{"~/.cache/go-build", "~/go/pkg/mod"}, cfg.Build.Cache.Paths)
+		assert.Equal(t, []string{"go-"}, cfg.Build.Cache.RestoreKeys)
+	})
+
 	t.Run("loads apple pipeline config with env expansion", func(t *testing.T) {
 		t.Setenv("APPLE_TEAM_ID", "ABC123DEF4")
 		t.Setenv("APPLE_BUNDLE_ID", "ai.lthn.core")
@@ -480,13 +504,17 @@ func TestConfig_DefaultConfig_Good(t *testing.T) {
 		assert.Equal(t, []string{"oci", "apple"}, cfg.LinuxKit.Formats)
 
 		// Default targets cover common platforms
-		assert.Len(t, cfg.Targets, 4)
+		assert.Len(t, cfg.Targets, 5)
 		hasLinuxAmd64 := false
+		hasDarwinAmd64 := false
 		hasDarwinArm64 := false
 		hasWindowsAmd64 := false
 		for _, t := range cfg.Targets {
 			if t.OS == "linux" && t.Arch == "amd64" {
 				hasLinuxAmd64 = true
+			}
+			if t.OS == "darwin" && t.Arch == "amd64" {
+				hasDarwinAmd64 = true
 			}
 			if t.OS == "darwin" && t.Arch == "arm64" {
 				hasDarwinArm64 = true
@@ -496,6 +524,7 @@ func TestConfig_DefaultConfig_Good(t *testing.T) {
 			}
 		}
 		assert.True(t, hasLinuxAmd64)
+		assert.True(t, hasDarwinAmd64)
 		assert.True(t, hasDarwinArm64)
 		assert.True(t, hasWindowsAmd64)
 	})
