@@ -334,6 +334,11 @@ func shouldUseGoBuildPassthrough(filesystem io.Medium, projectDir string, req Pr
 		return false
 	}
 
+	projectTypes, err := build.Discover(filesystem, projectDir)
+	if err != nil || len(projectTypes) != 1 || projectTypes[0] != build.ProjectTypeGo {
+		return false
+	}
+
 	if req.ObfuscateSet || req.NSISSet || req.WebView2Set || req.DenoBuildSet || req.BuildCacheSet || req.SignSet || req.NoSign || req.Notarize {
 		return false
 	}

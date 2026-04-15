@@ -549,6 +549,22 @@ func TestBuildCmd_shouldUseGoBuildPassthrough_Good(t *testing.T) {
 			Version: "v1.2.3",
 		}))
 	})
+
+	t.Run("uses the pipeline for Wails projects even without config", func(t *testing.T) {
+		wailsDir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(wailsDir, "go.mod"), []byte("module example.com/wails\n\ngo 1.24\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(wailsDir, "wails.json"), []byte(`{"name":"demo"}`), 0o644))
+
+		assert.False(t, shouldUseGoBuildPassthrough(io.Local, wailsDir, ProjectBuildRequest{}))
+	})
+
+	t.Run("uses the pipeline for multi-type Go and Node projects", func(t *testing.T) {
+		stackDir := t.TempDir()
+		require.NoError(t, ax.WriteFile(ax.Join(stackDir, "go.mod"), []byte("module example.com/fullstack\n\ngo 1.24\n"), 0o644))
+		require.NoError(t, ax.WriteFile(ax.Join(stackDir, "package.json"), []byte(`{"name":"fullstack"}`), 0o644))
+
+		assert.False(t, shouldUseGoBuildPassthrough(io.Local, stackDir, ProjectBuildRequest{}))
+	})
 }
 
 func TestBuildCmd_runProjectBuild_NoConfigGoPassthroughTargetAndOutput_Good(t *testing.T) {
