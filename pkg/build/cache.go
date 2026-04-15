@@ -5,6 +5,7 @@ package build
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
@@ -131,8 +132,18 @@ func SetupCache(args ...any) error {
 			return nil
 		}
 
-		// The single-argument form is intentionally side-effect free because it
-		// does not provide a filesystem or project directory to hydrate paths.
+		// The single-argument form configures the process environment for callers
+		// that only need cache wiring and do not have a filesystem/project root.
+		if len(cfg.Paths) == 0 {
+			cfg.Paths = []string{"~/.cache/go-build", "~/go/pkg/mod"}
+		}
+		for _, env := range CacheEnvironment(cfg) {
+			parts := core.SplitN(env, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			_ = os.Setenv(parts[0], parts[1])
+		}
 		return nil
 	case 3:
 		fs, _ := args[0].(io.Medium)
