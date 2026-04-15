@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

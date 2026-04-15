@@ -5,7 +5,7 @@ description: Build, release, Apple packaging, SDK generation, and GitHub workflo
 
 # go-build
 
-`dappco.re/go/core/build` is the build system and release engine used by the Core CLI and the public `dAppCore/build@v3` GitHub Action.
+`dappco.re/go/build` is the build system and release engine used by the Core CLI and the public `dAppCore/build@v3` GitHub Action.
 
 ## Highlights
 
@@ -91,7 +91,7 @@ The Apple surface is available both through `pkg/build/apple/` and `core build a
 ## Module Path
 
 ```go
-import "dappco.re/go/core/build/pkg/build"
+import "dappco.re/go/build/pkg/build"
 ```
 
 Requires Go 1.26+.

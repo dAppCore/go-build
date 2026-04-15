@@ -9,7 +9,7 @@ import (
 	"slices"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 	coreerr "dappco.re/go/core/log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"

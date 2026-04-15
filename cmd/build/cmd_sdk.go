@@ -9,9 +9,9 @@ import (
 	"context"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/internal/sdkcfg"
-	"dappco.re/go/core/build/pkg/sdk"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/sdkcfg"
+	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/core/cli/pkg/cli"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"

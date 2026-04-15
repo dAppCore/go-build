@@ -4,7 +4,7 @@ import (
 	"runtime"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core/io"
 )
 

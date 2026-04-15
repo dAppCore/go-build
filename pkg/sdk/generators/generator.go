@@ -8,7 +8,7 @@ import (
 	"slices"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 )
 
 // Options holds common generation options.

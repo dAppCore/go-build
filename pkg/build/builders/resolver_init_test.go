@@ -3,7 +3,7 @@ package builders
 import (
 	"testing"
 
-	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/build/pkg/build"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

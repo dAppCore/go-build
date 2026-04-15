@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/internal/cmdutil"
-	buildservice "dappco.re/go/core/build/pkg/service"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cmdutil"
+	buildservice "dappco.re/go/build/pkg/service"
 	"dappco.re/go/core/cli/pkg/cli"
 	coreerr "dappco.re/go/core/log"
 )

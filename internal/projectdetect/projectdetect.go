@@ -1,8 +1,8 @@
 package projectdetect
 
 import (
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/build/pkg/build/builders"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/build/pkg/build/builders"
 	"dappco.re/go/core/io"
 )
 

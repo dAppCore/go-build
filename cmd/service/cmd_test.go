@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	buildservice "dappco.re/go/core/build/pkg/service"
+	"dappco.re/go/build/internal/ax"
+	buildservice "dappco.re/go/build/pkg/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -5,9 +5,9 @@ import (
 	"context"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/build/pkg/sdk"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )

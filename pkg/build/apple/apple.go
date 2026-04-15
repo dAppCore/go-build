@@ -5,9 +5,9 @@ import (
 	"regexp"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	build "dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/build/pkg/release"
+	"dappco.re/go/build/internal/ax"
+	build "dappco.re/go/build/pkg/build"
+	"dappco.re/go/build/pkg/release"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )

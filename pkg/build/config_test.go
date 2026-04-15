@@ -3,8 +3,8 @@ package build
 import (
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/sdk"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/sdk"
 
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"

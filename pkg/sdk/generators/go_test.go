@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 )
 
 func TestGo_GoGeneratorAvailable_Good(t *testing.T) {

@@ -1,6 +1,6 @@
 # go-build
 
-`dappco.re/go/core/build` is the build, release, SDK, Apple packaging, and workflow toolkit behind `core build`, `core release`, `core sdk`, `core ci`, and the public `dAppCore/build@v3` GitHub Action surface.
+`dappco.re/go/build` is the build, release, SDK, Apple packaging, and workflow toolkit behind `core build`, `core release`, `core sdk`, `core ci`, and the public `dAppCore/build@v3` GitHub Action surface.
 
 ## What It Covers
 
@@ -38,7 +38,7 @@ core ci
 ## Module
 
 ```go
-import "dappco.re/go/core/build/pkg/build"
+import "dappco.re/go/build/pkg/build"
 ```
 
 The repository is a library/command-registration module. It does not ship its own standalone binary.

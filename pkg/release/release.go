@@ -9,11 +9,11 @@ import (
 	"slices"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/build/pkg/build/builders"
-	"dappco.re/go/core/build/pkg/build/signing"
-	"dappco.re/go/core/build/pkg/release/publishers"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/build/pkg/build/builders"
+	"dappco.re/go/build/pkg/build/signing"
+	"dappco.re/go/build/pkg/release/publishers"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )

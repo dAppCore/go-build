@@ -4,7 +4,7 @@ import (
 	"context"
 	"runtime"
 
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )

@@ -15,9 +15,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	coreapi "dappco.re/go/core/api"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/build/pkg/release"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/core/io"
 	"dappco.re/go/core/ws"
 	"github.com/gorilla/websocket"

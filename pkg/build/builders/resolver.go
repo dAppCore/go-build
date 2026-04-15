@@ -5,7 +5,7 @@ package builders
 import (
 	"io/fs"
 
-	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/build/pkg/build"
 )
 
 func init() {

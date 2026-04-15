@@ -1,6 +1,6 @@
 package builders
 
-import "dappco.re/go/core/build/pkg/build"
+import "dappco.re/go/build/pkg/build"
 
 // appendConfiguredEnv returns a fresh environment slice that includes the
 // configured build environment, derived cache variables, and any

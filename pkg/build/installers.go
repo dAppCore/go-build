@@ -1,6 +1,6 @@
 package build
 
-import buildinstallers "dappco.re/go/core/build/pkg/build/installers"
+import buildinstallers "dappco.re/go/build/pkg/build/installers"
 
 // InstallerVariant identifies an installer script profile.
 type InstallerVariant = buildinstallers.InstallerVariant

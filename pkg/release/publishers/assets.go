@@ -3,8 +3,8 @@ package publishers
 import (
 	"strings"
 
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 )
 
 // ChecksumMap holds resolved release asset names and SHA-256 checksums for the

@@ -10,7 +10,7 @@ import (
 
 	coreapi "dappco.re/go/core/api"
 	providerpkg "dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

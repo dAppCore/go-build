@@ -1,9 +1,9 @@
 package sdkcfg
 
 import (
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/build/pkg/release"
-	"dappco.re/go/core/build/pkg/sdk"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/build/pkg/release"
+	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/core/io"
 )
 

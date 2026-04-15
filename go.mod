@@ -1,4 +1,4 @@
-module dappco.re/go/core/build
+module dappco.re/go/build
 
 go 1.26.0
 

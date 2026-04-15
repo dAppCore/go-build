@@ -3,7 +3,7 @@ package sdk
 import (
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 	"github.com/oasdiff/oasdiff/checker"
 )
 

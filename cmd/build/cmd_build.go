@@ -5,8 +5,8 @@ import (
 	"embed"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/cmdutil"
-	_ "dappco.re/go/core/build/locales" // registers locale translations
+	"dappco.re/go/build/internal/cmdutil"
+	_ "dappco.re/go/build/locales" // registers locale translations
 	"dappco.re/go/core/cli/pkg/cli"
 )
 
