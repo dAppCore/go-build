@@ -5,6 +5,7 @@ package installers
 import (
 	"bytes"
 	"embed"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -13,6 +14,8 @@ import (
 
 //go:embed templates/*.tmpl
 var installerTemplates embed.FS
+
+var safeInstallerVersion = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
 
 // DefaultScriptBaseURL is the RFC-documented CDN origin for generated
 // installer scripts.
@@ -103,6 +106,9 @@ type InstallerConfig struct {
 func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, error) {
 	cfg = normalizeInstallerConfig(cfg)
 	variant = canonicalVariant(variant)
+	if err := validateInstallerVersion(cfg.Version); err != nil {
+		return "", coreerr.E("installers.GenerateInstaller", "version is not a safe release identifier", err)
+	}
 
 	entry, ok := variantTemplates[variant]
 	if !ok {
@@ -138,6 +144,10 @@ func GenerateInstaller(variant InstallerVariant, cfg InstallerConfig) (string, e
 //	    // name: "setup.sh", content: "#!/usr/bin/env bash\n..."
 //	}
 func GenerateAll(cfg InstallerConfig) (map[string]string, error) {
+	if err := validateInstallerVersion(cfg.Version); err != nil {
+		return nil, coreerr.E("installers.GenerateAll", "version is not a safe release identifier", err)
+	}
+
 	out := make(map[string]string, len(installerVariantOrder))
 
 	for _, variant := range installerVariantOrder {
@@ -175,4 +185,16 @@ func canonicalVariant(variant InstallerVariant) InstallerVariant {
 		return VariantAgent
 	}
 	return normalized
+}
+
+func validateInstallerVersion(version string) error {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return nil
+	}
+	if !safeInstallerVersion.MatchString(version) {
+		return coreerr.E("installers.validateInstallerVersion", "version contains unsupported characters", nil)
+	}
+
+	return nil
 }

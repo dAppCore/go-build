@@ -81,6 +81,16 @@ func TestInstaller_GenerateInstaller_Bad(t *testing.T) {
 		assert.Error(t, err)
 		assert.Empty(t, script)
 	})
+
+	t.Run("unsafe version returns error", func(t *testing.T) {
+		script, err := GenerateInstaller(VariantCI, InstallerConfig{
+			Version:    "v1.2.3\n--flag",
+			Repo:       "dappcore/core",
+			BinaryName: "core",
+		})
+		assert.Error(t, err)
+		assert.Empty(t, script)
+	})
 }
 
 // TestInstaller_GenerateInstaller_Ugly verifies that empty config fields are rendered without
@@ -167,6 +177,16 @@ func TestInstaller_Variants_Good(t *testing.T) {
 		VariantAgent,
 		VariantDev,
 	}, Variants())
+}
+
+func TestInstaller_GenerateAll_Bad_UnsafeVersion(t *testing.T) {
+	scripts, err := GenerateAll(InstallerConfig{
+		Version:    "v1.2.3 && echo unsafe",
+		Repo:       "dappcore/core",
+		BinaryName: "core",
+	})
+	assert.Error(t, err)
+	assert.Nil(t, scripts)
 }
 
 func TestInstaller_OutputName_Good(t *testing.T) {

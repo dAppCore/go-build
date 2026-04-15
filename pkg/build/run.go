@@ -20,6 +20,17 @@ type RunConfig struct {
 	ConfigPath     string
 	BuildConfig    *BuildConfig
 	BuildType      string
+	BuildTags      []string
+	Obfuscate      bool
+	ObfuscateSet   bool
+	NSIS           bool
+	NSISSet        bool
+	WebView2       string
+	WebView2Set    bool
+	DenoBuild      string
+	DenoBuildSet   bool
+	BuildCache     bool
+	BuildCacheSet  bool
 	BuildName      string
 	OutputDir      string
 	Output         coreio.Medium
@@ -83,6 +94,53 @@ func WithBuildConfig(buildConfig *BuildConfig) RunOption {
 func WithBuildType(buildType string) RunOption {
 	return func(cfg *RunConfig) {
 		cfg.BuildType = buildType
+	}
+}
+
+// WithBuildTags overrides the Go build tags passed through the pipeline.
+func WithBuildTags(tags ...string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.BuildTags = append([]string(nil), tags...)
+	}
+}
+
+// WithObfuscate enables or disables garble-backed obfuscation for the build.
+func WithObfuscate(enabled bool) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.Obfuscate = enabled
+		cfg.ObfuscateSet = true
+	}
+}
+
+// WithNSIS enables or disables Windows NSIS installer generation for Wails builds.
+func WithNSIS(enabled bool) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.NSIS = enabled
+		cfg.NSISSet = true
+	}
+}
+
+// WithWebView2 sets the Wails WebView2 delivery mode: download, embed, browser, or error.
+func WithWebView2(mode string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.WebView2 = mode
+		cfg.WebView2Set = true
+	}
+}
+
+// WithDenoBuild overrides the default Deno frontend build command.
+func WithDenoBuild(command string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.DenoBuild = command
+		cfg.DenoBuildSet = true
+	}
+}
+
+// WithBuildCache enables or disables build cache setup before the pipeline runs.
+func WithBuildCache(enabled bool) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.BuildCache = enabled
+		cfg.BuildCacheSet = true
 	}
 }
 
@@ -192,14 +250,25 @@ func Run(opts ...RunOption) ([]Artifact, error) {
 	}
 
 	plan, err := pipeline.Plan(ctx, PipelineRequest{
-		ProjectDir:  projectDir,
-		ConfigPath:  cfg.ConfigPath,
-		BuildConfig: cfg.BuildConfig,
-		BuildType:   cfg.BuildType,
-		OutputDir:   stageOutputDir,
-		BuildName:   cfg.BuildName,
-		Targets:     append([]Target(nil), cfg.Targets...),
-		Version:     cfg.Version,
+		ProjectDir:    projectDir,
+		ConfigPath:    cfg.ConfigPath,
+		BuildConfig:   cfg.BuildConfig,
+		BuildType:     cfg.BuildType,
+		BuildTags:     append([]string(nil), cfg.BuildTags...),
+		Obfuscate:     cfg.Obfuscate,
+		ObfuscateSet:  cfg.ObfuscateSet,
+		NSIS:          cfg.NSIS,
+		NSISSet:       cfg.NSISSet,
+		WebView2:      cfg.WebView2,
+		WebView2Set:   cfg.WebView2Set,
+		DenoBuild:     cfg.DenoBuild,
+		DenoBuildSet:  cfg.DenoBuildSet,
+		BuildCache:    cfg.BuildCache,
+		BuildCacheSet: cfg.BuildCacheSet,
+		OutputDir:     stageOutputDir,
+		BuildName:     cfg.BuildName,
+		Targets:       append([]Target(nil), cfg.Targets...),
+		Version:       cfg.Version,
 	})
 	if err != nil {
 		return nil, err

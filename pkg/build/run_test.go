@@ -15,6 +15,10 @@ type runTestBuilder struct {
 	directoryArtifact bool
 }
 
+type capturingRunTestBuilder struct {
+	captured **Config
+}
+
 func (b *runTestBuilder) Name() string { return "run-test" }
 
 func (b *runTestBuilder) Detect(fs coreio.Medium, dir string) (bool, error) {
@@ -54,6 +58,19 @@ func (b *runTestBuilder) Build(ctx context.Context, cfg *Config, targets []Targe
 	}
 
 	return artifacts, nil
+}
+
+func (b *capturingRunTestBuilder) Name() string { return "capturing-run-test" }
+
+func (b *capturingRunTestBuilder) Detect(fs coreio.Medium, dir string) (bool, error) {
+	return true, nil
+}
+
+func (b *capturingRunTestBuilder) Build(ctx context.Context, cfg *Config, targets []Target) ([]Artifact, error) {
+	if b.captured != nil {
+		*b.captured = cfg
+	}
+	return (&runTestBuilder{}).Build(ctx, cfg, targets)
 }
 
 func TestRun_UsesOutputMedium_Good(t *testing.T) {
@@ -196,4 +213,36 @@ func TestRun_Bad_NoBuilderResolverForUnsupportedProjectType(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "builtin fallback only supports go projects")
+}
+
+func TestRun_ForwardsActionPortOverrides_Good(t *testing.T) {
+	projectDir := t.TempDir()
+
+	var captured *Config
+	_, err := Run(
+		WithProjectDir(projectDir),
+		WithBuildConfig(DefaultConfig()),
+		WithBuildType(string(ProjectTypeGo)),
+		WithBuildName("core-build"),
+		WithTargets(Target{OS: "linux", Arch: "amd64"}),
+		WithBuildTags("integration", "release"),
+		WithObfuscate(true),
+		WithNSIS(true),
+		WithWebView2("embed"),
+		WithDenoBuild("deno task bundle"),
+		WithBuildCache(true),
+		WithBuilderResolver(func(projectType ProjectType) (Builder, error) {
+			return &capturingRunTestBuilder{captured: &captured}, nil
+		}),
+		WithOutput(coreio.NewMemoryMedium()),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, []string{"integration", "release"}, captured.BuildTags)
+	assert.True(t, captured.Obfuscate)
+	assert.True(t, captured.NSIS)
+	assert.Equal(t, "embed", captured.WebView2)
+	assert.Equal(t, "deno task bundle", captured.DenoBuild)
+	assert.True(t, captured.Cache.Enabled)
+	assert.NotEmpty(t, captured.Cache.Paths)
 }
