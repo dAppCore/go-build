@@ -261,7 +261,7 @@ apple:
 	preScriptPath := ax.Join(projectDir, build.XcodeCloudScriptsDir, build.XcodeCloudPreXcodebuildScriptName)
 	preScript, err := ax.ReadFile(preScriptPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(preScript), `core build apple --arch "universal" --config ".core/build.yaml"`)
+	assert.Contains(t, string(preScript), `core build apple --arch 'universal' --config '.core/build.yaml'`)
 }
 
 func boolPtr(value bool) *bool {

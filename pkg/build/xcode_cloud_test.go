@@ -58,9 +58,37 @@ func TestXcodeCloud_GenerateXcodeCloudScripts_Good(t *testing.T) {
 	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "deno_requested()")
 	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "DENO_ENABLE")
 	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "DENO_BUILD")
-	assert.Contains(t, scripts[XcodeCloudPreXcodebuildScriptName], `core build apple --arch "universal" --config ".core/build.yaml" --notarise=false --dmg --appstore --bundle-id "ai.lthn.core" --team-id "ABC123DEF4"`)
-	assert.Contains(t, scripts[XcodeCloudPostXcodebuildScriptName], `BUNDLE_PATH="dist/apple/Core.app"`)
+	assert.Contains(t, scripts[XcodeCloudPreXcodebuildScriptName], `core build apple --arch 'universal' --config '.core/build.yaml' --notarise=false --dmg --appstore --bundle-id 'ai.lthn.core' --team-id 'ABC123DEF4'`)
+	assert.Contains(t, scripts[XcodeCloudPostXcodebuildScriptName], `BUNDLE_PATH='dist/apple/Core.app'`)
 	assert.Contains(t, scripts[XcodeCloudPostXcodebuildScriptName], "codesign --verify --deep --strict")
+}
+
+func TestXcodeCloud_GenerateXcodeCloudScripts_QuotesShellValues(t *testing.T) {
+	scripts := GenerateXcodeCloudScripts("/tmp/project", &BuildConfig{
+		Project: Project{
+			Name:   "Core",
+			Binary: "Core$(touch /tmp/pwned)",
+		},
+		Apple: AppleConfig{
+			BundleID: "ai.lthn.core$(touch /tmp/pwned)",
+			TeamID:   "ABC123DEF4$(touch /tmp/pwned)",
+			Arch:     "arm64$(touch /tmp/pwned)",
+		},
+	})
+
+	pre := scripts[XcodeCloudPreXcodebuildScriptName]
+	assert.Contains(t, pre, `--arch 'arm64$(touch /tmp/pwned)'`)
+	assert.Contains(t, pre, `--bundle-id 'ai.lthn.core$(touch /tmp/pwned)'`)
+	assert.Contains(t, pre, `--team-id 'ABC123DEF4$(touch /tmp/pwned)'`)
+	assert.NotContains(t, pre, `--arch "arm64$(touch /tmp/pwned)"`)
+	assert.NotContains(t, pre, `--bundle-id "ai.lthn.core$(touch /tmp/pwned)"`)
+	assert.NotContains(t, pre, `--team-id "ABC123DEF4$(touch /tmp/pwned)"`)
+
+	post := scripts[XcodeCloudPostXcodebuildScriptName]
+	assert.Contains(t, post, `BUNDLE_PATH='dist/apple/Core$(touch /tmp/pwned).app'`)
+	assert.Contains(t, post, `EXECUTABLE_PATH='dist/apple/Core$(touch /tmp/pwned).app/Contents/MacOS/Core$(touch /tmp/pwned)'`)
+	assert.NotContains(t, post, `BUNDLE_PATH="dist/apple/Core$(touch /tmp/pwned).app"`)
+	assert.NotContains(t, post, `EXECUTABLE_PATH="dist/apple/Core$(touch /tmp/pwned).app/Contents/MacOS/Core$(touch /tmp/pwned)"`)
 }
 
 func TestXcodeCloud_WriteXcodeCloudScripts_Good(t *testing.T) {

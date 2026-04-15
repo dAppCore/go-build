@@ -1,7 +1,6 @@
 package build
 
 import (
-	"strconv"
 	"strings"
 
 	"dappco.re/go/core"
@@ -351,5 +350,9 @@ fi
 }
 
 func shellQuote(value string) string {
-	return strconv.Quote(value)
+	if value == "" {
+		return "''"
+	}
+
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
