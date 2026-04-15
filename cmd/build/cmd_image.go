@@ -10,15 +10,21 @@ import (
 	"sort"
 	"strings"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
+
+type immutableImageVersion struct {
+	BuildVersion  string
+	RetainVersion string
+	CacheVersion  string
+}
 
 // ImageBuildRequest groups the inputs for `core build image`.
 type ImageBuildRequest struct {
@@ -108,15 +114,8 @@ func runBuildImage(req ImageBuildRequest) error {
 		outputDir = ax.Join(projectDir, outputDir)
 	}
 
-	version, versionErr := resolveBuildVersion(ctx, projectDir)
-	cacheVersion := strings.TrimSpace(version)
-	if _, err := ax.LookPath("git"); err != nil {
-		cacheVersion = ""
-	}
-	if versionErr != nil || version == "" {
-		version = "dev"
-		cacheVersion = ""
-	}
+	versionInfo := resolveImmutableImageVersion(ctx, projectDir)
+	version := versionInfo.BuildVersion
 
 	imageName := buildConfig.LinuxKit.Base
 	if imageName == "" {
@@ -141,7 +140,7 @@ func runBuildImage(req ImageBuildRequest) error {
 	cacheCfg.Formats = append([]string(nil), formats...)
 
 	artifacts := cachedImageArtifacts(imageBuilder, outputDir, imageName, formats)
-	usedCache := !req.Rebuild && allImageArtifactsExist(coreio.Local, imageBuilder, outputDir, imageName, cacheCfg, cacheVersion)
+	usedCache := !req.Rebuild && allImageArtifactsExist(coreio.Local, imageBuilder, outputDir, imageName, cacheCfg, versionInfo.CacheVersion)
 	if usedCache {
 		cli.Print("%s %s\n", buildSuccessStyle.Render("Using"), "cached immutable image artifacts")
 	} else {
@@ -149,12 +148,12 @@ func runBuildImage(req ImageBuildRequest) error {
 		if err != nil {
 			return err
 		}
-		if err := writeImageBuildCacheMetadata(coreio.Local, outputDir, imageName, cacheCfg, cacheVersion); err != nil {
+		if err := writeImageBuildCacheMetadata(coreio.Local, outputDir, imageName, cacheCfg, versionInfo.CacheVersion); err != nil {
 			return coreerr.E("build.runBuildImage", "failed to write image cache metadata", err)
 		}
 	}
 
-	versionedArtifacts, err := retainVersionedImageArtifacts(coreio.Local, artifacts, version)
+	versionedArtifacts, err := retainVersionedImageArtifacts(coreio.Local, artifacts, versionInfo.RetainVersion)
 	if err != nil {
 		return coreerr.E("build.runBuildImage", "failed to retain versioned immutable image artifacts", err)
 	}
@@ -190,6 +189,35 @@ func runBuildImage(req ImageBuildRequest) error {
 	}
 
 	return nil
+}
+
+func resolveImmutableImageVersion(ctx context.Context, projectDir string) immutableImageVersion {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if _, err := ax.LookPath("git"); err != nil {
+		return immutableImageVersion{BuildVersion: "dev"}
+	}
+
+	tag, err := ax.RunDir(ctx, projectDir, "git", "describe", "--tags", "--exact-match", "HEAD")
+	if err != nil {
+		return immutableImageVersion{BuildVersion: "dev"}
+	}
+
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return immutableImageVersion{BuildVersion: "dev"}
+	}
+	if !strings.HasPrefix(tag, "v") {
+		tag = "v" + tag
+	}
+
+	return immutableImageVersion{
+		BuildVersion:  tag,
+		RetainVersion: tag,
+		CacheVersion:  tag,
+	}
 }
 
 func parseImageFormats(value string) []string {

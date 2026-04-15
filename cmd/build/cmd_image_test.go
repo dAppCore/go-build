@@ -5,10 +5,10 @@ import (
 	"os"
 	"testing"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -173,6 +173,63 @@ func TestBuildCmd_runBuildImage_Good(t *testing.T) {
 		OutputDir: outputDir,
 	})
 	require.NoError(t, err)
+}
+
+func TestBuildCmd_resolveImmutableImageVersion_Good(t *testing.T) {
+	t.Run("uses exact release tag on HEAD", func(t *testing.T) {
+		dir := t.TempDir()
+
+		runGit(t, dir, "init")
+		runGit(t, dir, "config", "user.email", "test@example.com")
+		runGit(t, dir, "config", "user.name", "Test User")
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644))
+		runGit(t, dir, "add", ".")
+		runGit(t, dir, "commit", "-m", "feat: initial commit")
+		runGit(t, dir, "tag", "v1.4.2")
+
+		version := resolveImmutableImageVersion(context.Background(), dir)
+		assert.Equal(t, immutableImageVersion{
+			BuildVersion:  "v1.4.2",
+			RetainVersion: "v1.4.2",
+			CacheVersion:  "v1.4.2",
+		}, version)
+	})
+
+	t.Run("falls back to dev for untagged commits", func(t *testing.T) {
+		dir := t.TempDir()
+
+		runGit(t, dir, "init")
+		runGit(t, dir, "config", "user.email", "test@example.com")
+		runGit(t, dir, "config", "user.name", "Test User")
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644))
+		runGit(t, dir, "add", ".")
+		runGit(t, dir, "commit", "-m", "feat: initial commit")
+
+		version := resolveImmutableImageVersion(context.Background(), dir)
+		assert.Equal(t, immutableImageVersion{
+			BuildVersion: "dev",
+		}, version)
+	})
+
+	t.Run("falls back to dev after the release tag moves behind HEAD", func(t *testing.T) {
+		dir := t.TempDir()
+
+		runGit(t, dir, "init")
+		runGit(t, dir, "config", "user.email", "test@example.com")
+		runGit(t, dir, "config", "user.name", "Test User")
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644))
+		runGit(t, dir, "add", ".")
+		runGit(t, dir, "commit", "-m", "feat: initial commit")
+		runGit(t, dir, "tag", "v1.4.2")
+		require.NoError(t, ax.WriteFile(ax.Join(dir, "CHANGELOG.md"), []byte("more\n"), 0o644))
+		runGit(t, dir, "add", ".")
+		runGit(t, dir, "commit", "-m", "feat: follow-up work")
+
+		version := resolveImmutableImageVersion(context.Background(), dir)
+		assert.Equal(t, immutableImageVersion{
+			BuildVersion: "dev",
+		}, version)
+	})
 }
 
 func TestBuildCmd_allImageArtifactsExist_RequiresMatchingCacheMetadata_Good(t *testing.T) {
