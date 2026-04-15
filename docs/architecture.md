@@ -5,12 +5,42 @@ description: Internal design of the build, action/workflow, Apple, release, and 
 
 # Architecture
 
-go-build has four major surfaces that share types but can be used independently:
+go-build mirrors the modular `dAppCore/build@v3` action architecture in Go instead of shell composites. The same pipeline shape is preserved, but the implementation lives in typed packages and builders instead of `actions/*`.
 
-1. `pkg/build` for discovery, builders, artifacts, caches, workflow generation, and Apple packaging
+## Overview
+
+The repo has four major surfaces that share types but can be used independently:
+
+1. `pkg/build` for discovery, setup planning, builders, artifacts, caches, workflow generation, and Apple packaging
 2. `pkg/release` for versioning, changelogs, and publishers
 3. `pkg/sdk` for OpenAPI diffing and SDK generation
 4. `cmd/` for registering `core build`, `core ci`, and `core sdk`
+
+## Pipeline Shape
+
+The public action and the Go implementation follow the same high-level gateway pattern:
+
+```text
+Gateway
+  -> Discovery
+  -> Orchestration / stack suggestion
+  -> Option computation
+  -> Setup planning
+  -> Toolchain setup
+  -> Stack-specific build
+  -> Sign
+  -> Package / release
+```
+
+In the public action this is split across `actions/discovery`, `actions/options`, `actions/setup/*`, `actions/build/*`, `actions/sign`, and `actions/package`.
+
+In go-build the equivalents are:
+
+- `build.Discover()` and `build.DiscoverFull()`
+- `build.ComputeOptions()`
+- `build.ComputeSetupPlan()`
+- builder implementations in `pkg/build/builders/`
+- release orchestration in `pkg/release`
 
 ## Discovery and Stack Suggestion
 
@@ -22,7 +52,8 @@ They record:
 - raw marker presence, including root Go/Wails/CMake markers and subtree frontend manifests
 - whether a frontend exists at the root, in `frontend/`, or in a subtree up to depth 2
 - distro-aware Linux package requirements
-- an action-facing stack suggestion (`wails2`, `cpp`, `docs`, `node`, `go`)
+- action-facing stack suggestions such as `wails2`, `cpp`, `docs`, `node`, and `go`
+- Git metadata for artifact naming and release behavior
 
 Important detection behaviour:
 
@@ -32,27 +63,34 @@ Important detection behaviour:
 - LinuxKit detection accepts root manifests and `.core/linuxkit/*.yml`
 - Taskfile detection accepts common case variants
 
-## Action Pipeline
+The build API exposes this richer discovery contract through `GET /api/v1/build/discover`, including action-compatible aliases such as `has_subtree_package_json` and a serialized `setup_plan`.
 
-The generated release workflow mirrors the composable `dAppCore/build@v3` action flow:
+## Option and Setup Planning
 
-1. Discovery gathers repository markers, Git metadata, distro hints, and stack suggestions.
-2. Option computation folds config defaults, CLI overrides, and discovery-derived flags into a single build option set.
-3. Setup planning computes the required runtimes, CLIs, frontend directories, and Linux packages before any installer logic runs.
-4. Toolchain setup installs only the required runtimes and CLIs for the detected stack.
-5. Stack-specific builders perform the actual build, with Wails, C++, Docs, Docker, LinuxKit, and Taskfile all owning their own execution details.
-6. Signing and packaging run last so the same build outputs can be archived, checksummed, uploaded, or published.
+`ComputeOptions()` is the Go equivalent of the action's pure options step. It folds config and discovery into a deterministic option set:
 
-The pure Go equivalents are:
+- Go build tags
+- `webkit2_41` injection for Wails on Ubuntu 24.04+
+- NSIS
+- WebView2
+- obfuscation
+- ldflags
 
-- `DiscoverFull()` for the action-style discovery pass
-- `ComputeOptions()` for deterministic build flag derivation
-- `ComputeSetupPlan()` for setup orchestration inputs such as Go, Node, Wails, Deno, Task, Python, Conan, MkDocs, PHP/Composer, and Rust requirements
-- builder implementations in `pkg/build/builders/` for stack-specific execution
+`ComputeSetupPlan()` is the thin orchestration layer for setup. It does not install tools itself; it computes what is needed:
 
-This keeps the Go package aligned with the action architecture without copying the action repository's bash and PowerShell implementation split.
+- Go
+- garble
+- Task
+- Node
+- Wails
+- Python
+- PHP / Composer
+- Rust
+- Conan
+- MkDocs
+- Deno
 
-The build API surfaces the same shape through `GET /api/v1/build/discover`, including action-compatible aliases such as `has_subtree_package_json` and a serialized `setup_plan` for UI/debugging consumers.
+That mirrors the public action's "thin orchestrator + specialised setup actions" design instead of collapsing setup into one monolithic script.
 
 ## Builder Layer
 
@@ -73,29 +111,31 @@ Current implementations:
 | Go | Cross-compiles binaries and supports garble obfuscation plus cache env wiring |
 | Wails | Handles Wails v2 directly and Wails v3 through Taskfile or CLI fallback; supports NSIS, WebView2, Deno, subtree frontends, and obfuscation |
 | Node | Detects package manager, supports Deno manifests, and builds nested frontend projects |
+| Docs | MkDocs build plus zipped site output |
+| C++ | Make + Conan orchestration with profile-based cross-builds |
+| Docker | Buildx-backed image builds with push/load/archive modes |
+| LinuxKit | LinuxKit image generation in configured formats |
+| Taskfile | Generic task-backed build pipeline used heavily by Wails v3 projects |
 | PHP | Composer-backed builds with deterministic zip fallback |
 | Python | Deterministic source bundle packaging |
 | Rust | Cargo release builds by target triple |
-| Docs | MkDocs build plus zipped site output |
-| Docker | Buildx-backed image builds with push/load/archive modes |
-| LinuxKit | LinuxKit image generation in configured formats |
-| C++ | Make + Conan orchestration with profile-based cross-builds |
-| Taskfile | Generic task-backed build pipeline used heavily by Wails v3 projects |
+
+The action principle still applies here: stack wrappers own the full pipeline for their technology instead of forcing everything through a single generic build command.
 
 ## Generated GitHub Workflow
 
-`core build workflow` writes `.github/workflows/release.yml`. The generated workflow mirrors the modular `dAppCore/build@v3` action pipeline:
+`core build workflow` writes `.github/workflows/release.yml`. The generated workflow mirrors the modular `dAppCore/build@v3` pipeline:
 
 1. Checkout
 2. Discovery by repository markers and Git metadata, exported as workflow step outputs
-3. Toolchain setup for Go, Node, PHP/Composer, Python, Rust, Deno, Task, Conan, MkDocs, and Wails, including frontend dependency installation and optional garble when obfuscation is enabled
+3. Toolchain setup for Go, Node, PHP/Composer, Python, Rust, Deno, Task, Conan, MkDocs, and Wails
 4. Linux distro-aware WebKit dependency setup for Wails
 5. Cache restore under `.core/cache` and `cache/`
 6. `core build --archive --checksum`
 7. Artifact upload with action-style names: `{build-name}_{os}_{arch}_{tag|shortsha}`
 8. Release publishing through `core ci`
 
-The workflow keeps the action inputs exposed at the CLI layer:
+The workflow keeps the public action inputs exposed at the CLI layer:
 
 - `build-name`
 - `build-platform`
@@ -117,11 +157,11 @@ The Go implementation intentionally preserves the higher-signal behaviours from 
 - Deno setup and `DENO_BUILD` overrides
 - garble-based obfuscation, NSIS packaging, WebView2 modes, and build cache wiring
 
-## Apple Pipeline
+## Apple, Release, and SDK Layers
 
 The Apple implementation lives in `pkg/build/apple.go`, with an RFC-facing wrapper in `pkg/build/apple/`.
 
-Key pieces:
+Key Apple pieces:
 
 - `AppleOptions` for the runtime pipeline
 - `BuildApple()` for the end-to-end macOS build flow
@@ -130,27 +170,15 @@ Key pieces:
 - generated `Info.plist` and entitlements
 - Xcode Cloud script generation from `.core/build.yaml`
 
-`cmd/build/cmd_apple.go` wires this into `core build apple`.
+`pkg/release` owns version resolution, changelog generation, artifact reuse, checksum handling, and publisher orchestration.
 
-## Release Layer
+`pkg/sdk` detects an OpenAPI spec, validates it, compares revisions with `oasdiff`, and generates SDKs for TypeScript, Python, Go, and PHP.
 
-`pkg/release` owns:
+## Design Principles
 
-- semver version resolution from git tags
-- changelog generation from conventional commits
-- building or reusing `dist/` artifacts
-- checksum and artifact metadata handling
-- publisher orchestration
-
-Publishers currently cover GitHub, Docker, npm, Homebrew, Scoop, AUR, Chocolatey, and LinuxKit.
-
-## SDK Layer
-
-`pkg/sdk` detects an OpenAPI spec, validates it, compares revisions with `oasdiff`, and generates SDKs for:
-
-- TypeScript
-- Python
-- Go
-- PHP
-
-Generators prefer native tooling first and fall back to `npx` or Docker where appropriate.
+- Modular: discovery, options, setup planning, build, sign, and package remain separate stages.
+- Outputs flow downstream: discovery data becomes the shared context for later phases.
+- Smart defaults: auto-detection and stack suggestion choose the right path unless config overrides them.
+- Thin orchestrators: setup planning and stack routing coordinate specialised implementations instead of containing all logic themselves.
+- Conditional setup: only the required toolchains and CLIs are installed for the selected stack.
+- Stack ownership: each builder owns its own execution details and packaging expectations.

@@ -5,7 +5,7 @@ description: Stack-specific behaviour for the generated build workflow and go-bu
 
 # Stacks
 
-The generated workflow and `pkg/build/builders` cover multiple project stacks. Detection starts with repository markers and then hands off to the matching builder.
+The generated workflow and `pkg/build/builders` cover multiple project stacks. The public action historically centred on Wails v2, and go-build preserves that path while extending the same architecture to Wails v3, docs, C++, and other stacks.
 
 ## Wails
 
@@ -43,7 +43,7 @@ C++ projects map cleanly onto the action's Conan-oriented setup story:
 
 ## PHP
 
-PHP projects now get the workflow setup they need:
+PHP projects have explicit workflow setup and build support:
 
 - Detection uses `composer.json`.
 - Setup verifies PHP is available and installs Composer on demand when the runner does not already provide it.
@@ -68,4 +68,4 @@ Additional stacks are exposed through dedicated builders:
 
 ## Future Direction
 
-The action docs historically called out Wails v3 and C++ as future or placeholder stacks. In go-build those paths now exist, but the design still follows the same principle: keep discovery generic, keep setup conditional, and let each stack wrapper own its full pipeline.
+The public action docs historically called out Wails v3 and C++ as future or placeholder stacks. In go-build those paths now exist, but the design still follows the same principle: keep discovery generic, keep setup conditional, and let each stack wrapper own its full pipeline.
