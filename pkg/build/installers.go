@@ -28,20 +28,32 @@ const (
 	VariantDev InstallerVariant = buildinstallers.VariantDev
 )
 
-// GenerateInstaller renders a single installer script variant from the release version and repository.
+// GenerateInstallerScript renders a single installer script variant from the
+// release version and repository.
 //
-//	script, err := build.GenerateInstaller(build.VariantCI, "v1.2.3", "dappcore/core")
+//	script, err := build.GenerateInstallerScript(build.VariantCI, "v1.2.3", "dappcore/core")
 //	// script starts with the ci.sh template rendered for core binaries
-func GenerateInstaller(variant InstallerVariant, version, repo string) (string, error) {
+func GenerateInstallerScript(variant InstallerVariant, version, repo string) (string, error) {
 	return buildinstallers.GenerateInstaller(variant, installerConfig(version, repo))
 }
 
-// GenerateAll renders every installer script variant from the release version and repository.
+// GenerateInstaller is the backwards-compatible alias for GenerateInstallerScript.
+func GenerateInstaller(variant InstallerVariant, version, repo string) (string, error) {
+	return GenerateInstallerScript(variant, version, repo)
+}
+
+// GenerateAllInstallerScripts renders every installer script variant from the
+// release version and repository.
 //
-//	scripts, err := build.GenerateAll("v1.2.3", "dappcore/core")
+//	scripts, err := build.GenerateAllInstallerScripts("v1.2.3", "dappcore/core")
 //	// scripts["setup.sh"], scripts["ci.sh"], scripts["go.sh"], ...
-func GenerateAll(version, repo string) (map[string]string, error) {
+func GenerateAllInstallerScripts(version, repo string) (map[string]string, error) {
 	return buildinstallers.GenerateAll(installerConfig(version, repo))
+}
+
+// GenerateAll is the backwards-compatible alias for GenerateAllInstallerScripts.
+func GenerateAll(version, repo string) (map[string]string, error) {
+	return GenerateAllInstallerScripts(version, repo)
 }
 
 // InstallerVariants returns the supported variants in stable output order.
