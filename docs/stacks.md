@@ -7,7 +7,7 @@ description: Stack-specific behaviour for the generated build workflow and go-bu
 
 The generated workflow and `pkg/build/builders` cover multiple project stacks. The public action historically centred on Wails v2, and go-build preserves that path while extending the same architecture to Wails v3, docs, C++, and other stacks.
 
-## Wails
+## Wails v2
 
 Wails is the primary desktop-app path and the closest match to the public `dAppCore/build@v3` action.
 
@@ -17,13 +17,22 @@ Wails is the primary desktop-app path and the closest match to the public `dAppC
 - Windows packaging supports NSIS and the `download`, `embed`, `browser`, and `error` WebView2 modes.
 - Signing supports the existing macOS and Windows signing flows exposed by the build and Apple layers.
 
-## Node and Deno
+## Node
 
 Node-style frontend builds are also first-class:
 
-- Detection accepts `package.json`, `deno.json`, and `deno.jsonc` at the root or in nested frontend directories.
-- Setup installs Node dependencies with the detected package manager and enables Deno when `DENO_ENABLE`, `DENO_BUILD`, or Deno manifests are present.
-- Build uses `DENO_BUILD` when supplied, otherwise defaults to `deno task build` for Deno projects or the package-manager `build` script for Node projects.
+- Detection accepts `package.json` at the root or in nested frontend directories up to depth 2.
+- Setup installs Node dependencies with the detected package manager and keeps the workflow/toolchain surface aligned with the public action.
+- Build uses the package-manager `build` script and collects outputs from the target-specific output directory.
+
+## Deno
+
+Deno support is integrated into the same frontend path instead of being treated as a separate product surface.
+
+- Detection accepts `deno.json` and `deno.jsonc` at the root, under `frontend/`, or in nested frontend directories up to depth 2.
+- Setup enables Deno when manifests are present or when `DENO_ENABLE` or `DENO_BUILD` request it explicitly.
+- Build honours `DENO_BUILD` first and otherwise defaults to `deno task build`.
+- The same Deno rules apply to standalone frontend builds and Wails-backed frontend prebuilds.
 
 ## Docs
 
@@ -66,6 +75,10 @@ Additional stacks are exposed through dedicated builders:
 - Taskfile acts as a generic wrapper for repositories that already encode their own build graph, including many Wails v3 projects.
 - Setup installs the Task CLI when a Taskfile marker is present so Wails v3 Taskfile builds work in generated CI without extra bootstrapping.
 
-## Future Direction
+## Wails v3 and Extended Stacks
 
-The public action docs historically called out Wails v3 and C++ as future or placeholder stacks. In go-build those paths now exist, but the design still follows the same principle: keep discovery generic, keep setup conditional, and let each stack wrapper own its full pipeline.
+The public action docs historically called out Wails v3 and C++ as future or placeholder stacks. In go-build those paths now exist directly:
+
+- Wails v3 is supported through Taskfile-driven projects and a direct `wails3` CLI fallback.
+- C++ is no longer just a setup placeholder; it has a concrete CMake and Conan-backed builder.
+- The design rule stays the same: keep discovery generic, keep setup conditional, and let each stack wrapper own its full pipeline.

@@ -42,6 +42,21 @@ In go-build the equivalents are:
 - builder implementations in `pkg/build/builders/`
 - release orchestration in `pkg/release`
 
+## Directory Structure
+
+The action repository documents its pipeline in terms of `actions/*` folders. In go-build the same responsibilities are expressed as packages and builders:
+
+| Action Surface | Go Surface | Responsibility |
+|---|---|---|
+| `actions/discovery/` | `pkg/build/discovery.go` | Marker scanning, distro detection, Git metadata, stack suggestion |
+| `actions/options/` | `pkg/build/options.go` | Deterministic build-flag computation |
+| `actions/setup/` and `actions/setup/*` | `pkg/build/setup.go` plus builder/toolchain helpers | Thin setup planning and toolchain-specific requirements |
+| `actions/build/{stack}/` | `pkg/build/builders/` | Stack-specific build orchestration |
+| `actions/sign/` | `pkg/build/signing/` and `pkg/build/apple.go` | macOS and Windows signing plus Apple notarisation |
+| `actions/package/` | `pkg/build/archive.go`, `pkg/build/checksum.go`, `pkg/release/` | Archiving, checksums, artifact naming, release publishing |
+
+This keeps the action architecture recognisable without copying the composite-action layout literally.
+
 ## Discovery and Stack Suggestion
 
 `build.Discover()` and `build.DiscoverFull()` implement the action-style discovery pass.
@@ -91,6 +106,21 @@ The build API exposes this richer discovery contract through `GET /api/v1/build/
 - Deno
 
 That mirrors the public action's "thin orchestrator + specialised setup actions" design instead of collapsing setup into one monolithic script.
+
+## Configuration Resolution
+
+The public action resolves configuration once and then passes the resolved values downstream. go-build follows the same rule:
+
+- CLI or workflow inputs override persisted config.
+- Environment overrides are honoured for action-style features such as `DENO_ENABLE` and `DENO_BUILD`.
+- Defaults fill the gaps only after explicit inputs and config have been considered.
+
+In practice that means the public action's `inputs > environment > defaults` rule becomes:
+
+- CLI request fields such as `--build-tags`, `--build-obfuscate`, `--nsis`, `--deno-build`, and `--wails-build-webview2`
+- persisted `.core/build.yaml`
+- environment-driven overrides for opt-in features that the action also exposes through `env:`
+- package defaults such as cache paths, archive format, and stack fallbacks
 
 ## Builder Layer
 
@@ -157,6 +187,15 @@ The Go implementation intentionally preserves the higher-signal behaviours from 
 - Deno setup and `DENO_BUILD` overrides
 - garble-based obfuscation, NSIS packaging, WebView2 modes, and build cache wiring
 
+## Testing Strategy
+
+The repo keeps the action-parity surfaces under test rather than treating the generated workflow as opaque output.
+
+- `go test ./...` covers discovery, options, setup planning, workflow generation, builders, Apple packaging, release publishing, and SDK generation.
+- `pkg/build/testdata/` provides fixture projects for stacks such as Wails, Go, docs, C++, Node, Python, Rust, PHP, and monorepo frontends.
+- `pkg/build/workflow_test.go` asserts that the generated workflow still exposes the expected action-style inputs, discovery outputs, setup steps, and artifact naming.
+- Builder-specific tests exercise stack behaviour directly, including Wails v2/v3 routing, Deno overrides, Conan integration, MkDocs packaging, garble obfuscation, and WebView2 handling.
+
 ## Apple, Release, and SDK Layers
 
 The Apple implementation lives in `pkg/build/apple.go`, with an RFC-facing wrapper in `pkg/build/apple/`.
@@ -182,3 +221,13 @@ Key Apple pieces:
 - Thin orchestrators: setup planning and stack routing coordinate specialised implementations instead of containing all logic themselves.
 - Conditional setup: only the required toolchains and CLIs are installed for the selected stack.
 - Stack ownership: each builder owns its own execution details and packaging expectations.
+
+## Extending Stacks
+
+Adding a new stack follows the same shape as the public action architecture:
+
+1. Add or refine the marker detection in `pkg/build/discovery.go`.
+2. Add setup requirements in `pkg/build/setup.go` when the stack needs new toolchains.
+3. Implement the stack builder in `pkg/build/builders/`.
+4. Thread any public workflow or CLI inputs through the generated workflow and command layer.
+5. Add fixture coverage and builder/workflow tests so the discovery and setup contract stays stable.
