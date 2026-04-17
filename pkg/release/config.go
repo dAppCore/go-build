@@ -4,9 +4,9 @@ package release
 import (
 	"iter"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/sdk"
+	"dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
@@ -194,6 +194,9 @@ type ChangelogConfig struct {
 // for p := range cfg.PublishersIter() { fmt.Println(p.Type) }
 func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 	return func(yield func(PublisherConfig) bool) {
+		if c == nil {
+			return
+		}
 		for _, p := range c.Publishers {
 			if !yield(p) {
 				return
@@ -384,6 +387,9 @@ func defaultTargetConfigs() []TargetConfig {
 //
 // cfg.SetProjectDir("/home/user/my-project")
 func (c *Config) SetProjectDir(dir string) {
+	if c == nil {
+		return
+	}
 	c.projectDir = dir
 }
 
@@ -391,6 +397,9 @@ func (c *Config) SetProjectDir(dir string) {
 //
 // cfg.SetVersion("v1.2.3")
 func (c *Config) SetVersion(version string) {
+	if c == nil {
+		return
+	}
 	c.version = version
 }
 
@@ -480,6 +489,9 @@ func ConfigExists(dir string) bool {
 //
 // repo := cfg.GetRepository() // → "host-uk/core-build"
 func (c *Config) GetRepository() string {
+	if c == nil {
+		return ""
+	}
 	return c.Project.Repository
 }
 
@@ -487,6 +499,9 @@ func (c *Config) GetRepository() string {
 //
 // name := cfg.GetProjectName() // → "core-build"
 func (c *Config) GetProjectName() string {
+	if c == nil {
+		return ""
+	}
 	return c.Project.Name
 }
 

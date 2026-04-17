@@ -104,6 +104,9 @@ func DiffExitCode(result *DiffResult, err error) int {
 	if err != nil {
 		return 2
 	}
+	if result == nil {
+		return 2
+	}
 	if result.Breaking {
 		return 1
 	}

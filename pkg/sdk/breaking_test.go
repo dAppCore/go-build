@@ -421,6 +421,12 @@ func TestBreaking_DiffExitCode_Good(t *testing.T) {
 			err:      assert.AnError,
 			expected: 2,
 		},
+		{
+			name:     "nil result returns 2",
+			result:   nil,
+			err:      nil,
+			expected: 2,
+		},
 	}
 
 	for _, tc := range tests {

@@ -442,6 +442,11 @@ func TestConfig_GetRepository_Good(t *testing.T) {
 		cfg := &Config{}
 		assert.Empty(t, cfg.GetRepository())
 	})
+
+	t.Run("returns empty string for nil config", func(t *testing.T) {
+		var cfg *Config
+		assert.Empty(t, cfg.GetRepository())
+	})
 }
 
 func TestConfig_GetProjectName_Good(t *testing.T) {
@@ -458,6 +463,11 @@ func TestConfig_GetProjectName_Good(t *testing.T) {
 		cfg := &Config{}
 		assert.Empty(t, cfg.GetProjectName())
 	})
+
+	t.Run("returns empty string for nil config", func(t *testing.T) {
+		var cfg *Config
+		assert.Empty(t, cfg.GetProjectName())
+	})
 }
 
 func TestConfig_SetVersion_Good(t *testing.T) {
@@ -465,6 +475,11 @@ func TestConfig_SetVersion_Good(t *testing.T) {
 		cfg := &Config{}
 		cfg.SetVersion("v1.2.3")
 		assert.Equal(t, "v1.2.3", cfg.version)
+	})
+
+	t.Run("is safe on nil config", func(t *testing.T) {
+		var cfg *Config
+		cfg.SetVersion("v1.2.3")
 	})
 }
 
@@ -474,6 +489,26 @@ func TestConfig_SetProjectDir_Good(t *testing.T) {
 		cfg.SetProjectDir("/path/to/project")
 		assert.Equal(t, "/path/to/project", cfg.projectDir)
 	})
+
+	t.Run("is safe on nil config", func(t *testing.T) {
+		var cfg *Config
+		cfg.SetProjectDir("/path/to/project")
+	})
+}
+
+func TestConfig_PublishersIter_NilSafe(t *testing.T) {
+	var cfg *Config
+
+	iter := cfg.PublishersIter()
+	require.NotNil(t, iter)
+
+	called := false
+	iter(func(p PublisherConfig) bool {
+		called = true
+		return true
+	})
+
+	assert.False(t, called)
 }
 
 func TestConfig_SetOutput_Good(t *testing.T) {
