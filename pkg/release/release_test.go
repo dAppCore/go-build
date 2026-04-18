@@ -878,6 +878,31 @@ func TestRelease_Run_Bad(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "config is nil")
 	})
+
+	t.Run("rejects unsafe version before changelog generation", func(t *testing.T) {
+		dir := t.TempDir()
+
+		cfg := DefaultConfig()
+		cfg.SetProjectDir(dir)
+		cfg.SetVersion("v1.0.0\n--bad")
+		cfg.Publishers = nil
+
+		oldGenerateReleaseChangelogFn := generateReleaseChangelogFn
+		defer func() {
+			generateReleaseChangelogFn = oldGenerateReleaseChangelogFn
+		}()
+
+		called := false
+		generateReleaseChangelogFn = func(ctx context.Context, projectDir, version string, cfg *Config) (string, error) {
+			called = true
+			return "", nil
+		}
+
+		_, err := Run(context.Background(), cfg, true)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid release version override")
+		assert.False(t, called, "changelog generation should not run for unsafe versions")
+	})
 }
 
 func TestRelease_Structure_Good(t *testing.T) {
