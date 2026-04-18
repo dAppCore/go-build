@@ -32,13 +32,22 @@ var commonSpecPaths = []string{
 //
 // path, err := s.DetectSpec() // → "api/openapi.yaml", nil
 func (s *SDK) DetectSpec() (string, error) {
+	if s == nil {
+		return "", coreerr.E("sdk.DetectSpec", "sdk is nil", nil)
+	}
+
+	config := s.Config()
+	if config == nil {
+		config = DefaultConfig()
+	}
+
 	// 1. Check configured path
-	if s.config.Spec != "" {
-		specPath := ax.Join(s.projectDir, s.config.Spec)
+	if config.Spec != "" {
+		specPath := ax.Join(s.projectDir, config.Spec)
 		if ax.IsFile(specPath) {
 			return specPath, nil
 		}
-		return "", coreerr.E("sdk.DetectSpec", "configured spec not found: "+s.config.Spec, nil)
+		return "", coreerr.E("sdk.DetectSpec", "configured spec not found: "+config.Spec, nil)
 	}
 
 	// 2. Check common paths

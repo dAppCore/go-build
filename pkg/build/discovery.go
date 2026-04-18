@@ -46,6 +46,13 @@ type discoveryRule struct {
 	matches     func(io.Medium, string) bool
 }
 
+func normalizeMedium(fs io.Medium) io.Medium {
+	if fs == nil {
+		return io.Local
+	}
+	return fs
+}
+
 var discoveryRules = []discoveryRule{
 	{projectType: ProjectTypeWails, matches: IsWailsProject},
 	{projectType: ProjectTypeGo, matches: func(fs io.Medium, dir string) bool {
@@ -80,6 +87,7 @@ var discoveryMarkerPaths = []string{
 //
 // types, err := build.Discover(io.Local, "/home/user/my-project") // → [go]
 func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
+	fs = normalizeMedium(fs)
 	var detected []ProjectType
 
 	if configuredType, ok := configuredProjectType(fs, dir); ok {
@@ -119,6 +127,7 @@ func PrimaryType(fs io.Medium, dir string) (ProjectType, error) {
 //
 // if build.IsGoProject(io.Local, ".") { ... }
 func IsGoProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return fileExists(fs, ax.Join(dir, markerGoMod)) ||
 		fileExists(fs, ax.Join(dir, markerGoWork)) ||
 		fileExists(fs, ax.Join(dir, markerWails))
@@ -128,6 +137,7 @@ func IsGoProject(fs io.Medium, dir string) bool {
 //
 // if build.IsWailsProject(io.Local, ".") { ... }
 func IsWailsProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	if fileExists(fs, ax.Join(dir, markerWails)) {
 		return true
 	}
@@ -146,6 +156,7 @@ func IsWailsProject(fs io.Medium, dir string) bool {
 //
 // if build.IsNodeProject(io.Local, ".") { ... }
 func IsNodeProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return hasFrontendManifest(fs, dir) ||
 		hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
 		hasSubtreeFrontendManifest(fs, dir)
@@ -155,6 +166,7 @@ func IsNodeProject(fs io.Medium, dir string) bool {
 //
 // if build.IsPHPProject(io.Local, ".") { ... }
 func IsPHPProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return fileExists(fs, ax.Join(dir, markerComposer))
 }
 
@@ -162,6 +174,7 @@ func IsPHPProject(fs io.Medium, dir string) bool {
 //
 // if build.IsCPPProject(io.Local, ".") { ... }
 func IsCPPProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return fileExists(fs, ax.Join(dir, "CMakeLists.txt"))
 }
 
@@ -169,6 +182,7 @@ func IsCPPProject(fs io.Medium, dir string) bool {
 //
 //	ok := build.IsMkDocsProject(io.Local, ".")
 func IsMkDocsProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return ResolveMkDocsConfigPath(fs, dir) != ""
 }
 
@@ -176,6 +190,7 @@ func IsMkDocsProject(fs io.Medium, dir string) bool {
 //
 //	ok := build.IsDocsProject(io.Local, ".")
 func IsDocsProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return IsMkDocsProject(fs, dir)
 }
 
@@ -183,6 +198,7 @@ func IsDocsProject(fs io.Medium, dir string) bool {
 //
 //	configPath := build.ResolveMkDocsConfigPath(io.Local, ".")
 func ResolveMkDocsConfigPath(fs io.Medium, dir string) string {
+	fs = normalizeMedium(fs)
 	for _, path := range []string{
 		ax.Join(dir, markerMkDocs),
 		ax.Join(dir, markerMkDocsYAML),
@@ -208,6 +224,7 @@ func ResolveMkDocsConfigPath(fs io.Medium, dir string) string {
 //
 //	ok := build.HasSubtreeNpm(io.Local, ".") // true if apps/web/package.json exists
 func HasSubtreeNpm(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	// Depth 1: list immediate subdirectories
 	entries, err := fs.List(dir)
 	if err != nil {
@@ -256,6 +273,7 @@ func HasSubtreeNpm(fs io.Medium, dir string) bool {
 //
 //	ok := build.IsPythonProject(io.Local, ".")
 func IsPythonProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return fileExists(fs, ax.Join(dir, markerPyProject)) ||
 		fileExists(fs, ax.Join(dir, markerRequirements))
 }
@@ -264,6 +282,7 @@ func IsPythonProject(fs io.Medium, dir string) bool {
 //
 //	ok := build.IsRustProject(io.Local, ".")
 func IsRustProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return fileExists(fs, ax.Join(dir, markerCargo))
 }
 
@@ -362,6 +381,7 @@ type DiscoveryResult struct {
 //	result, err := build.DiscoverFull(io.Local, ".")
 //	if result.HasFrontend { ... }
 func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
+	fs = normalizeMedium(fs)
 	types, err := Discover(fs, dir)
 	if err != nil {
 		return nil, err
@@ -547,6 +567,7 @@ func containsProjectType(types []ProjectType, projectType ProjectType) bool {
 
 // hasFrontendManifest reports whether a frontend directory contains a supported manifest.
 func hasFrontendManifest(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return fs.IsFile(ax.Join(dir, markerNodePackage)) ||
 		fs.IsFile(ax.Join(dir, "deno.json")) ||
 		fs.IsFile(ax.Join(dir, "deno.jsonc"))
@@ -554,6 +575,7 @@ func hasFrontendManifest(fs io.Medium, dir string) bool {
 
 // hasSubtreeFrontendManifest checks for package.json or deno.json within depth 2 subdirectories.
 func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	entries, err := fs.List(dir)
 	if err != nil {
 		return false
@@ -595,12 +617,14 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 }
 
 func hasSubtreeDenoManifest(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return hasSubtreeManifest(fs, dir, 0, func(fs io.Medium, candidate string) bool {
 		return fs.IsFile(ax.Join(candidate, markerDenoJSON)) || fs.IsFile(ax.Join(candidate, markerDenoJSONC))
 	})
 }
 
 func findMkDocsConfigInSubtree(fs io.Medium, dir string, depth int) string {
+	fs = normalizeMedium(fs)
 	if depth >= 2 {
 		return ""
 	}
@@ -636,12 +660,14 @@ func findMkDocsConfigInSubtree(fs io.Medium, dir string, depth int) string {
 }
 
 func hasNestedGoToolchain(fs io.Medium, dir string, depth int) bool {
+	fs = normalizeMedium(fs)
 	return hasSubtreeManifest(fs, dir, depth, func(fs io.Medium, candidate string) bool {
 		return fs.IsFile(ax.Join(candidate, markerGoMod)) || fs.IsFile(ax.Join(candidate, markerGoWork))
 	}, 4)
 }
 
 func hasSubtreeManifest(fs io.Medium, dir string, depth int, match func(io.Medium, string) bool, maxDepth ...int) bool {
+	fs = normalizeMedium(fs)
 	limit := 2
 	if len(maxDepth) > 0 {
 		limit = maxDepth[0]
@@ -717,16 +743,19 @@ func firstString(values []string) string {
 
 // hasGoRootMarker reports whether the project root contains a Go module or workspace marker.
 func hasGoRootMarker(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return fileExists(fs, ax.Join(dir, markerGoMod)) ||
 		fileExists(fs, ax.Join(dir, markerGoWork))
 }
 
 // fileExists checks if a file exists and is not a directory.
 func fileExists(fs io.Medium, path string) bool {
+	fs = normalizeMedium(fs)
 	return fs.IsFile(path)
 }
 
 func collectMarkerPresence(fs io.Medium, dir string, paths []string) map[string]bool {
+	fs = normalizeMedium(fs)
 	markers := make(map[string]bool, len(paths))
 	for _, path := range paths {
 		markers[path] = fileExists(fs, ax.Join(dir, path))
@@ -742,6 +771,7 @@ func shouldSkipSubtreeDir(name string) bool {
 //
 //	dockerfile := build.ResolveDockerfilePath(io.Local, ".")
 func ResolveDockerfilePath(fs io.Medium, dir string) string {
+	fs = normalizeMedium(fs)
 	for _, path := range []string{
 		ax.Join(dir, "Dockerfile"),
 		ax.Join(dir, "Containerfile"),
@@ -759,6 +789,7 @@ func ResolveDockerfilePath(fs io.Medium, dir string) string {
 //
 //	if build.IsDockerProject(io.Local, ".") { ... }
 func IsDockerProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	return ResolveDockerfilePath(fs, dir) != ""
 }
 
@@ -766,6 +797,7 @@ func IsDockerProject(fs io.Medium, dir string) bool {
 //
 //	ok := build.IsLinuxKitProject(io.Local, ".")
 func IsLinuxKitProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	if fileExists(fs, ax.Join(dir, markerLinuxKitYAML)) ||
 		fileExists(fs, ax.Join(dir, markerLinuxKitYAMLAlt)) {
 		return true
@@ -777,6 +809,7 @@ func IsLinuxKitProject(fs io.Medium, dir string) bool {
 //
 //	ok := build.IsTaskfileProject(io.Local, ".")
 func IsTaskfileProject(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	for _, name := range []string{
 		markerTaskfileYML,
 		markerTaskfileYAML,
@@ -793,6 +826,7 @@ func IsTaskfileProject(fs io.Medium, dir string) bool {
 
 // hasYAMLInDir reports whether a directory contains at least one YAML file.
 func hasYAMLInDir(fs io.Medium, dir string) bool {
+	fs = normalizeMedium(fs)
 	if !fs.IsDir(dir) {
 		return false
 	}

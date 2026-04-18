@@ -217,8 +217,17 @@ func (s *SDK) Generate(ctx context.Context) error {
 // GenerateWithStatus generates SDKs for all configured languages and returns
 // per-language status information.
 func (s *SDK) GenerateWithStatus(ctx context.Context) ([]LanguageResult, error) {
-	results := make([]LanguageResult, 0, len(s.config.Languages))
-	for _, lang := range s.config.Languages {
+	if s == nil {
+		return nil, coreerr.E("sdk.GenerateWithStatus", "sdk is nil", nil)
+	}
+
+	config := s.Config()
+	if config == nil {
+		config = DefaultConfig()
+	}
+
+	results := make([]LanguageResult, 0, len(config.Languages))
+	for _, lang := range config.Languages {
 		result, err := s.GenerateLanguageWithStatus(ctx, lang)
 		if err != nil {
 			return results, err
@@ -267,10 +276,19 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 // GenerateLanguageWithStatus generates SDK for a specific language and reports
 // whether it was generated or skipped.
 func (s *SDK) GenerateLanguageWithStatus(ctx context.Context, lang string) (LanguageResult, error) {
+	if s == nil {
+		return LanguageResult{Language: normaliseLanguage(lang)}, coreerr.E("sdk.GenerateLanguage", "sdk is nil", nil)
+	}
+
 	lang = normaliseLanguage(lang)
 	result := LanguageResult{
 		Language:  lang,
 		OutputDir: s.outputDir(lang),
+	}
+
+	config := s.Config()
+	if config == nil {
+		config = DefaultConfig()
 	}
 
 	registry := newGeneratorRegistry()
@@ -302,7 +320,7 @@ func (s *SDK) GenerateLanguageWithStatus(ctx context.Context, lang string) (Lang
 	opts := generators.Options{
 		SpecPath:    specPath,
 		OutputDir:   result.OutputDir,
-		PackageName: s.config.Package.Name,
+		PackageName: config.Package.Name,
 		Version:     s.resolvePackageVersion(),
 	}
 

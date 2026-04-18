@@ -169,3 +169,19 @@ func TestSDK_GenerateWithStatus_SkipsUnavailableWhenConfigured_Good(t *testing.T
 	assert.False(t, results[0].Generated)
 	assert.Contains(t, results[0].Reason, "generator not available")
 }
+
+func TestSDK_NilSafety_Good(t *testing.T) {
+	var s *SDK
+
+	_, err := s.GenerateWithStatus(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sdk is nil")
+
+	_, err = s.GenerateLanguageWithStatus(context.Background(), "typescript")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sdk is nil")
+
+	_, err = s.DetectSpec()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sdk is nil")
+}
