@@ -36,7 +36,7 @@ func (b *NodeBuilder) Name() string {
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *NodeBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return build.IsNodeProject(fs, dir) || b.resolveNodeProjectDir(fs, dir) != "", nil
+	return build.IsNodeProject(fs, dir), nil
 }
 
 // Build runs the project build script once per target and collects artifacts
@@ -47,6 +47,7 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	if cfg == nil {
 		return nil, coreerr.E("NodeBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
 	if len(targets) == 0 {
 		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
@@ -56,16 +57,16 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
+	if err := filesystem.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("NodeBuilder.Build", "failed to create output directory", err)
 	}
 
-	projectDir := b.resolveNodeProjectDir(cfg.FS, cfg.ProjectDir)
+	projectDir := b.resolveNodeProjectDir(filesystem, cfg.ProjectDir)
 	if projectDir == "" {
 		projectDir = cfg.ProjectDir
 	}
 
-	command, args, err := b.resolveBuildCommand(cfg, cfg.FS, projectDir)
+	command, args, err := b.resolveBuildCommand(cfg, filesystem, projectDir)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +74,7 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	var artifacts []build.Artifact
 	for _, target := range targets {
 		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := cfg.FS.EnsureDir(platformDir); err != nil {
+		if err := filesystem.EnsureDir(platformDir); err != nil {
 			return artifacts, coreerr.E("NodeBuilder.Build", "failed to create platform directory", err)
 		}
 
