@@ -75,6 +75,10 @@ func (p *DockerPublisher) Supports(target string) bool {
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	// Parse Docker-specific config from publisher config
 	dockerCfg := p.parseConfig(release.FS, pubCfg, relCfg, release.ProjectDir)
 

@@ -21,10 +21,9 @@ import (
 // release signing hooks allow tests to observe the release pipeline without
 // shelling out to platform-specific signing tools.
 var (
-	signReleaseBinaries        = signing.SignBinaries
-	notarizeReleaseBinaries    = signing.NotarizeBinaries
-	signReleaseChecksums       = signing.SignChecksums
-	generateReleaseChangelogFn = generateReleaseChangelog
+	signReleaseBinaries     = signing.SignBinaries
+	notarizeReleaseBinaries = signing.NotarizeBinaries
+	signReleaseChecksums    = signing.SignChecksums
 )
 
 const defaultChecksumFileName = "CHECKSUMS.txt"
@@ -360,12 +359,9 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 			return nil, coreerr.E("release.Run", "failed to determine version", err)
 		}
 	}
-	if err := ValidateVersionIdentifier(version); err != nil {
-		return nil, coreerr.E("release.Run", "invalid release version override", err)
-	}
 
 	// Step 2: Generate changelog
-	changelog, err := generateReleaseChangelogFn(ctx, absProjectDir, version, cfg)
+	changelog, err := generateReleaseChangelog(ctx, absProjectDir, version, cfg)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, coreerr.E("release.Run", "changelog generation cancelled", ctx.Err())

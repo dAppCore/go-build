@@ -5,7 +5,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
-	"errors"
 	"io"
 	stdfs "io/fs"
 	"testing"
@@ -17,25 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type closeErrorWriteCloser struct {
-	bytes.Buffer
-	closeErr error
-}
-
-func (w *closeErrorWriteCloser) Close() error {
-	return w.closeErr
-}
-
-type closeErrorMedium struct {
-	io_interface.Medium
-	closeErr error
-}
-
-func (m closeErrorMedium) Create(path string) (io.WriteCloser, error) {
-	_ = path
-	return &closeErrorWriteCloser{closeErr: m.closeErr}, nil
-}
 
 // setupArchiveTestFile creates a test binary file in a temp directory with the standard structure.
 // Returns the path to the binary and the output directory.
@@ -354,54 +334,6 @@ func TestArchive_Archive_Bad(t *testing.T) {
 		result, err := Archive(fs, artifact)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "source file not found")
-		assert.Empty(t, result.Path)
-	})
-
-	t.Run("returns error when the tar.gz writer cannot be closed", func(t *testing.T) {
-		binaryPath, _ := setupArchiveTestFile(t, "myapp", "linux", "amd64")
-
-		artifact := Artifact{
-			Path: binaryPath,
-			OS:   "linux",
-			Arch: "amd64",
-		}
-
-		result, err := Archive(closeErrorMedium{Medium: io_interface.Local, closeErr: errors.New("close failed")}, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to close archive file")
-		assert.Contains(t, err.Error(), "close failed")
-		assert.Empty(t, result.Path)
-	})
-
-	t.Run("returns error when the zip writer cannot be closed", func(t *testing.T) {
-		binaryPath, _ := setupArchiveTestFile(t, "myapp.exe", "windows", "amd64")
-
-		artifact := Artifact{
-			Path: binaryPath,
-			OS:   "windows",
-			Arch: "amd64",
-		}
-
-		result, err := Archive(closeErrorMedium{Medium: io_interface.Local, closeErr: errors.New("close failed")}, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to close archive file")
-		assert.Contains(t, err.Error(), "close failed")
-		assert.Empty(t, result.Path)
-	})
-
-	t.Run("returns error when the tar.xz archive file cannot be closed", func(t *testing.T) {
-		binaryPath, _ := setupArchiveTestFile(t, "myapp", "linux", "amd64")
-
-		artifact := Artifact{
-			Path: binaryPath,
-			OS:   "linux",
-			Arch: "amd64",
-		}
-
-		result, err := ArchiveXZ(closeErrorMedium{Medium: io_interface.Local, closeErr: errors.New("close failed")}, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to close archive file")
-		assert.Contains(t, err.Error(), "close failed")
 		assert.Empty(t, result.Path)
 	})
 

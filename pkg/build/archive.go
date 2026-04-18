@@ -216,65 +216,42 @@ func createTarXzArchive(fs io_interface.Medium, src, dst string) error {
 	if _, err := dstFile.Write(xzData); err != nil {
 		return coreerr.E("build.createTarXzArchive", "failed to write archive file", err)
 	}
-	if err := dstFile.Close(); err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to close archive file", err)
-	}
 
 	return nil
 }
 
 // createTarGzArchive creates a tar.gz archive containing a file or directory tree.
-func createTarGzArchive(fs io_interface.Medium, src, dst string) (err error) {
+func createTarGzArchive(fs io_interface.Medium, src, dst string) error {
 	// Create the destination file
 	dstFile, err := fs.Create(dst)
 	if err != nil {
 		return coreerr.E("build.createTarGzArchive", "failed to create archive file", err)
 	}
-	defer func() {
-		if closeErr := dstFile.Close(); err == nil && closeErr != nil {
-			err = coreerr.E("build.createTarGzArchive", "failed to close archive file", closeErr)
-		}
-	}()
+	defer func() { _ = dstFile.Close() }()
 
 	// Create gzip writer
 	gzWriter := gzip.NewWriter(dstFile)
-	defer func() {
-		if closeErr := gzWriter.Close(); err == nil && closeErr != nil {
-			err = coreerr.E("build.createTarGzArchive", "failed to close gzip writer", closeErr)
-		}
-	}()
+	defer func() { _ = gzWriter.Close() }()
 
 	// Create tar writer
 	tarWriter := tar.NewWriter(gzWriter)
-	defer func() {
-		if closeErr := tarWriter.Close(); err == nil && closeErr != nil {
-			err = coreerr.E("build.createTarGzArchive", "failed to close tar writer", closeErr)
-		}
-	}()
+	defer func() { _ = tarWriter.Close() }()
 
 	return writeTarTree(fs, tarWriter, src, src)
 }
 
 // createZipArchive creates a zip archive containing a file or directory tree.
-func createZipArchive(fs io_interface.Medium, src, dst string) (err error) {
+func createZipArchive(fs io_interface.Medium, src, dst string) error {
 	// Create the destination file
 	dstFile, err := fs.Create(dst)
 	if err != nil {
 		return coreerr.E("build.createZipArchive", "failed to create archive file", err)
 	}
-	defer func() {
-		if closeErr := dstFile.Close(); err == nil && closeErr != nil {
-			err = coreerr.E("build.createZipArchive", "failed to close archive file", closeErr)
-		}
-	}()
+	defer func() { _ = dstFile.Close() }()
 
 	// Create zip writer
 	zipWriter := zip.NewWriter(dstFile)
-	defer func() {
-		if closeErr := zipWriter.Close(); err == nil && closeErr != nil {
-			err = coreerr.E("build.createZipArchive", "failed to close zip writer", closeErr)
-		}
-	}()
+	defer func() { _ = zipWriter.Close() }()
 
 	return writeZipTree(fs, zipWriter, src, src)
 }

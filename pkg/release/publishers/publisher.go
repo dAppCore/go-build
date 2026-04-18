@@ -111,6 +111,9 @@ func validatePublisherRelease(name string, release *Release) error {
 	if release.FS == nil {
 		return coreerr.E(name+".Validate", "release filesystem (FS) is nil", nil)
 	}
+	if err := build.ValidateVersionIdentifier(release.Version); err != nil {
+		return coreerr.E(name+".Validate", "release version contains unsupported characters", err)
+	}
 	return nil
 }
 

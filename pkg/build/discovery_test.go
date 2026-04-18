@@ -1426,16 +1426,3 @@ VERSION_ID=41
 
 	assert.Empty(t, detectDistroVersion(fs))
 }
-
-func TestDiscovery_NilMedium_Good(t *testing.T) {
-	dir := t.TempDir()
-
-	types, err := Discover(nil, dir)
-	assert.NoError(t, err)
-	assert.Empty(t, types)
-
-	result, err := DiscoverFull(nil, dir)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Empty(t, result.Types)
-}

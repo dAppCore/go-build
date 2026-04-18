@@ -66,6 +66,10 @@ func (p *GitHubPublisher) Supports(target string) bool {
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false) // dryRun=true to preview
 func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	// Determine repository
 	repo := ""
 	if relCfg != nil {

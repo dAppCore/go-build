@@ -71,6 +71,10 @@ func (p *AURPublisher) Supports(target string) bool {
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *AURPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	cfg := p.parseConfig(pubCfg, relCfg)
 
 	if cfg.Maintainer == "" {
