@@ -52,6 +52,10 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 		return nil, coreerr.E("WailsBuilder.Build", "no targets specified", nil)
 	}
 
+	if _, err := build.VersionLinkerFlag(cfg.Version); err != nil {
+		return nil, err
+	}
+
 	if cfg.OutputDir == "" {
 		cfg.OutputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
