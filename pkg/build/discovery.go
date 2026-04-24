@@ -1,8 +1,6 @@
 package build
 
 import (
-	"runtime"
-
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
 	"dappco.re/go/core/io"
@@ -389,8 +387,8 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	result := &DiscoveryResult{
 		Types:   types,
-		OS:      runtime.GOOS,
-		Arch:    runtime.GOARCH,
+		OS:      discoverHostOS(),
+		Arch:    discoverHostArch(),
 		Markers: make(map[string]bool),
 	}
 
@@ -470,6 +468,47 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	result.PrimaryStackSuggestion = resolvePrimaryStackSuggestion(result)
 
 	return result, nil
+}
+
+func discoverHostOS() string {
+	if goos := core.Env("GOOS"); goos != "" {
+		return goos
+	}
+
+	if hosttype := core.Env("HOSTTYPE"); hosttype != "" {
+		return hosttype
+	}
+
+	if ostype := core.Env("OSTYPE"); ostype != "" {
+		return ostype
+	}
+
+	return "linux"
+}
+
+func discoverHostArch() string {
+	if goarch := core.Env("GOARCH"); goarch != "" {
+		return goarch
+	}
+
+	if hosttype := core.Env("HOSTTYPE"); hosttype != "" {
+		switch hosttype {
+		case "x86_64", "amd64":
+			return "amd64"
+		case "x86", "i386", "i686":
+			return "386"
+		case "aarch64", "arm64":
+			return "arm64"
+		case "arm", "armv7l", "armv6l":
+			return "arm"
+		case "riscv64":
+			return "riscv64"
+		}
+
+		return hosttype
+	}
+
+	return "amd64"
 }
 
 // SuggestStack returns the action-oriented stack suggestion for the detected
