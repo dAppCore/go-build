@@ -9,9 +9,9 @@ import (
 	"runtime"
 	"slices"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -50,6 +50,7 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 	if cfg == nil {
 		return nil, coreerr.E("PHPBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
 	if len(targets) == 0 {
 		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
@@ -59,7 +60,7 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
+	if err := filesystem.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("PHPBuilder.Build", "failed to create output directory", err)
 	}
 
@@ -80,7 +81,7 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 	var artifacts []build.Artifact
 	for _, target := range targets {
 		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := cfg.FS.EnsureDir(platformDir); err != nil {
+		if err := filesystem.EnsureDir(platformDir); err != nil {
 			return artifacts, coreerr.E("PHPBuilder.Build", "failed to create platform directory", err)
 		}
 
@@ -106,10 +107,10 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 			}
 		}
 
-		found := (&NodeBuilder{}).findArtifactsForTarget(cfg.FS, outputDir, target)
+		found := (&NodeBuilder{}).findArtifactsForTarget(filesystem, outputDir, target)
 		if len(found) == 0 {
 			bundlePath := ax.Join(platformDir, b.bundleName(cfg)+".zip")
-			if err := b.bundleProject(cfg.FS, cfg.ProjectDir, outputDir, bundlePath); err != nil {
+			if err := b.bundleProject(filesystem, cfg.ProjectDir, outputDir, bundlePath); err != nil {
 				return artifacts, err
 			}
 

@@ -5,9 +5,9 @@ import (
 	"context"
 	"runtime"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -45,6 +45,7 @@ func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	if cfg == nil {
 		return nil, coreerr.E("RustBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
 	cargoCommand, err := b.resolveCargoCli()
 	if err != nil {
@@ -59,7 +60,7 @@ func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
+	if err := filesystem.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("RustBuilder.Build", "failed to create output directory", err)
 	}
 
@@ -71,7 +72,7 @@ func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		}
 
 		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := cfg.FS.EnsureDir(platformDir); err != nil {
+		if err := filesystem.EnsureDir(platformDir); err != nil {
 			return artifacts, coreerr.E("RustBuilder.Build", "failed to create platform directory", err)
 		}
 
@@ -93,7 +94,7 @@ func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 			return artifacts, coreerr.E("RustBuilder.Build", "cargo build failed: "+output, err)
 		}
 
-		found := b.findArtifactsForTarget(cfg.FS, platformDir, targetTriple, target)
+		found := b.findArtifactsForTarget(filesystem, platformDir, targetTriple, target)
 		if len(found) == 0 {
 			return artifacts, coreerr.E("RustBuilder.Build", "no build artifacts found for "+target.String(), nil)
 		}
