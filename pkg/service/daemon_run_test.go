@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	coreapi "dappco.re/go/core/api"
-	providerpkg "dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/process"
-	"dappco.re/go/core/ws"
+	coreapi "dappco.re/go/api"
+	providerpkg "dappco.re/go/api/pkg/provider"
+	"dappco.re/go/process"
+	"dappco.re/go/ws"
 )
 
 type stubAPIEngine struct {

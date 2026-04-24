@@ -9,8 +9,8 @@ import (
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	"gopkg.in/yaml.v3"
 )
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestAUR_AURPublisherName_Good(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestSigning_SignBinariesSkipsNonDarwin_Good(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestXcodeCloud_HasXcodeCloudConfig_Good(t *testing.T) {

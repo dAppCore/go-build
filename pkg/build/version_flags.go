@@ -4,7 +4,7 @@ import (
 	"regexp"
 
 	"dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 var safeVersionLinkerValue = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)

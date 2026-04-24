@@ -12,7 +12,7 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 
-	io_interface "dappco.re/go/core/io"
+	io_interface "dappco.re/go/io"
 	"github.com/Snider/Borg/pkg/compress"
 	"os"
 )

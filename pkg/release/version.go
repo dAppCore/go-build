@@ -10,7 +10,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 // semverRegex matches semantic version strings with or without 'v' prefix.

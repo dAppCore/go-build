@@ -8,8 +8,8 @@ import (
 	"dappco.re/go/build/internal/ax"
 	build "dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // AppleOptions aliases the core Apple pipeline options.

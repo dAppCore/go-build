@@ -9,8 +9,8 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	io_interface "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	io_interface "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // Checksum computes SHA256 for an artifact and returns the artifact with the Checksum field filled.

@@ -2,7 +2,7 @@ package builders
 
 import (
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // appendConfiguredEnv returns a fresh environment slice that includes the

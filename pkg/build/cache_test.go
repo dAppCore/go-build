@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestCache_SetupCache_Good(t *testing.T) {

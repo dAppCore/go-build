@@ -7,8 +7,8 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	"gopkg.in/yaml.v3"
 )
 

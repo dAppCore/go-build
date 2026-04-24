@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	coreapi "dappco.re/go/core/api"
-	providerpkg "dappco.re/go/core/api/pkg/provider"
+	coreapi "dappco.re/go/api"
+	providerpkg "dappco.re/go/api/pkg/provider"
 )
 
 func TestMCP_DefaultNewMCPServer_ExposesDaemonTools_Good(t *testing.T) {

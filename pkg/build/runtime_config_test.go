@@ -3,7 +3,7 @@ package build
 import (
 	"testing"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {

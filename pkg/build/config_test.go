@@ -7,7 +7,7 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 
 	"gopkg.in/yaml.v3"
 )

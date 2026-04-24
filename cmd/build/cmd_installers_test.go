@@ -8,7 +8,7 @@ import (
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 	"errors"
 	"os"
 )

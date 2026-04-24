@@ -6,7 +6,7 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // setupTestDir creates a temporary directory with the specified marker files.

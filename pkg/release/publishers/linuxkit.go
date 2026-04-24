@@ -6,7 +6,7 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 // LinuxKitConfig holds configuration for the LinuxKit publisher.

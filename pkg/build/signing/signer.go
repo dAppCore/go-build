@@ -5,7 +5,7 @@ import (
 	"context"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // Signer defines the interface for code signing implementations.

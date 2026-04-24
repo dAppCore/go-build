@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/template"
 
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 //go:embed templates/*.tmpl

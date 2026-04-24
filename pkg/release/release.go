@@ -14,8 +14,8 @@ import (
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/release/publishers"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // release signing hooks allow tests to observe the release pipeline without

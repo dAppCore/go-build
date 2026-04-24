@@ -10,7 +10,7 @@ import (
 	build "dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	coreio "dappco.re/go/io"
 )
 
 func TestAppleBuilder_New_Good(t *testing.T) {

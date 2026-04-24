@@ -3,7 +3,7 @@ package build
 import (
 	"strings"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // RuntimeConfigFromBuildConfig maps persisted build settings onto a runtime

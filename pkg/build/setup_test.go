@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestSetup_ComputeSetupPlan_Good(t *testing.T) {

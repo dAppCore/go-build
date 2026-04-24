@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	providerpkg "dappco.re/go/core/api/pkg/provider"
+	providerpkg "dappco.re/go/api/pkg/provider"
 )
 
 type emittedAgenticEvent struct {

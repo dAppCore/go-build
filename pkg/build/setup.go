@@ -5,7 +5,7 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // SetupTool identifies a toolchain or installer surface required by the

@@ -9,9 +9,9 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core/i18n"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/i18n"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 //go:embed templates/chocolatey/*.tmpl templates/chocolatey/tools/*.tmpl

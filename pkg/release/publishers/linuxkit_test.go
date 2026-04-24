@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestLinuxKit_LinuxKitPublisherName_Good(t *testing.T) {

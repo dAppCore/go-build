@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestAssets_BuildChecksumMap_ParsesRFCArchiveNames_Good(t *testing.T) {

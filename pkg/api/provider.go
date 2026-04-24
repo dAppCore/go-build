@@ -22,11 +22,11 @@ import (
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/core/api"
-	"dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
-	"dappco.re/go/core/ws"
+	"dappco.re/go/api"
+	"dappco.re/go/api/pkg/provider"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+	"dappco.re/go/ws"
 	"github.com/gin-gonic/gin"
 )
 

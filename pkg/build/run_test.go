@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/core/io"
+	coreio "dappco.re/go/io"
 )
 
 type runTestBuilder struct {

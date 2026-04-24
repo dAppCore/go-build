@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/cli/pkg/cli"
+	"dappco.re/go/cli/pkg/cli"
 )
 
 func emitCIErrorAnnotation(err error) {

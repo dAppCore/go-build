@@ -10,7 +10,7 @@ import (
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestRelease_FindArtifacts_Good(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func setupFakeLinuxKitImageCLI(t *testing.T, binDir string) {

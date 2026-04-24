@@ -7,7 +7,7 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
-	"dappco.re/go/core/cli/pkg/cli"
+	"dappco.re/go/cli/pkg/cli"
 )
 
 const validOpenAPISpec = `openapi: "3.0.0"

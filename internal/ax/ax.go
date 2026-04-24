@@ -8,10 +8,10 @@ import (
 	"syscall"
 
 	"dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
-	process "dappco.re/go/core/process"
-	processexec "dappco.re/go/core/process/exec"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+	process "dappco.re/go/process"
+	processexec "dappco.re/go/process/exec"
 )
 
 // DS returns the current platform directory separator.

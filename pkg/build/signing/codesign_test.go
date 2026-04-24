@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestCodesign_MacOSSignerName_Good(t *testing.T) {

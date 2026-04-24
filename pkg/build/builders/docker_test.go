@@ -10,7 +10,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 
 	"dappco.re/go/build/pkg/build"
-	coreio "dappco.re/go/core/io"
+	coreio "dappco.re/go/io"
 )
 
 func setupFakeDockerToolchain(t *testing.T, binDir string) {

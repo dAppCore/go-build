@@ -18,9 +18,9 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
-	coreapi "dappco.re/go/core/api"
-	"dappco.re/go/core/io"
-	"dappco.re/go/core/ws"
+	coreapi "dappco.re/go/api"
+	"dappco.re/go/io"
+	"dappco.re/go/ws"
 	"errors"
 	"github.com/gorilla/websocket"
 )

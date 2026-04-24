@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	providerpkg "dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/ws"
+	providerpkg "dappco.re/go/api/pkg/provider"
+	"dappco.re/go/ws"
 )
 
 type agenticOrchestrator interface {

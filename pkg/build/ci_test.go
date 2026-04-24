@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // setenvCI sets the GitHub Actions environment variables for a test and cleans up afterwards.
