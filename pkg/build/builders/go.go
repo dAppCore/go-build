@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"runtime"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
@@ -52,7 +51,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	filesystem := ensureBuildFilesystem(cfg)
 
 	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+		targets = []build.Target{{OS: core.Env("GOOS"), Arch: core.Env("GOARCH")}}
 	}
 
 	outputDir := cfg.OutputDir
@@ -221,7 +220,7 @@ func garbleInstallPaths() []string {
 
 	if gopath := core.Env("GOPATH"); gopath != "" {
 		sep := ":"
-		if runtime.GOOS == "windows" {
+		if core.Env("GOOS") == "windows" {
 			sep = ";"
 		}
 		for _, root := range core.Split(gopath, sep) {
