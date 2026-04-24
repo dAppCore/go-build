@@ -2,9 +2,9 @@ package signing
 
 import (
 	"context"
-	"runtime"
 
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 )
@@ -37,7 +37,7 @@ func (s *MacOSSigner) Name() string {
 //
 // ok := s.Available() // → true if on macOS with identity set
 func (s *MacOSSigner) Available() bool {
-	if runtime.GOOS != "darwin" {
+	if core.Env("GOOS") != "darwin" {
 		return false
 	}
 	if s.config.Identity == "" {
@@ -52,7 +52,7 @@ func (s *MacOSSigner) Available() bool {
 // err := s.Sign(ctx, io.Local, "dist/myapp")
 func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) error {
 	if !s.Available() {
-		if runtime.GOOS != "darwin" {
+		if core.Env("GOOS") != "darwin" {
 			return coreerr.E("codesign.Sign", "codesign is only available on macOS", nil)
 		}
 		if s.config.Identity == "" {
@@ -69,7 +69,7 @@ func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) err
 	output, err := ax.CombinedOutput(ctx, "", nil, codesignCommand,
 		"--sign", s.config.Identity,
 		"--timestamp",
-		"--options", "runtime", // Hardened runtime for notarization
+		"--options", `runtime`, // Hardened runtime for notarization
 		"--force",
 		binary,
 	)
