@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPublishers_PublishRejectsUnsafeVersion_Good(t *testing.T) {
@@ -22,7 +20,7 @@ func TestPublishers_PublishRejectsUnsafeVersion_Good(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
+		name      string
 		publisher Publisher
 	}{
 		{name: "github", publisher: NewGitHubPublisher()},
@@ -38,9 +36,13 @@ func TestPublishers_PublishRejectsUnsafeVersion_Good(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.publisher.Publish(context.Background(), release, PublisherConfig{Type: tc.name}, relCfg, true)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "release version contains unsupported characters")
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !stdlibAssertContains(err.Error(), "release version contains unsupported characters") {
+				t.Fatalf("expected %v to contain %v", err.Error(), "release version contains unsupported characters")
+			}
+
 		})
 	}
 }
-

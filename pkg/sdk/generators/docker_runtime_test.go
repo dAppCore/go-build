@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"dappco.re/go/build/internal/ax"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func resetDockerRuntimeState() {
@@ -30,26 +28,42 @@ func writeFakeDockerRuntime(t *testing.T, dir, script string) string {
 	t.Helper()
 
 	dockerPath := ax.Join(dir, "docker")
-	require.NoError(t, ax.WriteFile(dockerPath, []byte(script), 0o755))
+	if err := ax.WriteFile(dockerPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	return dockerPath
 }
 
 func TestSDK_ResolveDockerRuntimeCli_Good(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "docker")
-	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", "")
 
 	command, err := resolveDockerRuntimeCli(fallbackPath)
-	require.NoError(t, err)
-	assert.Equal(t, fallbackPath, command)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(fallbackPath, command) {
+		t.Fatalf("want %v, got %v", fallbackPath, command)
+	}
+
 }
 
 func TestSDK_ResolveDockerRuntimeCli_Bad(t *testing.T) {
 	t.Setenv("PATH", "")
 	_, err := resolveDockerRuntimeCli(ax.Join(t.TempDir(), "missing-docker"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "docker CLI not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "docker CLI not found") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "docker CLI not found")
+	}
+
 }
 
 func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
@@ -59,12 +73,22 @@ func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
 	dockerDir := t.TempDir()
 	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
+	if !(dockerRuntimeAvailable()) {
+		t.Fatal("expected true")
+	}
+	if !(NewGoGenerator().Available()) {
+		t.Fatal("expected true")
+	}
+	if !(NewPythonGenerator().Available()) {
+		t.Fatal("expected true")
+	}
+	if !(NewTypeScriptGenerator().Available()) {
+		t.Fatal("expected true")
+	}
+	if !(NewPHPGenerator().Available()) {
+		t.Fatal("expected true")
+	}
 
-	assert.True(t, dockerRuntimeAvailable())
-	assert.True(t, NewGoGenerator().Available())
-	assert.True(t, NewPythonGenerator().Available())
-	assert.True(t, NewTypeScriptGenerator().Available())
-	assert.True(t, NewPHPGenerator().Available())
 }
 
 func TestSDK_DockerRuntimeAvailabilityCachesSuccessfulProbe_Good(t *testing.T) {
@@ -75,13 +99,21 @@ func TestSDK_DockerRuntimeAvailabilityCachesSuccessfulProbe_Good(t *testing.T) {
 	countFile := ax.Join(dockerDir, "count.txt")
 	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  echo probe >> '"+countFile+"'\n  exit 0\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
-
-	assert.True(t, dockerRuntimeAvailable())
-	assert.True(t, dockerRuntimeAvailable())
+	if !(dockerRuntimeAvailable()) {
+		t.Fatal("expected true")
+	}
+	if !(dockerRuntimeAvailable()) {
+		t.Fatal("expected true")
+	}
 
 	content, err := ax.ReadFile(countFile)
-	require.NoError(t, err)
-	assert.Len(t, strings.Fields(string(content)), 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(strings.Fields(string(content))) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(strings.Fields(string(content))))
+	}
+
 }
 
 func TestSDK_DockerRuntimeAvailabilityCachesFailedProbe_Bad(t *testing.T) {
@@ -92,13 +124,21 @@ func TestSDK_DockerRuntimeAvailabilityCachesFailedProbe_Bad(t *testing.T) {
 	countFile := ax.Join(dockerDir, "count.txt")
 	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  echo probe >> '"+countFile+"'\n  exit 1\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
-
-	assert.False(t, dockerRuntimeAvailable())
-	assert.False(t, dockerRuntimeAvailable())
+	if dockerRuntimeAvailable() {
+		t.Fatal("expected false")
+	}
+	if dockerRuntimeAvailable() {
+		t.Fatal("expected false")
+	}
 
 	content, err := ax.ReadFile(countFile)
-	require.NoError(t, err)
-	assert.Len(t, strings.Fields(string(content)), 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(strings.Fields(string(content))) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(strings.Fields(string(content))))
+	}
+
 }
 
 func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T) {
@@ -111,9 +151,13 @@ func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
+	if dockerRuntimeAvailableWithContext(ctx) {
+		t.Fatal("expected false")
+	}
+	if !(dockerRuntimeAvailable()) {
+		t.Fatal("expected true")
+	}
 
-	assert.False(t, dockerRuntimeAvailableWithContext(ctx))
-	assert.True(t, dockerRuntimeAvailable())
 }
 
 func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextAfterCachedSuccess_Bad(t *testing.T) {
@@ -123,13 +167,16 @@ func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextAfterCachedSuccess
 	dockerDir := t.TempDir()
 	writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
-
-	assert.True(t, dockerRuntimeAvailable())
+	if !(dockerRuntimeAvailable()) {
+		t.Fatal("expected true")
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
+	if dockerRuntimeAvailableWithContext(ctx) {
+		t.Fatal("expected false")
+	}
 
-	assert.False(t, dockerRuntimeAvailableWithContext(ctx))
 }
 
 func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
@@ -142,8 +189,13 @@ func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
 	t.Setenv("PATH", dockerDir)
 
 	started := time.Now()
-	assert.False(t, dockerRuntimeAvailable())
-	assert.Less(t, time.Since(started), 500*time.Millisecond)
+	if dockerRuntimeAvailable() {
+		t.Fatal("expected false")
+	}
+	if time.Since(started) >= 500*time.Millisecond {
+		t.Fatalf("expected %v to be less than %v", time.Since(started), 500*time.Millisecond)
+	}
+
 }
 
 func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailure_Good(t *testing.T) {
@@ -153,11 +205,16 @@ func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailure_Good(t *testing.T) {
 	dockerDir := t.TempDir()
 	dockerPath := writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
+	if dockerRuntimeAvailable() {
+		t.Fatal("expected false")
+	}
+	if err := ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(dockerRuntimeAvailable()) {
+		t.Fatal("expected true")
+	}
 
-	assert.False(t, dockerRuntimeAvailable())
-
-	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n"), 0o755))
-	assert.True(t, dockerRuntimeAvailable())
 }
 
 func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChanges_Good(t *testing.T) {
@@ -167,14 +224,17 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChanges
 	successDir := t.TempDir()
 	writeFakeDockerRuntime(t, successDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n")
 	t.Setenv("PATH", successDir)
-
-	assert.True(t, dockerRuntimeAvailable())
+	if !(dockerRuntimeAvailable()) {
+		t.Fatal("expected true")
+	}
 
 	failureDir := t.TempDir()
 	writeFakeDockerRuntime(t, failureDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n")
 	t.Setenv("PATH", failureDir)
+	if dockerRuntimeAvailable() {
+		t.Fatal("expected false")
+	}
 
-	assert.False(t, dockerRuntimeAvailable())
 }
 
 func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutatesInPlace_Good(t *testing.T) {
@@ -184,14 +244,20 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutates
 	dockerDir := t.TempDir()
 	dockerPath := writeFakeDockerRuntime(t, dockerDir, "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n")
 	t.Setenv("PATH", dockerDir)
+	if !(dockerRuntimeAvailable()) {
+		t.Fatal("expected true")
 
-	assert.True(t, dockerRuntimeAvailable())
+		// Preserve monotonic ordering for filesystems with coarse mtimes.
+	}
 
-	// Preserve monotonic ordering for filesystems with coarse mtimes.
 	time.Sleep(20 * time.Millisecond)
-	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n"), 0o755))
+	if err := ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dockerRuntimeAvailable() {
+		t.Fatal("expected false")
+	}
 
-	assert.False(t, dockerRuntimeAvailable())
 }
 
 func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandKeepsSizeAndMTime_Good(t *testing.T) {
@@ -203,14 +269,22 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandKeepsSi
 	failureScript := "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n"
 	dockerPath := writeFakeDockerRuntime(t, dockerDir, successScript)
 	t.Setenv("PATH", dockerDir)
-
-	assert.True(t, dockerRuntimeAvailable())
+	if !(dockerRuntimeAvailable()) {
+		t.Fatal("expected true")
+	}
 
 	info, err := os.Stat(dockerPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(dockerPath, []byte(failureScript), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := os.Chtimes(dockerPath, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dockerRuntimeAvailable() {
+		t.Fatal("expected false")
+	}
 
-	require.NoError(t, ax.WriteFile(dockerPath, []byte(failureScript), 0o755))
-	require.NoError(t, os.Chtimes(dockerPath, info.ModTime(), info.ModTime()))
-
-	assert.False(t, dockerRuntimeAvailable())
 }

@@ -5,27 +5,22 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestXcodeCloud_HasXcodeCloudConfig_Good(t *testing.T) {
-	assert.False(t, HasXcodeCloudConfig(nil))
-	assert.False(t, HasXcodeCloudConfig(&BuildConfig{}))
-	assert.True(t, HasXcodeCloudConfig(&BuildConfig{
-		Apple: AppleConfig{
-			XcodeCloud: XcodeCloudConfig{
-				Workflow: "CoreGUI Release",
-			},
-		},
-	}))
-	assert.True(t, HasXcodeCloudConfig(&BuildConfig{
-		Apple: AppleConfig{
-			XcodeCloud: XcodeCloudConfig{
-				Triggers: []XcodeCloudTrigger{{Branch: "main", Action: "testflight"}},
-			},
-		},
-	}))
+	if HasXcodeCloudConfig(nil) {
+		t.Fatal("expected false")
+	}
+	if (HasXcodeCloudConfig(&BuildConfig{})) {
+		t.Fatal("expected false")
+	}
+	if !(HasXcodeCloudConfig(&BuildConfig{Apple: AppleConfig{XcodeCloud: XcodeCloudConfig{Workflow: "CoreGUI Release"}}})) {
+		t.Fatal("expected true")
+	}
+	if !(HasXcodeCloudConfig(&BuildConfig{Apple: AppleConfig{XcodeCloud: XcodeCloudConfig{Triggers: []XcodeCloudTrigger{{Branch: "main", Action: "testflight"}}}}})) {
+		t.Fatal("expected true")
+	}
+
 }
 
 func TestXcodeCloud_GenerateXcodeCloudScripts_Good(t *testing.T) {
@@ -43,24 +38,58 @@ func TestXcodeCloud_GenerateXcodeCloudScripts_Good(t *testing.T) {
 			AppStore: boolPtr(true),
 		},
 	})
+	if len(scripts) != 3 {
+		t.Fatalf("want len %v, got %v", 3, len(scripts))
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], "go install github.com/wailsapp/wails/v3/cmd/wails3@latest") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], "go install github.com/wailsapp/wails/v3/cmd/wails3@latest")
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], "find_visible_files()") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], "find_visible_files()")
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], "-path './.*'") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], "-path './.*'")
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], "find_visible_files 3 -name package.json") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], "find_visible_files 3 -name package.json")
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], "package_manager_from_manifest()") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], "package_manager_from_manifest()")
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], "pkg.packageManager") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], "pkg.packageManager")
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], `declared_manager="$(package_manager_from_manifest "$dir")"`) {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], `declared_manager="$(package_manager_from_manifest "$dir")"`)
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], `(cd "$dir" && pnpm install)`) {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], `(cd "$dir" && pnpm install)`)
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], `(cd "$dir" && yarn install)`) {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], `(cd "$dir" && yarn install)`)
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], `(cd "$dir" && bun install)`) {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], `(cd "$dir" && bun install)`)
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], "deno_requested()") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], "deno_requested()")
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], "DENO_ENABLE") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], "DENO_ENABLE")
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostCloneScriptName], "DENO_BUILD") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostCloneScriptName], "DENO_BUILD")
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPreXcodebuildScriptName], `core build apple --arch 'universal' --config '.core/build.yaml' --notarise=false --dmg --appstore --bundle-id 'ai.lthn.core' --team-id 'ABC123DEF4'`) {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPreXcodebuildScriptName], `core build apple --arch 'universal' --config '.core/build.yaml' --notarise=false --dmg --appstore --bundle-id 'ai.lthn.core' --team-id 'ABC123DEF4'`)
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostXcodebuildScriptName], `BUNDLE_PATH='dist/apple/Core.app'`) {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostXcodebuildScriptName], `BUNDLE_PATH='dist/apple/Core.app'`)
+	}
+	if !stdlibAssertContains(scripts[XcodeCloudPostXcodebuildScriptName], "codesign --verify --deep --strict") {
+		t.Fatalf("expected %v to contain %v", scripts[XcodeCloudPostXcodebuildScriptName], "codesign --verify --deep --strict")
+	}
 
-	require.Len(t, scripts, 3)
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "go install github.com/wailsapp/wails/v3/cmd/wails3@latest")
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "find_visible_files()")
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "-path './.*'")
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "find_visible_files 3 -name package.json")
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "package_manager_from_manifest()")
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "pkg.packageManager")
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], `declared_manager="$(package_manager_from_manifest "$dir")"`)
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], `(cd "$dir" && pnpm install)`)
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], `(cd "$dir" && yarn install)`)
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], `(cd "$dir" && bun install)`)
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "deno_requested()")
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "DENO_ENABLE")
-	assert.Contains(t, scripts[XcodeCloudPostCloneScriptName], "DENO_BUILD")
-	assert.Contains(t, scripts[XcodeCloudPreXcodebuildScriptName], `core build apple --arch 'universal' --config '.core/build.yaml' --notarise=false --dmg --appstore --bundle-id 'ai.lthn.core' --team-id 'ABC123DEF4'`)
-	assert.Contains(t, scripts[XcodeCloudPostXcodebuildScriptName], `BUNDLE_PATH='dist/apple/Core.app'`)
-	assert.Contains(t, scripts[XcodeCloudPostXcodebuildScriptName], "codesign --verify --deep --strict")
 }
 
 func TestXcodeCloud_GenerateXcodeCloudScripts_QuotesShellValues(t *testing.T) {
@@ -77,18 +106,39 @@ func TestXcodeCloud_GenerateXcodeCloudScripts_QuotesShellValues(t *testing.T) {
 	})
 
 	pre := scripts[XcodeCloudPreXcodebuildScriptName]
-	assert.Contains(t, pre, `--arch 'arm64$(touch /tmp/pwned)'`)
-	assert.Contains(t, pre, `--bundle-id 'ai.lthn.core$(touch /tmp/pwned)'`)
-	assert.Contains(t, pre, `--team-id 'ABC123DEF4$(touch /tmp/pwned)'`)
-	assert.NotContains(t, pre, `--arch "arm64$(touch /tmp/pwned)"`)
-	assert.NotContains(t, pre, `--bundle-id "ai.lthn.core$(touch /tmp/pwned)"`)
-	assert.NotContains(t, pre, `--team-id "ABC123DEF4$(touch /tmp/pwned)"`)
+	if !stdlibAssertContains(pre, `--arch 'arm64$(touch /tmp/pwned)'`) {
+		t.Fatalf("expected %v to contain %v", pre, `--arch 'arm64$(touch /tmp/pwned)'`)
+	}
+	if !stdlibAssertContains(pre, `--bundle-id 'ai.lthn.core$(touch /tmp/pwned)'`) {
+		t.Fatalf("expected %v to contain %v", pre, `--bundle-id 'ai.lthn.core$(touch /tmp/pwned)'`)
+	}
+	if !stdlibAssertContains(pre, `--team-id 'ABC123DEF4$(touch /tmp/pwned)'`) {
+		t.Fatalf("expected %v to contain %v", pre, `--team-id 'ABC123DEF4$(touch /tmp/pwned)'`)
+	}
+	if stdlibAssertContains(pre, `--arch "arm64$(touch /tmp/pwned)"`) {
+		t.Fatalf("expected %v not to contain %v", pre, `--arch "arm64$(touch /tmp/pwned)"`)
+	}
+	if stdlibAssertContains(pre, `--bundle-id "ai.lthn.core$(touch /tmp/pwned)"`) {
+		t.Fatalf("expected %v not to contain %v", pre, `--bundle-id "ai.lthn.core$(touch /tmp/pwned)"`)
+	}
+	if stdlibAssertContains(pre, `--team-id "ABC123DEF4$(touch /tmp/pwned)"`) {
+		t.Fatalf("expected %v not to contain %v", pre, `--team-id "ABC123DEF4$(touch /tmp/pwned)"`)
+	}
 
 	post := scripts[XcodeCloudPostXcodebuildScriptName]
-	assert.Contains(t, post, `BUNDLE_PATH='dist/apple/Core$(touch /tmp/pwned).app'`)
-	assert.Contains(t, post, `EXECUTABLE_PATH='dist/apple/Core$(touch /tmp/pwned).app/Contents/MacOS/Core$(touch /tmp/pwned)'`)
-	assert.NotContains(t, post, `BUNDLE_PATH="dist/apple/Core$(touch /tmp/pwned).app"`)
-	assert.NotContains(t, post, `EXECUTABLE_PATH="dist/apple/Core$(touch /tmp/pwned).app/Contents/MacOS/Core$(touch /tmp/pwned)"`)
+	if !stdlibAssertContains(post, `BUNDLE_PATH='dist/apple/Core$(touch /tmp/pwned).app'`) {
+		t.Fatalf("expected %v to contain %v", post, `BUNDLE_PATH='dist/apple/Core$(touch /tmp/pwned).app'`)
+	}
+	if !stdlibAssertContains(post, `EXECUTABLE_PATH='dist/apple/Core$(touch /tmp/pwned).app/Contents/MacOS/Core$(touch /tmp/pwned)'`) {
+		t.Fatalf("expected %v to contain %v", post, `EXECUTABLE_PATH='dist/apple/Core$(touch /tmp/pwned).app/Contents/MacOS/Core$(touch /tmp/pwned)'`)
+	}
+	if stdlibAssertContains(post, `BUNDLE_PATH="dist/apple/Core$(touch /tmp/pwned).app"`) {
+		t.Fatalf("expected %v not to contain %v", post, `BUNDLE_PATH="dist/apple/Core$(touch /tmp/pwned).app"`)
+	}
+	if stdlibAssertContains(post, `EXECUTABLE_PATH="dist/apple/Core$(touch /tmp/pwned).app/Contents/MacOS/Core$(touch /tmp/pwned)"`) {
+		t.Fatalf("expected %v not to contain %v", post, `EXECUTABLE_PATH="dist/apple/Core$(touch /tmp/pwned).app/Contents/MacOS/Core$(touch /tmp/pwned)"`)
+	}
+
 }
 
 func TestXcodeCloud_WriteXcodeCloudScripts_Good(t *testing.T) {
@@ -105,28 +155,42 @@ func TestXcodeCloud_WriteXcodeCloudScripts_Good(t *testing.T) {
 			},
 		},
 	})
-	require.NoError(t, err)
-	assert.Equal(t, []string{
-		ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostCloneScriptName),
-		ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPreXcodebuildScriptName),
-		ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostXcodebuildScriptName),
-	}, paths)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual([]string{ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostCloneScriptName), ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPreXcodebuildScriptName), ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostXcodebuildScriptName)}, paths) {
+		t.Fatalf("want %v, got %v", []string{ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostCloneScriptName), ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPreXcodebuildScriptName), ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostXcodebuildScriptName)}, paths)
+	}
 
 	for _, path := range paths {
 		content, err := io.Local.Read(path)
-		require.NoError(t, err)
-		assert.NotEmpty(t, content)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertEmpty(content) {
+			t.Fatal("expected non-empty")
+		}
 
 		info, err := io.Local.Stat(path)
-		require.NoError(t, err)
-		assert.Equal(t, 0o755, int(info.Mode().Perm()))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(0o755, int(info.Mode().Perm())) {
+			t.Fatalf("want %v, got %v", 0o755, int(info.Mode().Perm()))
+		}
+
 	}
 }
 
 func TestXcodeCloud_WriteXcodeCloudScripts_Bad(t *testing.T) {
 	_, err := WriteXcodeCloudScripts(nil, t.TempDir(), DefaultConfig())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "filesystem medium is required")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "filesystem medium is required") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "filesystem medium is required")
+	}
+
 }
 
 func boolPtr(value bool) *bool {

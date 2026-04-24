@@ -5,9 +5,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"errors"
 )
 
 func TestChangelog_ParseConventionalCommit_Good(t *testing.T) {
@@ -98,12 +96,25 @@ func TestChangelog_ParseConventionalCommit_Good(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result := parseConventionalCommit(tc.input)
-			assert.NotNil(t, result)
-			assert.Equal(t, tc.expected.Type, result.Type)
-			assert.Equal(t, tc.expected.Scope, result.Scope)
-			assert.Equal(t, tc.expected.Description, result.Description)
-			assert.Equal(t, tc.expected.Hash, result.Hash)
-			assert.Equal(t, tc.expected.Breaking, result.Breaking)
+			if stdlibAssertNil(result) {
+				t.Fatal("expected non-nil")
+			}
+			if !stdlibAssertEqual(tc.expected.Type, result.Type) {
+				t.Fatalf("want %v, got %v", tc.expected.Type, result.Type)
+			}
+			if !stdlibAssertEqual(tc.expected.Scope, result.Scope) {
+				t.Fatalf("want %v, got %v", tc.expected.Scope, result.Scope)
+			}
+			if !stdlibAssertEqual(tc.expected.Description, result.Description) {
+				t.Fatalf("want %v, got %v", tc.expected.Description, result.Description)
+			}
+			if !stdlibAssertEqual(tc.expected.Hash, result.Hash) {
+				t.Fatalf("want %v, got %v", tc.expected.Hash, result.Hash)
+			}
+			if !stdlibAssertEqual(tc.expected.Breaking, result.Breaking) {
+				t.Fatalf("want %v, got %v", tc.expected.Breaking, result.Breaking)
+			}
+
 		})
 	}
 }
@@ -138,7 +149,10 @@ func TestChangelog_ParseConventionalCommit_Bad(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result := parseConventionalCommit(tc.input)
-			assert.Nil(t, result)
+			if !stdlibAssertNil(result) {
+				t.Fatalf("expected nil, got %v", result)
+			}
+
 		})
 	}
 }
@@ -152,13 +166,25 @@ func TestChangelog_FormatChangelog_Good(t *testing.T) {
 		}
 
 		result := formatChangelog(commits, "v1.0.0")
+		if !stdlibAssertContains(result, "## v1.0.0") {
+			t.Fatalf("expected %v to contain %v", result, "## v1.0.0")
+		}
+		if !stdlibAssertContains(result, "### Features") {
+			t.Fatalf("expected %v to contain %v", result, "### Features")
+		}
+		if !stdlibAssertContains(result, "### Bug Fixes") {
+			t.Fatalf("expected %v to contain %v", result, "### Bug Fixes")
+		}
+		if !stdlibAssertContains(result, "- add feature A (abc1234)") {
+			t.Fatalf("expected %v to contain %v", result, "- add feature A (abc1234)")
+		}
+		if !stdlibAssertContains(result, "- fix bug B (def5678)") {
+			t.Fatalf("expected %v to contain %v", result, "- fix bug B (def5678)")
+		}
+		if !stdlibAssertContains(result, "- add feature C (ghi9012)") {
+			t.Fatalf("expected %v to contain %v", result, "- add feature C (ghi9012)")
+		}
 
-		assert.Contains(t, result, "## v1.0.0")
-		assert.Contains(t, result, "### Features")
-		assert.Contains(t, result, "### Bug Fixes")
-		assert.Contains(t, result, "- add feature A (abc1234)")
-		assert.Contains(t, result, "- fix bug B (def5678)")
-		assert.Contains(t, result, "- add feature C (ghi9012)")
 	})
 
 	t.Run("includes scope in output", func(t *testing.T) {
@@ -167,8 +193,10 @@ func TestChangelog_FormatChangelog_Good(t *testing.T) {
 		}
 
 		result := formatChangelog(commits, "v1.0.0")
+		if !stdlibAssertContains(result, "**api**: add endpoint") {
+			t.Fatalf("expected %v to contain %v", result, "**api**: add endpoint")
+		}
 
-		assert.Contains(t, result, "**api**: add endpoint")
 	})
 
 	t.Run("breaking changes first", func(t *testing.T) {
@@ -178,19 +206,30 @@ func TestChangelog_FormatChangelog_Good(t *testing.T) {
 		}
 
 		result := formatChangelog(commits, "v1.0.0")
+		if !stdlibAssertContains(result, "### BREAKING CHANGES") {
+			t.Fatalf(
 
-		assert.Contains(t, result, "### BREAKING CHANGES")
-		// Breaking changes section should appear before Features
+				// Breaking changes section should appear before Features
+				"expected %v to contain %v", result, "### BREAKING CHANGES")
+		}
+
 		breakingPos := indexOf(result, "BREAKING CHANGES")
 		featuresPos := indexOf(result, "Features")
-		assert.Less(t, breakingPos, featuresPos)
+		if breakingPos >= featuresPos {
+			t.Fatalf("expected %v to be less than %v", breakingPos, featuresPos)
+		}
+
 	})
 
 	t.Run("empty commits returns minimal changelog", func(t *testing.T) {
 		result := formatChangelog([]ConventionalCommit{}, "v1.0.0")
+		if !stdlibAssertContains(result, "## v1.0.0") {
+			t.Fatalf("expected %v to contain %v", result, "## v1.0.0")
+		}
+		if !stdlibAssertContains(result, "No notable changes") {
+			t.Fatalf("expected %v to contain %v", result, "No notable changes")
+		}
 
-		assert.Contains(t, result, "## v1.0.0")
-		assert.Contains(t, result, "No notable changes")
 	})
 }
 
@@ -208,7 +247,10 @@ func TestChangelog_ParseCommitType_Good(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
 			result := ParseCommitType(tc.input)
-			assert.Equal(t, tc.expected, result)
+			if !stdlibAssertEqual(tc.expected, result) {
+				t.Fatalf("want %v, got %v", tc.expected, result)
+			}
+
 		})
 	}
 }
@@ -225,7 +267,10 @@ func TestChangelog_ParseCommitType_Bad(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
 			result := ParseCommitType(tc.input)
-			assert.Empty(t, result)
+			if !stdlibAssertEmpty(result) {
+				t.Fatalf("expected empty, got %v", result)
+			}
+
 		})
 	}
 }
@@ -236,16 +281,28 @@ func TestChangelog_GenerateWithConfigConfigValues_Good(t *testing.T) {
 			Include: []string{"feat", "fix"},
 			Exclude: []string{"chore", "docs"},
 		}
+		if !stdlibAssertContains(
 
-		// Verify the config values
-		assert.Contains(t, cfg.Include, "feat")
-		assert.Contains(t, cfg.Include, "fix")
-		assert.Contains(t, cfg.Exclude, "chore")
-		assert.Contains(t, cfg.Exclude, "docs")
+			// Verify the config values
+			cfg.Include, "feat") {
+			t.Fatalf("expected %v to contain %v", cfg.Include, "feat")
+		}
+		if !stdlibAssertContains(cfg.Include, "fix") {
+			t.Fatalf("expected %v to contain %v", cfg.Include, "fix")
+		}
+		if !stdlibAssertContains(
+
+			// indexOf returns the position of a substring in a string, or -1 if not found.
+			cfg.Exclude, "chore") {
+			t.Fatalf("expected %v to contain %v", cfg.Exclude, "chore")
+		}
+		if !stdlibAssertContains(cfg.Exclude, "docs") {
+			t.Fatalf("expected %v to contain %v", cfg.Exclude, "docs")
+		}
+
 	})
 }
 
-// indexOf returns the position of a substring in a string, or -1 if not found.
 func indexOf(s, substr string) int {
 	for i := 0; i+len(substr) <= len(s); i++ {
 		if s[i:i+len(substr)] == substr {
@@ -278,9 +335,13 @@ func createChangelogCommit(t *testing.T, dir, message string) {
 	filePath := ax.Join(dir, "changelog_test.txt")
 	content, _ := ax.ReadFile(filePath)
 	content = append(content, []byte(message+"\n")...)
-	require.NoError(t, ax.WriteFile(filePath, content, 0644))
+	if err := ax.WriteFile(filePath, content, 0644); err != nil {
+		t.Fatalf("unexpected error: %v",
 
-	// Stage and commit
+			// Stage and commit
+			err)
+	}
+
 	runGit(t, dir, "add", ".")
 	runGit(t, dir, "commit", "-m", message)
 }
@@ -298,13 +359,25 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "fix: resolve bug")
 
 		changelog, err := Generate(dir, "", "HEAD")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "## HEAD") {
+			t.Fatalf("expected %v to contain %v", changelog, "## HEAD")
+		}
+		if !stdlibAssertContains(changelog, "### Features") {
+			t.Fatalf("expected %v to contain %v", changelog, "### Features")
+		}
+		if !stdlibAssertContains(changelog, "add new feature") {
+			t.Fatalf("expected %v to contain %v", changelog, "add new feature")
+		}
+		if !stdlibAssertContains(changelog, "### Bug Fixes") {
+			t.Fatalf("expected %v to contain %v", changelog, "### Bug Fixes")
+		}
+		if !stdlibAssertContains(changelog, "resolve bug") {
+			t.Fatalf("expected %v to contain %v", changelog, "resolve bug")
+		}
 
-		assert.Contains(t, changelog, "## HEAD")
-		assert.Contains(t, changelog, "### Features")
-		assert.Contains(t, changelog, "add new feature")
-		assert.Contains(t, changelog, "### Bug Fixes")
-		assert.Contains(t, changelog, "resolve bug")
 	})
 
 	t.Run("generates changelog between tags", func(t *testing.T) {
@@ -316,13 +389,25 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogTag(t, dir, "v1.1.0")
 
 		changelog, err := Generate(dir, "v1.0.0", "v1.1.0")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "## v1.1.0") {
+			t.Fatalf("expected %v to contain %v", changelog, "## v1.1.0")
+		}
+		if !stdlibAssertContains(
 
-		assert.Contains(t, changelog, "## v1.1.0")
-		assert.Contains(t, changelog, "new feature")
-		assert.Contains(t, changelog, "bug fix")
-		// Should NOT contain the initial feature
-		assert.NotContains(t, changelog, "initial feature")
+			// Should NOT contain the initial feature
+			changelog, "new feature") {
+			t.Fatalf("expected %v to contain %v", changelog, "new feature")
+		}
+		if !stdlibAssertContains(changelog, "bug fix") {
+			t.Fatalf("expected %v to contain %v", changelog, "bug fix")
+		}
+		if stdlibAssertContains(changelog, "initial feature") {
+			t.Fatalf("expected %v not to contain %v", changelog, "initial feature")
+		}
+
 	})
 
 	t.Run("handles empty changelog when no conventional commits", func(t *testing.T) {
@@ -331,9 +416,13 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "Merge branch main")
 
 		changelog, err := Generate(dir, "", "HEAD")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "No notable changes") {
+			t.Fatalf("expected %v to contain %v", changelog, "No notable changes")
+		}
 
-		assert.Contains(t, changelog, "No notable changes")
 	})
 
 	t.Run("uses previous tag when fromRef is empty", func(t *testing.T) {
@@ -343,10 +432,16 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: new feature")
 
 		changelog, err := Generate(dir, "", "HEAD")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "new feature") {
+			t.Fatalf("expected %v to contain %v", changelog, "new feature")
+		}
+		if stdlibAssertContains(changelog, "old feature") {
+			t.Fatalf("expected %v not to contain %v", changelog, "old feature")
+		}
 
-		assert.Contains(t, changelog, "new feature")
-		assert.NotContains(t, changelog, "old feature")
 	})
 
 	t.Run("includes breaking changes", func(t *testing.T) {
@@ -355,10 +450,16 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: normal feature")
 
 		changelog, err := Generate(dir, "", "HEAD")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "### BREAKING CHANGES") {
+			t.Fatalf("expected %v to contain %v", changelog, "### BREAKING CHANGES")
+		}
+		if !stdlibAssertContains(changelog, "breaking API change") {
+			t.Fatalf("expected %v to contain %v", changelog, "breaking API change")
+		}
 
-		assert.Contains(t, changelog, "### BREAKING CHANGES")
-		assert.Contains(t, changelog, "breaking API change")
 	})
 
 	t.Run("includes scope in output", func(t *testing.T) {
@@ -366,9 +467,13 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat(api): add endpoint")
 
 		changelog, err := Generate(dir, "", "HEAD")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "**api**:") {
+			t.Fatalf("expected %v to contain %v", changelog, "**api**:")
+		}
 
-		assert.Contains(t, changelog, "**api**:")
 	})
 }
 
@@ -377,7 +482,10 @@ func TestChangelog_Generate_Bad(t *testing.T) {
 		dir := t.TempDir()
 
 		_, err := Generate(dir, "", "HEAD")
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+
 	})
 
 	t.Run("returns error when context is cancelled", func(t *testing.T) {
@@ -388,8 +496,13 @@ func TestChangelog_Generate_Bad(t *testing.T) {
 		cancel()
 
 		_, err := GenerateWithContext(ctx, dir, "", "HEAD")
-		require.Error(t, err)
-		assert.ErrorIs(t, err, context.Canceled)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected error %v to be %v", err, context.Canceled)
+		}
+
 	})
 }
 
@@ -405,11 +518,19 @@ func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 		}
 
 		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "new feature") {
+			t.Fatalf("expected %v to contain %v", changelog, "new feature")
+		}
+		if stdlibAssertContains(changelog, "bug fix") {
+			t.Fatalf("expected %v not to contain %v", changelog, "bug fix")
+		}
+		if stdlibAssertContains(changelog, "update deps") {
+			t.Fatalf("expected %v not to contain %v", changelog, "update deps")
+		}
 
-		assert.Contains(t, changelog, "new feature")
-		assert.NotContains(t, changelog, "bug fix")
-		assert.NotContains(t, changelog, "update deps")
 	})
 
 	t.Run("filters commits by exclude list", func(t *testing.T) {
@@ -423,11 +544,19 @@ func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 		}
 
 		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "new feature") {
+			t.Fatalf("expected %v to contain %v", changelog, "new feature")
+		}
+		if !stdlibAssertContains(changelog, "bug fix") {
+			t.Fatalf("expected %v to contain %v", changelog, "bug fix")
+		}
+		if stdlibAssertContains(changelog, "update deps") {
+			t.Fatalf("expected %v not to contain %v", changelog, "update deps")
+		}
 
-		assert.Contains(t, changelog, "new feature")
-		assert.Contains(t, changelog, "bug fix")
-		assert.NotContains(t, changelog, "update deps")
 	})
 
 	t.Run("combines include and exclude filters", func(t *testing.T) {
@@ -442,11 +571,19 @@ func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 		}
 
 		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "new feature") {
+			t.Fatalf("expected %v to contain %v", changelog, "new feature")
+		}
+		if !stdlibAssertContains(changelog, "bug fix") {
+			t.Fatalf("expected %v to contain %v", changelog, "bug fix")
+		}
+		if stdlibAssertContains(changelog, "performance") {
+			t.Fatalf("expected %v not to contain %v", changelog, "performance")
+		}
 
-		assert.Contains(t, changelog, "new feature")
-		assert.Contains(t, changelog, "bug fix")
-		assert.NotContains(t, changelog, "performance")
 	})
 
 	t.Run("supports regex exclude patterns from release config", func(t *testing.T) {
@@ -461,11 +598,19 @@ func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 		}
 
 		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "new feature") {
+			t.Fatalf("expected %v to contain %v", changelog, "new feature")
+		}
+		if stdlibAssertContains(changelog, "update README") {
+			t.Fatalf("expected %v not to contain %v", changelog, "update README")
+		}
+		if stdlibAssertContains(changelog, "tidy workflow") {
+			t.Fatalf("expected %v not to contain %v", changelog, "tidy workflow")
+		}
 
-		assert.Contains(t, changelog, "new feature")
-		assert.NotContains(t, changelog, "update README")
-		assert.NotContains(t, changelog, "tidy workflow")
 	})
 }
 
@@ -477,9 +622,13 @@ func TestChangelog_GetCommits_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: third")
 
 		commits, err := getCommitsWithContext(context.Background(), dir, "", "HEAD")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(commits) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(commits))
+		}
 
-		assert.Len(t, commits, 3)
 	})
 
 	t.Run("returns commits between refs", func(t *testing.T) {
@@ -490,9 +639,13 @@ func TestChangelog_GetCommits_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: third")
 
 		commits, err := getCommitsWithContext(context.Background(), dir, "v1.0.0", "HEAD")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(commits) != 2 {
+			t.Fatalf("want len %v, got %v", 2, len(commits))
+		}
 
-		assert.Len(t, commits, 2)
 	})
 
 	t.Run("excludes merge commits", func(t *testing.T) {
@@ -502,10 +655,16 @@ func TestChangelog_GetCommits_Good(t *testing.T) {
 		// We can verify by checking the count matches expected
 
 		commits, err := getCommitsWithContext(context.Background(), dir, "", "HEAD")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(commits) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(commits))
+		}
+		if !stdlibAssertContains(commits[0], "regular commit") {
+			t.Fatalf("expected %v to contain %v", commits[0], "regular commit")
+		}
 
-		assert.Len(t, commits, 1)
-		assert.Contains(t, commits[0], "regular commit")
 	})
 
 	t.Run("returns empty slice for no commits in range", func(t *testing.T) {
@@ -514,9 +673,13 @@ func TestChangelog_GetCommits_Good(t *testing.T) {
 		createChangelogTag(t, dir, "v1.0.0")
 
 		commits, err := getCommitsWithContext(context.Background(), dir, "v1.0.0", "HEAD")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEmpty(commits) {
+			t.Fatalf("expected empty, got %v", commits)
+		}
 
-		assert.Empty(t, commits)
 	})
 }
 
@@ -526,14 +689,20 @@ func TestChangelog_GetCommits_Bad(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: commit")
 
 		_, err := getCommitsWithContext(context.Background(), dir, "nonexistent-tag", "HEAD")
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+
 	})
 
 	t.Run("returns error for non-git directory", func(t *testing.T) {
 		dir := t.TempDir()
 
 		_, err := getCommitsWithContext(context.Background(), dir, "", "HEAD")
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+
 	})
 }
 
@@ -546,8 +715,13 @@ func TestChangelog_GetPreviousTag_Good(t *testing.T) {
 		createChangelogTag(t, dir, "v1.1.0")
 
 		tag, err := getPreviousTagWithContext(context.Background(), dir, "v1.1.0")
-		require.NoError(t, err)
-		assert.Equal(t, "v1.0.0", tag)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("v1.0.0", tag) {
+			t.Fatalf("want %v, got %v", "v1.0.0", tag)
+		}
+
 	})
 
 	t.Run("returns tag before HEAD", func(t *testing.T) {
@@ -557,8 +731,13 @@ func TestChangelog_GetPreviousTag_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: second")
 
 		tag, err := getPreviousTagWithContext(context.Background(), dir, "HEAD")
-		require.NoError(t, err)
-		assert.Equal(t, "v1.0.0", tag)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("v1.0.0", tag) {
+			t.Fatalf("want %v, got %v", "v1.0.0", tag)
+		}
+
 	})
 }
 
@@ -570,7 +749,10 @@ func TestChangelog_GetPreviousTag_Bad(t *testing.T) {
 
 		// v1.0.0^ has no tag before it
 		_, err := getPreviousTagWithContext(context.Background(), dir, "v1.0.0")
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+
 	})
 
 	t.Run("returns error for invalid ref", func(t *testing.T) {
@@ -578,7 +760,10 @@ func TestChangelog_GetPreviousTag_Bad(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: commit")
 
 		_, err := getPreviousTagWithContext(context.Background(), dir, "nonexistent")
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+
 	})
 }
 
@@ -591,7 +776,10 @@ func TestChangelog_FormatCommitLine_Good(t *testing.T) {
 		}
 
 		result := formatCommitLine(commit)
-		assert.Equal(t, "- add feature (abc1234)\n", result)
+		if !stdlibAssertEqual("- add feature (abc1234)\n", result) {
+			t.Fatalf("want %v, got %v", "- add feature (abc1234)\n", result)
+		}
+
 	})
 
 	t.Run("formats commit with scope", func(t *testing.T) {
@@ -603,7 +791,10 @@ func TestChangelog_FormatCommitLine_Good(t *testing.T) {
 		}
 
 		result := formatCommitLine(commit)
-		assert.Equal(t, "- **api**: fix bug (def5678)\n", result)
+		if !stdlibAssertEqual("- **api**: fix bug (def5678)\n", result) {
+			t.Fatalf("want %v, got %v", "- **api**: fix bug (def5678)\n", result)
+		}
+
 	})
 }
 
@@ -614,9 +805,13 @@ func TestChangelog_FormatChangelog_Ugly(t *testing.T) {
 		}
 
 		result := formatChangelog(commits, "v1.0.0")
+		if !stdlibAssertContains(result, "### Custom") {
+			t.Fatalf("expected %v to contain %v", result, "### Custom")
+		}
+		if !stdlibAssertContains(result, "custom type") {
+			t.Fatalf("expected %v to contain %v", result, "custom type")
+		}
 
-		assert.Contains(t, result, "### Custom")
-		assert.Contains(t, result, "custom type")
 	})
 
 	t.Run("handles multiple custom commit types", func(t *testing.T) {
@@ -626,10 +821,16 @@ func TestChangelog_FormatChangelog_Ugly(t *testing.T) {
 		}
 
 		result := formatChangelog(commits, "v1.0.0")
+		if !stdlibAssertContains(
 
-		// Should be sorted alphabetically for custom types
-		assert.Contains(t, result, "### Alpha")
-		assert.Contains(t, result, "### Beta")
+			// Should be sorted alphabetically for custom types
+			result, "### Alpha") {
+			t.Fatalf("expected %v to contain %v", result, "### Alpha")
+		}
+		if !stdlibAssertContains(result, "### Beta") {
+			t.Fatalf("expected %v to contain %v", result, "### Beta")
+		}
+
 	})
 }
 
@@ -641,7 +842,10 @@ func TestChangelog_GenerateWithConfig_Bad(t *testing.T) {
 		}
 
 		_, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+
 	})
 }
 
@@ -656,9 +860,13 @@ func TestChangelog_GenerateWithConfigEdgeCases_Ugly(t *testing.T) {
 
 		// Pass empty toRef
 		changelog, err := GenerateWithConfig(dir, "", "", cfg)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "## HEAD") {
+			t.Fatalf("expected %v to contain %v", changelog, "## HEAD")
+		}
 
-		assert.Contains(t, changelog, "## HEAD")
 	})
 
 	t.Run("handles previous tag lookup failure gracefully", func(t *testing.T) {
@@ -671,9 +879,13 @@ func TestChangelog_GenerateWithConfigEdgeCases_Ugly(t *testing.T) {
 
 		// No tags exist, should still work
 		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "first") {
+			t.Fatalf("expected %v to contain %v", changelog, "first")
+		}
 
-		assert.Contains(t, changelog, "first")
 	})
 
 	t.Run("uses explicit fromRef when provided", func(t *testing.T) {
@@ -688,10 +900,16 @@ func TestChangelog_GenerateWithConfigEdgeCases_Ugly(t *testing.T) {
 
 		// Use explicit fromRef
 		changelog, err := GenerateWithConfig(dir, "v1.0.0", "HEAD", cfg)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "new feature") {
+			t.Fatalf("expected %v to contain %v", changelog, "new feature")
+		}
+		if stdlibAssertContains(changelog, "old feature") {
+			t.Fatalf("expected %v not to contain %v", changelog, "old feature")
+		}
 
-		assert.Contains(t, changelog, "new feature")
-		assert.NotContains(t, changelog, "old feature")
 	})
 
 	t.Run("skips non-conventional commits", func(t *testing.T) {
@@ -704,9 +922,15 @@ func TestChangelog_GenerateWithConfigEdgeCases_Ugly(t *testing.T) {
 		}
 
 		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(changelog, "conventional commit") {
+			t.Fatalf("expected %v to contain %v", changelog, "conventional commit")
+		}
+		if stdlibAssertContains(changelog, "Update README") {
+			t.Fatalf("expected %v not to contain %v", changelog, "Update README")
+		}
 
-		assert.Contains(t, changelog, "conventional commit")
-		assert.NotContains(t, changelog, "Update README")
 	})
 }

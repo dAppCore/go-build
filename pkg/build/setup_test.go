@@ -5,19 +5,24 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 	t.Run("wails monorepo adds Go Node Wails Garble and Linux packages", func(t *testing.T) {
 		dir := t.TempDir()
 		nestedFrontend := ax.Join(dir, "apps", "web")
-
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/app\n"), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644))
-		require.NoError(t, ax.MkdirAll(nestedFrontend, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(nestedFrontend, "package.json"), []byte("{}"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/app\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.MkdirAll(nestedFrontend, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(nestedFrontend, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		cfg := DefaultConfig()
 		cfg.Build.Obfuscate = true
@@ -32,22 +37,29 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		}
 
 		plan, err := ComputeSetupPlan(io.Local, dir, cfg, discovery)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]SetupTool{SetupToolGo, SetupToolGarble, SetupToolNode, SetupToolWails}, setupTools(plan)) {
+			t.Fatalf("want %v, got %v", []SetupTool{SetupToolGo, SetupToolGarble, SetupToolNode, SetupToolWails}, setupTools(plan))
+		}
+		if !stdlibAssertEqual([]string{nestedFrontend}, plan.FrontendDirs) {
+			t.Fatalf("want %v, got %v", []string{nestedFrontend}, plan.FrontendDirs)
+		}
+		if !stdlibAssertEqual([]string{"libwebkit2gtk-4.1-dev"}, plan.LinuxPackages) {
+			t.Fatalf("want %v, got %v", []string{"libwebkit2gtk-4.1-dev"}, plan.LinuxPackages)
+		}
 
-		assert.Equal(t, []SetupTool{
-			SetupToolGo,
-			SetupToolGarble,
-			SetupToolNode,
-			SetupToolWails,
-		}, setupTools(plan))
-		assert.Equal(t, []string{nestedFrontend}, plan.FrontendDirs)
-		assert.Equal(t, []string{"libwebkit2gtk-4.1-dev"}, plan.LinuxPackages)
 	})
 
 	t.Run("docs plus package json keeps Node and adds Python plus MkDocs", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		discovery := &DiscoveryResult{
 			Types:                  []ProjectType{ProjectTypeNode, ProjectTypeDocs},
@@ -58,19 +70,23 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		}
 
 		plan, err := ComputeSetupPlan(io.Local, dir, DefaultConfig(), discovery)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]SetupTool{SetupToolNode, SetupToolPython, SetupToolMkDocs}, setupTools(plan)) {
+			t.Fatalf("want %v, got %v", []SetupTool{SetupToolNode, SetupToolPython, SetupToolMkDocs}, setupTools(plan))
+		}
+		if !stdlibAssertEqual([]string{dir}, plan.FrontendDirs) {
+			t.Fatalf("want %v, got %v", []string{dir}, plan.FrontendDirs)
+		}
 
-		assert.Equal(t, []SetupTool{
-			SetupToolNode,
-			SetupToolPython,
-			SetupToolMkDocs,
-		}, setupTools(plan))
-		assert.Equal(t, []string{dir}, plan.FrontendDirs)
 	})
 
 	t.Run("cpp stack adds Python and Conan", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.20)\n"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.20)\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		discovery := &DiscoveryResult{
 			Types:                  []ProjectType{ProjectTypeCPP},
@@ -80,18 +96,23 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		}
 
 		plan, err := ComputeSetupPlan(io.Local, dir, DefaultConfig(), discovery)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]SetupTool{SetupToolPython, SetupToolConan}, setupTools(plan)) {
+			t.Fatalf("want %v, got %v", []SetupTool{SetupToolPython, SetupToolConan}, setupTools(plan))
+		}
+		if !stdlibAssertEmpty(plan.FrontendDirs) {
+			t.Fatalf("expected empty, got %v", plan.FrontendDirs)
+		}
 
-		assert.Equal(t, []SetupTool{
-			SetupToolPython,
-			SetupToolConan,
-		}, setupTools(plan))
-		assert.Empty(t, plan.FrontendDirs)
 	})
 
 	t.Run("python stack adds Python tooling", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("[project]\nname='demo'\n"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("[project]\nname='demo'\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		discovery := &DiscoveryResult{
 			Types:                  []ProjectType{ProjectTypePython},
@@ -100,14 +121,20 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		}
 
 		plan, err := ComputeSetupPlan(io.Local, dir, DefaultConfig(), discovery)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]SetupTool{SetupToolPython}, setupTools(plan)) {
+			t.Fatalf("want %v, got %v", []SetupTool{SetupToolPython}, setupTools(plan))
+		}
 
-		assert.Equal(t, []SetupTool{SetupToolPython}, setupTools(plan))
 	})
 
 	t.Run("taskfile stack adds Go and Task even without go markers", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "Taskfile.yaml"), []byte("version: '3'\n"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "Taskfile.yaml"), []byte("version: '3'\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		discovery := &DiscoveryResult{
 			Types:                  []ProjectType{ProjectTypeTaskfile},
@@ -116,12 +143,13 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		}
 
 		plan, err := ComputeSetupPlan(io.Local, dir, DefaultConfig(), discovery)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]SetupTool{SetupToolGo, SetupToolTask}, setupTools(plan)) {
+			t.Fatalf("want %v, got %v", []SetupTool{SetupToolGo, SetupToolTask}, setupTools(plan))
+		}
 
-		assert.Equal(t, []SetupTool{
-			SetupToolGo,
-			SetupToolTask,
-		}, setupTools(plan))
 	})
 
 	t.Run("configured wails stack adds Go Node and Wails without frontend markers", func(t *testing.T) {
@@ -131,15 +159,19 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		cfg.Build.Type = "wails"
 
 		plan, err := ComputeSetupPlan(io.Local, dir, cfg, &DiscoveryResult{})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]SetupTool{SetupToolGo, SetupToolNode, SetupToolWails}, setupTools(plan)) {
+			t.Fatalf("want %v, got %v", []SetupTool{SetupToolGo, SetupToolNode, SetupToolWails}, setupTools(plan))
+		}
+		if !stdlibAssertEqual("wails", plan.PrimaryStack) {
+			t.Fatalf("want %v, got %v", "wails", plan.PrimaryStack)
+		}
+		if !stdlibAssertEqual("wails2", plan.PrimaryStackSuggestion) {
+			t.Fatalf("want %v, got %v", "wails2", plan.PrimaryStackSuggestion)
+		}
 
-		assert.Equal(t, []SetupTool{
-			SetupToolGo,
-			SetupToolNode,
-			SetupToolWails,
-		}, setupTools(plan))
-		assert.Equal(t, "wails", plan.PrimaryStack)
-		assert.Equal(t, "wails2", plan.PrimaryStackSuggestion)
 	})
 
 	t.Run("configured wails stack derives Linux packages from distro when discovery is partial", func(t *testing.T) {
@@ -151,9 +183,13 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		plan, err := ComputeSetupPlan(io.Local, dir, cfg, &DiscoveryResult{
 			Distro: "24.04",
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]string{"libwebkit2gtk-4.1-dev"}, plan.LinuxPackages) {
+			t.Fatalf("want %v, got %v", []string{"libwebkit2gtk-4.1-dev"}, plan.LinuxPackages)
+		}
 
-		assert.Equal(t, []string{"libwebkit2gtk-4.1-dev"}, plan.LinuxPackages)
 	})
 
 	t.Run("deno override enables Deno and fallback frontend dir", func(t *testing.T) {
@@ -163,10 +199,16 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		cfg.Build.DenoBuild = "deno task bundle"
 
 		plan, err := ComputeSetupPlan(io.Local, dir, cfg, &DiscoveryResult{})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]SetupTool{SetupToolDeno}, setupTools(plan)) {
+			t.Fatalf("want %v, got %v", []SetupTool{SetupToolDeno}, setupTools(plan))
+		}
+		if !stdlibAssertEqual([]string{dir}, plan.FrontendDirs) {
+			t.Fatalf("want %v, got %v", []string{dir}, plan.FrontendDirs)
+		}
 
-		assert.Equal(t, []SetupTool{SetupToolDeno}, setupTools(plan))
-		assert.Equal(t, []string{dir}, plan.FrontendDirs)
 	})
 }
 
@@ -176,24 +218,43 @@ func TestSetup_ResolveFrontendSetupDirs_Good(t *testing.T) {
 		frontendDir := ax.Join(dir, "frontend")
 		nestedA := ax.Join(dir, "apps", "alpha")
 		nestedB := ax.Join(dir, "apps", "beta")
+		if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.MkdirAll(nestedB, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(nestedB, "deno.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.MkdirAll(nestedA, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(nestedA, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]string{dir, nestedA, nestedB, frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, false)) {
+			t.Fatalf("want %v, got %v", []string{dir, nestedA, nestedB, frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, false))
+		}
 
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644))
-		require.NoError(t, ax.MkdirAll(nestedB, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(nestedB, "deno.json"), []byte("{}"), 0o644))
-		require.NoError(t, ax.MkdirAll(nestedA, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(nestedA, "package.json"), []byte("{}"), 0o644))
-
-		assert.Equal(t, []string{dir, nestedA, nestedB, frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, false))
 	})
 
 	t.Run("uses frontend fallback when deno is requested without manifests", func(t *testing.T) {
 		dir := t.TempDir()
 		frontendDir := ax.Join(dir, "frontend")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]string{frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, true)) {
+			t.Fatalf("want %v, got %v", []string{frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, true))
+		}
 
-		assert.Equal(t, []string{frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, true))
 	})
 }
 

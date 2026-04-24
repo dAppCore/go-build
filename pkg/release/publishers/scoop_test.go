@@ -7,15 +7,16 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core/io"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"os"
 )
 
 func TestScoop_ScoopPublisherName_Good(t *testing.T) {
 	t.Run("returns scoop", func(t *testing.T) {
 		p := NewScoopPublisher()
-		assert.Equal(t, "scoop", p.Name())
+		if !stdlibAssertEqual("scoop", p.Name()) {
+			t.Fatalf("want %v, got %v", "scoop", p.Name())
+		}
+
 	})
 }
 
@@ -26,9 +27,13 @@ func TestScoop_ScoopPublisherParseConfig_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "scoop"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Bucket) {
+			t.Fatalf("expected empty, got %v", cfg.Bucket)
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Bucket)
-		assert.Nil(t, cfg.Official)
 	})
 
 	t.Run("parses bucket from extended config", func(t *testing.T) {
@@ -40,8 +45,10 @@ func TestScoop_ScoopPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEqual("host-uk/scoop-bucket", cfg.Bucket) {
+			t.Fatalf("want %v, got %v", "host-uk/scoop-bucket", cfg.Bucket)
+		}
 
-		assert.Equal(t, "host-uk/scoop-bucket", cfg.Bucket)
 	})
 
 	t.Run("parses official config", func(t *testing.T) {
@@ -56,10 +63,16 @@ func TestScoop_ScoopPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if stdlibAssertNil(cfg.Official) {
+			t.Fatal("expected non-nil")
+		}
+		if !(cfg.Official.Enabled) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertEqual("dist/scoop-manifest", cfg.Official.Output) {
+			t.Fatalf("want %v, got %v", "dist/scoop-manifest", cfg.Official.Output)
+		}
 
-		require.NotNil(t, cfg.Official)
-		assert.True(t, cfg.Official.Enabled)
-		assert.Equal(t, "dist/scoop-manifest", cfg.Official.Output)
 	})
 
 	t.Run("handles missing official fields", func(t *testing.T) {
@@ -71,10 +84,16 @@ func TestScoop_ScoopPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if stdlibAssertNil(cfg.Official) {
+			t.Fatal("expected non-nil")
+		}
+		if cfg.Official.Enabled {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertEmpty(cfg.Official.Output) {
+			t.Fatalf("expected empty, got %v", cfg.Official.Output)
+		}
 
-		require.NotNil(t, cfg.Official)
-		assert.False(t, cfg.Official.Enabled)
-		assert.Empty(t, cfg.Official.Output)
 	})
 
 	t.Run("handles nil extended config", func(t *testing.T) {
@@ -84,9 +103,13 @@ func TestScoop_ScoopPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Bucket) {
+			t.Fatalf("expected empty, got %v", cfg.Bucket)
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Bucket)
-		assert.Nil(t, cfg.Official)
 	})
 }
 
@@ -110,19 +133,43 @@ func TestScoop_ScoopPublisherRenderTemplate_Good(t *testing.T) {
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, `"version": "1.2.3"`) {
+			t.Fatalf("expected %v to contain %v", result, `"version": "1.2.3"`)
+		}
+		if !stdlibAssertContains(result, `"description": "My awesome CLI"`) {
+			t.Fatalf("expected %v to contain %v", result, `"description": "My awesome CLI"`)
+		}
+		if !stdlibAssertContains(result, `"homepage": "https://github.com/owner/myapp"`) {
+			t.Fatalf("expected %v to contain %v", result, `"homepage": "https://github.com/owner/myapp"`)
+		}
+		if !stdlibAssertContains(result, `"license": "MIT"`) {
+			t.Fatalf("expected %v to contain %v", result, `"license": "MIT"`)
+		}
+		if !stdlibAssertContains(result, `"64bit"`) {
+			t.Fatalf("expected %v to contain %v", result, `"64bit"`)
+		}
+		if !stdlibAssertContains(result, `"arm64"`) {
+			t.Fatalf("expected %v to contain %v", result, `"arm64"`)
+		}
+		if !stdlibAssertContains(result, "myapp_windows_amd64.zip") {
+			t.Fatalf("expected %v to contain %v", result, "myapp_windows_amd64.zip")
+		}
+		if !stdlibAssertContains(result, "myapp_windows_arm64.zip") {
+			t.Fatalf("expected %v to contain %v", result, "myapp_windows_arm64.zip")
+		}
+		if !stdlibAssertContains(result, `"hash": "abc123"`) {
+			t.Fatalf("expected %v to contain %v", result, `"hash": "abc123"`)
+		}
+		if !stdlibAssertContains(result, `"hash": "def456"`) {
+			t.Fatalf("expected %v to contain %v", result, `"hash": "def456"`)
+		}
+		if !stdlibAssertContains(result, `"bin": "myapp.exe"`) {
+			t.Fatalf("expected %v to contain %v", result, `"bin": "myapp.exe"`)
+		}
 
-		assert.Contains(t, result, `"version": "1.2.3"`)
-		assert.Contains(t, result, `"description": "My awesome CLI"`)
-		assert.Contains(t, result, `"homepage": "https://github.com/owner/myapp"`)
-		assert.Contains(t, result, `"license": "MIT"`)
-		assert.Contains(t, result, `"64bit"`)
-		assert.Contains(t, result, `"arm64"`)
-		assert.Contains(t, result, "myapp_windows_amd64.zip")
-		assert.Contains(t, result, "myapp_windows_arm64.zip")
-		assert.Contains(t, result, `"hash": "abc123"`)
-		assert.Contains(t, result, `"hash": "def456"`)
-		assert.Contains(t, result, `"bin": "myapp.exe"`)
 	})
 
 	t.Run("includes autoupdate configuration", func(t *testing.T) {
@@ -137,11 +184,19 @@ func TestScoop_ScoopPublisherRenderTemplate_Good(t *testing.T) {
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, `"checkver"`) {
+			t.Fatalf("expected %v to contain %v", result, `"checkver"`)
+		}
+		if !stdlibAssertContains(result, `"github": "https://github.com/org/tool"`) {
+			t.Fatalf("expected %v to contain %v", result, `"github": "https://github.com/org/tool"`)
+		}
+		if !stdlibAssertContains(result, `"autoupdate"`) {
+			t.Fatalf("expected %v to contain %v", result, `"autoupdate"`)
+		}
 
-		assert.Contains(t, result, `"checkver"`)
-		assert.Contains(t, result, `"github": "https://github.com/org/tool"`)
-		assert.Contains(t, result, `"autoupdate"`)
 	})
 }
 
@@ -151,8 +206,13 @@ func TestScoop_ScoopPublisherRenderTemplate_Bad(t *testing.T) {
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := scoopTemplateData{}
 		_, err := p.renderTemplate(io.Local, "templates/scoop/nonexistent.tmpl", data)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to read template")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		}
+
 	})
 }
 
@@ -175,16 +235,34 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: Scoop Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Scoop Publish")
+		}
+		if !stdlibAssertContains(output, "Package:    myapp") {
+			t.Fatalf("expected %v to contain %v", output, "Package:    myapp")
+		}
+		if !stdlibAssertContains(output, "Version:    1.0.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    1.0.0")
+		}
+		if !stdlibAssertContains(output, "Bucket:     owner/scoop-bucket") {
+			t.Fatalf("expected %v to contain %v", output, "Bucket:     owner/scoop-bucket")
+		}
+		if !stdlibAssertContains(output, "Repository: owner/repo") {
+			t.Fatalf("expected %v to contain %v", output, "Repository: owner/repo")
+		}
+		if !stdlibAssertContains(output, "Generated manifest.json:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated manifest.json:")
+		}
+		if !stdlibAssertContains(output, "Would commit to bucket: owner/scoop-bucket") {
+			t.Fatalf("expected %v to contain %v", output, "Would commit to bucket: owner/scoop-bucket")
+		}
+		if !stdlibAssertContains(output, "END DRY RUN") {
+			t.Fatalf("expected %v to contain %v", output, "END DRY RUN")
+		}
 
-		assert.Contains(t, output, "DRY RUN: Scoop Publish")
-		assert.Contains(t, output, "Package:    myapp")
-		assert.Contains(t, output, "Version:    1.0.0")
-		assert.Contains(t, output, "Bucket:     owner/scoop-bucket")
-		assert.Contains(t, output, "Repository: owner/repo")
-		assert.Contains(t, output, "Generated manifest.json:")
-		assert.Contains(t, output, "Would commit to bucket: owner/scoop-bucket")
-		assert.Contains(t, output, "END DRY RUN")
 	})
 
 	t.Run("shows official output path when enabled", func(t *testing.T) {
@@ -205,8 +283,13 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Would write files for official PR to: custom/scoop/path")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Would write files for official PR to: custom/scoop/path") {
+			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/scoop/path")
+		}
+
 	})
 
 	t.Run("suppresses bucket publish output in official mode", func(t *testing.T) {
@@ -228,9 +311,16 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Would write files for official PR to: custom/scoop/path")
-		assert.NotContains(t, output, "Would commit to bucket:")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Would write files for official PR to: custom/scoop/path") {
+			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/scoop/path")
+		}
+		if stdlibAssertContains(output, "Would commit to bucket:") {
+			t.Fatalf("expected %v not to contain %v", output, "Would commit to bucket:")
+		}
+
 	})
 
 	t.Run("uses default official output path when not specified", func(t *testing.T) {
@@ -250,8 +340,13 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Would write files for official PR to: dist/scoop")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Would write files for official PR to: dist/scoop") {
+			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/scoop")
+		}
+
 	})
 }
 
@@ -268,8 +363,13 @@ func TestScoop_ScoopPublisherPublish_Bad(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "bucket is required")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "bucket is required") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "bucket is required")
+		}
+
 	})
 
 	t.Run("official mode writes files without requiring bucket publish tooling", func(t *testing.T) {
@@ -297,8 +397,13 @@ func TestScoop_ScoopPublisherPublish_Bad(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "myapp"}
 
 		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		require.NoError(t, err)
-		assert.FileExists(t, ax.Join(projectDir, "dist", "scoop-pr", "myapp.json"))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, err := os.Stat(ax.Join(projectDir, "dist", "scoop-pr", "myapp.json")); err != nil {
+			t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "scoop-pr", "myapp.json"))
+		}
+
 	})
 }
 
@@ -309,9 +414,13 @@ func TestScoop_ScoopConfigDefaults_Good(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Bucket) {
+			t.Fatalf("expected empty, got %v", cfg.Bucket)
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Bucket)
-		assert.Nil(t, cfg.Official)
 	})
 }
 
@@ -329,14 +438,30 @@ func TestScoop_ScoopTemplateData_Good(t *testing.T) {
 				WindowsArm64: "hash2",
 			},
 		}
+		if !stdlibAssertEqual("myapp", data.PackageName) {
+			t.Fatalf("want %v, got %v", "myapp", data.PackageName)
+		}
+		if !stdlibAssertEqual("description", data.Description) {
+			t.Fatalf("want %v, got %v", "description", data.Description)
+		}
+		if !stdlibAssertEqual("org/repo", data.Repository) {
+			t.Fatalf("want %v, got %v", "org/repo", data.Repository)
+		}
+		if !stdlibAssertEqual("1.0.0", data.Version) {
+			t.Fatalf("want %v, got %v", "1.0.0", data.Version)
+		}
+		if !stdlibAssertEqual("MIT", data.License) {
+			t.Fatalf("want %v, got %v", "MIT", data.License)
+		}
+		if !stdlibAssertEqual("myapp", data.BinaryName) {
+			t.Fatalf("want %v, got %v", "myapp", data.BinaryName)
+		}
+		if !stdlibAssertEqual("hash1", data.Checksums.WindowsAmd64) {
+			t.Fatalf("want %v, got %v", "hash1", data.Checksums.WindowsAmd64)
+		}
+		if !stdlibAssertEqual("hash2", data.Checksums.WindowsArm64) {
+			t.Fatalf("want %v, got %v", "hash2", data.Checksums.WindowsArm64)
+		}
 
-		assert.Equal(t, "myapp", data.PackageName)
-		assert.Equal(t, "description", data.Description)
-		assert.Equal(t, "org/repo", data.Repository)
-		assert.Equal(t, "1.0.0", data.Version)
-		assert.Equal(t, "MIT", data.License)
-		assert.Equal(t, "myapp", data.BinaryName)
-		assert.Equal(t, "hash1", data.Checksums.WindowsAmd64)
-		assert.Equal(t, "hash2", data.Checksums.WindowsArm64)
 	})
 }

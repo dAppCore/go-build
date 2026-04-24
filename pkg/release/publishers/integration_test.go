@@ -7,8 +7,6 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // --- GitHub Publisher Integration Tests ---
@@ -40,26 +38,62 @@ func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffects_Good(t *testi
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Verify dry run output contains expected information
-		assert.Contains(t, output, "DRY RUN: GitHub Release")
-		assert.Contains(t, output, "Repository: test-org/test-repo")
-		assert.Contains(t, output, "Version:    v1.0.0")
-		assert.Contains(t, output, "Draft:      true")
-		assert.Contains(t, output, "Prerelease: true")
-		assert.Contains(t, output, "Would upload artifacts:")
-		assert.Contains(t, output, "app-linux-amd64.tar.gz")
-		assert.Contains(t, output, "app-darwin-arm64.tar.gz")
-		assert.Contains(t, output, "CHECKSUMS.txt")
-		assert.Contains(t, output, "gh release create")
-		assert.Contains(t, output, "--draft")
-		assert.Contains(t, output, "--prerelease")
+				// Verify dry run output contains expected information
+				err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: GitHub Release") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: GitHub Release")
+		}
+		if !stdlibAssertContains(output, "Repository: test-org/test-repo") {
+			t.Fatalf("expected %v to contain %v", output, "Repository: test-org/test-repo")
+		}
+		if !stdlibAssertContains(output, "Version:    v1.0.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    v1.0.0")
+		}
+		if !stdlibAssertContains(output, "Draft:      true") {
+			t.Fatalf("expected %v to contain %v", output, "Draft:      true")
+		}
+		if !stdlibAssertContains(output, "Prerelease: true") {
+			t.Fatalf("expected %v to contain %v", output, "Prerelease: true")
+		}
+		if !stdlibAssertContains(output, "Would upload artifacts:") {
 
-		// Verify no files were created in the temp directory
+			// Verify no files were created in the temp directory
+			t.Fatalf("expected %v to contain %v", output, "Would upload artifacts:")
+		}
+		if !stdlibAssertContains(output, "app-linux-amd64.tar.gz") {
+			t.Fatalf("expected %v to contain %v", output, "app-linux-amd64.tar.gz")
+		}
+		if !stdlibAssertContains(output, "app-darwin-arm64.tar.gz") {
+			t.Fatalf("expected %v to contain %v", output, "app-darwin-arm64.tar.gz")
+		}
+		if !stdlibAssertContains(output, "CHECKSUMS.txt") {
+			t.Fatalf("expected %v to contain %v", output, "CHECKSUMS.txt")
+		}
+		if !stdlibAssertContains(output, "gh release create") {
+			t.Fatalf("expected %v to contain %v", output, "gh release create")
+		}
+		if !stdlibAssertContains(output, "--draft") {
+			t.Fatalf("expected %v to contain %v", output, "--draft")
+		}
+		if !stdlibAssertContains(
+
+			// Verify exact argument structure
+			output, "--prerelease") {
+			t.Fatalf("expected %v to contain %v", output, "--prerelease")
+		}
+
 		entries, err := ax.ReadDir(tmpDir)
-		require.NoError(t, err)
-		assert.Empty(t, entries, "dry run should not create any files")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEmpty(entries) {
+			t.Fatal("dry run should not create any files")
+		}
+
 	})
 
 	t.Run("dry run builds correct gh CLI command for standard release", func(t *testing.T) {
@@ -79,28 +113,53 @@ func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffects_Good(t *testi
 		}
 
 		args := p.buildCreateArgs(release, pubCfg, "owner/repo")
+		if !stdlibAssertEqual("release", args[0]) {
+			t.Fatalf("want %v, got %v", "release", args[0])
+		}
+		if !stdlibAssertEqual("create", args[1]) {
+			t.Fatalf("want %v, got %v", "create",
 
-		// Verify exact argument structure
-		assert.Equal(t, "release", args[0])
-		assert.Equal(t, "create", args[1])
-		assert.Equal(t, "v2.3.0", args[2])
+				// Should have --repo
+				args[1])
+		}
+		if !stdlibAssertEqual("v2.3.0", args[2]) {
+			t.Fatalf("want %v, got %v", "v2.3.0", args[2])
+		}
 
-		// Should have --repo
 		repoIdx := indexOf(args, "--repo")
-		assert.Greater(t, repoIdx, -1)
-		assert.Equal(t, "owner/repo", args[repoIdx+1])
+		if repoIdx <= -1 {
+			t.Fatalf("expected %v to be greater than %v", repoIdx, -1)
+		}
+		if !stdlibAssertEqual(
 
-		// Should have --title
+			// Should have --title
+			"owner/repo", args[repoIdx+1]) {
+			t.Fatalf("want %v, got %v", "owner/repo", args[repoIdx+1])
+		}
+
 		titleIdx := indexOf(args, "--title")
-		assert.Greater(t, titleIdx, -1)
-		assert.Equal(t, "v2.3.0", args[titleIdx+1])
+		if titleIdx <= -1 {
+			t.Fatalf("expected %v to be greater than %v", titleIdx, -1)
+		}
+		if !stdlibAssertEqual(
 
-		// Should have --notes (since changelog is non-empty)
-		assert.Contains(t, args, "--notes")
+			// Should have --notes (since changelog is non-empty)
+			"v2.3.0", args[titleIdx+1]) {
+			t.Fatalf("want %v, got %v", "v2.3.0", args[titleIdx+1])
+		}
+		if !stdlibAssertContains(
 
-		// Should NOT have --draft or --prerelease
-		assert.NotContains(t, args, "--draft")
-		assert.NotContains(t, args, "--prerelease")
+			// Should NOT have --draft or --prerelease
+			args, "--notes") {
+			t.Fatalf("expected %v to contain %v", args, "--notes")
+		}
+		if stdlibAssertContains(args, "--draft") {
+			t.Fatalf("expected %v not to contain %v", args, "--draft")
+		}
+		if stdlibAssertContains(args, "--prerelease") {
+			t.Fatalf("expected %v not to contain %v", args, "--prerelease")
+		}
+
 	})
 
 	t.Run("dry run uses generate-notes when changelog empty", func(t *testing.T) {
@@ -113,9 +172,13 @@ func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffects_Good(t *testi
 		pubCfg := PublisherConfig{Type: "github"}
 
 		args := p.buildCreateArgs(release, pubCfg, "owner/repo")
+		if !stdlibAssertContains(args, "--generate-notes") {
+			t.Fatalf("expected %v to contain %v", args, "--generate-notes")
+		}
+		if stdlibAssertContains(args, "--notes") {
+			t.Fatalf("expected %v not to contain %v", args, "--notes")
+		}
 
-		assert.Contains(t, args, "--generate-notes")
-		assert.NotContains(t, args, "--notes")
 	})
 }
 
@@ -136,8 +199,13 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetection_Good(t *testi
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Repository: explicit/repo")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Repository: explicit/repo") {
+			t.Fatalf("expected %v to contain %v", output, "Repository: explicit/repo")
+		}
+
 	})
 
 	t.Run("detects repository from git remote when relCfg empty", func(t *testing.T) {
@@ -159,8 +227,13 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetection_Good(t *testi
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Repository: detected/from-git")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Repository: detected/from-git") {
+			t.Fatalf("expected %v to contain %v", output, "Repository: detected/from-git")
+		}
+
 	})
 
 	t.Run("fails when no repository available", func(t *testing.T) {
@@ -176,8 +249,13 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetection_Good(t *testi
 		relCfg := &mockReleaseConfig{repository: ""}
 
 		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not determine repository")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "could not determine repository") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "could not determine repository")
+		}
+
 	})
 }
 
@@ -204,14 +282,30 @@ func TestIntegration_GitHubPublisherIntegrationArtifactUpload_Good(t *testing.T)
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(release, pubCfg, "owner/repo")
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Would upload artifacts:") {
+			t.Fatalf("expected %v to contain %v", output, "Would upload artifacts:")
+		}
+		if !stdlibAssertContains(output, "app-linux-amd64.tar.gz") {
+			t.Fatalf("expected %v to contain %v", output, "app-linux-amd64.tar.gz")
+		}
+		if !stdlibAssertContains(output, "app-darwin-arm64.tar.gz") {
+			t.Fatalf("expected %v to contain %v", output, "app-darwin-arm64.tar.gz")
+		}
+		if !stdlibAssertContains(output, "app-windows-amd64.zip") {
+			t.Fatalf("expected %v to contain %v", output, "app-windows-amd64.zip")
+		}
+		if !stdlibAssertContains(output, "CHECKSUMS.txt") {
+			t.Fatalf("expected %v to contain %v", output, "CHECKSUMS.txt")
+		}
+		if !stdlibAssertContains(output, "app-linux-amd64.tar.gz.sig") {
+			t.Fatalf("expected %v to contain %v", output, "app-linux-amd64.tar.gz.sig")
 
-		assert.Contains(t, output, "Would upload artifacts:")
-		assert.Contains(t, output, "app-linux-amd64.tar.gz")
-		assert.Contains(t, output, "app-darwin-arm64.tar.gz")
-		assert.Contains(t, output, "app-windows-amd64.zip")
-		assert.Contains(t, output, "CHECKSUMS.txt")
-		assert.Contains(t, output, "app-linux-amd64.tar.gz.sig")
+			// The executePublish method appends artifact paths after these base args
+		}
+
 	})
 
 	t.Run("executePublish appends artifact paths to gh command", func(t *testing.T) {
@@ -229,18 +323,24 @@ func TestIntegration_GitHubPublisherIntegrationArtifactUpload_Good(t *testing.T)
 
 		args := p.buildCreateArgs(release, pubCfg, "owner/repo")
 
-		// The executePublish method appends artifact paths after these base args
 		for _, a := range release.Artifacts {
 			args = append(args, a.Path)
 		}
+		if !stdlibAssertEqual(
 
-		// Verify artifacts are at end of args
-		assert.Equal(t, "/dist/file1.tar.gz", args[len(args)-2])
-		assert.Equal(t, "/dist/file2.zip", args[len(args)-1])
+			// Verify artifacts are at end of args
+			"/dist/file1.tar.gz", args[len(args)-2]) {
+			t.Fatalf("want %v, got %v", "/dist/file1.tar.gz", args[len(args)-2])
+		}
+		if !stdlibAssertEqual("/dist/file2.zip",
+
+			// --- Docker Publisher Integration Tests ---
+			args[len(args)-1]) {
+			t.Fatalf("want %v, got %v", "/dist/file2.zip", args[len(args)-1])
+		}
+
 	})
 }
-
-// --- Docker Publisher Integration Tests ---
 
 func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	if err := validateDockerCli(); err != nil {
@@ -254,7 +354,9 @@ func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffects_Good(t *testi
 
 		// Create a Dockerfile
 		err := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		release := &Release{
 			Version:    "v1.2.3",
@@ -279,27 +381,61 @@ func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffects_Good(t *testi
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Verify dry run output
-		assert.Contains(t, output, "DRY RUN: Docker Build & Push")
-		assert.Contains(t, output, "Version:       v1.2.3")
-		assert.Contains(t, output, "Registry:      ghcr.io")
-		assert.Contains(t, output, "Image:         test-org/test-app")
-		assert.Contains(t, output, "Platforms:     linux/amd64, linux/arm64")
+				// Verify dry run output
+				err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: Docker Build & Push") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Docker Build & Push")
+		}
+		if !stdlibAssertContains(output, "Version:       v1.2.3") {
+			t.Fatalf("expected %v to contain %v", output, "Version:       v1.2.3")
+		}
+		if !stdlibAssertContains(output, "Registry:      ghcr.io") {
 
-		// Verify resolved tags
-		assert.Contains(t, output, "ghcr.io/test-org/test-app:latest")
-		assert.Contains(t, output, "ghcr.io/test-org/test-app:v1.2.3")
-		assert.Contains(t, output, "ghcr.io/test-org/test-app:stable")
+			// Verify resolved tags
+			t.Fatalf("expected %v to contain %v", output, "Registry:      ghcr.io")
+		}
+		if !stdlibAssertContains(output, "Image:         test-org/test-app") {
+			t.Fatalf("expected %v to contain %v", output, "Image:         test-org/test-app")
+		}
+		if
 
 		// Verify build args shown
-		assert.Contains(t, output, "Build arguments:")
-		assert.Contains(t, output, "GO_VERSION=1.21")
+		!stdlibAssertContains(output, "Platforms:     linux/amd64, linux/arm64") {
+			t.Fatalf("expected %v to contain %v", output, "Platforms:     linux/amd64, linux/arm64")
 
-		// Verify command
-		assert.Contains(t, output, "docker buildx build")
-		assert.Contains(t, output, "END DRY RUN")
+			// Verify command
+		}
+		if !stdlibAssertContains(output, "ghcr.io/test-org/test-app:latest") {
+			t.Fatalf("expected %v to contain %v", output, "ghcr.io/test-org/test-app:latest")
+		}
+		if !stdlibAssertContains(output, "ghcr.io/test-org/test-app:v1.2.3") {
+			t.Fatalf("expected %v to contain %v", output, "ghcr.io/test-org/test-app:v1.2.3")
+		}
+		if !stdlibAssertContains(output, "ghcr.io/test-org/test-app:stable") {
+			t.Fatalf("expected %v to contain %v", output, "ghcr.io/test-org/test-app:stable")
+		}
+		if !stdlibAssertContains(output, "Build arguments:") {
+			t.Fatalf("expected %v to contain %v", output, "Build arguments:")
+		}
+		if !stdlibAssertContains(output,
+
+			// Verify multi-platform string
+			"GO_VERSION=1.21") {
+			t.Fatalf("expected %v to contain %v", output, "GO_VERSION=1.21")
+		}
+		if !stdlibAssertContains(output, "docker buildx build") {
+			t.Fatalf("expected %v to contain %v", output, "docker buildx build")
+		}
+		if !stdlibAssertContains(output, "END DRY RUN") {
+			t.Fatalf("expected %v to contain %v", output, "END DRY RUN")
+
+			// Verify tags
+		}
+
 	})
 
 	t.Run("dry run produces correct buildx command for multi-platform", func(t *testing.T) {
@@ -316,21 +452,29 @@ func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffects_Good(t *testi
 		tags := p.resolveTags(cfg.Tags, "v3.0.0")
 		args := p.buildBuildxArgs(cfg, tags, "v3.0.0")
 
-		// Verify multi-platform string
 		foundPlatform := false
 		for i, arg := range args {
 			if arg == "--platform" && i+1 < len(args) {
 				foundPlatform = true
-				assert.Equal(t, "linux/amd64,linux/arm64,linux/arm/v7", args[i+1])
+				if !stdlibAssertEqual("linux/amd64,linux/arm64,linux/arm/v7", args[i+1]) {
+					t.Fatalf("want %v, got %v", "linux/amd64,linux/arm64,linux/arm/v7", args[i+1])
+				}
+
 			}
 		}
-		assert.True(t, foundPlatform, "should have --platform flag")
+		if !(foundPlatform) {
+			t.Fatal("should have --platform flag")
+		}
+		if !stdlibAssertContains(args, "ghcr.io/org/app:latest") {
+			t.Fatalf("expected %v to contain %v", args, "ghcr.io/org/app:latest")
+		}
+		if !stdlibAssertContains(
 
-		// Verify tags
-		assert.Contains(t, args, "ghcr.io/org/app:latest")
-		assert.Contains(t, args, "ghcr.io/org/app:v3.0.0")
+			// Verify build args
+			args, "ghcr.io/org/app:v3.0.0") {
+			t.Fatalf("expected %v to contain %v", args, "ghcr.io/org/app:v3.0.0")
+		}
 
-		// Verify build args
 		foundCustom := false
 		foundVersion := false
 		for i, arg := range args {
@@ -343,11 +487,19 @@ func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffects_Good(t *testi
 				}
 			}
 		}
-		assert.True(t, foundCustom, "CUSTOM_ARG build arg not found")
-		assert.True(t, foundVersion, "auto-added VERSION build arg not found")
+		if !(foundCustom) {
+			t.Fatal("CUSTOM_ARG build arg not found")
+		}
+		if !(foundVersion) {
+			t.Fatal("auto-added VERSION build arg not found")
+		}
+		if !stdlibAssertContains(
 
-		// Verify push flag
-		assert.Contains(t, args, "--push")
+			// Verify push flag
+			args, "--push") {
+			t.Fatalf("expected %v to contain %v", args, "--push")
+		}
+
 	})
 }
 
@@ -372,22 +524,41 @@ func TestIntegration_DockerPublisherIntegrationConfigParsing_Good(t *testing.T) 
 		relCfg := &mockReleaseConfig{repository: "fallback/repo"}
 
 		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/myproject")
+		if !stdlibAssertEqual("registry.example.com", cfg.Registry) {
+			t.Fatalf("want %v, got %v", "registry.example.com", cfg.Registry)
+		}
+		if !stdlibAssertEqual("myteam/myservice", cfg.Image) {
+			t.Fatalf("want %v, got %v", "myteam/myservice", cfg.Image)
+		}
+		if !stdlibAssertEqual("/myproject/deploy/Dockerfile.prod", cfg.Dockerfile) {
+			t.Fatalf("want %v, got %v", "/myproject/deploy/Dockerfile.prod", cfg.Dockerfile)
+		}
+		if !stdlibAssertEqual([]string{"linux/amd64"}, cfg.Platforms) {
+			t.Fatalf(
 
-		assert.Equal(t, "registry.example.com", cfg.Registry)
-		assert.Equal(t, "myteam/myservice", cfg.Image)
-		assert.Equal(t, "/myproject/deploy/Dockerfile.prod", cfg.Dockerfile)
-		assert.Equal(t, []string{"linux/amd64"}, cfg.Platforms)
-		assert.Equal(t, []string{"{{.Version}}", "latest", "release-{{.Version}}"}, cfg.Tags)
-		assert.Equal(t, "production", cfg.BuildArgs["BUILD_ENV"])
-		assert.Equal(t, "{{.Version}}", cfg.BuildArgs["VERSION"])
+				// Verify tag resolution
+				"want %v, got %v", []string{"linux/amd64"}, cfg.Platforms)
+		}
+		if !stdlibAssertEqual([]string{"{{.Version}}", "latest", "release-{{.Version}}"}, cfg.Tags) {
+			t.Fatalf(
 
-		// Verify tag resolution
+				// --- Homebrew Publisher Integration Tests ---
+				"want %v, got %v", []string{"{{.Version}}", "latest", "release-{{.Version}}"}, cfg.Tags)
+		}
+		if !stdlibAssertEqual("production", cfg.BuildArgs["BUILD_ENV"]) {
+			t.Fatalf("want %v, got %v", "production", cfg.BuildArgs["BUILD_ENV"])
+		}
+		if !stdlibAssertEqual("{{.Version}}", cfg.BuildArgs["VERSION"]) {
+			t.Fatalf("want %v, got %v", "{{.Version}}", cfg.BuildArgs["VERSION"])
+		}
+
 		resolved := p.resolveTags(cfg.Tags, "v2.5.0")
-		assert.Equal(t, []string{"v2.5.0", "latest", "release-v2.5.0"}, resolved)
+		if !stdlibAssertEqual([]string{"v2.5.0", "latest", "release-v2.5.0"}, resolved) {
+			t.Fatalf("want %v, got %v", []string{"v2.5.0", "latest", "release-v2.5.0"}, resolved)
+		}
+
 	})
 }
-
-// --- Homebrew Publisher Integration Tests ---
 
 func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewHomebrewPublisher()
@@ -419,29 +590,62 @@ func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffects_Good(t *tes
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Verify dry run output
-		assert.Contains(t, output, "DRY RUN: Homebrew Publish")
-		assert.Contains(t, output, "Formula:    MyCli")
-		assert.Contains(t, output, "Version:    2.1.0")
-		assert.Contains(t, output, "Tap:        test-org/homebrew-tap")
-		assert.Contains(t, output, "Repository: test-org/my-cli")
+				// Verify dry run output
+				err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: Homebrew Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Homebrew Publish")
+		}
+		if !stdlibAssertContains(output, "Formula:    MyCli") {
+			t.Fatalf("expected %v to contain %v", output, "Formula:    MyCli")
+		}
+		if !stdlibAssertContains(output, "Version:    2.1.0") {
 
-		// Verify generated formula content
-		assert.Contains(t, output, "class MyCli < Formula")
-		assert.Contains(t, output, `version '2.1.0'`)
-		assert.Contains(t, output, "sha256_darwin_amd64")
-		assert.Contains(t, output, "sha256_darwin_arm64")
-		assert.Contains(t, output, "sha256_linux_amd64")
-		assert.Contains(t, output, "sha256_linux_arm64")
+			// Verify generated formula content
+			t.Fatalf("expected %v to contain %v", output, "Version:    2.1.0")
+		}
+		if !stdlibAssertContains(output, "Tap:        test-org/homebrew-tap") {
+			t.Fatalf("expected %v to contain %v", output, "Tap:        test-org/homebrew-tap")
+		}
+		if !stdlibAssertContains(output, "Repository: test-org/my-cli") {
+			t.Fatalf("expected %v to contain %v", output, "Repository: test-org/my-cli")
+		}
+		if !stdlibAssertContains(output, "class MyCli < Formula") {
+			t.Fatalf(
 
-		assert.Contains(t, output, "Would commit to tap: test-org/homebrew-tap")
+				// Verify no files created
+				"expected %v to contain %v", output, "class MyCli < Formula")
+		}
+		if !stdlibAssertContains(output, `version '2.1.0'`) {
+			t.Fatalf("expected %v to contain %v", output, `version '2.1.0'`)
+		}
+		if !stdlibAssertContains(output, "sha256_darwin_amd64") {
+			t.Fatalf("expected %v to contain %v", output, "sha256_darwin_amd64")
+		}
+		if !stdlibAssertContains(output, "sha256_darwin_arm64") {
+			t.Fatalf("expected %v to contain %v", output, "sha256_darwin_arm64")
+		}
+		if !stdlibAssertContains(output, "sha256_linux_amd64") {
+			t.Fatalf("expected %v to contain %v", output, "sha256_linux_amd64")
+		}
+		if !stdlibAssertContains(output, "sha256_linux_arm64") {
+			t.Fatalf("expected %v to contain %v", output, "sha256_linux_arm64")
+		}
+		if !stdlibAssertContains(output, "Would commit to tap: test-org/homebrew-tap") {
+			t.Fatalf("expected %v to contain %v", output, "Would commit to tap: test-org/homebrew-tap")
+		}
 
-		// Verify no files created
 		entries, err := ax.ReadDir(tmpDir)
-		require.NoError(t, err)
-		assert.Empty(t, entries, "dry run should not create any files")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEmpty(entries) {
+			t.Fatal("dry run should not create any files")
+		}
+
 	})
 
 	t.Run("dry run with official config shows output path", func(t *testing.T) {
@@ -466,8 +670,13 @@ func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffects_Good(t *tes
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Would write files for official PR to: dist/homebrew-official")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Would write files for official PR to: dist/homebrew-official") {
+			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/homebrew-official")
+		}
+
 	})
 }
 
@@ -491,24 +700,50 @@ func TestIntegration_HomebrewPublisherIntegrationFormulaGeneration_Good(t *testi
 		}
 
 		formula, err := p.renderTemplate(io.Local, "templates/homebrew/formula.rb.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Verify class definition
-		assert.Contains(t, formula, "class CoreCli < Formula")
+				// Verify class definition
+				err)
+		}
+		if !stdlibAssertContains(formula, "class CoreCli < Formula") {
+			t.Fatalf("expected %v to contain %v",
 
-		// Verify metadata
-		assert.Contains(t, formula, `desc 'Core CLI tool'`)
-		assert.Contains(t, formula, `version '3.0.0'`)
-		assert.Contains(t, formula, `license 'MIT'`)
+				// Verify metadata
+				formula, "class CoreCli < Formula")
+		}
+		if !stdlibAssertContains(formula, `desc 'Core CLI tool'`) {
+			t.Fatalf("expected %v to contain %v", formula, `desc 'Core CLI tool'`)
 
-		// Verify checksums for all platforms
-		assert.Contains(t, formula, "a1b2c3d4e5f6")
-		assert.Contains(t, formula, "f6e5d4c3b2a1")
-		assert.Contains(t, formula, "112233445566")
-		assert.Contains(t, formula, "665544332211")
+			// Verify checksums for all platforms
+		}
+		if !stdlibAssertContains(formula, `version '3.0.0'`) {
+			t.Fatalf("expected %v to contain %v", formula, `version '3.0.0'`)
+		}
+		if !stdlibAssertContains(formula, `license 'MIT'`) {
+			t.Fatalf("expected %v to contain %v", formula, `license 'MIT'`)
 
-		// Verify binary install
-		assert.Contains(t, formula, `bin.install 'core'`)
+			// Verify binary install
+		}
+		if !stdlibAssertContains(formula, "a1b2c3d4e5f6") {
+			t.Fatalf("expected %v to contain %v", formula, "a1b2c3d4e5f6")
+		}
+		if !stdlibAssertContains(formula, "f6e5d4c3b2a1") {
+			t.Fatalf("expected %v to contain %v", formula, "f6e5d4c3b2a1")
+		}
+		if !stdlibAssertContains(formula, "112233445566") {
+			t.Fatalf("expected %v to contain %v", formula, "112233445566")
+		}
+		if !stdlibAssertContains(formula, "665544332211") {
+			t.Fatalf("expected %v to contain %v", formula, "665544332211")
+		}
+		if !stdlibAssertContains(formula, `bin.install 'core'`) {
+			t.Fatalf("expected %v to contain %v", formula,
+
+				// --- Scoop Publisher Integration Tests ---
+				`bin.install 'core'`)
+		}
+
 	})
 
 	t.Run("toFormulaClass handles various naming patterns", func(t *testing.T) {
@@ -527,13 +762,14 @@ func TestIntegration_HomebrewPublisherIntegrationFormulaGeneration_Good(t *testi
 		for _, tc := range tests {
 			t.Run(tc.input, func(t *testing.T) {
 				result := toFormulaClass(tc.input)
-				assert.Equal(t, tc.expected, result)
+				if !stdlibAssertEqual(tc.expected, result) {
+					t.Fatalf("want %v, got %v", tc.expected, result)
+				}
+
 			})
 		}
 	})
 }
-
-// --- Scoop Publisher Integration Tests ---
 
 func TestIntegration_ScoopPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewScoopPublisher()
@@ -562,24 +798,47 @@ func TestIntegration_ScoopPublisherIntegrationDryRunNoSideEffects_Good(t *testin
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: Scoop Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Scoop Publish")
+		}
+		if !stdlibAssertContains(output, "Package:    myapp") {
+			t.Fatalf("expected %v to contain %v", output, "Package:    myapp")
+		}
+		if !stdlibAssertContains(output, "Version:    1.5.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    1.5.0")
+		}
+		if !stdlibAssertContains(output,
 
-		assert.Contains(t, output, "DRY RUN: Scoop Publish")
-		assert.Contains(t, output, "Package:    myapp")
-		assert.Contains(t, output, "Version:    1.5.0")
-		assert.Contains(t, output, "Bucket:     test-org/scoop-bucket")
-		assert.Contains(t, output, "Generated manifest.json:")
-		assert.Contains(t, output, `"version": "1.5.0"`)
-		assert.Contains(t, output, "Would commit to bucket: test-org/scoop-bucket")
+			// Verify no files created
+			"Bucket:     test-org/scoop-bucket") {
+			t.Fatalf("expected %v to contain %v", output, "Bucket:     test-org/scoop-bucket")
+		}
+		if !stdlibAssertContains(
 
-		// Verify no files created
+			// --- AUR Publisher Integration Tests ---
+			output, "Generated manifest.json:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated manifest.json:")
+		}
+		if !stdlibAssertContains(output, `"version": "1.5.0"`) {
+			t.Fatalf("expected %v to contain %v", output, `"version": "1.5.0"`)
+		}
+		if !stdlibAssertContains(output, "Would commit to bucket: test-org/scoop-bucket") {
+			t.Fatalf("expected %v to contain %v", output, "Would commit to bucket: test-org/scoop-bucket")
+		}
+
 		entries, err := ax.ReadDir(tmpDir)
-		require.NoError(t, err)
-		assert.Empty(t, entries)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEmpty(entries) {
+			t.Fatalf("expected empty, got %v", entries)
+		}
+
 	})
 }
-
-// --- AUR Publisher Integration Tests ---
 
 func TestIntegration_AURPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewAURPublisher()
@@ -608,27 +867,54 @@ func TestIntegration_AURPublisherIntegrationDryRunNoSideEffects_Good(t *testing.
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: AUR Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: AUR Publish")
+		}
+		if !stdlibAssertContains(output, "Package:    myapp-bin") {
+			t.Fatalf("expected %v to contain %v", output, "Package:    myapp-bin")
+		}
+		if !stdlibAssertContains(output, "Version:    2.0.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    2.0.0")
+		}
+		if !stdlibAssertContains(output, "Maintainer: Test User <test@example.com>") {
+			t.Fatalf("expected %v to contain %v", output, "Maintainer: Test User <test@example.com>")
 
-		assert.Contains(t, output, "DRY RUN: AUR Publish")
-		assert.Contains(t, output, "Package:    myapp-bin")
-		assert.Contains(t, output, "Version:    2.0.0")
-		assert.Contains(t, output, "Maintainer: Test User <test@example.com>")
-		assert.Contains(t, output, "Generated PKGBUILD:")
-		assert.Contains(t, output, "pkgname='myapp-bin'")
-		assert.Contains(t, output, "pkgver='2.0.0'")
-		assert.Contains(t, output, "Generated .SRCINFO:")
-		assert.Contains(t, output, "pkgbase = myapp-bin")
-		assert.Contains(t, output, "Would push to AUR:")
+			// Verify no files created
+		}
+		if !stdlibAssertContains(output, "Generated PKGBUILD:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated PKGBUILD:")
 
-		// Verify no files created
+			// --- Chocolatey Publisher Integration Tests ---
+		}
+		if !stdlibAssertContains(output, "pkgname='myapp-bin'") {
+			t.Fatalf("expected %v to contain %v", output, "pkgname='myapp-bin'")
+		}
+		if !stdlibAssertContains(output, "pkgver='2.0.0'") {
+			t.Fatalf("expected %v to contain %v", output, "pkgver='2.0.0'")
+		}
+		if !stdlibAssertContains(output, "Generated .SRCINFO:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated .SRCINFO:")
+		}
+		if !stdlibAssertContains(output, "pkgbase = myapp-bin") {
+			t.Fatalf("expected %v to contain %v", output, "pkgbase = myapp-bin")
+		}
+		if !stdlibAssertContains(output, "Would push to AUR:") {
+			t.Fatalf("expected %v to contain %v", output, "Would push to AUR:")
+		}
+
 		entries, err := ax.ReadDir(tmpDir)
-		require.NoError(t, err)
-		assert.Empty(t, entries)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEmpty(entries) {
+			t.Fatalf("expected empty, got %v", entries)
+		}
+
 	})
 }
-
-// --- Chocolatey Publisher Integration Tests ---
 
 func TestIntegration_ChocolateyPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewChocolateyPublisher()
@@ -657,25 +943,50 @@ func TestIntegration_ChocolateyPublisherIntegrationDryRunNoSideEffects_Good(t *t
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: Chocolatey Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Chocolatey Publish")
+		}
+		if !stdlibAssertContains(output, "Package:    my-cli-tool") {
+			t.Fatalf("expected %v to contain %v", output, "Package:    my-cli-tool")
+		}
+		if !stdlibAssertContains(output, "Version:    1.0.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    1.0.0")
+		}
+		if !stdlibAssertContains(output, "Push:       false") {
+			t.Fatalf(
 
-		assert.Contains(t, output, "DRY RUN: Chocolatey Publish")
-		assert.Contains(t, output, "Package:    my-cli-tool")
-		assert.Contains(t, output, "Version:    1.0.0")
-		assert.Contains(t, output, "Push:       false")
-		assert.Contains(t, output, "Generated package.nuspec:")
-		assert.Contains(t, output, "<id>my-cli-tool</id>")
-		assert.Contains(t, output, "Generated chocolateyinstall.ps1:")
-		assert.Contains(t, output, "Would generate package files only")
+				// Verify no files created
+				"expected %v to contain %v", output, "Push:       false")
+		}
+		if !stdlibAssertContains(output, "Generated package.nuspec:") {
+			t.Fatalf(
 
-		// Verify no files created
+				// --- npm Publisher Integration Tests ---
+				"expected %v to contain %v", output, "Generated package.nuspec:")
+		}
+		if !stdlibAssertContains(output, "<id>my-cli-tool</id>") {
+			t.Fatalf("expected %v to contain %v", output, "<id>my-cli-tool</id>")
+		}
+		if !stdlibAssertContains(output, "Generated chocolateyinstall.ps1:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated chocolateyinstall.ps1:")
+		}
+		if !stdlibAssertContains(output, "Would generate package files only") {
+			t.Fatalf("expected %v to contain %v", output, "Would generate package files only")
+		}
+
 		entries, err := ax.ReadDir(tmpDir)
-		require.NoError(t, err)
-		assert.Empty(t, entries)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEmpty(entries) {
+			t.Fatalf("expected empty, got %v", entries)
+		}
+
 	})
 }
-
-// --- npm Publisher Integration Tests ---
 
 func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	p := NewNpmPublisher()
@@ -701,25 +1012,52 @@ func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffects_Good(t *testing.
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: npm Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: npm Publish")
+		}
+		if !stdlibAssertContains(output, "Package:    @test-org/my-cli") {
+			t.Fatalf("expected %v to contain %v", output, "Package:    @test-org/my-cli")
+		}
+		if !stdlibAssertContains(output, "Version:    3.0.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    3.0.0")
+		}
+		if !stdlibAssertContains(output, "Access:     public") {
+			t.Fatalf(
 
-		assert.Contains(t, output, "DRY RUN: npm Publish")
-		assert.Contains(t, output, "Package:    @test-org/my-cli")
-		assert.Contains(t, output, "Version:    3.0.0")
-		assert.Contains(t, output, "Access:     public")
-		assert.Contains(t, output, "Generated package.json:")
-		assert.Contains(t, output, `"name": "@test-org/my-cli"`)
-		assert.Contains(t, output, `"version": "3.0.0"`)
-		assert.Contains(t, output, "Would run: npm publish --access public")
+				// Verify no files created
+				"expected %v to contain %v", output, "Access:     public")
+		}
+		if !stdlibAssertContains(output, "Generated package.json:") {
+			t.Fatalf(
 
-		// Verify no files created
+				// --- LinuxKit Publisher Integration Tests ---
+				"expected %v to contain %v", output, "Generated package.json:")
+		}
+		if !stdlibAssertContains(output, `"name": "@test-org/my-cli"`) {
+			t.Fatalf("expected %v to contain %v", output, `"name": "@test-org/my-cli"`)
+		}
+		if !stdlibAssertContains(output, `"version": "3.0.0"`) {
+			t.Fatalf("expected %v to contain %v", output, `"version": "3.0.0"`)
+		}
+		if !stdlibAssertContains(output, "Would run: npm publish --access public") {
+
+			// Create config file
+			t.Fatalf("expected %v to contain %v", output, "Would run: npm publish --access public")
+		}
+
 		entries, err := ax.ReadDir(tmpDir)
-		require.NoError(t, err)
-		assert.Empty(t, entries)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEmpty(entries) {
+			t.Fatalf("expected empty, got %v", entries)
+		}
+
 	})
 }
-
-// --- LinuxKit Publisher Integration Tests ---
 
 func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
 	if err := validateLinuxKitCli(); err != nil {
@@ -731,10 +1069,13 @@ func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffects_Good(t *tes
 	t.Run("dry run with multiple formats and platforms", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		// Create config file
 		configDir := ax.Join(tmpDir, ".core", "linuxkit")
-		require.NoError(t, ax.MkdirAll(configDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(configDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0o644))
+		if err := ax.MkdirAll(configDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(configDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -754,30 +1095,57 @@ func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffects_Good(t *tes
 		output := capturePublisherOutput(t, func() {
 			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: LinuxKit Build & Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: LinuxKit Build & Publish")
+		}
+		if !stdlibAssertContains(output, "Formats:       iso, qcow2, docker") {
 
-		assert.Contains(t, output, "DRY RUN: LinuxKit Build & Publish")
-		assert.Contains(t, output, "Formats:       iso, qcow2, docker")
-		assert.Contains(t, output, "Platforms:     linux/amd64, linux/arm64")
+			// Verify all combinations listed
+			t.Fatalf("expected %v to contain %v", output, "Formats:       iso, qcow2, docker")
+		}
+		if !stdlibAssertContains(output, "Platforms:     linux/amd64, linux/arm64") {
+			t.Fatalf("expected %v to contain %v", output, "Platforms:     linux/amd64, linux/arm64")
+		}
+		if !stdlibAssertContains(output, "linuxkit-1.0.0-amd64.iso") {
+			t.Fatalf("expected %v to contain %v", output, "linuxkit-1.0.0-amd64.iso")
 
-		// Verify all combinations listed
-		assert.Contains(t, output, "linuxkit-1.0.0-amd64.iso")
-		assert.Contains(t, output, "linuxkit-1.0.0-amd64.qcow2")
-		assert.Contains(t, output, "linuxkit-1.0.0-amd64.docker.tar")
-		assert.Contains(t, output, "linuxkit-1.0.0-arm64.iso")
-		assert.Contains(t, output, "linuxkit-1.0.0-arm64.qcow2")
-		assert.Contains(t, output, "linuxkit-1.0.0-arm64.docker.tar")
+			// Verify docker usage hint
+		}
+		if !stdlibAssertContains(output, "linuxkit-1.0.0-amd64.qcow2") {
+			t.Fatalf(
 
-		// Verify docker usage hint
-		assert.Contains(t, output, "docker load")
+				// Verify no files created in dist
+				"expected %v to contain %v", output, "linuxkit-1.0.0-amd64.qcow2")
+		}
+		if !stdlibAssertContains(output, "linuxkit-1.0.0-amd64.docker.tar") {
+			t.Fatalf("expected %v to contain %v",
 
-		// Verify no files created in dist
+				// --- Cross-Publisher Integration Tests ---
+				output, "linuxkit-1.0.0-amd64.docker.tar")
+		}
+		if !stdlibAssertContains(output, "linuxkit-1.0.0-arm64.iso") {
+			t.Fatalf("expected %v to contain %v", output, "linuxkit-1.0.0-arm64.iso")
+		}
+		if !stdlibAssertContains(output, "linuxkit-1.0.0-arm64.qcow2") {
+			t.Fatalf("expected %v to contain %v", output, "linuxkit-1.0.0-arm64.qcow2")
+		}
+		if !stdlibAssertContains(output, "linuxkit-1.0.0-arm64.docker.tar") {
+			t.Fatalf("expected %v to contain %v", output, "linuxkit-1.0.0-arm64.docker.tar")
+		}
+		if !stdlibAssertContains(output, "docker load") {
+			t.Fatalf("expected %v to contain %v", output, "docker load")
+		}
+
 		distDir := ax.Join(tmpDir, "dist")
-		assert.False(t, ax.Exists(distDir), "dry run should not create dist directory")
+		if ax.Exists(distDir) {
+			t.Fatal("dry run should not create dist directory")
+		}
+
 	})
 }
-
-// --- Cross-Publisher Integration Tests ---
 
 func TestIntegration_AllPublishersIntegrationNameUniqueness_Good(t *testing.T) {
 	t.Run("all publishers have unique names", func(t *testing.T) {
@@ -795,12 +1163,20 @@ func TestIntegration_AllPublishersIntegrationNameUniqueness_Good(t *testing.T) {
 		names := make(map[string]bool)
 		for _, pub := range publishers {
 			name := pub.Name()
-			assert.False(t, names[name], "duplicate publisher name: %s", name)
+			if names[name] {
+				t.Fatalf("duplicate publisher name: %s", name)
+			}
+
 			names[name] = true
-			assert.NotEmpty(t, name, "publisher name should not be empty")
+			if stdlibAssertEmpty(name) {
+				t.Fatal("publisher name should not be empty")
+			}
+
+		}
+		if len(names) != 8 {
+			t.Fatal("should have 8 unique publishers")
 		}
 
-		assert.Len(t, names, 8, "should have 8 unique publishers")
 	})
 }
 
@@ -823,8 +1199,13 @@ func TestIntegration_AllPublishersIntegrationNilRelCfg_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = NewGitHubPublisher().Publish(context.Background(), release, pubCfg, nil, true)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "niltest/repo")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "niltest/repo") {
+			t.Fatalf("expected %v to contain %v", output, "niltest/repo")
+		}
+
 	})
 }
 
@@ -841,17 +1222,34 @@ func TestIntegration_BuildChecksumMapIntegration_Good(t *testing.T) {
 		}
 
 		checksums := buildChecksumMap(artifacts)
+		if !stdlibAssertEqual("da64", checksums.DarwinAmd64) {
+			t.Fatalf("want %v, got %v", "da64", checksums.DarwinAmd64)
+		}
+		if !stdlibAssertEqual("da65", checksums.DarwinArm64) {
+			t.Fatalf("want %v, got %v", "da65", checksums.DarwinArm64)
+		}
+		if !stdlibAssertEqual("la64", checksums.LinuxAmd64) {
+			t.Fatalf("want %v, got %v", "la64", checksums.
 
-		assert.Equal(t, "da64", checksums.DarwinAmd64)
-		assert.Equal(t, "da65", checksums.DarwinArm64)
-		assert.Equal(t, "la64", checksums.LinuxAmd64)
-		assert.Equal(t, "la65", checksums.LinuxArm64)
-		assert.Equal(t, "wa64", checksums.WindowsAmd64)
-		assert.Equal(t, "wa65", checksums.WindowsArm64)
+				// indexOf returns the index of an element in a string slice, or -1 if not found.
+				LinuxAmd64)
+		}
+		if !stdlibAssertEqual("la65", checksums.LinuxArm64) {
+			t.Fatalf("want %v, got %v", "la65", checksums.LinuxArm64)
+		}
+		if !stdlibAssertEqual("wa64", checksums.WindowsAmd64) {
+			t.Fatalf("want %v, got %v", "wa64",
+
+				// Compile-time check: all publishers implement Publisher interface
+				checksums.WindowsAmd64)
+		}
+		if !stdlibAssertEqual("wa65", checksums.WindowsArm64) {
+			t.Fatalf("want %v, got %v", "wa65", checksums.WindowsArm64)
+		}
+
 	})
 }
 
-// indexOf returns the index of an element in a string slice, or -1 if not found.
 func indexOf(slice []string, item string) int {
 	for i, s := range slice {
 		if s == item {
@@ -861,7 +1259,6 @@ func indexOf(slice []string, item string) int {
 	return -1
 }
 
-// Compile-time check: all publishers implement Publisher interface
 var _ Publisher = (*GitHubPublisher)(nil)
 var _ Publisher = (*DockerPublisher)(nil)
 var _ Publisher = (*HomebrewPublisher)(nil)

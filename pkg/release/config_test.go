@@ -5,8 +5,6 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // setupConfigTestDir creates a temp directory with optional .core/release.yaml content.
@@ -17,11 +15,16 @@ func setupConfigTestDir(t *testing.T, configContent string) string {
 	if configContent != "" {
 		coreDir := ax.Join(dir, ConfigDir)
 		err := ax.MkdirAll(coreDir, 0755)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		configPath := ax.Join(coreDir, ConfigFileName)
 		err = ax.WriteFile(configPath, []byte(configContent), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	}
 
 	return dir
@@ -55,39 +58,90 @@ changelog:
 		dir := setupConfigTestDir(t, content)
 
 		cfg, err := LoadConfig(dir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual(1, cfg.Version) {
+			t.Fatalf("want %v, got %v", 1, cfg.Version)
+		}
+		if !stdlibAssertEqual("myapp", cfg.Project.Name) {
+			t.Fatalf("want %v, got %v", "myapp", cfg.Project.Name)
+		}
+		if !stdlibAssertEqual("owner/repo", cfg.Project.Repository) {
+			t.Fatalf("want %v, got %v", "owner/repo", cfg.Project.Repository)
+		}
+		if len(cfg.Build.Targets) != 2 {
+			t.Fatalf("want len %v, got %v", 2, len(cfg.Build.Targets))
+		}
+		if !stdlibAssertEqual("xz", cfg.Build.ArchiveFormat) {
+			t.Fatalf("want %v, got %v", "xz", cfg.Build.ArchiveFormat)
+		}
+		if !stdlibAssertEqual("linux", cfg.Build.Targets[0].OS) {
+			t.Fatalf("want %v, got %v", "linux", cfg.Build.Targets[0].OS)
+		}
+		if !stdlibAssertEqual("amd64", cfg.Build.Targets[0].Arch) {
+			t.Fatalf("want %v, got %v", "amd64", cfg.Build.Targets[0].Arch)
+		}
+		if !stdlibAssertEqual("darwin", cfg.Build.Targets[1].OS) {
+			t.Fatalf("want %v, got %v", "darwin", cfg.Build.Targets[1].OS)
+		}
+		if !stdlibAssertEqual("arm64", cfg.Build.Targets[1].Arch) {
+			t.Fatalf("want %v, got %v", "arm64", cfg.Build.Targets[1].Arch)
+		}
+		if len(cfg.Publishers) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(cfg.Publishers))
+		}
+		if !stdlibAssertEqual("github", cfg.Publishers[0].Type) {
+			t.Fatalf("want %v, got %v", "github", cfg.Publishers[0].Type)
+		}
+		if !(cfg.Publishers[0].Prerelease) {
+			t.Fatal("expected true")
+		}
+		if cfg.Publishers[0].Draft {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertEqual([]string{"feat", "fix"}, cfg.Changelog.Include) {
+			t.Fatalf("want %v, got %v", []string{"feat", "fix"}, cfg.Changelog.Include)
+		}
+		if !stdlibAssertEqual([]string{"chore"}, cfg.Changelog.Exclude) {
 
-		assert.Equal(t, 1, cfg.Version)
-		assert.Equal(t, "myapp", cfg.Project.Name)
-		assert.Equal(t, "owner/repo", cfg.Project.Repository)
-		assert.Len(t, cfg.Build.Targets, 2)
-		assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
-		assert.Equal(t, "linux", cfg.Build.Targets[0].OS)
-		assert.Equal(t, "amd64", cfg.Build.Targets[0].Arch)
-		assert.Equal(t, "darwin", cfg.Build.Targets[1].OS)
-		assert.Equal(t, "arm64", cfg.Build.Targets[1].Arch)
-		assert.Len(t, cfg.Publishers, 1)
-		assert.Equal(t, "github", cfg.Publishers[0].Type)
-		assert.True(t, cfg.Publishers[0].Prerelease)
-		assert.False(t, cfg.Publishers[0].Draft)
-		assert.Equal(t, []string{"feat", "fix"}, cfg.Changelog.Include)
-		assert.Equal(t, []string{"chore"}, cfg.Changelog.Exclude)
+			// Explicit values preserved
+			t.Fatalf("want %v, got %v", []string{"chore"}, cfg.Changelog.Exclude)
+		}
+
 	})
 
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
 		dir := t.TempDir()
 
 		cfg, err := LoadConfig(dir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
 
 		defaults := DefaultConfig()
-		assert.Equal(t, defaults.Version, cfg.Version)
-		assert.Equal(t, defaults.Build.Targets, cfg.Build.Targets)
-		assert.Equal(t, defaults.Publishers, cfg.Publishers)
-		assert.Equal(t, defaults.Changelog.Include, cfg.Changelog.Include)
-		assert.Equal(t, defaults.Changelog.Exclude, cfg.Changelog.Exclude)
+		if !stdlibAssertEqual(defaults.Version, cfg.Version) {
+			t.Fatalf("want %v, got %v", defaults.Version, cfg.Version)
+		}
+		if !stdlibAssertEqual(defaults.Build.Targets, cfg.Build.Targets) {
+			t.Fatalf("want %v, got %v", defaults.Build.Targets, cfg.Build.Targets)
+		}
+		if !stdlibAssertEqual(defaults.Publishers, cfg.Publishers) {
+			t.Fatalf("want %v, got %v", defaults.Publishers, cfg.Publishers)
+		}
+		if !stdlibAssertEqual(defaults.Changelog.Include, cfg.Changelog.Include) {
+			t.Fatalf("want %v, got %v", defaults.Changelog.Include, cfg.Changelog.Include)
+		}
+		if !stdlibAssertEqual(defaults.Changelog.Exclude, cfg.Changelog.Exclude) {
+			t.Fatalf("want %v, got %v", defaults.Changelog.Exclude, cfg.Changelog.Exclude)
+		}
+
 	})
 
 	t.Run("applies defaults for missing fields", func(t *testing.T) {
@@ -99,26 +153,43 @@ project:
 		dir := setupConfigTestDir(t, content)
 
 		cfg, err := LoadConfig(dir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual(2, cfg.Version) {
+			t.Fatalf("want %v, got %v", 2, cfg.Version)
 
-		// Explicit values preserved
-		assert.Equal(t, 2, cfg.Version)
-		assert.Equal(t, "partial", cfg.Project.Name)
+			// Defaults applied to release-only fields while build targets stay unset so
+			// the release pipeline can inherit them from .core/build.yaml.
+		}
+		if !stdlibAssertEqual("partial", cfg.Project.Name) {
+			t.Fatalf("want %v, got %v", "partial", cfg.Project.Name)
+		}
 
-		// Defaults applied to release-only fields while build targets stay unset so
-		// the release pipeline can inherit them from .core/build.yaml.
 		defaults := DefaultConfig()
-		assert.Empty(t, cfg.Build.Targets)
-		assert.Equal(t, defaults.Publishers, cfg.Publishers)
+		if !stdlibAssertEmpty(cfg.Build.Targets) {
+			t.Fatalf("expected empty, got %v", cfg.Build.Targets)
+		}
+		if !stdlibAssertEqual(defaults.Publishers, cfg.Publishers) {
+			t.Fatalf("want %v, got %v", defaults.Publishers, cfg.Publishers)
+		}
+
 	})
 
 	t.Run("sets project directory on load", func(t *testing.T) {
 		dir := setupConfigTestDir(t, "version: 1")
 
 		cfg, err := LoadConfig(dir)
-		require.NoError(t, err)
-		assert.Equal(t, dir, cfg.projectDir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(dir, cfg.projectDir) {
+			t.Fatalf("want %v, got %v", dir, cfg.projectDir)
+		}
+
 	})
 
 	t.Run("loads sdk config with shorthand diff and defaults", func(t *testing.T) {
@@ -132,16 +203,34 @@ sdk:
 		dir := setupConfigTestDir(t, content)
 
 		cfg, err := LoadConfig(dir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
-		require.NotNil(t, cfg.SDK)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if stdlibAssertNil(cfg.SDK) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual("docs/openapi.yaml", cfg.SDK.Spec) {
+			t.Fatalf("want %v, got %v", "docs/openapi.yaml", cfg.SDK.Spec)
+		}
+		if !stdlibAssertEqual([]string{"typescript", "python", "go", "php"}, cfg.SDK.Languages) {
+			t.Fatalf("want %v, got %v", []string{"typescript", "python", "go", "php"}, cfg.SDK.Languages)
+		}
+		if !stdlibAssertEqual("sdk", cfg.SDK.Output) {
+			t.Fatalf("want %v, got %v", "sdk", cfg.SDK.Output)
+		}
+		if !(cfg.SDK.SkipUnavailable) {
+			t.Fatal("expected true")
+		}
+		if !(cfg.SDK.Diff.Enabled) {
+			t.Fatal("expected true")
+		}
+		if cfg.SDK.Diff.FailOnBreaking {
+			t.Fatal("expected false")
+		}
 
-		assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
-		assert.Equal(t, []string{"typescript", "python", "go", "php"}, cfg.SDK.Languages)
-		assert.Equal(t, "sdk", cfg.SDK.Output)
-		assert.True(t, cfg.SDK.SkipUnavailable)
-		assert.True(t, cfg.SDK.Diff.Enabled)
-		assert.False(t, cfg.SDK.Diff.FailOnBreaking)
 	})
 
 	t.Run("preserves explicit empty sdk languages list", func(t *testing.T) {
@@ -153,12 +242,22 @@ sdk:
 		dir := setupConfigTestDir(t, content)
 
 		cfg, err := LoadConfig(dir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
-		require.NotNil(t, cfg.SDK)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if stdlibAssertNil(cfg.SDK) {
+			t.Fatal("expected non-nil")
+		}
+		if stdlibAssertNil(cfg.SDK.Languages) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEmpty(cfg.SDK.Languages) {
+			t.Fatalf("expected empty, got %v", cfg.SDK.Languages)
+		}
 
-		require.NotNil(t, cfg.SDK.Languages)
-		assert.Empty(t, cfg.SDK.Languages)
 	})
 
 	t.Run("loads checksum config", func(t *testing.T) {
@@ -171,19 +270,29 @@ checksum:
 		dir := setupConfigTestDir(t, content)
 
 		cfg, err := LoadConfig(dir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual("sha256", cfg.Checksum.Algorithm) {
+			t.Fatalf("want %v, got %v", "sha256", cfg.Checksum.Algorithm)
+		}
+		if !stdlibAssertEqual("checksums.txt", cfg.Checksum.File) {
+			t.Fatalf("want %v, got %v", "checksums.txt", cfg.Checksum.File)
+		}
 
-		assert.Equal(t, "sha256", cfg.Checksum.Algorithm)
-		assert.Equal(t, "checksums.txt", cfg.Checksum.File)
 	})
 
 	t.Run("loads config from a custom medium", func(t *testing.T) {
 		medium := io.NewMemoryMedium()
 		dir := "project"
 		configPath := ConfigPath(dir)
-		require.NoError(t, medium.EnsureDir(ax.Dir(configPath)))
-		require.NoError(t, medium.Write(configPath, `
+		if err := medium.EnsureDir(ax.Dir(configPath)); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := medium.Write(configPath, `
 version: 1
 project:
   name: medium-app
@@ -191,31 +300,60 @@ project:
 sdk:
   spec: docs/openapi.yaml
   languages: [go]
-`))
+`); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		cfg, err := LoadConfigWithMedium(medium, dir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual("medium-app", cfg.Project.Name) {
+			t.Fatalf("want %v, got %v", "medium-app", cfg.Project.Name)
+		}
+		if !stdlibAssertEqual("owner/medium-app", cfg.Project.Repository) {
+			t.Fatalf("want %v, got %v", "owner/medium-app", cfg.Project.Repository)
+		}
+		if stdlibAssertNil(cfg.SDK) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual("docs/openapi.yaml", cfg.SDK.Spec) {
+			t.Fatalf("want %v, got %v", "docs/openapi.yaml", cfg.SDK.Spec)
+		}
+		if !stdlibAssertEqual([]string{"go"}, cfg.SDK.Languages) {
+			t.Fatalf("want %v, got %v", []string{"go"}, cfg.SDK.Languages)
+		}
+		if !stdlibAssertEqual(dir, cfg.projectDir) {
+			t.Fatalf("want %v, got %v", dir, cfg.projectDir)
+		}
 
-		assert.Equal(t, "medium-app", cfg.Project.Name)
-		assert.Equal(t, "owner/medium-app", cfg.Project.Repository)
-		require.NotNil(t, cfg.SDK)
-		assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
-		assert.Equal(t, []string{"go"}, cfg.SDK.Languages)
-		assert.Equal(t, dir, cfg.projectDir)
 	})
 
 	t.Run("returns defaults from a custom medium when config is missing", func(t *testing.T) {
 		dir := "virtual-project"
 
 		cfg, err := LoadConfigWithMedium(io.NewMemoryMedium(), dir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
 
 		defaults := DefaultConfig()
-		assert.Equal(t, defaults.Version, cfg.Version)
-		assert.Equal(t, defaults.Publishers, cfg.Publishers)
-		assert.Equal(t, dir, cfg.projectDir)
+		if !stdlibAssertEqual(defaults.Version, cfg.Version) {
+			t.Fatalf("want %v, got %v", defaults.Version, cfg.Version)
+		}
+		if !stdlibAssertEqual(defaults.Publishers, cfg.Publishers) {
+			t.Fatalf("want %v, got %v", defaults.Publishers, cfg.Publishers)
+		}
+		if !stdlibAssertEqual(dir, cfg.projectDir) {
+			t.Fatalf("want %v, got %v", dir, cfg.projectDir)
+		}
+
 	})
 }
 
@@ -254,21 +392,52 @@ checksum:
 	dir := setupConfigTestDir(t, content)
 
 	cfg, err := LoadConfig(dir)
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stdlibAssertNil(cfg) {
+		t.Fatal("expected non-nil")
+	}
+	if !stdlibAssertEqual("owner/release-app", cfg.Project.Repository) {
+		t.Fatalf("want %v, got %v", "owner/release-app", cfg.Project.Repository)
+	}
+	if !stdlibAssertEqual("xz", cfg.Build.ArchiveFormat) {
+		t.Fatalf("want %v, got %v", "xz", cfg.Build.ArchiveFormat)
+	}
+	if len(cfg.Build.Targets) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(cfg.Build.Targets))
+	}
+	if !stdlibAssertEqual("darwin", cfg.Build.Targets[0].OS) {
+		t.Fatalf("want %v, got %v", "darwin", cfg.Build.Targets[0].OS)
+	}
+	if !stdlibAssertEqual("arm64", cfg.Build.Targets[0].Arch) {
+		t.Fatalf("want %v, got %v", "arm64", cfg.Build.Targets[0].Arch)
+	}
+	if len(cfg.Publishers) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(cfg.Publishers))
+	}
+	if !stdlibAssertEqual("owner/homebrew-tap", cfg.Publishers[0].Tap) {
+		t.Fatalf("want %v, got %v", "owner/homebrew-tap", cfg.Publishers[0].Tap)
+	}
+	if stdlibAssertNil(cfg.SDK) {
+		t.Fatal("expected non-nil")
+	}
+	if !stdlibAssertEqual("docs/openapi.yaml", cfg.SDK.Spec) {
+		t.Fatalf("want %v, got %v", "docs/openapi.yaml", cfg.SDK.Spec)
+	}
+	if !stdlibAssertEqual([]string{"typescript"}, cfg.SDK.Languages) {
+		t.Fatalf("want %v, got %v", []string{"typescript"}, cfg.SDK.Languages)
+	}
+	if !stdlibAssertEqual("generated/sdk",
 
-	assert.Equal(t, "owner/release-app", cfg.Project.Repository)
-	assert.Equal(t, "xz", cfg.Build.ArchiveFormat)
-	require.Len(t, cfg.Build.Targets, 1)
-	assert.Equal(t, "darwin", cfg.Build.Targets[0].OS)
-	assert.Equal(t, "arm64", cfg.Build.Targets[0].Arch)
-	require.Len(t, cfg.Publishers, 1)
-	assert.Equal(t, "owner/homebrew-tap", cfg.Publishers[0].Tap)
-	require.NotNil(t, cfg.SDK)
-	assert.Equal(t, "docs/openapi.yaml", cfg.SDK.Spec)
-	assert.Equal(t, []string{"typescript"}, cfg.SDK.Languages)
-	assert.Equal(t, "generated/sdk", cfg.SDK.Output)
-	assert.Equal(t, "dist/checksums.txt", cfg.Checksum.File)
+		// Create config as a directory instead of file
+		cfg.SDK.Output) {
+		t.Fatalf("want %v, got %v", "generated/sdk", cfg.SDK.Output)
+	}
+	if !stdlibAssertEqual("dist/checksums.txt", cfg.Checksum.File) {
+		t.Fatalf("want %v, got %v", "dist/checksums.txt", cfg.Checksum.File)
+	}
+
 }
 
 func TestConfig_LoadConfig_Bad(t *testing.T) {
@@ -281,40 +450,68 @@ project:
 		dir := setupConfigTestDir(t, content)
 
 		cfg, err := LoadConfig(dir)
-		assert.Error(t, err)
-		assert.Nil(t, cfg)
-		assert.Contains(t, err.Error(), "failed to parse config file")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertNil(cfg) {
+			t.Fatalf("expected nil, got %v", cfg)
+		}
+		if !stdlibAssertContains(err.Error(), "failed to parse config file") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to parse config file")
+		}
+
 	})
 
 	t.Run("returns default config when config path is a directory", func(t *testing.T) {
 		dir := t.TempDir()
 		coreDir := ax.Join(dir, ConfigDir)
 		err := ax.MkdirAll(coreDir, 0755)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
-		// Create config as a directory instead of file
 		configPath := ax.Join(coreDir, ConfigFileName)
 		err = ax.Mkdir(configPath, 0755)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		cfg, err := LoadConfig(dir)
-		assert.NoError(t, err)
-		require.NotNil(t, cfg)
-		assert.Equal(t, 1, cfg.Version)
-		assert.Equal(t, dir, cfg.projectDir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual(1, cfg.Version) {
+			t.Fatalf("want %v, got %v", 1, cfg.Version)
+		}
+		if !stdlibAssertEqual(dir, cfg.projectDir) {
+			t.Fatalf("want %v, got %v", dir, cfg.projectDir)
+		}
+
 	})
 }
 
 func TestConfig_DefaultConfig_Good(t *testing.T) {
 	t.Run("returns sensible defaults", func(t *testing.T) {
 		cfg := DefaultConfig()
+		if !stdlibAssertEqual(1, cfg.Version) {
+			t.Fatalf("want %v, got %v", 1, cfg.Version)
+		}
+		if !stdlibAssertEmpty(cfg.Project.Name) {
+			t.
 
-		assert.Equal(t, 1, cfg.Version)
-		assert.Empty(t, cfg.Project.Name)
-		assert.Empty(t, cfg.Project.Repository)
+				// Default targets
+				Fatalf("expected empty, got %v", cfg.Project.Name)
+		}
+		if !stdlibAssertEmpty(cfg.Project.Repository) {
+			t.Fatalf("expected empty, got %v", cfg.Project.Repository)
+		}
+		if len(cfg.Build.Targets) != 5 {
+			t.Fatalf("want len %v, got %v", 5, len(cfg.Build.Targets))
+		}
 
-		// Default targets
-		assert.Len(t, cfg.Build.Targets, 5)
 		hasLinuxAmd64 := false
 		hasDarwinAmd64 := false
 		hasDarwinArm64 := false
@@ -333,62 +530,119 @@ func TestConfig_DefaultConfig_Good(t *testing.T) {
 				hasWindowsAmd64 = true
 			}
 		}
-		assert.True(t, hasLinuxAmd64)
-		assert.True(t, hasDarwinAmd64)
-		assert.True(t, hasDarwinArm64)
-		assert.True(t, hasWindowsAmd64)
+		if !(hasLinuxAmd64) {
+			t.Fatal("expected true")
+		}
+		if !(hasDarwinAmd64) {
+			t.Fatal("expected true")
+		}
+		if !(hasDarwinArm64) {
+			t.Fatal("expected true")
+		}
+		if !
 
 		// Default publisher
-		assert.Len(t, cfg.Publishers, 1)
-		assert.Equal(t, "github", cfg.Publishers[0].Type)
-		assert.False(t, cfg.Publishers[0].Prerelease)
-		assert.False(t, cfg.Publishers[0].Draft)
+		(hasWindowsAmd64) {
+			t.Fatal("expected true")
+		}
+		if len(cfg.Publishers) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(cfg.Publishers))
+		}
+		if !stdlibAssertEqual("github", cfg.Publishers[0].Type) {
+			t.Fatalf("want %v, got %v",
 
-		// Default changelog settings
-		assert.Equal(t, "conventional", cfg.Changelog.Use)
-		assert.Contains(t, cfg.Changelog.Include, "feat")
-		assert.Contains(t, cfg.Changelog.Include, "fix")
-		assert.Contains(t, cfg.Changelog.Exclude, "chore")
-		assert.Contains(t, cfg.Changelog.Exclude, "docs")
-		assert.Equal(t, "sha256", cfg.Checksum.Algorithm)
-		assert.Equal(t, "CHECKSUMS.txt", cfg.Checksum.File)
+				// Default changelog settings
+				"github", cfg.Publishers[0].Type)
+		}
+		if cfg.Publishers[0].Prerelease {
+			t.Fatal("expected false")
+		}
+		if cfg.Publishers[0].Draft {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertEqual("conventional", cfg.Changelog.Use) {
+			t.Fatalf("want %v, got %v", "conventional", cfg.Changelog.Use)
+		}
+		if !stdlibAssertContains(cfg.Changelog.Include, "feat") {
+			t.Fatalf("expected %v to contain %v", cfg.Changelog.Include, "feat")
+		}
+		if !stdlibAssertContains(cfg.Changelog.Include, "fix") {
+			t.Fatalf("expected %v to contain %v", cfg.Changelog.Include, "fix")
+		}
+		if !stdlibAssertContains(cfg.Changelog.Exclude, "chore") {
+			t.Fatalf("expected %v to contain %v", cfg.Changelog.Exclude, "chore")
+		}
+		if !stdlibAssertContains(cfg.Changelog.Exclude, "docs") {
+			t.Fatalf("expected %v to contain %v", cfg.Changelog.Exclude, "docs")
+		}
+		if !stdlibAssertEqual("sha256", cfg.Checksum.Algorithm) {
+			t.Fatalf("want %v, got %v", "sha256", cfg.Checksum.Algorithm)
+		}
+		if !stdlibAssertEqual("CHECKSUMS.txt", cfg.Checksum.File) {
+			t.Fatalf("want %v, got %v", "CHECKSUMS.txt", cfg.Checksum.File)
+		}
+
 	})
 }
 
 func TestConfig_ScaffoldConfig_Good(t *testing.T) {
 	t.Run("returns documented init scaffold", func(t *testing.T) {
 		cfg := ScaffoldConfig()
+		if stdlibAssertNil(cfg.SDK) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual("api/openapi.yaml", cfg.SDK.Spec) {
+			t.Fatalf("want %v, got %v", "api/openapi.yaml", cfg.SDK.Spec)
+		}
+		if !stdlibAssertEqual([]string{"typescript", "python", "go", "php"}, cfg.SDK.Languages) {
+			t.Fatalf("want %v, got %v", []string{"typescript", "python", "go", "php"}, cfg.SDK.Languages)
+		}
+		if !stdlibAssertEqual("sdk", cfg.SDK.Output) {
+			t.Fatalf("want %v, got %v", "sdk", cfg.SDK.Output)
+		}
+		if !(cfg.SDK.Diff.Enabled) {
+			t.Fatal("expected true")
+		}
+		if cfg.SDK.Diff.FailOnBreaking {
+			t.Fatal("expected false")
+		}
 
-		require.NotNil(t, cfg.SDK)
-		assert.Equal(t, "api/openapi.yaml", cfg.SDK.Spec)
-		assert.Equal(t, []string{"typescript", "python", "go", "php"}, cfg.SDK.Languages)
-		assert.Equal(t, "sdk", cfg.SDK.Output)
-		assert.True(t, cfg.SDK.Diff.Enabled)
-		assert.False(t, cfg.SDK.Diff.FailOnBreaking)
 	})
 }
 
 func TestConfig_ConfigPath_Good(t *testing.T) {
 	t.Run("returns correct path", func(t *testing.T) {
 		path := ConfigPath("/project/root")
-		assert.Equal(t, "/project/root/.core/release.yaml", path)
+		if !stdlibAssertEqual("/project/root/.core/release.yaml", path) {
+			t.Fatalf("want %v, got %v", "/project/root/.core/release.yaml", path)
+		}
+
 	})
 }
 
 func TestConfig_ConfigExists_Good(t *testing.T) {
 	t.Run("returns true when config exists", func(t *testing.T) {
 		dir := setupConfigTestDir(t, "version: 1")
-		assert.True(t, ConfigExists(dir))
+		if !(ConfigExists(dir)) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("returns false when config missing", func(t *testing.T) {
 		dir := t.TempDir()
-		assert.False(t, ConfigExists(dir))
+		if ConfigExists(dir) {
+			t.Fatal("expected false")
+		}
+
 	})
 
 	t.Run("returns false when .core dir missing", func(t *testing.T) {
 		dir := t.TempDir()
-		assert.False(t, ConfigExists(dir))
+		if ConfigExists(dir) {
+			t.Fatal("expected false")
+		}
+
 	})
 }
 
@@ -401,16 +655,29 @@ func TestConfig_WriteConfig_Good(t *testing.T) {
 		cfg.Project.Repository = "owner/testapp"
 
 		err := WriteConfig(cfg, dir)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Verify file exists
-		assert.True(t, ConfigExists(dir))
+				// Verify file exists
+				err)
+		}
+		if !(ConfigExists(dir)) {
+			t.Fatal("expected true")
 
-		// Reload and verify
+			// Reload and verify
+		}
+
 		loaded, err := LoadConfig(dir)
-		require.NoError(t, err)
-		assert.Equal(t, "testapp", loaded.Project.Name)
-		assert.Equal(t, "owner/testapp", loaded.Project.Repository)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("testapp", loaded.Project.Name) {
+			t.Fatalf("want %v, got %v", "testapp", loaded.Project.Name)
+		}
+		if !stdlibAssertEqual("owner/testapp", loaded.Project.Repository) {
+			t.Fatalf("want %v, got %v", "owner/testapp", loaded.Project.Repository)
+		}
+
 	})
 
 	t.Run("creates .core directory if missing", func(t *testing.T) {
@@ -418,13 +685,22 @@ func TestConfig_WriteConfig_Good(t *testing.T) {
 
 		cfg := DefaultConfig()
 		err := WriteConfig(cfg, dir)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Check directory was created
+				// Check directory was created
+				err)
+		}
+
 		coreDir := ax.Join(dir, ConfigDir)
 		info, err := ax.Stat(coreDir)
-		require.NoError(t, err)
-		assert.True(t, info.IsDir())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(info.IsDir()) {
+			t.Fatal("expected true")
+		}
+
 	})
 }
 
@@ -435,17 +711,26 @@ func TestConfig_GetRepository_Good(t *testing.T) {
 				Repository: "owner/repo",
 			},
 		}
-		assert.Equal(t, "owner/repo", cfg.GetRepository())
+		if !stdlibAssertEqual("owner/repo", cfg.GetRepository()) {
+			t.Fatalf("want %v, got %v", "owner/repo", cfg.GetRepository())
+		}
+
 	})
 
 	t.Run("returns empty string when not set", func(t *testing.T) {
 		cfg := &Config{}
-		assert.Empty(t, cfg.GetRepository())
+		if !stdlibAssertEmpty(cfg.GetRepository()) {
+			t.Fatalf("expected empty, got %v", cfg.GetRepository())
+		}
+
 	})
 
 	t.Run("returns empty string for nil config", func(t *testing.T) {
 		var cfg *Config
-		assert.Empty(t, cfg.GetRepository())
+		if !stdlibAssertEmpty(cfg.GetRepository()) {
+			t.Fatalf("expected empty, got %v", cfg.GetRepository())
+		}
+
 	})
 }
 
@@ -456,17 +741,26 @@ func TestConfig_GetProjectName_Good(t *testing.T) {
 				Name: "myapp",
 			},
 		}
-		assert.Equal(t, "myapp", cfg.GetProjectName())
+		if !stdlibAssertEqual("myapp", cfg.GetProjectName()) {
+			t.Fatalf("want %v, got %v", "myapp", cfg.GetProjectName())
+		}
+
 	})
 
 	t.Run("returns empty string when not set", func(t *testing.T) {
 		cfg := &Config{}
-		assert.Empty(t, cfg.GetProjectName())
+		if !stdlibAssertEmpty(cfg.GetProjectName()) {
+			t.Fatalf("expected empty, got %v", cfg.GetProjectName())
+		}
+
 	})
 
 	t.Run("returns empty string for nil config", func(t *testing.T) {
 		var cfg *Config
-		assert.Empty(t, cfg.GetProjectName())
+		if !stdlibAssertEmpty(cfg.GetProjectName()) {
+			t.Fatalf("expected empty, got %v", cfg.GetProjectName())
+		}
+
 	})
 }
 
@@ -474,7 +768,10 @@ func TestConfig_SetVersion_Good(t *testing.T) {
 	t.Run("sets version override", func(t *testing.T) {
 		cfg := &Config{}
 		cfg.SetVersion("v1.2.3")
-		assert.Equal(t, "v1.2.3", cfg.version)
+		if !stdlibAssertEqual("v1.2.3", cfg.version) {
+			t.Fatalf("want %v, got %v", "v1.2.3", cfg.version)
+		}
+
 	})
 
 	t.Run("is safe on nil config", func(t *testing.T) {
@@ -487,7 +784,10 @@ func TestConfig_SetProjectDir_Good(t *testing.T) {
 	t.Run("sets project directory", func(t *testing.T) {
 		cfg := &Config{}
 		cfg.SetProjectDir("/path/to/project")
-		assert.Equal(t, "/path/to/project", cfg.projectDir)
+		if !stdlibAssertEqual("/path/to/project", cfg.projectDir) {
+			t.Fatalf("want %v, got %v", "/path/to/project", cfg.projectDir)
+		}
+
 	})
 
 	t.Run("is safe on nil config", func(t *testing.T) {
@@ -500,15 +800,19 @@ func TestConfig_PublishersIter_NilSafe(t *testing.T) {
 	var cfg *Config
 
 	iter := cfg.PublishersIter()
-	require.NotNil(t, iter)
+	if stdlibAssertNil(iter) {
+		t.Fatal("expected non-nil")
+	}
 
 	called := false
 	iter(func(p PublisherConfig) bool {
 		called = true
 		return true
 	})
+	if called {
+		t.Fatal("expected false")
+	}
 
-	assert.False(t, called)
 }
 
 func TestConfig_SetOutput_Good(t *testing.T) {
@@ -517,9 +821,13 @@ func TestConfig_SetOutput_Good(t *testing.T) {
 		medium := io.NewMemoryMedium()
 
 		cfg.SetOutput(medium, "releases")
+		if !stdlibAssertEqual(medium, cfg.output) {
+			t.Fatalf("want %v, got %v", medium, cfg.output)
+		}
+		if !stdlibAssertEqual("releases", cfg.outputDir) {
+			t.Fatalf("want %v, got %v", "releases", cfg.outputDir)
+		}
 
-		assert.Equal(t, medium, cfg.output)
-		assert.Equal(t, "releases", cfg.outputDir)
 	})
 
 	t.Run("sets output medium only", func(t *testing.T) {
@@ -527,16 +835,20 @@ func TestConfig_SetOutput_Good(t *testing.T) {
 		medium := io.NewMemoryMedium()
 
 		cfg.SetOutputMedium(medium)
+		if !stdlibAssertEqual(medium, cfg.output) {
+			t.Fatalf("want %v, got %v", medium, cfg.output)
+		}
 
-		assert.Equal(t, medium, cfg.output)
 	})
 
 	t.Run("sets output directory only", func(t *testing.T) {
 		cfg := &Config{}
 
 		cfg.SetOutputDir("artifacts")
+		if !stdlibAssertEqual("artifacts", cfg.outputDir) {
+			t.Fatalf("want %v, got %v", "artifacts", cfg.outputDir)
+		}
 
-		assert.Equal(t, "artifacts", cfg.outputDir)
 	})
 }
 
@@ -550,17 +862,29 @@ func TestConfig_WriteConfig_Bad(t *testing.T) {
 		// Create .core directory and make it unwritable
 		coreDir := ax.Join(dir, ConfigDir)
 		err := ax.MkdirAll(coreDir, 0755)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Make directory read-only
+				// Make directory read-only
+				err)
+		}
+
 		err = ax.Chmod(coreDir, 0555)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		defer func() { _ = ax.Chmod(coreDir, 0755) }()
 
 		cfg := DefaultConfig()
 		err = WriteConfig(cfg, dir)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to write config file")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to write config file") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to write config file")
+		}
+
 	})
 
 	t.Run("returns error when directory creation fails", func(t *testing.T) {
@@ -570,7 +894,10 @@ func TestConfig_WriteConfig_Bad(t *testing.T) {
 		// Use a path that doesn't exist and can't be created
 		cfg := DefaultConfig()
 		err := WriteConfig(cfg, "/nonexistent/path/that/cannot/be/created")
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+
 	})
 }
 
@@ -578,13 +905,19 @@ func TestConfig_ApplyDefaults_Good(t *testing.T) {
 	t.Run("applies version default when zero", func(t *testing.T) {
 		cfg := &Config{Version: 0}
 		applyDefaults(cfg)
-		assert.Equal(t, 1, cfg.Version)
+		if !stdlibAssertEqual(1, cfg.Version) {
+			t.Fatalf("want %v, got %v", 1, cfg.Version)
+		}
+
 	})
 
 	t.Run("preserves existing version", func(t *testing.T) {
 		cfg := &Config{Version: 2}
 		applyDefaults(cfg)
-		assert.Equal(t, 2, cfg.Version)
+		if !stdlibAssertEqual(2, cfg.Version) {
+			t.Fatalf("want %v, got %v", 2, cfg.Version)
+		}
+
 	})
 
 	t.Run("applies changelog defaults only when both empty", func(t *testing.T) {
@@ -594,9 +927,18 @@ func TestConfig_ApplyDefaults_Good(t *testing.T) {
 			},
 		}
 		applyDefaults(cfg)
-		assert.Equal(t, "conventional", cfg.Changelog.Use)
-		// Include/Exclude defaults are only applied when both lists are empty.
-		assert.Equal(t, []string{"feat"}, cfg.Changelog.Include)
-		assert.Empty(t, cfg.Changelog.Exclude)
+		if !stdlibAssertEqual("conventional", cfg.Changelog.Use) {
+			t.
+
+				// Include/Exclude defaults are only applied when both lists are empty.
+				Fatalf("want %v, got %v", "conventional", cfg.Changelog.Use)
+		}
+		if !stdlibAssertEqual([]string{"feat"}, cfg.Changelog.Include) {
+			t.Fatalf("want %v, got %v", []string{"feat"}, cfg.Changelog.Include)
+		}
+		if !stdlibAssertEmpty(cfg.Changelog.Exclude) {
+			t.Fatalf("expected empty, got %v", cfg.Changelog.Exclude)
+		}
+
 	})
 }

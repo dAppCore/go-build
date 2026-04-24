@@ -5,8 +5,6 @@ import (
 
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAssets_BuildChecksumMap_ParsesRFCArchiveNames_Good(t *testing.T) {
@@ -21,28 +19,53 @@ func TestAssets_BuildChecksumMap_ParsesRFCArchiveNames_Good(t *testing.T) {
 	}
 
 	checksums := buildChecksumMap(artifacts)
+	if !stdlibAssertEqual("darwin-amd64", checksums.DarwinAmd64) {
+		t.Fatalf("want %v, got %v", "darwin-amd64", checksums.DarwinAmd64)
+	}
+	if !stdlibAssertEqual("darwin-arm64", checksums.DarwinArm64) {
+		t.Fatalf("want %v, got %v", "darwin-arm64", checksums.DarwinArm64)
+	}
+	if !stdlibAssertEqual("linux-amd64", checksums.LinuxAmd64) {
+		t.Fatalf("want %v, got %v", "linux-amd64", checksums.LinuxAmd64)
+	}
+	if !stdlibAssertEqual("linux-arm64", checksums.LinuxArm64) {
+		t.Fatalf("want %v, got %v", "linux-arm64", checksums.LinuxArm64)
+	}
+	if !stdlibAssertEqual("windows-amd64", checksums.WindowsAmd64) {
+		t.Fatalf("want %v, got %v", "windows-amd64", checksums.WindowsAmd64)
+	}
+	if !stdlibAssertEqual("windows-arm64", checksums.WindowsArm64) {
+		t.Fatalf("want %v, got %v", "windows-arm64", checksums.WindowsArm64)
+	}
+	if !stdlibAssertEqual("myapp_darwin_amd64.tar.gz", checksums.DarwinAmd64File) {
+		t.Fatalf("want %v, got %v", "myapp_darwin_amd64.tar.gz", checksums.DarwinAmd64File)
+	}
+	if !stdlibAssertEqual("myapp_darwin_arm64.tar.gz", checksums.DarwinArm64File) {
+		t.Fatalf("want %v, got %v", "myapp_darwin_arm64.tar.gz", checksums.DarwinArm64File)
+	}
+	if !stdlibAssertEqual("myapp_linux_amd64.tar.gz", checksums.LinuxAmd64File) {
+		t.Fatalf("want %v, got %v", "myapp_linux_amd64.tar.gz", checksums.LinuxAmd64File)
+	}
+	if !stdlibAssertEqual("myapp_linux_arm64.tar.gz", checksums.LinuxArm64File) {
+		t.Fatalf("want %v, got %v", "myapp_linux_arm64.tar.gz", checksums.LinuxArm64File)
+	}
+	if !stdlibAssertEqual("myapp_windows_amd64.zip", checksums.WindowsAmd64File) {
+		t.Fatalf("want %v, got %v", "myapp_windows_amd64.zip", checksums.WindowsAmd64File)
+	}
+	if !stdlibAssertEqual("myapp_windows_arm64.zip", checksums.WindowsArm64File) {
+		t.Fatalf("want %v, got %v", "myapp_windows_arm64.zip", checksums.WindowsArm64File)
+	}
+	if !stdlibAssertEqual("CHECKSUMS.txt", checksums.ChecksumFile) {
+		t.Fatalf("want %v, got %v", "CHECKSUMS.txt", checksums.ChecksumFile)
+	}
 
-	assert.Equal(t, "darwin-amd64", checksums.DarwinAmd64)
-	assert.Equal(t, "darwin-arm64", checksums.DarwinArm64)
-	assert.Equal(t, "linux-amd64", checksums.LinuxAmd64)
-	assert.Equal(t, "linux-arm64", checksums.LinuxArm64)
-	assert.Equal(t, "windows-amd64", checksums.WindowsAmd64)
-	assert.Equal(t, "windows-arm64", checksums.WindowsArm64)
-	assert.Equal(t, "myapp_darwin_amd64.tar.gz", checksums.DarwinAmd64File)
-	assert.Equal(t, "myapp_darwin_arm64.tar.gz", checksums.DarwinArm64File)
-	assert.Equal(t, "myapp_linux_amd64.tar.gz", checksums.LinuxAmd64File)
-	assert.Equal(t, "myapp_linux_arm64.tar.gz", checksums.LinuxArm64File)
-	assert.Equal(t, "myapp_windows_amd64.zip", checksums.WindowsAmd64File)
-	assert.Equal(t, "myapp_windows_arm64.zip", checksums.WindowsArm64File)
-	assert.Equal(t, "CHECKSUMS.txt", checksums.ChecksumFile)
 }
 
 func TestAssets_BuildChecksumMapFromRelease_UsesChecksumFileFallback_Good(t *testing.T) {
 	artifactFS := io.NewMemoryMedium()
-	require.NoError(t, artifactFS.Write("releases/checksums.txt", ""+
-		"abc123  myapp_linux_amd64.tar.gz\n"+
-		"def456  myapp_darwin_arm64.tar.gz\n",
-	))
+	if err := artifactFS.Write("releases/checksums.txt", ""+"abc123  myapp_linux_amd64.tar.gz\n"+"def456  myapp_darwin_arm64.tar.gz\n"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	release := &Release{
 		Artifacts: []build.Artifact{
@@ -55,10 +78,20 @@ func TestAssets_BuildChecksumMapFromRelease_UsesChecksumFileFallback_Good(t *tes
 	}
 
 	checksums := buildChecksumMapFromRelease(release)
+	if !stdlibAssertEqual("abc123", checksums.LinuxAmd64) {
+		t.Fatalf("want %v, got %v", "abc123", checksums.LinuxAmd64)
+	}
+	if !stdlibAssertEqual("def456", checksums.DarwinArm64) {
+		t.Fatalf("want %v, got %v", "def456", checksums.DarwinArm64)
+	}
+	if !stdlibAssertEqual("myapp_linux_amd64.tar.gz", checksums.LinuxAmd64File) {
+		t.Fatalf("want %v, got %v", "myapp_linux_amd64.tar.gz", checksums.LinuxAmd64File)
+	}
+	if !stdlibAssertEqual("myapp_darwin_arm64.tar.gz", checksums.DarwinArm64File) {
+		t.Fatalf("want %v, got %v", "myapp_darwin_arm64.tar.gz", checksums.DarwinArm64File)
+	}
+	if !stdlibAssertEqual("checksums.txt", checksums.ChecksumFile) {
+		t.Fatalf("want %v, got %v", "checksums.txt", checksums.ChecksumFile)
+	}
 
-	assert.Equal(t, "abc123", checksums.LinuxAmd64)
-	assert.Equal(t, "def456", checksums.DarwinArm64)
-	assert.Equal(t, "myapp_linux_amd64.tar.gz", checksums.LinuxAmd64File)
-	assert.Equal(t, "myapp_darwin_arm64.tar.gz", checksums.DarwinArm64File)
-	assert.Equal(t, "checksums.txt", checksums.ChecksumFile)
 }

@@ -6,11 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	buildservice "dappco.re/go/build/pkg/service"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/core"
 )
 
 type stubManager struct {
@@ -52,14 +50,28 @@ func TestAddServiceCommands_RegistersSubcommands_Good(t *testing.T) {
 	c := core.New()
 
 	AddServiceCommands(c)
+	if !(c.Command("service").OK) {
+		t.Fatal("expected true")
+	}
+	if !(c.Command("service/install").OK) {
+		t.Fatal("expected true")
+	}
+	if !(c.Command("service/start").OK) {
+		t.Fatal("expected true")
+	}
+	if !(c.Command("service/stop").OK) {
+		t.Fatal("expected true")
+	}
+	if !(c.Command("service/uninstall").OK) {
+		t.Fatal("expected true")
+	}
+	if !(c.Command("service/export").OK) {
+		t.Fatal("expected true")
+	}
+	if !(c.Command("service/run").OK) {
+		t.Fatal("expected true")
+	}
 
-	assert.True(t, c.Command("service").OK)
-	assert.True(t, c.Command("service/install").OK)
-	assert.True(t, c.Command("service/start").OK)
-	assert.True(t, c.Command("service/stop").OK)
-	assert.True(t, c.Command("service/uninstall").OK)
-	assert.True(t, c.Command("service/export").OK)
-	assert.True(t, c.Command("service/run").OK)
 }
 
 func TestRunServiceInstall_UsesManager_Good(t *testing.T) {
@@ -88,15 +100,25 @@ func TestRunServiceInstall_UsesManager_Good(t *testing.T) {
 	serviceManager = stubManager{
 		install: func(cfg buildservice.Config) error {
 			called = true
-			assert.Equal(t, projectDir, cfg.ProjectDir)
-			assert.Equal(t, "core-build", cfg.Name)
+			if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
+				t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
+			}
+			if !stdlibAssertEqual("core-build", cfg.Name) {
+				t.Fatalf("want %v, got %v", "core-build", cfg.Name)
+			}
+
 			return nil
 		},
 	}
 
 	err := runServiceInstall(serviceRequest{})
-	require.NoError(t, err)
-	assert.True(t, called)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(called) {
+		t.Fatal("expected true")
+	}
+
 }
 
 func TestRunServiceExport_WritesFile_Good(t *testing.T) {
@@ -125,11 +147,18 @@ func TestRunServiceExport_WritesFile_Good(t *testing.T) {
 
 	outputPath := filepath.Join("dist", "core-build.service")
 	err := runServiceExport(serviceRequest{Output: outputPath})
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	content, readErr := ax.ReadFile(filepath.Join(projectDir, outputPath))
-	require.NoError(t, readErr)
-	assert.Equal(t, "[Unit]\nDescription=Core Build\n", string(content))
+	if readErr != nil {
+		t.Fatalf("unexpected error: %v", readErr)
+	}
+	if !stdlibAssertEqual("[Unit]\nDescription=Core Build\n", string(content)) {
+		t.Fatalf("want %v, got %v", "[Unit]\nDescription=Core Build\n", string(content))
+	}
+
 }
 
 func TestRunServiceRun_InvokesDaemon_Good(t *testing.T) {
@@ -152,20 +181,31 @@ func TestRunServiceRun_InvokesDaemon_Good(t *testing.T) {
 	called := false
 	runDaemon = func(ctx context.Context, cfg buildservice.Config) error {
 		called = true
-		assert.Equal(t, projectDir, cfg.ProjectDir)
+		if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
+			t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
+		}
+
 		return nil
 	}
 
 	err := runServiceRun(context.Background(), serviceRequest{})
-	require.NoError(t, err)
-	assert.True(t, called)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(called) {
+		t.Fatal("expected true")
+	}
+
 }
 
 func TestApplyServiceOverrides_BadDuration(t *testing.T) {
 	cfg := buildservice.Config{ProjectDir: t.TempDir()}
 
 	err := applyServiceOverrides(&cfg, serviceRequest{WatchInterval: "not-a-duration"})
-	require.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
 }
 
 func TestRunServiceInstall_BubblesManagerError_Bad(t *testing.T) {
@@ -191,6 +231,11 @@ func TestRunServiceInstall_BubblesManagerError_Bad(t *testing.T) {
 	}
 
 	err := runServiceInstall(serviceRequest{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "boom")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "boom") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "boom")
+	}
+
 }

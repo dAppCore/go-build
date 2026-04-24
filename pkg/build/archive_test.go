@@ -14,8 +14,7 @@ import (
 
 	io_interface "dappco.re/go/core/io"
 	"github.com/Snider/Borg/pkg/compress"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"os"
 )
 
 type closeErrorWriteCloser struct {
@@ -47,13 +46,19 @@ func setupArchiveTestFile(t *testing.T, name, os_, arch string) (binaryPath stri
 	// Create platform directory: dist/os_arch
 	platformDir := ax.Join(outputDir, os_+"_"+arch)
 	err := ax.MkdirAll(platformDir, 0755)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v",
 
-	// Create test binary
+			// Create test binary
+			err)
+	}
+
 	binaryPath = ax.Join(platformDir, name)
 	content := []byte("#!/bin/bash\necho 'Hello, World!'\n")
 	err = ax.WriteFile(binaryPath, content, 0755)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	return binaryPath, outputDir
 }
@@ -65,13 +70,23 @@ func setupArchiveTestDirectory(t *testing.T, name, os_, arch string) (artifactPa
 
 	outputDir = t.TempDir()
 	platformDir := ax.Join(outputDir, os_+"_"+arch)
-	require.NoError(t, ax.MkdirAll(platformDir, 0o755))
+	if err := ax.MkdirAll(platformDir, 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	artifactPath = ax.Join(platformDir, name)
-	require.NoError(t, ax.MkdirAll(ax.Join(artifactPath, "Contents", "MacOS"), 0o755))
-	require.NoError(t, ax.MkdirAll(ax.Join(artifactPath, "Resources"), 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(artifactPath, "Contents", "MacOS", "core"), []byte("bundle binary"), 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(artifactPath, "Resources", "config.json"), []byte(`{"ok":true}`), 0o644))
+	if err := ax.MkdirAll(ax.Join(artifactPath, "Contents", "MacOS"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.MkdirAll(ax.Join(artifactPath, "Resources"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(artifactPath, "Contents", "MacOS", "core"), []byte("bundle binary"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(artifactPath, "Resources", "config.json"), []byte(`{"ok":true}`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	return artifactPath, outputDir
 }
@@ -88,18 +103,33 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Verify archive was created
+				// Verify archive was created
+				err)
+		}
+
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.tar.gz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath,
 
-		// Verify OS and Arch are preserved
-		assert.Equal(t, "linux", result.OS)
-		assert.Equal(t, "amd64", result.Arch)
+				// Verify OS and Arch are preserved
+				result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
+		if !stdlibAssertEqual(
 
-		// Verify archive content
+			// Verify archive content
+			"linux", result.OS) {
+			t.Fatalf("want %v, got %v", "linux", result.OS)
+		}
+		if !stdlibAssertEqual("amd64", result.Arch) {
+			t.Fatalf("want %v, got %v", "amd64", result.Arch)
+		}
+
 		verifyTarGzContent(t, result.Path, "myapp")
 	})
 
@@ -113,11 +143,18 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64_v1.2.3.tar.gz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath, result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
+
 	})
 
 	t.Run("creates tar.gz for darwin", func(t *testing.T) {
@@ -130,11 +167,17 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		expectedPath := ax.Join(outputDir, "myapp_darwin_arm64.tar.gz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath, result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
 
 		verifyTarGzContent(t, result.Path, "myapp")
 	})
@@ -149,12 +192,20 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Windows archives should strip .exe from archive name
+				// Windows archives should strip .exe from archive name
+				err)
+		}
+
 		expectedPath := ax.Join(outputDir, "myapp_windows_amd64.zip")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath, result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
 
 		verifyZipContent(t, result.Path, "myapp.exe")
 	})
@@ -170,8 +221,13 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
-		assert.Equal(t, "abc123", result.Checksum)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("abc123", result.Checksum) {
+			t.Fatalf("want %v, got %v", "abc123", result.Checksum)
+		}
+
 	})
 
 	t.Run("creates tar.xz for linux with ArchiveXZ", func(t *testing.T) {
@@ -184,11 +240,17 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveXZ(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.tar.xz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath, result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
 
 		verifyTarXzContent(t, result.Path, "myapp")
 	})
@@ -203,11 +265,17 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		expectedPath := ax.Join(outputDir, "myapp_darwin_arm64.tar.xz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath, result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
 
 		verifyTarXzContent(t, result.Path, "myapp")
 	})
@@ -222,12 +290,20 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Windows should still get .zip regardless of format
+				// Windows should still get .zip regardless of format
+				err)
+		}
+
 		expectedPath := ax.Join(outputDir, "myapp_windows_amd64.zip")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath, result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
 
 		verifyZipContent(t, result.Path, "myapp.exe")
 	})
@@ -242,11 +318,17 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatZip)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.zip")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath, result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
 
 		verifyZipContent(t, result.Path, "myapp")
 	})
@@ -261,14 +343,24 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		expectedPath := ax.Join(outputDir, "Core_darwin_arm64.tar.gz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath, result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
+		if !stdlibAssertEqual([]byte("bundle binary"), extractTarGzFile(t, result.Path, "Core.app/Contents/MacOS/core")) {
+			t.Fatalf("want %v, got %v", []byte("bundle binary"), extractTarGzFile(t, result.Path, "Core.app/Contents/MacOS/core"))
+		}
+		if !stdlibAssertEqual([]byte(`{"ok":true}`), extractTarGzFile(t, result.Path, "Core.app/Resources/config.json")) {
+			t.Fatalf("want %v, got %v", []byte(`{"ok":true}`), extractTarGzFile(t, result.Path, "Core.app/Resources/config.json"))
+		}
 
-		assert.Equal(t, []byte("bundle binary"), extractTarGzFile(t, result.Path, "Core.app/Contents/MacOS/core"))
-		assert.Equal(t, []byte(`{"ok":true}`), extractTarGzFile(t, result.Path, "Core.app/Resources/config.json"))
 	})
 
 	t.Run("creates zip for directory artifacts", func(t *testing.T) {
@@ -281,51 +373,88 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatZip)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		expectedPath := ax.Join(outputDir, "bundle_linux_amd64.zip")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		if !stdlibAssertEqual(expectedPath, result.Path) {
+			t.Fatalf("want %v, got %v", expectedPath, result.Path)
+		}
+		if _, err := os.Stat(result.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", result.Path)
+		}
+		if !stdlibAssertEqual([]byte("bundle binary"), extractZipFile(t, result.Path, "bundle/Contents/MacOS/core")) {
+			t.Fatalf("want %v, got %v", []byte("bundle binary"), extractZipFile(t, result.Path, "bundle/Contents/MacOS/core"))
+		}
+		if !stdlibAssertEqual([]byte(`{"ok":true}`), extractZipFile(t, result.Path, "bundle/Resources/config.json")) {
+			t.Fatalf("want %v, got %v", []byte(`{"ok":true}`), extractZipFile(t, result.Path, "bundle/Resources/config.json"))
+		}
 
-		assert.Equal(t, []byte("bundle binary"), extractZipFile(t, result.Path, "bundle/Contents/MacOS/core"))
-		assert.Equal(t, []byte(`{"ok":true}`), extractZipFile(t, result.Path, "bundle/Resources/config.json"))
 	})
 }
 
 func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
 	t.Run("defaults to gzip when empty", func(t *testing.T) {
 		format, err := ParseArchiveFormat("")
-		require.NoError(t, err)
-		assert.Equal(t, ArchiveFormatGzip, format)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(ArchiveFormatGzip, format) {
+			t.Fatalf("want %v, got %v", ArchiveFormatGzip, format)
+		}
+
 	})
 
 	t.Run("accepts xz aliases", func(t *testing.T) {
 		for _, input := range []string{"xz", "txz", "tar.xz", "tar-xz"} {
 			format, err := ParseArchiveFormat(input)
-			require.NoError(t, err)
-			assert.Equal(t, ArchiveFormatXZ, format)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !stdlibAssertEqual(ArchiveFormatXZ, format) {
+				t.Fatalf("want %v, got %v", ArchiveFormatXZ, format)
+			}
+
 		}
 	})
 
 	t.Run("accepts zip", func(t *testing.T) {
 		format, err := ParseArchiveFormat("zip")
-		require.NoError(t, err)
-		assert.Equal(t, ArchiveFormatZip, format)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(ArchiveFormatZip, format) {
+			t.Fatalf("want %v, got %v", ArchiveFormatZip, format)
+		}
+
 	})
 
 	t.Run("accepts gzip aliases", func(t *testing.T) {
 		for _, input := range []string{"gz", "gzip", "tgz", "tar.gz", "tar-gz"} {
 			format, err := ParseArchiveFormat(input)
-			require.NoError(t, err)
-			assert.Equal(t, ArchiveFormatGzip, format)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !stdlibAssertEqual(ArchiveFormatGzip, format) {
+				t.Fatalf("want %v, got %v", ArchiveFormatGzip, format)
+			}
+
 		}
 	})
 
 	t.Run("rejects unsupported formats", func(t *testing.T) {
 		format, err := ParseArchiveFormat("bzip2")
-		assert.Error(t, err)
-		assert.Empty(t, format)
-		assert.Contains(t, err.Error(), "unsupported archive format")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertEmpty(format) {
+			t.Fatalf("expected empty, got %v", format)
+		}
+		if !stdlibAssertContains(err.Error(), "unsupported archive format") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "unsupported archive format")
+		}
+
 	})
 }
 
@@ -339,9 +468,16 @@ func TestArchive_Archive_Bad(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "artifact path is empty")
-		assert.Empty(t, result.Path)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "artifact path is empty") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "artifact path is empty")
+		}
+		if !stdlibAssertEmpty(result.Path) {
+			t.Fatalf("expected empty, got %v", result.Path)
+		}
+
 	})
 
 	t.Run("returns error for non-existent file", func(t *testing.T) {
@@ -352,9 +488,16 @@ func TestArchive_Archive_Bad(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "source file not found")
-		assert.Empty(t, result.Path)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "source file not found") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "source file not found")
+		}
+		if !stdlibAssertEmpty(result.Path) {
+			t.Fatalf("expected empty, got %v", result.Path)
+		}
+
 	})
 
 	t.Run("returns error when the tar.gz writer cannot be closed", func(t *testing.T) {
@@ -367,10 +510,19 @@ func TestArchive_Archive_Bad(t *testing.T) {
 		}
 
 		result, err := Archive(closeErrorMedium{Medium: io_interface.Local, closeErr: errors.New("close failed")}, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to close archive file")
-		assert.Contains(t, err.Error(), "close failed")
-		assert.Empty(t, result.Path)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to close archive file") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to close archive file")
+		}
+		if !stdlibAssertContains(err.Error(), "close failed") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "close failed")
+		}
+		if !stdlibAssertEmpty(result.Path) {
+			t.Fatalf("expected empty, got %v", result.Path)
+		}
+
 	})
 
 	t.Run("returns error when the zip writer cannot be closed", func(t *testing.T) {
@@ -383,10 +535,19 @@ func TestArchive_Archive_Bad(t *testing.T) {
 		}
 
 		result, err := Archive(closeErrorMedium{Medium: io_interface.Local, closeErr: errors.New("close failed")}, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to close archive file")
-		assert.Contains(t, err.Error(), "close failed")
-		assert.Empty(t, result.Path)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to close archive file") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to close archive file")
+		}
+		if !stdlibAssertContains(err.Error(), "close failed") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "close failed")
+		}
+		if !stdlibAssertEmpty(result.Path) {
+			t.Fatalf("expected empty, got %v", result.Path)
+		}
+
 	})
 
 	t.Run("returns error when the tar.xz archive file cannot be closed", func(t *testing.T) {
@@ -399,10 +560,22 @@ func TestArchive_Archive_Bad(t *testing.T) {
 		}
 
 		result, err := ArchiveXZ(closeErrorMedium{Medium: io_interface.Local, closeErr: errors.New("close failed")}, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to close archive file")
-		assert.Contains(t, err.Error(), "close failed")
-		assert.Empty(t, result.Path)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to close archive file") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to close archive file")
+		}
+		if !stdlibAssertContains(err.Error(), "close failed") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "close failed")
+		}
+		if !stdlibAssertEmpty(result.Path) {
+			t.Fatalf(
+
+				// Create multiple binaries
+				"expected empty, got %v", result.Path)
+		}
+
 	})
 
 }
@@ -412,7 +585,6 @@ func TestArchive_ArchiveAll_Good(t *testing.T) {
 	t.Run("archives multiple artifacts", func(t *testing.T) {
 		outputDir := t.TempDir()
 
-		// Create multiple binaries
 		var artifacts []Artifact
 		targets := []struct {
 			os_  string
@@ -427,7 +599,9 @@ func TestArchive_ArchiveAll_Good(t *testing.T) {
 		for _, target := range targets {
 			platformDir := ax.Join(outputDir, target.os_+"_"+target.arch)
 			err := ax.MkdirAll(platformDir, 0755)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
 			name := "myapp"
 			if target.os_ == "windows" {
@@ -436,7 +610,9 @@ func TestArchive_ArchiveAll_Good(t *testing.T) {
 
 			binaryPath := ax.Join(platformDir, name)
 			err = ax.WriteFile(binaryPath, []byte("binary content"), 0755)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
 			artifacts = append(artifacts, Artifact{
 				Path: binaryPath,
@@ -446,27 +622,50 @@ func TestArchive_ArchiveAll_Good(t *testing.T) {
 		}
 
 		results, err := ArchiveAll(fs, artifacts)
-		require.NoError(t, err)
-		require.Len(t, results, 4)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) !=
 
-		// Verify all archives were created
+			// Verify all archives were created
+			4 {
+			t.Fatalf("want len %v, got %v", 4, len(results))
+		}
+
 		for i, result := range results {
-			assert.FileExists(t, result.Path)
-			assert.Equal(t, artifacts[i].OS, result.OS)
-			assert.Equal(t, artifacts[i].Arch, result.Arch)
+			if _, err := os.Stat(result.Path); err != nil {
+				t.Fatalf("expected file to exist: %v", result.Path)
+			}
+			if !stdlibAssertEqual(artifacts[i].OS, result.OS) {
+				t.Fatalf("want %v, got %v", artifacts[i].OS, result.OS)
+			}
+			if !stdlibAssertEqual(artifacts[i].Arch, result.Arch) {
+				t.Fatalf("want %v, got %v", artifacts[i].Arch, result.Arch)
+			}
+
 		}
 	})
 
 	t.Run("returns nil for empty slice", func(t *testing.T) {
 		results, err := ArchiveAll(fs, []Artifact{})
-		assert.NoError(t, err)
-		assert.Nil(t, results)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertNil(results) {
+			t.Fatalf("expected nil, got %v", results)
+		}
+
 	})
 
 	t.Run("returns nil for nil slice", func(t *testing.T) {
 		results, err := ArchiveAll(fs, nil)
-		assert.NoError(t, err)
-		assert.Nil(t, results)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertNil(results) {
+			t.Fatalf("expected nil, got %v", results)
+		}
+
 	})
 }
 
@@ -481,10 +680,18 @@ func TestArchive_ArchiveAll_Bad(t *testing.T) {
 		}
 
 		results, err := ArchiveAll(fs, artifacts)
-		assert.Error(t, err)
-		// Should have the first successful result
-		assert.Len(t, results, 1)
-		assert.FileExists(t, results[0].Path)
+		if err == nil {
+			t.Fatal("expected error")
+
+			// Should have the first successful result
+		}
+		if len(results) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(results))
+		}
+		if _, err := os.Stat(results[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", results[0].Path)
+		}
+
 	})
 }
 
@@ -497,7 +704,10 @@ func TestArchive_ArchiveFilename_Good(t *testing.T) {
 		}
 
 		filename := archiveFilename(artifact, ".tar.gz")
-		assert.Equal(t, "/output/myapp_linux_amd64.tar.gz", filename)
+		if !stdlibAssertEqual("/output/myapp_linux_amd64.tar.gz", filename) {
+			t.Fatalf("want %v, got %v", "/output/myapp_linux_amd64.tar.gz", filename)
+		}
+
 	})
 
 	t.Run("generates correct zip filename", func(t *testing.T) {
@@ -508,7 +718,10 @@ func TestArchive_ArchiveFilename_Good(t *testing.T) {
 		}
 
 		filename := archiveFilename(artifact, ".zip")
-		assert.Equal(t, "/output/myapp_windows_amd64.zip", filename)
+		if !stdlibAssertEqual("/output/myapp_windows_amd64.zip", filename) {
+			t.Fatalf("want %v, got %v", "/output/myapp_windows_amd64.zip", filename)
+		}
+
 	})
 
 	t.Run("handles nested output directories", func(t *testing.T) {
@@ -519,7 +732,10 @@ func TestArchive_ArchiveFilename_Good(t *testing.T) {
 		}
 
 		filename := archiveFilename(artifact, ".tar.gz")
-		assert.Equal(t, "/project/dist/cli_linux_arm64.tar.gz", filename)
+		if !stdlibAssertEqual("/project/dist/cli_linux_arm64.tar.gz", filename) {
+			t.Fatalf("want %v, got %v", "/project/dist/cli_linux_arm64.tar.gz", filename)
+		}
+
 	})
 
 	t.Run("strips app bundle suffix from archive name", func(t *testing.T) {
@@ -530,7 +746,10 @@ func TestArchive_ArchiveFilename_Good(t *testing.T) {
 		}
 
 		filename := archiveFilename(artifact, ".tar.gz")
-		assert.Equal(t, "/output/Core_darwin_arm64.tar.gz", filename)
+		if !stdlibAssertEqual("/output/Core_darwin_arm64.tar.gz", filename) {
+			t.Fatalf("want %v, got %v", "/output/Core_darwin_arm64.tar.gz", filename)
+		}
+
 	})
 }
 
@@ -542,7 +761,9 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 
 		// Read original content
 		originalContent, err := ax.ReadFile(binaryPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -552,19 +773,30 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 
 		// Create archive
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
-		assert.FileExists(t, archiveArtifact.Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, err := os.Stat(archiveArtifact.
 
-		// Extract and verify content matches
+			// Extract and verify content matches
+			Path); err != nil {
+			t.Fatalf("expected file to exist: %v", archiveArtifact.Path)
+		}
+
 		extractedContent := extractTarGzFile(t, archiveArtifact.Path, "roundtrip-app")
-		assert.Equal(t, originalContent, extractedContent)
+		if !stdlibAssertEqual(originalContent, extractedContent) {
+			t.Fatalf("want %v, got %v", originalContent, extractedContent)
+		}
+
 	})
 
 	t.Run("tar.xz round trip preserves content", func(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip-xz", "linux", "arm64")
 
 		originalContent, err := ax.ReadFile(binaryPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -573,18 +805,27 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := ArchiveXZ(fs, artifact)
-		require.NoError(t, err)
-		assert.FileExists(t, archiveArtifact.Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, err := os.Stat(archiveArtifact.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", archiveArtifact.Path)
+		}
 
 		extractedContent := extractTarXzFile(t, archiveArtifact.Path, "roundtrip-xz")
-		assert.Equal(t, originalContent, extractedContent)
+		if !stdlibAssertEqual(originalContent, extractedContent) {
+			t.Fatalf("want %v, got %v", originalContent, extractedContent)
+		}
+
 	})
 
 	t.Run("zip round trip preserves content", func(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip.exe", "windows", "amd64")
 
 		originalContent, err := ax.ReadFile(binaryPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -593,11 +834,18 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
-		assert.FileExists(t, archiveArtifact.Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, err := os.Stat(archiveArtifact.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", archiveArtifact.Path)
+		}
 
 		extractedContent := extractZipFile(t, archiveArtifact.Path, "roundtrip.exe")
-		assert.Equal(t, originalContent, extractedContent)
+		if !stdlibAssertEqual(originalContent, extractedContent) {
+			t.Fatalf("want %v, got %v", originalContent, extractedContent)
+		}
+
 	})
 
 	t.Run("tar.gz preserves file permissions", func(t *testing.T) {
@@ -610,26 +858,40 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Extract and verify permissions are preserved
+				// Extract and verify permissions are preserved
+				err)
+		}
+
 		mode := extractTarGzFileMode(t, archiveArtifact.Path, "perms-app")
-		// The original file was written with 0755
-		assert.Equal(t, stdfs.FileMode(0o755), mode&stdfs.ModePerm)
+		if !stdlibAssertEqual(
+			// The original file was written with 0755
+			stdfs.FileMode(0o755), mode&stdfs.ModePerm) {
+			t.Fatalf("want %v, got %v", stdfs.FileMode(0o755), mode&stdfs.ModePerm)
+		}
+
 	})
 
 	t.Run("round trip with large binary content", func(t *testing.T) {
 		outputDir := t.TempDir()
 		platformDir := ax.Join(outputDir, "linux_amd64")
-		require.NoError(t, ax.MkdirAll(platformDir, 0755))
+		if err := ax.MkdirAll(platformDir, 0755); err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Create a larger file (64KB)
+				// Create a larger file (64KB)
+				err)
+		}
+
 		largeContent := make([]byte, 64*1024)
 		for i := range largeContent {
 			largeContent[i] = byte(i % 256)
 		}
 		binaryPath := ax.Join(platformDir, "large-app")
-		require.NoError(t, ax.WriteFile(binaryPath, largeContent, 0755))
+		if err := ax.WriteFile(binaryPath, largeContent, 0755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -638,24 +900,35 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		extractedContent := extractTarGzFile(t, archiveArtifact.Path, "large-app")
-		assert.Equal(t, largeContent, extractedContent)
+		if !stdlibAssertEqual(largeContent, extractedContent) {
+			t.Fatalf("want %v, got %v", largeContent, extractedContent)
+		}
+
 	})
 
 	t.Run("archive is smaller than original for tar.gz", func(t *testing.T) {
 		outputDir := t.TempDir()
 		platformDir := ax.Join(outputDir, "linux_amd64")
-		require.NoError(t, ax.MkdirAll(platformDir, 0755))
+		if err := ax.MkdirAll(platformDir, 0755); err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Create a compressible file (repeated pattern)
+				// Create a compressible file (repeated pattern)
+				err)
+		}
+
 		compressibleContent := make([]byte, 4096)
 		for i := range compressibleContent {
 			compressibleContent[i] = 'A'
 		}
 		binaryPath := ax.Join(platformDir, "compressible-app")
-		require.NoError(t, ax.WriteFile(binaryPath, compressibleContent, 0755))
+		if err := ax.WriteFile(binaryPath, compressibleContent, 0755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -664,28 +937,47 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		originalInfo, err := ax.Stat(binaryPath)
-		require.NoError(t, err)
-		archiveInfo, err := ax.Stat(archiveArtifact.Path)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
-		// Compressed archive should be smaller than original
-		assert.Less(t, archiveInfo.Size(), originalInfo.Size())
+		archiveInfo, err := ax.Stat(archiveArtifact.Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
+
+				// Compressed archive should be smaller than original
+				err)
+		}
+		if archiveInfo.Size() >= originalInfo.Size() {
+			t.Fatalf("expected %v to be less than %v", archiveInfo.Size(),
+
+				// extractTarGzFile extracts a named file from a tar.gz archive and returns its content.
+				originalInfo.Size())
+		}
+
 	})
 }
 
-// extractTarGzFile extracts a named file from a tar.gz archive and returns its content.
 func extractTarGzFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
 	file, err := ax.Open(archivePath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = file.Close() }()
 
 	gzReader, err := gzip.NewReader(file)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = gzReader.Close() }()
 
 	tarReader := tar.NewReader(gzReader)
@@ -695,11 +987,16 @@ func extractTarGzFile(t *testing.T, archivePath, fileName string) []byte {
 		if err == io.EOF {
 			t.Fatalf("file %q not found in archive", fileName)
 		}
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		if header.Name == fileName {
 			content, err := io.ReadAll(tarReader)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
 			return content
 		}
 	}
@@ -710,11 +1007,17 @@ func extractTarGzFileMode(t *testing.T, archivePath, fileName string) stdfs.File
 	t.Helper()
 
 	file, err := ax.Open(archivePath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = file.Close() }()
 
 	gzReader, err := gzip.NewReader(file)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = gzReader.Close() }()
 
 	tarReader := tar.NewReader(gzReader)
@@ -724,7 +1027,9 @@ func extractTarGzFileMode(t *testing.T, archivePath, fileName string) stdfs.File
 		if err == io.EOF {
 			t.Fatalf("file %q not found in archive", fileName)
 		}
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		if header.Name == fileName {
 			return header.FileInfo().Mode()
@@ -737,10 +1042,14 @@ func extractTarXzFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
 	xzData, err := ax.ReadFile(archivePath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	tarData, err := compress.Decompress(xzData)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	tarReader := tar.NewReader(bytes.NewReader(tarData))
 
@@ -749,11 +1058,16 @@ func extractTarXzFile(t *testing.T, archivePath, fileName string) []byte {
 		if err == io.EOF {
 			t.Fatalf("file %q not found in archive", fileName)
 		}
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		if header.Name == fileName {
 			content, err := io.ReadAll(tarReader)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
 			return content
 		}
 	}
@@ -764,17 +1078,26 @@ func extractZipFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
 	reader, err := zip.OpenReader(archivePath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = reader.Close() }()
 
 	for _, f := range reader.File {
 		if f.Name == fileName {
 			rc, err := f.Open()
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
 			defer func() { _ = rc.Close() }()
 
 			content, err := io.ReadAll(rc)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
 			return content
 		}
 	}
@@ -788,56 +1111,99 @@ func verifyTarGzContent(t *testing.T, archivePath, expectedName string) {
 	t.Helper()
 
 	file, err := ax.Open(archivePath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = file.Close() }()
 
 	gzReader, err := gzip.NewReader(file)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = gzReader.Close() }()
 
 	tarReader := tar.NewReader(gzReader)
 
 	header, err := tarReader.Next()
-	require.NoError(t, err)
-	assert.Equal(t, expectedName, header.Name)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(expectedName,
 
-	// Verify there's only one file
+		// Verify there's only one file
+		header.Name) {
+		t.Fatalf("want %v, got %v", expectedName, header.Name)
+	}
+
 	_, err = tarReader.Next()
-	assert.Equal(t, io.EOF, err)
+	if !stdlibAssertEqual(io.EOF, err) {
+		t.
+
+			// verifyZipContent opens a zip file and verifies it contains the expected file.
+			Fatalf("want %v, got %v", io.EOF, err)
+	}
+
 }
 
-// verifyZipContent opens a zip file and verifies it contains the expected file.
 func verifyZipContent(t *testing.T, archivePath, expectedName string) {
 	t.Helper()
 
 	reader, err := zip.OpenReader(archivePath)
-	require.NoError(t, err)
-	defer func() { _ = reader.Close() }()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	require.Len(t, reader.File, 1)
-	assert.Equal(t, expectedName, reader.File[0].Name)
+	defer func() { _ = reader.Close() }()
+	if len(reader.File) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(reader.File))
+	}
+	if !stdlibAssertEqual(
+
+		// verifyTarXzContent opens a tar.xz file and verifies it contains the expected file.
+		expectedName, reader.File[0].Name) {
+		t.Fatalf("want %v, got %v", expectedName, reader.File[0].Name)
+	}
+
 }
 
-// verifyTarXzContent opens a tar.xz file and verifies it contains the expected file.
 func verifyTarXzContent(t *testing.T, archivePath, expectedName string) {
 	t.Helper()
 
 	// Read the xz-compressed file
 	xzData, err := ax.ReadFile(archivePath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v",
 
-	// Decompress with Borg
+			// Decompress with Borg
+			err)
+	}
+
 	tarData, err := compress.Decompress(xzData)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v",
 
-	// Read tar archive
+			// Read tar archive
+			err)
+	}
+
 	tarReader := tar.NewReader(bytes.NewReader(tarData))
 
 	header, err := tarReader.Next()
-	require.NoError(t, err)
-	assert.Equal(t, expectedName, header.Name)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(expectedName,
 
-	// Verify there's only one file
+		// Verify there's only one file
+		header.Name) {
+		t.Fatalf("want %v, got %v", expectedName, header.Name)
+	}
+
 	_, err = tarReader.Next()
-	assert.Equal(t, io.EOF, err)
+	if !stdlibAssertEqual(io.EOF, err) {
+		t.Fatalf("want %v, got %v", io.EOF, err)
+	}
+
 }

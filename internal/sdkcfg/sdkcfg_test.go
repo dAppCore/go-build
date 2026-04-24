@@ -7,78 +7,119 @@ import (
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestLoadProjectConfig_Good(t *testing.T) {
 	t.Run("falls back to release config in the provided medium", func(t *testing.T) {
 		medium := io.NewMemoryMedium()
 		projectDir := "project"
-
-		require.NoError(t, medium.EnsureDir(ax.Join(projectDir, release.ConfigDir)))
-		require.NoError(t, medium.Write(release.ConfigPath(projectDir), `
+		if err := medium.EnsureDir(ax.Join(projectDir, release.ConfigDir)); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := medium.Write(release.ConfigPath(projectDir), `
 version: 1
 sdk:
   spec: docs/openapi.yaml
   languages: [php]
   output: generated/sdk
-`))
+`); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		cfg, err := LoadProjectConfig(medium, projectDir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual("docs/openapi.yaml", cfg.Spec) {
+			t.Fatalf("want %v, got %v", "docs/openapi.yaml", cfg.Spec)
+		}
+		if !stdlibAssertEqual([]string{"php"}, cfg.Languages) {
+			t.Fatalf("want %v, got %v", []string{"php"}, cfg.Languages)
+		}
+		if !stdlibAssertEqual("generated/sdk", cfg.Output) {
+			t.Fatalf("want %v, got %v", "generated/sdk", cfg.Output)
+		}
 
-		assert.Equal(t, "docs/openapi.yaml", cfg.Spec)
-		assert.Equal(t, []string{"php"}, cfg.Languages)
-		assert.Equal(t, "generated/sdk", cfg.Output)
 	})
 
 	t.Run("prefers build config over release config in the provided medium", func(t *testing.T) {
 		medium := io.NewMemoryMedium()
 		projectDir := "project"
-
-		require.NoError(t, medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)))
-		require.NoError(t, medium.Write(build.ConfigPath(projectDir), `
+		if err := medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := medium.Write(build.ConfigPath(projectDir), `
 version: 1
 sdk:
   spec: openapi.yaml
   languages: [typescript]
-`))
-		require.NoError(t, medium.EnsureDir(ax.Join(projectDir, release.ConfigDir)))
-		require.NoError(t, medium.Write(release.ConfigPath(projectDir), `
+`); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := medium.EnsureDir(ax.Join(projectDir, release.ConfigDir)); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := medium.Write(release.ConfigPath(projectDir), `
 version: 1
 sdk:
   spec: docs/openapi.yaml
   languages: [python]
-`))
+`); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		cfg, err := LoadProjectConfig(medium, projectDir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual("openapi.yaml", cfg.Spec) {
+			t.Fatalf("want %v, got %v", "openapi.yaml", cfg.Spec)
+		}
+		if !stdlibAssertEqual([]string{"typescript"}, cfg.Languages) {
+			t.Fatalf("want %v, got %v", []string{"typescript"}, cfg.Languages)
+		}
 
-		assert.Equal(t, "openapi.yaml", cfg.Spec)
-		assert.Equal(t, []string{"typescript"}, cfg.Languages)
 	})
 
 	t.Run("applies documented defaults to partial sdk config", func(t *testing.T) {
 		medium := io.NewMemoryMedium()
 		projectDir := "project"
-
-		require.NoError(t, medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)))
-		require.NoError(t, medium.Write(build.ConfigPath(projectDir), `
+		if err := medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := medium.Write(build.ConfigPath(projectDir), `
 version: 1
 sdk:
   spec: openapi.yaml
-`))
+`); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		cfg, err := LoadProjectConfig(medium, projectDir)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEqual("openapi.yaml", cfg.Spec) {
+			t.Fatalf("want %v, got %v", "openapi.yaml", cfg.Spec)
+		}
+		if !stdlibAssertEqual([]string{"typescript", "python", "go", "php"}, cfg.Languages) {
+			t.Fatalf("want %v, got %v", []string{"typescript", "python", "go", "php"}, cfg.Languages)
+		}
+		if !stdlibAssertEqual("sdk", cfg.Output) {
+			t.Fatalf("want %v, got %v", "sdk", cfg.Output)
+		}
+		if !(cfg.Diff.Enabled) {
+			t.Fatal("expected true")
+		}
 
-		assert.Equal(t, "openapi.yaml", cfg.Spec)
-		assert.Equal(t, []string{"typescript", "python", "go", "php"}, cfg.Languages)
-		assert.Equal(t, "sdk", cfg.Output)
-		assert.True(t, cfg.Diff.Enabled)
 	})
 }

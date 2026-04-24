@@ -3,16 +3,14 @@ package builders
 import (
 	"context"
 	"os"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // setupGoTestProject creates a minimal Go project for testing.
@@ -26,7 +24,9 @@ func setupGoTestProject(t *testing.T) string {
 go 1.21
 `
 	err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0644)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	// Create a minimal main.go
 	mainGo := `package main
@@ -36,7 +36,9 @@ func main() {
 }
 `
 	err = ax.WriteFile(ax.Join(dir, "main.go"), []byte(mainGo), 0644)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	return dir
 }
@@ -83,7 +85,9 @@ fi
 `
 
 	err := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	garbleScript := `#!/bin/sh
 set -eu
@@ -97,7 +101,10 @@ exec go "$@"
 `
 
 	err = ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 }
 
 func setupFakeGoBinary(t *testing.T, binDir string) {
@@ -142,7 +149,10 @@ fi
 `
 
 	err := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 }
 
 func setupFakeGarbleBinary(t *testing.T, binDir string) {
@@ -160,12 +170,18 @@ exec go "$@"
 `
 
 	err := ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 }
 
 func TestGo_GoBuilderName_Good(t *testing.T) {
 	builder := NewGoBuilder()
-	assert.Equal(t, "go", builder.Name())
+	if !stdlibAssertEqual("go", builder.Name()) {
+		t.Fatalf("want %v, got %v", "go", builder.Name())
+	}
+
 }
 
 func TestGo_GoBuilderDetect_Good(t *testing.T) {
@@ -173,35 +189,56 @@ func TestGo_GoBuilderDetect_Good(t *testing.T) {
 	t.Run("detects Go project with go.mod", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewGoBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("detects Wails project", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewGoBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("returns false for non-Go project", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create a Node.js project instead
 		err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewGoBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 
 	t.Run("returns false for empty directory", func(t *testing.T) {
@@ -209,8 +246,13 @@ func TestGo_GoBuilderDetect_Good(t *testing.T) {
 
 		builder := NewGoBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 }
 
@@ -239,23 +281,40 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) !=
 
-		// Verify artifact properties
+			// Verify artifact properties
+			1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+
 		artifact := artifacts[0]
-		assert.Equal(t, runtime.GOOS, artifact.OS)
-		assert.Equal(t, runtime.GOARCH, artifact.Arch)
+		if !stdlibAssertEqual(runtime.GOOS, artifact.OS) {
+			t.Fatalf("want %v, got %v", runtime.GOOS, artifact.OS)
 
-		// Verify binary was created
-		assert.FileExists(t, artifact.Path)
+			// Verify binary was created
+		}
+		if !stdlibAssertEqual(runtime.GOARCH, artifact.Arch) {
+			t.Fatalf("want %v, got %v",
 
-		// Verify the path is in the expected location
+				// Verify the path is in the expected location
+				runtime.GOARCH, artifact.Arch)
+		}
+		if _, err := os.Stat(artifact.Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifact.Path)
+		}
+
 		expectedName := "testbinary"
 		if runtime.GOOS == "windows" {
 			expectedName += ".exe"
 		}
-		assert.Contains(t, artifact.Path, expectedName)
+		if !stdlibAssertContains(artifact.Path, expectedName) {
+			t.Fatalf("expected %v to contain %v", artifact.Path, expectedName)
+		}
+
 	})
 
 	t.Run("defaults to current platform when targets are empty", func(t *testing.T) {
@@ -271,11 +330,22 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, nil)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.Equal(t, runtime.GOOS, artifacts[0].OS)
-		assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if !stdlibAssertEqual(runtime.GOOS, artifacts[0].OS) {
+			t.Fatalf("want %v, got %v", runtime.GOOS, artifacts[0].OS)
+		}
+		if !stdlibAssertEqual(runtime.GOARCH, artifacts[0].Arch) {
+			t.Fatalf("want %v, got %v", runtime.GOARCH, artifacts[0].Arch)
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
+
 	})
 
 	t.Run("does not mutate the caller output directory when using defaults", func(t *testing.T) {
@@ -289,10 +359,19 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.Empty(t, cfg.OutputDir)
-		assert.Equal(t, ax.Join(projectDir, "dist"), ax.Dir(ax.Dir(artifacts[0].Path)))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if !stdlibAssertEmpty(cfg.OutputDir) {
+			t.Fatalf("expected empty, got %v", cfg.OutputDir)
+		}
+		if !stdlibAssertEqual(ax.Join(projectDir, "dist"), ax.Dir(ax.Dir(artifacts[0].Path))) {
+			t.Fatalf("want %v, got %v", ax.Join(projectDir, "dist"), ax.Dir(ax.Dir(artifacts[0].Path)))
+		}
+
 	})
 
 	t.Run("builds multiple targets", func(t *testing.T) {
@@ -312,14 +391,27 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 2)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) !=
 
-		// Verify both artifacts were created
+			// Verify both artifacts were created
+			2 {
+			t.Fatalf("want len %v, got %v", 2, len(artifacts))
+		}
+
 		for i, artifact := range artifacts {
-			assert.Equal(t, targets[i].OS, artifact.OS)
-			assert.Equal(t, targets[i].Arch, artifact.Arch)
-			assert.FileExists(t, artifact.Path)
+			if !stdlibAssertEqual(targets[i].OS, artifact.OS) {
+				t.Fatalf("want %v, got %v", targets[i].OS, artifact.OS)
+			}
+			if !stdlibAssertEqual(targets[i].Arch, artifact.Arch) {
+				t.Fatalf("want %v, got %v", targets[i].Arch, artifact.Arch)
+			}
+			if _, err := os.Stat(artifact.Path); err != nil {
+				t.Fatalf("expected file to exist: %v", artifact.Path)
+			}
+
 		}
 	})
 
@@ -339,12 +431,22 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) !=
 
-		// Verify .exe extension
-		assert.True(t, ax.Ext(artifacts[0].Path) == ".exe")
-		assert.FileExists(t, artifacts[0].Path)
+			// Verify .exe extension
+			1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if !(ax.Ext(artifacts[0].Path) == ".exe") {
+			t.Fatal("expected true")
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
+
 	})
 
 	t.Run("uses directory name when Name not specified", func(t *testing.T) {
@@ -363,15 +465,24 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) !=
 
-		// Binary should use the project directory base name
+			// Binary should use the project directory base name
+			1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+
 		baseName := ax.Base(projectDir)
 		if runtime.GOOS == "windows" {
 			baseName += ".exe"
 		}
-		assert.Contains(t, artifacts[0].Path, baseName)
+		if !stdlibAssertContains(artifacts[0].Path, baseName) {
+			t.Fatalf("expected %v to contain %v", artifacts[0].Path, baseName)
+		}
+
 	})
 
 	t.Run("uses configured project binary when Name not specified", func(t *testing.T) {
@@ -390,14 +501,21 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
 
 		expectedName := "example-binary"
 		if runtime.GOOS == "windows" {
 			expectedName += ".exe"
 		}
-		assert.Contains(t, artifacts[0].Path, expectedName)
+		if !stdlibAssertContains(artifacts[0].Path, expectedName) {
+			t.Fatalf("expected %v to contain %v", artifacts[0].Path, expectedName)
+		}
+
 	})
 
 	t.Run("uses configured project name when Binary not specified", func(t *testing.T) {
@@ -416,14 +534,21 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
 
 		expectedName := "example-name"
 		if runtime.GOOS == "windows" {
 			expectedName += ".exe"
 		}
-		assert.Contains(t, artifacts[0].Path, expectedName)
+		if !stdlibAssertContains(artifacts[0].Path, expectedName) {
+			t.Fatalf("expected %v to contain %v", artifacts[0].Path, expectedName)
+		}
+
 	})
 
 	t.Run("applies ldflags", func(t *testing.T) {
@@ -443,9 +568,16 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
+
 	})
 
 	t.Run("applies config flags and env", func(t *testing.T) {
@@ -473,32 +605,75 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
 
 		argsContent, err := ax.ReadFile(argsLogPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		args := strings.Split(strings.TrimSpace(string(argsContent)), "\n")
-		require.NotEmpty(t, args)
-		assert.Equal(t, "build", args[0])
-		assert.Contains(t, args, "-trimpath")
-		assert.Contains(t, args, "-race")
+		if stdlibAssertEmpty(args) {
+			t.Fatal("expected non-empty")
+		}
+		if !stdlibAssertEqual("build", args[0]) {
+			t.Fatalf("want %v, got %v", "build", args[0])
+		}
+		if !stdlibAssertContains(args, "-trimpath") {
+			t.Fatalf("expected %v to contain %v", args, "-trimpath")
+		}
+		if !stdlibAssertContains(args, "-race") {
+			t.Fatalf("expected %v to contain %v", args, "-race")
+		}
 
 		envContent, err := ax.ReadFile(envLogPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
-		assert.Contains(t, envLines, "BAR=baz")
-		assert.Contains(t, envLines, "FOO=bar")
-		assert.Contains(t, envLines, "TARGET_OS="+runtime.GOOS)
-		assert.Contains(t, envLines, "TARGET_ARCH="+runtime.GOARCH)
-		assert.Contains(t, envLines, "OUTPUT_DIR="+outputDir)
-		assert.Contains(t, envLines, "TARGET_DIR="+ax.Join(outputDir, runtime.GOOS+"_"+runtime.GOARCH))
-		assert.Contains(t, envLines, "GOOS="+runtime.GOOS)
-		assert.Contains(t, envLines, "GOARCH="+runtime.GOARCH)
-		assert.Contains(t, envLines, "NAME=envflags")
-		assert.Contains(t, envLines, "VERSION=v1.2.3")
-		assert.Contains(t, envLines, "CGO_ENABLED=0")
+		if !stdlibAssertContains(envLines, "BAR=baz") {
+			t.Fatalf("expected %v to contain %v", envLines, "BAR=baz")
+		}
+		if !stdlibAssertContains(envLines, "FOO=bar") {
+			t.Fatalf("expected %v to contain %v", envLines, "FOO=bar")
+		}
+		if !stdlibAssertContains(envLines, "TARGET_OS="+runtime.GOOS) {
+			t.Fatalf("expected %v to contain %v", envLines, "TARGET_OS="+runtime.GOOS)
+		}
+		if !stdlibAssertContains(envLines, "TARGET_ARCH="+runtime.GOARCH) {
+			t.Fatalf("expected %v to contain %v", envLines, "TARGET_ARCH="+runtime.GOARCH)
+		}
+		if !stdlibAssertContains(envLines, "OUTPUT_DIR="+outputDir) {
+			t.Fatalf("expected %v to contain %v", envLines, "OUTPUT_DIR="+outputDir)
+		}
+		if !stdlibAssertContains(envLines, "TARGET_DIR="+ax.Join(outputDir, runtime.GOOS+"_"+runtime.GOARCH)) {
+			t.Fatalf("expected %v to contain %v", envLines, "TARGET_DIR="+ax.Join(outputDir, runtime.GOOS+"_"+runtime.GOARCH))
+		}
+		if !stdlibAssertContains(envLines, "GOOS="+runtime.GOOS) {
+			t.Fatalf("expected %v to contain %v", envLines, "GOOS="+runtime.GOOS)
+		}
+		if !stdlibAssertContains(envLines, "GOARCH="+runtime.GOARCH) {
+			t.Fatalf("expected %v to contain %v", envLines, "GOARCH="+runtime.GOARCH)
+		}
+		if !stdlibAssertContains(envLines, "NAME=envflags") {
+			t.Fatalf("expected %v to contain %v", envLines, "NAME=envflags")
+		}
+		if !stdlibAssertContains(envLines, "VERSION=v1.2.3") {
+			t.Fatalf("expected %v to contain %v", envLines, "VERSION=v1.2.3")
+		}
+		if !stdlibAssertContains(envLines, "CGO_ENABLED=0") {
+			t.Fatalf("expected %v to contain %v", envLines, "CGO_ENABLED=0")
+		}
+
 	})
 
 	t.Run("applies configured cache paths to go cache env vars", func(t *testing.T) {
@@ -526,16 +701,29 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
 
 		envContent, err := ax.ReadFile(envLogPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
-		assert.Contains(t, envLines, "GOCACHE="+ax.Join(outputDir, "cache", "go-build"))
-		assert.Contains(t, envLines, "GOMODCACHE="+ax.Join(outputDir, "cache", "go-mod"))
+		if !stdlibAssertContains(envLines, "GOCACHE="+ax.Join(outputDir, "cache", "go-build")) {
+			t.Fatalf("expected %v to contain %v", envLines, "GOCACHE="+ax.Join(outputDir, "cache", "go-build"))
+		}
+		if !stdlibAssertContains(envLines, "GOMODCACHE="+ax.Join(outputDir, "cache", "go-mod")) {
+			t.Fatalf("expected %v to contain %v", envLines, "GOMODCACHE="+ax.Join(outputDir, "cache", "go-mod"))
+		}
+
 	})
 
 	t.Run("passes build tags through to go build", func(t *testing.T) {
@@ -555,18 +743,35 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		args := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.NotEmpty(t, args)
-		assert.Equal(t, "build", args[0])
-		assert.Contains(t, args, "-tags")
-		assert.Contains(t, args, "webkit2_41,integration")
+		if stdlibAssertEmpty(args) {
+			t.Fatal("expected non-empty")
+		}
+		if !stdlibAssertEqual("build", args[0]) {
+			t.Fatalf("want %v, got %v", "build", args[0])
+		}
+		if !stdlibAssertContains(args, "-tags") {
+			t.Fatalf("expected %v to contain %v", args, "-tags")
+		}
+		if !stdlibAssertContains(args, "webkit2_41,integration") {
+			t.Fatalf("expected %v to contain %v", args, "webkit2_41,integration")
+		}
+
 	})
 
 	t.Run("injects version into ldflags and environment", func(t *testing.T) {
@@ -589,23 +794,42 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
 
 		argsContent, err := ax.ReadFile(argsLogPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		args := strings.Split(strings.TrimSpace(string(argsContent)), "\n")
-		require.NotEmpty(t, args)
-		assert.Contains(t, args, "-ldflags")
-		assert.Contains(t, args, "-X main.version=v1.2.3")
+		if stdlibAssertEmpty(args) {
+			t.Fatal("expected non-empty")
+		}
+		if !stdlibAssertContains(args, "-ldflags") {
+			t.Fatalf("expected %v to contain %v", args, "-ldflags")
+		}
+		if !stdlibAssertContains(args, "-X main.version=v1.2.3") {
+			t.Fatalf("expected %v to contain %v", args, "-X main.version=v1.2.3")
+		}
 
 		envContent, err := ax.ReadFile(envLogPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		envLines := strings.Split(strings.TrimSpace(string(envContent)), "\n")
-		assert.Contains(t, envLines, "VERSION=v1.2.3")
+		if !stdlibAssertContains(envLines, "VERSION=v1.2.3") {
+			t.Fatalf("expected %v to contain %v", envLines, "VERSION=v1.2.3")
+		}
+
 	})
 
 	t.Run("uses garble when obfuscation is enabled", func(t *testing.T) {
@@ -633,19 +857,38 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		args := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.NotEmpty(t, args)
-		assert.Equal(t, "build", args[0])
-		assert.Contains(t, args, "-trimpath")
-		assert.Contains(t, args, "-o")
-		assert.Contains(t, args, ".")
+		if stdlibAssertEmpty(args) {
+			t.Fatal("expected non-empty")
+		}
+		if !stdlibAssertEqual("build", args[0]) {
+			t.Fatalf("want %v, got %v", "build", args[0])
+		}
+		if !stdlibAssertContains(args, "-trimpath") {
+			t.Fatalf("expected %v to contain %v", args, "-trimpath")
+		}
+		if !stdlibAssertContains(args, "-o") {
+			t.Fatalf("expected %v to contain %v", args, "-o")
+		}
+		if !stdlibAssertContains(args, ".") {
+			t.Fatalf("expected %v to contain %v", args, ".")
+		}
+
 	})
 
 	t.Run("finds garble in GOBIN when it is not on PATH", func(t *testing.T) {
@@ -679,25 +922,45 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		args := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.NotEmpty(t, args)
-		assert.Equal(t, "build", args[0])
-		assert.Contains(t, args, "-trimpath")
+		if stdlibAssertEmpty(args) {
+			t.Fatal("expected non-empty")
+		}
+		if !stdlibAssertEqual("build", args[0]) {
+			t.Fatalf("want %v, got %v", "build", args[0])
+		}
+		if !stdlibAssertContains(args, "-trimpath") {
+			t.Fatalf("expected %v to contain %v", args, "-trimpath")
+		}
+
 	})
 
 	t.Run("builds the configured main package path", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
 		err := ax.MkdirAll(ax.Join(projectDir, "cmd", "myapp"), 0755)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		err = ax.WriteFile(ax.Join(projectDir, "cmd", "myapp", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		outputDir := t.TempDir()
 		logPath := ax.Join(t.TempDir(), "go-build-args.log")
@@ -716,16 +979,29 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		args := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.NotEmpty(t, args)
-		assert.Contains(t, args, "./cmd/myapp")
-		assert.NotContains(t, args, ".")
+		if stdlibAssertEmpty(args) {
+			t.Fatal("expected non-empty")
+		}
+		if !stdlibAssertContains(args, "./cmd/myapp") {
+			t.Fatalf("expected %v to contain %v", args, "./cmd/myapp")
+		}
+		if stdlibAssertContains(args, ".") {
+			t.Fatalf("expected %v not to contain %v", args, ".")
+		}
+
 	})
 
 	t.Run("creates output directory if missing", func(t *testing.T) {
@@ -744,10 +1020,21 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
-		assert.DirExists(t, outputDir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
+		if info, err := os.Stat(outputDir); err != nil {
+			t.Fatalf("expected directory to exist: %v", outputDir)
+		} else if !info.IsDir() {
+			t.Fatalf("expected directory to exist: %v", outputDir)
+		}
+
 	})
 
 	t.Run("defaults output directory to project dist when not specified", func(t *testing.T) {
@@ -764,13 +1051,26 @@ func TestGo_GoBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
 
 		expectedDir := ax.Join(projectDir, "dist")
-		assert.DirExists(t, expectedDir)
-		assert.Contains(t, artifacts[0].Path, expectedDir)
-		assert.FileExists(t, artifacts[0].Path)
+		if info, err := os.Stat(expectedDir); err != nil {
+			t.Fatalf("expected directory to exist: %v", expectedDir)
+		} else if !info.IsDir() {
+			t.Fatalf("expected directory to exist: %v", expectedDir)
+		}
+		if !stdlibAssertContains(artifacts[0].Path, expectedDir) {
+			t.Fatalf("expected %v to contain %v", artifacts[0].Path, expectedDir)
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
+
 	})
 }
 
@@ -783,9 +1083,16 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		builder := NewGoBuilder()
 
 		artifacts, err := builder.Build(context.Background(), nil, []build.Target{{OS: "linux", Arch: "amd64"}})
-		assert.Error(t, err)
-		assert.Nil(t, artifacts)
-		assert.Contains(t, err.Error(), "config is nil")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertNil(artifacts) {
+			t.Fatalf("expected nil, got %v", artifacts)
+		}
+		if !stdlibAssertContains(err.Error(), "config is nil") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "config is nil")
+		}
+
 	})
 
 	t.Run("defaults to current platform when targets are empty", func(t *testing.T) {
@@ -800,11 +1107,22 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{})
-		assert.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.Equal(t, runtime.GOOS, artifacts[0].OS)
-		assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if !stdlibAssertEqual(runtime.GOOS, artifacts[0].OS) {
+			t.Fatalf("want %v, got %v", runtime.GOOS, artifacts[0].OS)
+		}
+		if !stdlibAssertEqual(runtime.GOARCH, artifacts[0].Arch) {
+			t.Fatalf("want %v, got %v", runtime.GOARCH, artifacts[0].Arch)
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
+
 	})
 
 	t.Run("returns error for invalid project directory", func(t *testing.T) {
@@ -824,8 +1142,13 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		assert.Error(t, err)
-		assert.Empty(t, artifacts)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertEmpty(artifacts) {
+			t.Fatalf("expected empty, got %v", artifacts)
+		}
+
 	})
 
 	t.Run("returns error for invalid Go code", func(t *testing.T) {
@@ -837,11 +1160,17 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 
 		// Create go.mod
 		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test\n\ngo 1.21"), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Create invalid Go code
+				// Create invalid Go code
+				err)
+		}
+
 		err = ax.WriteFile(ax.Join(dir, "main.go"), []byte("this is not valid go code"), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
@@ -855,9 +1184,16 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "go build failed")
-		assert.Empty(t, artifacts)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "go build failed") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "go build failed")
+		}
+		if !stdlibAssertEmpty(artifacts) {
+			t.Fatalf("expected empty, got %v", artifacts)
+		}
+
 	})
 
 	t.Run("returns partial artifacts on partial failure", func(t *testing.T) {
@@ -883,10 +1219,18 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		// Should return error for the failed build
-		assert.Error(t, err)
-		// Should have the successful artifact
-		assert.Len(t, artifacts, 1)
+		if err ==
+			// Should return error for the failed build
+			nil {
+			t.Fatal("expected error")
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v",
+
+				// Should have the successful artifact
+				1, len(artifacts))
+		}
+
 	})
 
 	t.Run("respects context cancellation", func(t *testing.T) {
@@ -912,8 +1256,13 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		cancel()
 
 		artifacts, err := builder.Build(ctx, cfg, targets)
-		assert.Error(t, err)
-		assert.Empty(t, artifacts)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertEmpty(artifacts) {
+			t.Fatalf("expected empty, got %v", artifacts)
+		}
+
 	})
 
 	t.Run("rejects unsafe version identifiers before invoking go build", func(t *testing.T) {
@@ -929,9 +1278,16 @@ func TestGo_GoBuilderBuild_Bad(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
-		require.Error(t, err)
-		assert.Empty(t, artifacts)
-		assert.Contains(t, err.Error(), "unsupported characters")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertEmpty(artifacts) {
+			t.Fatalf("expected empty, got %v", artifacts)
+		}
+		if !stdlibAssertContains(err.Error(), "unsupported characters") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "unsupported characters")
+		}
+
 	})
 }
 
@@ -939,12 +1295,20 @@ func TestGo_GoBuilderResolveGarbleCli_Good(t *testing.T) {
 	t.Run("returns an explicit fallback path when it exists", func(t *testing.T) {
 		builder := NewGoBuilder()
 		garblePath := ax.Join(t.TempDir(), "garble")
-		require.NoError(t, ax.WriteFile(garblePath, []byte("#!/bin/sh\n"), 0o755))
+		if err := ax.WriteFile(garblePath, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		t.Setenv("PATH", t.TempDir())
 
 		command, err := builder.resolveGarbleCli(garblePath)
-		require.NoError(t, err)
-		assert.Equal(t, garblePath, command)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(garblePath, command) {
+			t.Fatalf("want %v, got %v", garblePath, command)
+		}
+
 	})
 }
 
@@ -954,9 +1318,16 @@ func TestGo_GoBuilderResolveGarbleCli_Bad(t *testing.T) {
 		t.Setenv("PATH", t.TempDir())
 
 		command, err := builder.resolveGarbleCli(ax.Join(t.TempDir(), "missing-garble"))
-		require.Error(t, err)
-		assert.Empty(t, command)
-		assert.Contains(t, err.Error(), "garble CLI not found")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertEmpty(command) {
+			t.Fatalf("expected empty, got %v", command)
+		}
+		if !stdlibAssertContains(err.Error(), "garble CLI not found") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "garble CLI not found")
+		}
+
 	})
 }
 
@@ -969,30 +1340,152 @@ func TestGo_GarbleInstallPaths_Ugly(t *testing.T) {
 	t.Setenv("GOPATH", gopathOne+string(os.PathListSeparator)+" "+string(os.PathListSeparator)+gopathTwo)
 
 	paths := garbleInstallPaths()
+	if !stdlibAssertEqual([]string{ax.Join(gobin, "garble"), ax.Join(gopathOne, "bin", "garble"), ax.Join(gopathTwo, "bin", "garble")}, paths) {
+		t.Fatalf("want %v, got %v", []string{ax.Join(gobin, "garble"), ax.Join(gopathOne, "bin", "garble"), ax.Join(gopathTwo, "bin", "garble")}, paths)
+	}
 
-	assert.Equal(t, []string{
-		ax.Join(gobin, "garble"),
-		ax.Join(gopathOne, "bin", "garble"),
-		ax.Join(gopathTwo, "bin", "garble"),
-	}, paths)
 }
 
 func TestGo_hasVersionLDFlag_Good(t *testing.T) {
-	assert.True(t, hasVersionLDFlag([]string{"-s", "-w", "-X main.version=v1.2.3"}))
-	assert.True(t, hasVersionLDFlag([]string{"-X main.Version=v1.2.3"}))
+	if !(hasVersionLDFlag([]string{"-s", "-w", "-X main.version=v1.2.3"})) {
+		t.Fatal("expected true")
+	}
+	if !(hasVersionLDFlag([]string{"-X main.Version=v1.2.3"})) {
+		t.Fatal("expected true")
+	}
+
 }
 
 func TestGo_hasVersionLDFlag_Bad(t *testing.T) {
-	assert.False(t, hasVersionLDFlag([]string{"-s", "-w"}))
+	if hasVersionLDFlag([]string{"-s", "-w"}) {
+		t.Fatal("expected false")
+	}
+
 }
 
 func TestGo_containsString_Ugly(t *testing.T) {
-	assert.True(t, containsString([]string{"alpha", "beta"}, "beta"))
-	assert.False(t, containsString([]string{"alpha", "beta"}, "gamma"))
+	if !(containsString([]string{"alpha", "beta"}, "beta")) {
+		t.Fatal("expected true")
+	}
+	if containsString([]string{"alpha", "beta"}, "gamma") {
+		t.Fatal("expected false")
+	}
+
 }
 
 func TestGo_GoBuilderInterface_Good(t *testing.T) {
 	// Verify GoBuilder implements Builder interface
 	var _ build.Builder = (*GoBuilder)(nil)
 	var _ build.Builder = NewGoBuilder()
+}
+
+func stdlibAssertEqual(want, got any) bool {
+	return reflect.DeepEqual(want, got)
+}
+
+func stdlibAssertNil(value any) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
+func stdlibAssertEmpty(value any) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	if !v.IsValid() {
+		return true
+	}
+	switch v.Kind() {
+	case reflect.Array, reflect.Chan, reflect.Map, reflect.Slice, reflect.String:
+		return v.Len() == 0
+	default:
+		return v.IsZero()
+	}
+}
+
+func stdlibAssertZero(value any) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	return !v.IsValid() || v.IsZero()
+}
+
+func stdlibAssertContains(container, elem any) bool {
+	if s, ok := container.(string); ok {
+		sub, ok := elem.(string)
+		return ok && strings.Contains(s, sub)
+	}
+
+	v := reflect.ValueOf(container)
+	if !v.IsValid() {
+		return false
+	}
+	switch v.Kind() {
+	case reflect.Map:
+		key := reflect.ValueOf(elem)
+		if !key.IsValid() {
+			return false
+		}
+		if key.Type().AssignableTo(v.Type().Key()) {
+			return v.MapIndex(key).IsValid()
+		}
+		if key.Type().ConvertibleTo(v.Type().Key()) {
+			return v.MapIndex(key.Convert(v.Type().Key())).IsValid()
+		}
+	case reflect.Array, reflect.Slice:
+		for i := 0; i < v.Len(); i++ {
+			if reflect.DeepEqual(v.Index(i).Interface(), elem) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func stdlibAssertElementsMatch(want, got any) bool {
+	wantValue := reflect.ValueOf(want)
+	gotValue := reflect.ValueOf(got)
+	if !wantValue.IsValid() || !gotValue.IsValid() {
+		return !wantValue.IsValid() && !gotValue.IsValid()
+	}
+	if !isListValue(wantValue) || !isListValue(gotValue) {
+		return reflect.DeepEqual(want, got)
+	}
+	if wantValue.Len() != gotValue.Len() {
+		return false
+	}
+
+	used := make([]bool, gotValue.Len())
+	for i := 0; i < wantValue.Len(); i++ {
+		found := false
+		wantElem := wantValue.Index(i).Interface()
+		for j := 0; j < gotValue.Len(); j++ {
+			if used[j] {
+				continue
+			}
+			if reflect.DeepEqual(wantElem, gotValue.Index(j).Interface()) {
+				used[j] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func isListValue(value reflect.Value) bool {
+	return value.Kind() == reflect.Array || value.Kind() == reflect.Slice
 }

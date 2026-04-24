@@ -7,13 +7,14 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCodesign_MacOSSignerName_Good(t *testing.T) {
 	s := NewMacOSSigner(MacOSConfig{Identity: "Developer ID Application: Test"})
-	assert.Equal(t, "codesign", s.Name())
+	if !stdlibAssertEqual("codesign", s.Name()) {
+		t.Fatalf("want %v, got %v", "codesign", s.Name())
+	}
+
 }
 
 func TestCodesign_MacOSSignerAvailable_Good(t *testing.T) {
@@ -23,13 +24,19 @@ func TestCodesign_MacOSSignerAvailable_Good(t *testing.T) {
 		// Just verify it doesn't panic
 		_ = s.Available()
 	} else {
-		assert.False(t, s.Available())
+		if s.Available() {
+			t.Fatal("expected false")
+		}
+
 	}
 }
 
 func TestCodesign_MacOSSignerNoIdentity_Bad(t *testing.T) {
 	s := NewMacOSSigner(MacOSConfig{})
-	assert.False(t, s.Available())
+	if s.Available() {
+		t.Fatal("expected false")
+	}
+
 }
 
 func TestCodesign_MacOSSignerSign_Bad(t *testing.T) {
@@ -40,8 +47,13 @@ func TestCodesign_MacOSSignerSign_Bad(t *testing.T) {
 		fs := io.Local
 		s := NewMacOSSigner(MacOSConfig{Identity: "test"})
 		err := s.Sign(context.Background(), fs, "test")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "only available on macOS")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "only available on macOS") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "only available on macOS")
+		}
+
 	})
 }
 
@@ -50,72 +62,121 @@ func TestCodesign_MacOSSignerNotarize_Bad(t *testing.T) {
 	t.Run("fails with missing credentials", func(t *testing.T) {
 		s := NewMacOSSigner(MacOSConfig{})
 		err := s.Notarize(context.Background(), fs, "test")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "missing Apple credentials")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "missing Apple credentials") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "missing Apple credentials")
+		}
+
 	})
 }
 
 func TestCodesign_MacOSSignerShouldNotarize_Good(t *testing.T) {
 	s := NewMacOSSigner(MacOSConfig{Notarize: true})
-	assert.True(t, s.ShouldNotarize())
+	if !(s.ShouldNotarize()) {
+		t.Fatal("expected true")
+	}
 
 	s2 := NewMacOSSigner(MacOSConfig{Notarize: false})
-	assert.False(t, s2.ShouldNotarize())
+	if s2.ShouldNotarize() {
+		t.Fatal("expected false")
+	}
+
 }
 
 func TestCodesign_ResolveCodesignCli_Good(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "codesign")
-	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", "")
 
 	command, err := resolveCodesignCli(fallbackPath)
-	require.NoError(t, err)
-	assert.Equal(t, fallbackPath, command)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(fallbackPath, command) {
+		t.Fatalf("want %v, got %v", fallbackPath, command)
+	}
+
 }
 
 func TestCodesign_ResolveCodesignCli_Bad(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	_, err := resolveCodesignCli(ax.Join(t.TempDir(), "missing-codesign"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "codesign tool not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "codesign tool not found") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "codesign tool not found")
+	}
+
 }
 
 func TestCodesign_ResolveZipCli_Good(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "zip")
-	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", "")
 
 	command, err := resolveZipCli(fallbackPath)
-	require.NoError(t, err)
-	assert.Equal(t, fallbackPath, command)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(fallbackPath, command) {
+		t.Fatalf("want %v, got %v", fallbackPath, command)
+	}
+
 }
 
 func TestCodesign_ResolveZipCli_Bad(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	_, err := resolveZipCli(ax.Join(t.TempDir(), "missing-zip"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "zip tool not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "zip tool not found") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "zip tool not found")
+	}
+
 }
 
 func TestCodesign_ResolveXcrunCli_Good(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "xcrun")
-	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", "")
 
 	command, err := resolveXcrunCli(fallbackPath)
-	require.NoError(t, err)
-	assert.Equal(t, fallbackPath, command)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(fallbackPath, command) {
+		t.Fatalf("want %v, got %v", fallbackPath, command)
+	}
+
 }
 
 func TestCodesign_ResolveXcrunCli_Bad(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	_, err := resolveXcrunCli(ax.Join(t.TempDir(), "missing-xcrun"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "xcrun tool not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "xcrun tool not found") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "xcrun tool not found")
+	}
+
 }

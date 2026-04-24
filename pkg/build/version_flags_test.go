@@ -2,61 +2,97 @@ package build
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestVersionLinkerFlag_Good(t *testing.T) {
 	flag, err := VersionLinkerFlag("v1.2.3-beta.1+exp.sha")
-	require.NoError(t, err)
-	assert.Equal(t, "-X main.version=v1.2.3-beta.1+exp.sha", flag)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("-X main.version=v1.2.3-beta.1+exp.sha", flag) {
+		t.Fatalf("want %v, got %v", "-X main.version=v1.2.3-beta.1+exp.sha", flag)
+	}
+
 }
 
 func TestVersionLinkerFlag_Bad(t *testing.T) {
 	flag, err := VersionLinkerFlag("v1.2.3;rm -rf /")
-	assert.Error(t, err)
-	assert.Empty(t, flag)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertEmpty(flag) {
+		t.Fatalf("expected empty, got %v", flag)
+	}
+
 }
 
 func TestValidateVersionIdentifier_Bad(t *testing.T) {
-	assert.NoError(t, ValidateVersionIdentifier("v1.2.3"))
-	assert.NoError(t, ValidateVersionIdentifier("dev"))
-	assert.Error(t, ValidateVersionIdentifier("v1.2.3\n--flag"))
+	if err := ValidateVersionIdentifier("v1.2.3"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ValidateVersionIdentifier("dev"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ValidateVersionIdentifier("v1.2.3\n--flag") == nil {
+		t.Fatal("expected error")
+	}
+
 }
 
 func TestVersionFlags_ValidateVersionIdentifier_Good(t *testing.T) {
 	t.Run("accepts empty version", func(t *testing.T) {
-		assert.NoError(t, ValidateVersionIdentifier(""))
+		if err := ValidateVersionIdentifier(""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 
 	t.Run("accepts trimmed safe version", func(t *testing.T) {
-		assert.NoError(t, ValidateVersionIdentifier("  v1.2.3-beta.1+exp.sha  "))
+		if err := ValidateVersionIdentifier("  v1.2.3-beta.1+exp.sha  "); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 }
 
 func TestVersionFlags_ValidateVersionIdentifier_Ugly(t *testing.T) {
 	t.Run("rejects non-ASCII identifiers", func(t *testing.T) {
-		assert.Error(t, ValidateVersionIdentifier("v1.2.3-β"))
+		if ValidateVersionIdentifier("v1.2.3-β") == nil {
+			t.Fatal("expected error")
+		}
+
 	})
 
 	t.Run("rejects shell metacharacters", func(t *testing.T) {
-		assert.Error(t, ValidateVersionIdentifier("v1.2.3 && echo unsafe"))
+		if ValidateVersionIdentifier("v1.2.3 && echo unsafe") == nil {
+			t.Fatal("expected error")
+		}
+
 	})
 }
 
 func TestVersionFlags_VersionLinkerFlag_Good(t *testing.T) {
 	t.Run("trims whitespace before rendering linker flag", func(t *testing.T) {
 		flag, err := VersionLinkerFlag("  v1.2.3  ")
-		require.NoError(t, err)
-		assert.Equal(t, "-X main.version=v1.2.3", flag)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("-X main.version=v1.2.3", flag) {
+			t.Fatalf("want %v, got %v", "-X main.version=v1.2.3", flag)
+		}
+
 	})
 }
 
 func TestVersionFlags_VersionLinkerFlag_Ugly(t *testing.T) {
 	t.Run("empty version is a no-op", func(t *testing.T) {
 		flag, err := VersionLinkerFlag("")
-		require.NoError(t, err)
-		assert.Empty(t, flag)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEmpty(flag) {
+			t.Fatalf("expected empty, got %v", flag)
+		}
+
 	})
 }

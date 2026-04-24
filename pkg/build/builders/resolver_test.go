@@ -5,25 +5,37 @@ import (
 	"testing"
 
 	"dappco.re/go/build/pkg/build"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"errors"
 )
 
 func TestResolveBuilder_Good(t *testing.T) {
 	t.Run("returns Go builder for go project type", func(t *testing.T) {
 		builder, err := ResolveBuilder(build.ProjectTypeGo)
-		require.NoError(t, err)
-		assert.Equal(t, "go", builder.Name())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("go", builder.Name()) {
+			t.Fatalf("want %v, got %v", "go", builder.Name())
+		}
+
 	})
 
 	t.Run("returns Docker builder for docker project type", func(t *testing.T) {
 		builder, err := ResolveBuilder(build.ProjectTypeDocker)
-		require.NoError(t, err)
-		assert.Equal(t, "docker", builder.Name())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("docker", builder.Name()) {
+			t.Fatalf("want %v, got %v", "docker", builder.Name())
+		}
+
 	})
 }
 
 func TestResolveBuilder_Bad(t *testing.T) {
 	_, err := ResolveBuilder(build.ProjectType("unknown"))
-	assert.ErrorIs(t, err, fs.ErrNotExist)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("expected error %v to be %v", err, fs.ErrNotExist)
+	}
+
 }

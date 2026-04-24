@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPwa_FindManifestURL_Good(t *testing.T) {
@@ -16,16 +14,26 @@ func TestPwa_FindManifestURL_Good(t *testing.T) {
 		htmlContent := `<html><head><link rel="manifest" href="/manifest.json"></head></html>`
 
 		got, err := findManifestURL(htmlContent, "https://example.test/app/")
-		require.NoError(t, err)
-		assert.Equal(t, "https://example.test/manifest.json", got)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("https://example.test/manifest.json", got) {
+			t.Fatalf("want %v, got %v", "https://example.test/manifest.json", got)
+		}
+
 	})
 
 	t.Run("accepts case-insensitive tokenised rel values", func(t *testing.T) {
 		htmlContent := `<html><head><link rel="Manifest icon" href="manifest.json"></head></html>`
 
 		got, err := findManifestURL(htmlContent, "https://example.test/app/")
-		require.NoError(t, err)
-		assert.Equal(t, "https://example.test/app/manifest.json", got)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("https://example.test/app/manifest.json", got) {
+			t.Fatalf("want %v, got %v", "https://example.test/app/manifest.json", got)
+		}
+
 	})
 }
 
@@ -34,9 +42,16 @@ func TestPwa_FindManifestURL_Bad(t *testing.T) {
 		htmlContent := `<html><head><link rel="icon" href="/icon.png"></head></html>`
 
 		got, err := findManifestURL(htmlContent, "https://example.test/app/")
-		assert.Error(t, err)
-		assert.Empty(t, got)
-		assert.Contains(t, err.Error(), "pwa.findManifestURL")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertEmpty(got) {
+			t.Fatalf("expected empty, got %v", got)
+		}
+		if !stdlibAssertContains(err.Error(), "pwa.findManifestURL") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "pwa.findManifestURL")
+		}
+
 	})
 }
 
@@ -58,20 +73,25 @@ func TestPwa_ExtractHTMLMetadataAndAssets_Good(t *testing.T) {
 </html>`
 
 	metadata, assets, err := extractHTMLMetadataAndAssets(htmlContent, "https://example.test/app/")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("Example App", metadata.DisplayName) {
+		t.Fatalf("want %v, got %v", "Example App", metadata.DisplayName)
+	}
+	if !stdlibAssertEqual("Example description", metadata.Description) {
+		t.Fatalf("want %v, got %v", "Example description", metadata.Description)
+	}
+	if !stdlibAssertEqual("https://example.test/manifest.json", metadata.ManifestURL) {
+		t.Fatalf("want %v, got %v", "https://example.test/manifest.json", metadata.ManifestURL)
+	}
+	if !stdlibAssertEqual([]string{"https://example.test/assets/icon.png"}, metadata.Icons) {
+		t.Fatalf("want %v, got %v", []string{"https://example.test/assets/icon.png"}, metadata.Icons)
+	}
+	if !stdlibAssertElementsMatch([]string{"https://example.test/manifest.json", "https://example.test/assets/app.css", "https://example.test/assets/icon.png", "https://example.test/assets/app.js", "https://example.test/assets/logo.png", "https://example.test/assets/logo@2x.png"}, assets) {
+		t.Fatalf("expected elements %v, got %v", []string{"https://example.test/manifest.json", "https://example.test/assets/app.css", "https://example.test/assets/icon.png", "https://example.test/assets/app.js", "https://example.test/assets/logo.png", "https://example.test/assets/logo@2x.png"}, assets)
+	}
 
-	assert.Equal(t, "Example App", metadata.DisplayName)
-	assert.Equal(t, "Example description", metadata.Description)
-	assert.Equal(t, "https://example.test/manifest.json", metadata.ManifestURL)
-	assert.Equal(t, []string{"https://example.test/assets/icon.png"}, metadata.Icons)
-	assert.ElementsMatch(t, []string{
-		"https://example.test/manifest.json",
-		"https://example.test/assets/app.css",
-		"https://example.test/assets/icon.png",
-		"https://example.test/assets/app.js",
-		"https://example.test/assets/logo.png",
-		"https://example.test/assets/logo@2x.png",
-	}, assets)
 }
 
 func TestPwa_DownloadPWA_DownloadsHTMLAndManifestAssets_Good(t *testing.T) {
@@ -118,15 +138,25 @@ func TestPwa_DownloadPWA_DownloadsHTMLAndManifestAssets_Good(t *testing.T) {
 	defer server.Close()
 
 	destDir := t.TempDir()
-	require.NoError(t, downloadPWA(context.Background(), server.URL+"/app", destDir))
+	if err := downloadPWA(context.Background(), server.URL+"/app", destDir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	indexBody, err := ax.ReadFile(ax.Join(destDir, "index.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(indexBody), "<title>Example App</title>")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(string(indexBody), "<title>Example App</title>") {
+		t.Fatalf("expected %v to contain %v", string(indexBody), "<title>Example App</title>")
+	}
 
 	manifestBody, err := ax.ReadFile(ax.Join(destDir, "manifest.json"))
-	require.NoError(t, err)
-	assert.Contains(t, string(manifestBody), `"name": "Manifest App"`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(string(manifestBody), `"name": "Manifest App"`) {
+		t.Fatalf("expected %v to contain %v", string(manifestBody), `"name": "Manifest App"`)
+	}
 
 	for _, relPath := range []string{
 		"assets/app.css",
@@ -135,29 +165,42 @@ func TestPwa_DownloadPWA_DownloadsHTMLAndManifestAssets_Good(t *testing.T) {
 		"assets/icon-192.png",
 		"launch.html",
 	} {
-		assert.True(t, ax.IsFile(ax.Join(destDir, relPath)), relPath)
+		if !(ax.IsFile(ax.Join(destDir, relPath))) {
+			t.Fatal(relPath)
+		}
+
 	}
 }
 
 func TestPwa_ResolvePWAAppConfig_UsesLocalMetadata_Good(t *testing.T) {
 	projectDir := t.TempDir()
-
-	require.NoError(t, ax.WriteString(ax.Join(projectDir, "index.html"), `<!doctype html>
+	if err := ax.WriteString(ax.Join(projectDir, "index.html"), `<!doctype html>
 <html>
   <head>
     <title>Fallback Title</title>
     <meta name="description" content="HTML description">
     <link rel="manifest" href="/manifest.json">
   </head>
-</html>`, 0o644))
-	require.NoError(t, ax.WriteString(ax.Join(projectDir, "manifest.json"), `{
+</html>`, 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteString(ax.Join(projectDir, "manifest.json"), `{
   "name": "Manifest App",
   "description": "Manifest description",
   "icons": [{"src": "/icon.png"}]
-}`, 0o644))
+}`, 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	cfg := resolvePWAAppConfig(projectDir)
-	assert.Equal(t, "manifest-app", cfg.ModuleName)
-	assert.Equal(t, "Manifest App", cfg.DisplayName)
-	assert.Equal(t, "Manifest description", cfg.Description)
+	if !stdlibAssertEqual("manifest-app", cfg.ModuleName) {
+		t.Fatalf("want %v, got %v", "manifest-app", cfg.ModuleName)
+	}
+	if !stdlibAssertEqual("Manifest App", cfg.DisplayName) {
+		t.Fatalf("want %v, got %v", "Manifest App", cfg.DisplayName)
+	}
+	if !stdlibAssertEqual("Manifest description", cfg.Description) {
+		t.Fatalf("want %v, got %v", "Manifest description", cfg.Description)
+	}
+
 }

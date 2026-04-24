@@ -21,68 +21,119 @@ import (
 	coreapi "dappco.re/go/core/api"
 	"dappco.re/go/core/io"
 	"dappco.re/go/core/ws"
+	"errors"
 	"github.com/gorilla/websocket"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProvider_BuildProviderIdentity_Good(t *testing.T) {
 	p := NewProvider(".", nil)
+	if !stdlibAssertEqual("build", p.Name()) {
+		t.Fatalf("want %v, got %v", "build", p.Name())
+	}
+	if !stdlibAssertEqual("/api/v1/build", p.BasePath()) {
+		t.Fatalf("want %v, got %v", "/api/v1/build", p.BasePath())
+	}
 
-	assert.Equal(t, "build", p.Name())
-	assert.Equal(t, "/api/v1/build", p.BasePath())
 }
 
 func TestProvider_BuildProviderElement_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	el := p.Element()
+	if !stdlibAssertEqual("core-build-panel", el.Tag) {
+		t.Fatalf("want %v, got %v", "core-build-panel", el.Tag)
+	}
+	if !stdlibAssertEqual("/assets/core-build.js", el.Source) {
+		t.Fatalf("want %v, got %v", "/assets/core-build.js", el.Source)
+	}
 
-	assert.Equal(t, "core-build-panel", el.Tag)
-	assert.Equal(t, "/assets/core-build.js", el.Source)
 }
 
 func TestProvider_BuildProviderChannels_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	channels := p.Channels()
+	if !stdlibAssertContains(channels, "build.started") {
+		t.Fatalf("expected %v to contain %v", channels, "build.started")
+	}
+	if !stdlibAssertContains(channels, "build.complete") {
+		t.Fatalf("expected %v to contain %v", channels, "build.complete")
+	}
+	if !stdlibAssertContains(channels, "build.failed") {
+		t.Fatalf("expected %v to contain %v", channels, "build.failed")
+	}
+	if !stdlibAssertContains(channels, "release.started") {
+		t.Fatalf("expected %v to contain %v", channels, "release.started")
+	}
+	if !stdlibAssertContains(channels,
 
-	assert.Contains(t, channels, "build.started")
-	assert.Contains(t, channels, "build.complete")
-	assert.Contains(t, channels, "build.failed")
-	assert.Contains(t, channels, "release.started")
-	assert.Contains(t, channels, "release.complete")
-	assert.Contains(t, channels, "workflow.generated")
-	assert.Contains(t, channels, "sdk.generated")
-	assert.Len(t, channels, 7)
+		// Should have 11 endpoint descriptions
+		"release.complete") {
+		t.Fatalf("expected %v to contain %v", channels, "release.complete")
+
+		// Verify key routes exist
+	}
+	if !stdlibAssertContains(channels, "workflow.generated") {
+		t.Fatalf("expected %v to contain %v", channels, "workflow.generated")
+	}
+	if !stdlibAssertContains(channels, "sdk.generated") {
+		t.Fatalf("expected %v to contain %v", channels, "sdk.generated")
+	}
+	if len(channels) != 7 {
+		t.Fatalf("want len %v, got %v", 7, len(channels))
+	}
+
 }
 
 func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	routes := p.Describe()
+	if len(routes) != 11 {
+		t.Fatalf("want len %v, got %v", 11, len(routes))
+	}
 
-	// Should have 11 endpoint descriptions
-	assert.Len(t, routes, 11)
-
-	// Verify key routes exist
 	paths := make(map[string]string)
 	for _, r := range routes {
 		paths[r.Path] = r.Method
 	}
-
-	assert.Equal(t, "GET", paths["/config"])
-	assert.Equal(t, "GET", paths["/discover"])
-	assert.Equal(t, "POST", paths["/"])
-	assert.Equal(t, "GET", paths["/artifacts"])
-	assert.Equal(t, "GET", paths["/events"])
-	assert.Equal(t, "GET", paths["/release/version"])
-	assert.Equal(t, "GET", paths["/release/changelog"])
-	assert.Equal(t, "POST", paths["/release"])
-	assert.Equal(t, "POST", paths["/release/workflow"])
-	assert.Equal(t, "GET", paths["/sdk/diff"])
-	assert.Equal(t, "POST", paths["/sdk"])
+	if !stdlibAssertEqual("GET", paths["/config"]) {
+		t.Fatalf("want %v, got %v", "GET", paths["/config"])
+	}
+	if !stdlibAssertEqual("GET", paths["/discover"]) {
+		t.Fatalf("want %v, got %v", "GET", paths["/discover"])
+	}
+	if !stdlibAssertEqual("POST", paths["/"]) {
+		t.Fatalf("want %v, got %v", "POST", paths["/"])
+	}
+	if !stdlibAssertEqual("GET", paths["/artifacts"]) {
+		t.Fatalf("want %v, got %v", "GET", paths["/artifacts"])
+	}
+	if !stdlibAssertEqual("GET", paths["/events"]) {
+		t.Fatalf("want %v, got %v", "GET", paths["/events"])
+	}
+	if !stdlibAssertEqual("GET", paths["/release/version"]) {
+		t.Fatalf("want %v, got %v", "GET", paths["/release/version"])
+	}
+	if !stdlibAssertEqual("GET", paths["/release/changelog"]) {
+		t.Fatalf("want %v, got %v", "GET", paths["/release/changelog"])
+	}
+	if !stdlibAssertEqual("POST", paths["/release"]) {
+		t.Fatalf("want %v, got %v", "POST", paths["/release"])
+	}
+	if !stdlibAssertEqual("POST", paths["/release/workflow"]) {
+		t.Fatalf("want %v, got %v", "POST", paths["/release/workflow"])
+	}
+	if !stdlibAssertEqual("GET", paths["/sdk/diff"]) {
+		t.Fatalf("want %v, got %v", "GET", paths["/sdk/diff"])
+	}
+	if !stdlibAssertEqual("POST", paths["/sdk"]) {
+		t.Fatalf("want %v, got %v", "POST", paths["/sdk"])
+	}
 
 	for _, route := range routes {
 		if route.Path == "/release" {
-			assert.Equal(t, "Runs the full release pipeline: build, sign, archive, checksum, and publish.", route.Description)
+			if !stdlibAssertEqual("Runs the full release pipeline: build, sign, archive, checksum, and publish.", route.Description) {
+				t.Fatalf("want %v, got %v", "Runs the full release pipeline: build, sign, archive, checksum, and publish.", route.Description)
+			}
+
 		}
 	}
 
@@ -93,91 +144,182 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 			break
 		}
 	}
-
-	require.NotNil(t, workflowRoute)
-	require.NotNil(t, workflowRoute.RequestBody)
+	if stdlibAssertNil(workflowRoute) {
+		t.Fatal("expected non-nil")
+	}
+	if stdlibAssertNil(workflowRoute.RequestBody) {
+		t.Fatal("expected non-nil")
+	}
 
 	properties, ok := workflowRoute.RequestBody["properties"].(map[string]any)
-	require.True(t, ok)
+	if !(ok) {
+		t.Fatal("expected true")
+	}
 
 	pathSchema, ok := properties["path"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", pathSchema["type"])
-	assert.Equal(t, "Preferred workflow path input, relative to the project directory or absolute.", pathSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", pathSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", pathSchema["type"])
+	}
+	if !stdlibAssertEqual("Preferred workflow path input, relative to the project directory or absolute.", pathSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Preferred workflow path input, relative to the project directory or absolute.", pathSchema["description"])
+	}
 
 	workflowPathSchema, ok := properties["workflowPath"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", workflowPathSchema["type"])
-	assert.Equal(t, "Predictable alias for path, relative to the project directory or absolute.", workflowPathSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", workflowPathSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", workflowPathSchema["type"])
+	}
+	if !stdlibAssertEqual("Predictable alias for path, relative to the project directory or absolute.", workflowPathSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Predictable alias for path, relative to the project directory or absolute.", workflowPathSchema["description"])
+	}
 
 	workflowPathSnakeSchema, ok := properties["workflow_path"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", workflowPathSnakeSchema["type"])
-	assert.Equal(t, "Snake_case alias for workflowPath.", workflowPathSnakeSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", workflowPathSnakeSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", workflowPathSnakeSchema["type"])
+	}
+	if !stdlibAssertEqual("Snake_case alias for workflowPath.", workflowPathSnakeSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Snake_case alias for workflowPath.", workflowPathSnakeSchema["description"])
+	}
 
 	workflowPathHyphenSchema, ok := properties["workflow-path"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", workflowPathHyphenSchema["type"])
-	assert.Equal(t, "Hyphenated alias for workflowPath.", workflowPathHyphenSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", workflowPathHyphenSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", workflowPathHyphenSchema["type"])
+	}
+	if !stdlibAssertEqual("Hyphenated alias for workflowPath.", workflowPathHyphenSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Hyphenated alias for workflowPath.", workflowPathHyphenSchema["description"])
+	}
 
 	outputSchema, ok := properties["output"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", outputSchema["type"])
-	assert.Equal(t, "Legacy alias for outputPath.", outputSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", outputSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", outputSchema["type"])
+	}
+	if !stdlibAssertEqual("Legacy alias for outputPath.", outputSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Legacy alias for outputPath.", outputSchema["description"])
+	}
 
 	outputPathSchema, ok := properties["outputPath"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", outputPathSchema["type"])
-	assert.Equal(t, "Preferred explicit workflow output path, relative to the project directory or absolute.", outputPathSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", outputPathSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", outputPathSchema["type"])
+	}
+	if !stdlibAssertEqual("Preferred explicit workflow output path, relative to the project directory or absolute.", outputPathSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Preferred explicit workflow output path, relative to the project directory or absolute.", outputPathSchema["description"])
+	}
 
 	outputPathHyphenSchema, ok := properties["output-path"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", outputPathHyphenSchema["type"])
-	assert.Equal(t, "Hyphenated alias for outputPath.", outputPathHyphenSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", outputPathHyphenSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", outputPathHyphenSchema["type"])
+	}
+	if !stdlibAssertEqual("Hyphenated alias for outputPath.", outputPathHyphenSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Hyphenated alias for outputPath.", outputPathHyphenSchema["description"])
+	}
 
 	workflowOutputPathSchema, ok := properties["workflowOutputPath"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", workflowOutputPathSchema["type"])
-	assert.Equal(t, "Predictable alias for outputPath, relative to the project directory or absolute.", workflowOutputPathSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", workflowOutputPathSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", workflowOutputPathSchema["type"])
+	}
+	if !stdlibAssertEqual("Predictable alias for outputPath, relative to the project directory or absolute.", workflowOutputPathSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Predictable alias for outputPath, relative to the project directory or absolute.", workflowOutputPathSchema["description"])
+	}
 
 	workflowOutputSnakeSchema, ok := properties["workflow_output"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", workflowOutputSnakeSchema["type"])
-	assert.Equal(t, "Snake_case alias for workflowOutputPath.", workflowOutputSnakeSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", workflowOutputSnakeSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", workflowOutputSnakeSchema["type"])
+	}
+	if !stdlibAssertEqual("Snake_case alias for workflowOutputPath.", workflowOutputSnakeSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Snake_case alias for workflowOutputPath.", workflowOutputSnakeSchema["description"])
+	}
 
 	workflowOutputHyphenSchema, ok := properties["workflow-output"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", workflowOutputHyphenSchema["type"])
-	assert.Equal(t, "Hyphenated alias for workflowOutputPath.", workflowOutputHyphenSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", workflowOutputHyphenSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", workflowOutputHyphenSchema["type"])
+	}
+	if !stdlibAssertEqual("Hyphenated alias for workflowOutputPath.", workflowOutputHyphenSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Hyphenated alias for workflowOutputPath.", workflowOutputHyphenSchema["description"])
+	}
 
 	workflowOutputPathSnakeSchema, ok := properties["workflow_output_path"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", workflowOutputPathSnakeSchema["type"])
-	assert.Equal(t, "Snake_case alias for workflowOutputPath.", workflowOutputPathSnakeSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", workflowOutputPathSnakeSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", workflowOutputPathSnakeSchema["type"])
+	}
+	if !stdlibAssertEqual("Snake_case alias for workflowOutputPath.", workflowOutputPathSnakeSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Snake_case alias for workflowOutputPath.", workflowOutputPathSnakeSchema["description"])
+	}
 
 	workflowOutputPathHyphenSchema, ok := properties["workflow-output-path"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", workflowOutputPathHyphenSchema["type"])
-	assert.Equal(t, "Hyphenated alias for workflowOutputPath.", workflowOutputPathHyphenSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", workflowOutputPathHyphenSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", workflowOutputPathHyphenSchema["type"])
+	}
+	if !stdlibAssertEqual("Hyphenated alias for workflowOutputPath.", workflowOutputPathHyphenSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Hyphenated alias for workflowOutputPath.", workflowOutputPathHyphenSchema["description"])
+	}
 
 	outputPathSnakeSchema, ok := properties["output_path"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "string", outputPathSnakeSchema["type"])
-	assert.Equal(t, "Snake_case alias for outputPath.", outputPathSnakeSchema["description"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("string", outputPathSnakeSchema["type"]) {
+		t.Fatalf("want %v, got %v", "string", outputPathSnakeSchema["type"])
+	}
+	if !stdlibAssertEqual("Snake_case alias for outputPath.", outputPathSnakeSchema["description"]) {
+		t.Fatalf("want %v, got %v", "Snake_case alias for outputPath.", outputPathSnakeSchema["description"])
+	}
+
 }
 
 func TestProvider_ReleaseWorkflowRequestResolvedOutputPath_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	absoluteDir := ax.Join(projectDir, "ops")
-	require.NoError(t, io.Local.EnsureDir(absoluteDir))
+	if err := io.Local.EnsureDir(absoluteDir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	req := ReleaseWorkflowRequest{
 		WorkflowOutputPath: absoluteDir,
 	}
 
 	path, err := req.resolveOutputPath(projectDir, io.Local)
-	require.NoError(t, err)
-	assert.Equal(t, ax.Join(absoluteDir, "release.yml"), path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(ax.Join(absoluteDir, "release.yml"), path) {
+		t.Fatalf("want %v, got %v", ax.Join(absoluteDir, "release.yml"), path)
+	}
+
 }
 
 func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliases_Good(t *testing.T) {
@@ -189,18 +331,29 @@ func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliases_Good(t *testin
 	}
 
 	path, err := req.resolveOutputPath(projectDir, io.Local)
-	require.NoError(t, err)
-	assert.Equal(t, ax.Join(projectDir, "ci", "workflow-output.yml"), path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(ax.Join(projectDir, "ci", "workflow-output.yml"), path) {
+		t.Fatalf("want %v, got %v", ax.Join(projectDir, "ci", "workflow-output.yml"), path)
+	}
+
 }
 
 func TestProvider_BuildProviderDefaultProjectDir_Good(t *testing.T) {
 	p := NewProvider("", nil)
-	assert.Equal(t, ".", p.projectDir)
+	if !stdlibAssertEqual(".", p.projectDir) {
+		t.Fatalf("want %v, got %v", ".", p.projectDir)
+	}
+
 }
 
 func TestProvider_BuildProviderCustomProjectDir_Good(t *testing.T) {
 	p := NewProvider("/tmp/myproject", nil)
-	assert.Equal(t, "/tmp/myproject", p.projectDir)
+	if !stdlibAssertEqual("/tmp/myproject", p.projectDir) {
+		t.Fatalf("want %v, got %v", "/tmp/myproject", p.projectDir)
+	}
+
 }
 
 func TestProvider_BuildProviderNilHub_Good(t *testing.T) {
@@ -212,15 +365,25 @@ func TestProvider_BuildProviderNilHub_Good(t *testing.T) {
 func TestProvider_ResolveBuildOutputs_Good(t *testing.T) {
 	t.Run("defaults to raw build output", func(t *testing.T) {
 		archiveOutput, checksumOutput := resolveBuildOutputs(buildRequest{})
-		assert.False(t, archiveOutput)
-		assert.False(t, checksumOutput)
+		if archiveOutput {
+			t.Fatal("expected false")
+		}
+		if checksumOutput {
+			t.Fatal("expected false")
+		}
+
 	})
 
 	t.Run("enables archive and checksum when package is set", func(t *testing.T) {
 		value := true
 		archiveOutput, checksumOutput := resolveBuildOutputs(buildRequest{Package: &value})
-		assert.True(t, archiveOutput)
-		assert.True(t, checksumOutput)
+		if !(archiveOutput) {
+			t.Fatal("expected true")
+		}
+		if !(checksumOutput) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("preserves explicit archive override over package", func(t *testing.T) {
@@ -230,8 +393,13 @@ func TestProvider_ResolveBuildOutputs_Good(t *testing.T) {
 			Archive: &archiveValue,
 			Package: &packageValue,
 		})
-		assert.False(t, archiveOutput)
-		assert.True(t, checksumOutput)
+		if archiveOutput {
+			t.Fatal("expected false")
+		}
+		if !(checksumOutput) {
+			t.Fatal("expected true")
+		}
+
 	})
 }
 
@@ -256,35 +424,58 @@ func TestProvider_GetBuilderSupportedTypes_Good(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(string(tc.projectType), func(t *testing.T) {
 			b, err := getBuilder(tc.projectType)
-			require.NoError(t, err)
-			assert.Equal(t, tc.name, b.Name())
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !stdlibAssertEqual(tc.name, b.Name()) {
+				t.Fatalf("want %v, got %v", tc.name, b.Name())
+			}
+
 		})
 	}
 }
 
 func TestProvider_GetBuilderUnsupportedType_Bad(t *testing.T) {
 	_, err := getBuilder(build.ProjectType("unknown"))
-	assert.ErrorIs(t, err, fs.ErrNotExist)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("expected error %v to be %v", err, fs.ErrNotExist)
+	}
+
 }
 
 func TestProvider_BuildProviderResolveDir_Good(t *testing.T) {
 	p := NewProvider("/tmp", nil)
 	dir, err := p.resolveDir()
-	require.NoError(t, err)
-	assert.Equal(t, "/tmp", dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("/tmp", dir) {
+		t.Fatalf("want %v, got %v", "/tmp", dir)
+	}
+
 }
 
 func TestProvider_BuildProviderResolveDirRelative_Good(t *testing.T) {
 	p := NewProvider(".", nil)
 	dir, err := p.resolveDir()
-	require.NoError(t, err)
-	// Should return an absolute path
-	assert.True(t, len(dir) > 1 && dir[0] == '/')
+	if err != nil {
+		t.Fatalf("unexpected error: %v",
+
+			// Should return an absolute path
+			err)
+	}
+	if !(len(dir) > 1 && dir[0] == '/') {
+		t.Fatal("expected true")
+	}
+
 }
 
 func TestProvider_BuildProviderMediumSet_Good(t *testing.T) {
 	p := NewProvider(".", nil)
-	assert.NotNil(t, p.medium, "medium should be set to io.Local")
+	if stdlibAssertNil(p.medium) {
+		t.Fatal("medium should be set to io.Local")
+	}
+
 }
 
 func TestProvider_RegisterRoutes_ExposesRFCAliases_Good(t *testing.T) {
@@ -299,18 +490,25 @@ func TestProvider_RegisterRoutes_ExposesRFCAliases_Good(t *testing.T) {
 	buildResponse := httptest.NewRecorder()
 	buildRequest := httptest.NewRequest(http.MethodPost, "/", nil)
 	router.ServeHTTP(buildResponse, buildRequest)
-	assert.NotEqual(t, http.StatusNotFound, buildResponse.Code)
+	if stdlibAssertEqual(http.StatusNotFound, buildResponse.Code) {
+		t.Fatalf("did not want %v", buildResponse.Code)
+	}
 
 	sdkResponse := httptest.NewRecorder()
 	sdkRequest := httptest.NewRequest(http.MethodPost, "/sdk", bytes.NewBufferString(`{}`))
 	sdkRequest.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(sdkResponse, sdkRequest)
-	assert.NotEqual(t, http.StatusNotFound, sdkResponse.Code)
+	if stdlibAssertEqual(http.StatusNotFound, sdkResponse.Code) {
+		t.Fatalf("did not want %v", sdkResponse.Code)
+	}
 
 	eventsResponse := httptest.NewRecorder()
 	eventsRequest := httptest.NewRequest(http.MethodGet, "/events", nil)
 	router.ServeHTTP(eventsResponse, eventsRequest)
-	assert.Equal(t, http.StatusServiceUnavailable, eventsResponse.Code)
+	if !stdlibAssertEqual(http.StatusServiceUnavailable, eventsResponse.Code) {
+		t.Fatalf("want %v, got %v", http.StatusServiceUnavailable, eventsResponse.Code)
+	}
+
 }
 
 func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
@@ -330,35 +528,57 @@ func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/events"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer conn.Close()
-
-	require.NoError(t, conn.WriteJSON(ws.Message{
-		Type: ws.TypeSubscribe,
-		Data: "build.complete",
-	}))
-
-	require.Eventually(t, func() bool {
-		return hub.ChannelSubscriberCount("build.complete") == 1
-	}, time.Second, 10*time.Millisecond)
+	if err := conn.WriteJSON(ws.Message{Type: ws.TypeSubscribe, Data: "build.complete"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	{
+		deadline := time.Now().Add(time.Second)
+		for {
+			if (func() bool {
+				return hub.ChannelSubscriberCount("build.complete") == 1
+			})() {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("condition was not satisfied")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
 
 	p.emitEvent("build.complete", map[string]any{"status": "ok"})
 
 	var message ws.Message
-	require.NoError(t, conn.ReadJSON(&message))
-	assert.Equal(t, ws.TypeEvent, message.Type)
+	if err := conn.ReadJSON(&message); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(ws.TypeEvent, message.Type) {
+		t.Fatalf("want %v, got %v", ws.TypeEvent, message.Type)
+	}
 
 	payload, ok := message.Data.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "ok", payload["status"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("ok", payload["status"]) {
+		t.Fatalf("want %v, got %v", "ok", payload["status"])
+	}
+
 }
 
 func TestProvider_GetConfig_UsesSnakeCaseJSONKeys_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	require.NoError(t, io.Local.EnsureDir(ax.Join(projectDir, ".core")))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+	if err := io.Local.EnsureDir(ax.Join(projectDir, ".core")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 version: 1
 project:
   name: Demo
@@ -380,7 +600,9 @@ sign:
   enabled: true
   macos:
     identity: "Developer ID Application: Demo"
-`), 0o644))
+`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	p := NewProvider(projectDir, nil)
 
@@ -391,42 +613,84 @@ sign:
 	ctx.Request = request
 
 	p.getConfig(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	body := recorder.Body.String()
-	assert.Contains(t, body, `"config":`)
-	assert.Contains(t, body, `"version":1`)
-	assert.Contains(t, body, `"project":{"name":"Demo"`)
-	assert.Contains(t, body, `"build":{"type":"go","cgo":true`)
-	assert.Contains(t, body, `"cache":{"enabled":true,"dir":"cache-meta","key_prefix":"demo","paths":["`)
-	assert.Contains(t, body, `"apple":{"bundle_id":"ai.lthn.demo"`)
-	assert.Contains(t, body, `"xcode_cloud":{"workflow":"Release"`)
-	assert.Contains(t, body, `"sign":{"enabled":true`)
-	assert.Contains(t, body, `"macos":{"identity":"Developer ID Application: Demo"`)
-	assert.NotContains(t, body, `"Version":`)
-	assert.NotContains(t, body, `"Project":`)
-	assert.NotContains(t, body, `"XcodeCloud":`)
-	assert.NotContains(t, body, `"MacOS":`)
+	if !stdlibAssertContains(body, `"config":`) {
+		t.Fatalf("expected %v to contain %v", body, `"config":`)
+	}
+	if !stdlibAssertContains(body, `"version":1`) {
+		t.Fatalf("expected %v to contain %v", body, `"version":1`)
+	}
+	if !stdlibAssertContains(body, `"project":{"name":"Demo"`) {
+		t.Fatalf("expected %v to contain %v", body, `"project":{"name":"Demo"`)
+	}
+	if !stdlibAssertContains(body, `"build":{"type":"go","cgo":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"build":{"type":"go","cgo":true`)
+	}
+	if !stdlibAssertContains(body, `"cache":{"enabled":true,"dir":"cache-meta","key_prefix":"demo","paths":["`) {
+		t.Fatalf("expected %v to contain %v", body, `"cache":{"enabled":true,"dir":"cache-meta","key_prefix":"demo","paths":["`)
+	}
+	if !stdlibAssertContains(body, `"apple":{"bundle_id":"ai.lthn.demo"`) {
+		t.Fatalf("expected %v to contain %v", body, `"apple":{"bundle_id":"ai.lthn.demo"`)
+	}
+	if !stdlibAssertContains(body, `"xcode_cloud":{"workflow":"Release"`) {
+		t.Fatalf("expected %v to contain %v", body, `"xcode_cloud":{"workflow":"Release"`)
+	}
+	if !stdlibAssertContains(body, `"sign":{"enabled":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"sign":{"enabled":true`)
+	}
+	if !stdlibAssertContains(body, `"macos":{"identity":"Developer ID Application: Demo"`) {
+		t.Fatalf("expected %v to contain %v", body, `"macos":{"identity":"Developer ID Application: Demo"`)
+	}
+	if stdlibAssertContains(body, `"Version":`) {
+		t.Fatalf("expected %v not to contain %v", body, `"Version":`)
+	}
+	if stdlibAssertContains(body, `"Project":`) {
+		t.Fatalf("expected %v not to contain %v", body, `"Project":`)
+	}
+	if stdlibAssertContains(body, `"XcodeCloud":`) {
+		t.Fatalf("expected %v not to contain %v", body, `"XcodeCloud":`)
+	}
+	if stdlibAssertContains(body, `"MacOS":`) {
+		t.Fatalf("expected %v not to contain %v", body, `"MacOS":`)
+	}
+
 }
 
 func TestProvider_ResolveProjectType_Good(t *testing.T) {
 	t.Run("honours explicit build type override", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		projectType, err := resolveProjectType(io.Local, dir, "docker")
-		require.NoError(t, err)
-		assert.Equal(t, build.ProjectTypeDocker, projectType)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(build.ProjectTypeDocker, projectType) {
+			t.Fatalf("want %v, got %v", build.ProjectTypeDocker, projectType)
+		}
+
 	})
 
 	t.Run("falls back to detection when build type is empty", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		projectType, err := resolveProjectType(io.Local, dir, "")
-		require.NoError(t, err)
-		assert.Equal(t, build.ProjectTypeGo, projectType)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(build.ProjectTypeGo, projectType) {
+			t.Fatalf("want %v, got %v", build.ProjectTypeGo, projectType)
+		}
+
 	})
 }
 
@@ -444,14 +708,22 @@ func TestProvider_GenerateReleaseWorkflow_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := build.ReleaseWorkflowPath(projectDir)
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_CustomPath_Good(t *testing.T) {
@@ -468,14 +740,22 @@ func TestProvider_GenerateReleaseWorkflow_CustomPath_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "release.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowPath_Good(t *testing.T) {
@@ -492,14 +772,22 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowPath_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "workflow-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowPathSnake_Good(t *testing.T) {
@@ -516,14 +804,22 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowPathSnake_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "workflow-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowPathHyphen_Good(t *testing.T) {
@@ -540,14 +836,22 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowPathHyphen_Good(t *testing.T) 
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "workflow-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_ConflictingWorkflowPathAliases_Bad(t *testing.T) {
@@ -564,12 +868,16 @@ func TestProvider_GenerateReleaseWorkflow_ConflictingWorkflowPathAliases_Bad(t *
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
+	}
 
 	path := build.ReleaseWorkflowPath(projectDir)
 	_, err := io.Local.Read(path)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_OutputAlias_Good(t *testing.T) {
@@ -586,14 +894,22 @@ func TestProvider_GenerateReleaseWorkflow_OutputAlias_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "release.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_OutputPath_Good(t *testing.T) {
@@ -610,14 +926,22 @@ func TestProvider_GenerateReleaseWorkflow_OutputPath_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "output-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_OutputPathHyphen_Good(t *testing.T) {
@@ -634,14 +958,22 @@ func TestProvider_GenerateReleaseWorkflow_OutputPathHyphen_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "output-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_OutputPathSnake_Good(t *testing.T) {
@@ -658,14 +990,22 @@ func TestProvider_GenerateReleaseWorkflow_OutputPathSnake_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "output-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPath_Good(t *testing.T) {
@@ -682,14 +1022,22 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPath_Good(t *testing.T) 
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowOutputSnake_Good(t *testing.T) {
@@ -706,14 +1054,22 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowOutputSnake_Good(t *testing.T)
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "workflow-output.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathSnake_Good(t *testing.T) {
@@ -730,14 +1086,22 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathSnake_Good(t *testin
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathAbsoluteEquivalent_Good(t *testing.T) {
@@ -756,14 +1120,22 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathAbsoluteEquivalent_G
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathHyphen_Good(t *testing.T) {
@@ -780,14 +1152,22 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathHyphen_Good(t *testi
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowOutputHyphen_Good(t *testing.T) {
@@ -804,14 +1184,22 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowOutputHyphen_Good(t *testing.T
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "workflow-output.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_ConflictingWorkflowOutputAliases_Bad(t *testing.T) {
@@ -828,12 +1216,16 @@ func TestProvider_GenerateReleaseWorkflow_ConflictingWorkflowOutputAliases_Bad(t
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
+	}
 
 	path := build.ReleaseWorkflowPath(projectDir)
 	_, err := io.Local.Read(path)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_ConflictingOutputAliases_Bad(t *testing.T) {
@@ -850,12 +1242,16 @@ func TestProvider_GenerateReleaseWorkflow_ConflictingOutputAliases_Bad(t *testin
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
+	}
 
 	path := build.ReleaseWorkflowPath(projectDir)
 	_, err := io.Local.Read(path)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_ConflictingOutputPathHyphenAliases_Bad(t *testing.T) {
@@ -872,12 +1268,16 @@ func TestProvider_GenerateReleaseWorkflow_ConflictingOutputPathHyphenAliases_Bad
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
+	}
 
 	path := build.ReleaseWorkflowPath(projectDir)
 	_, err := io.Local.Read(path)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_BareDirectoryPath_Good(t *testing.T) {
@@ -894,14 +1294,22 @@ func TestProvider_GenerateReleaseWorkflow_BareDirectoryPath_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "release.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_CurrentDirectoryPrefixedPath_Good(t *testing.T) {
@@ -918,14 +1326,22 @@ func TestProvider_GenerateReleaseWorkflow_CurrentDirectoryPrefixedPath_Good(t *t
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "release.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_WorkflowsDirectory_Good(t *testing.T) {
@@ -942,21 +1358,32 @@ func TestProvider_GenerateReleaseWorkflow_WorkflowsDirectory_Good(t *testing.T) 
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, ".github", "workflows", "release.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_ExistingDirectoryPath_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, "ci"), 0o755))
+	if err := ax.MkdirAll(ax.Join(projectDir, "ci"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	p := NewProvider(projectDir, nil)
 	p.medium = io.Local
 
@@ -968,14 +1395,22 @@ func TestProvider_GenerateReleaseWorkflow_ExistingDirectoryPath_Good(t *testing.
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := ax.Join(projectDir, "ci", "release.yml")
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_ConflictingPathAndOutput_Bad(t *testing.T) {
@@ -992,12 +1427,16 @@ func TestProvider_GenerateReleaseWorkflow_ConflictingPathAndOutput_Bad(t *testin
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
+	}
 
 	path := build.ReleaseWorkflowPath(projectDir)
 	_, err := io.Local.Read(path)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_InvalidJSON_Bad(t *testing.T) {
@@ -1014,12 +1453,16 @@ func TestProvider_GenerateReleaseWorkflow_InvalidJSON_Bad(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
+	}
 
 	path := build.ReleaseWorkflowPath(projectDir)
 	_, err := io.Local.Read(path)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
 }
 
 func TestProvider_GenerateReleaseWorkflow_EmptyBody_Good(t *testing.T) {
@@ -1037,14 +1480,22 @@ func TestProvider_GenerateReleaseWorkflow_EmptyBody_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
 	path := build.ReleaseWorkflowPath(projectDir)
 	content, err := io.Local.Read(path)
-	require.NoError(t, err)
-	assert.Contains(t, content, "workflow_call:")
-	assert.Contains(t, content, "workflow_dispatch:")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(content, "workflow_call:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
+	}
+	if !stdlibAssertContains(content, "workflow_dispatch:") {
+		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
+	}
+
 }
 
 func TestProvider_DiscoverProject_Good(t *testing.T) {
@@ -1054,12 +1505,22 @@ func TestProvider_DiscoverProject_Good(t *testing.T) {
 	t.Setenv("GITHUB_REPOSITORY", "dappcore/core")
 
 	projectDir := t.TempDir()
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example"), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644))
-	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, "frontend"), 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "frontend", "package.json"), []byte("{}"), 0o644))
-	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.MkdirAll(ax.Join(projectDir, "frontend"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, "frontend", "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 build:
   obfuscate: true
   nsis: true
@@ -1069,7 +1530,9 @@ build:
   ldflags:
     - -s
     - -w
-`), 0o644))
+`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	p := NewProvider(projectDir, nil)
 
@@ -1080,65 +1543,166 @@ build:
 	ctx.Request = request
 
 	p.discoverProject(ctx)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
-	assert.Equal(t, http.StatusOK, recorder.Code)
 	body := recorder.Body.String()
-	assert.Contains(t, body, `"types":["wails","go","node"]`)
-	assert.Contains(t, body, `"configured_build_type":""`)
-	assert.Contains(t, body, `"os":"`)
-	assert.Contains(t, body, `"arch":"`)
-	assert.Contains(t, body, `"primary":"wails"`)
-	assert.Contains(t, body, `"primary_stack":"wails"`)
-	assert.Contains(t, body, `"suggested_stack":"wails2"`)
-	assert.Contains(t, body, `"primary_stack_suggestion":"wails2"`)
-	assert.Contains(t, body, `"has_frontend":true`)
-	assert.Contains(t, body, `"has_root_package_json":false`)
-	assert.Contains(t, body, `"has_frontend_package_json":true`)
-	assert.Contains(t, body, `"has_root_composer_json":false`)
-	assert.Contains(t, body, `"has_root_cargo_toml":false`)
-	assert.Contains(t, body, `"has_package_json":true`)
-	assert.Contains(t, body, `"has_deno_manifest":false`)
-	assert.Contains(t, body, `"has_root_go_mod":true`)
-	assert.Contains(t, body, `"has_root_go_work":false`)
-	assert.Contains(t, body, `"has_root_main_go":true`)
-	assert.Contains(t, body, `"has_root_cmakelists":false`)
-	assert.Contains(t, body, `"has_root_wails_json":false`)
-	assert.Contains(t, body, `"has_taskfile":false`)
-	assert.Contains(t, body, `"has_subtree_npm":false`)
-	assert.Contains(t, body, `"has_subtree_package_json":false`)
-	assert.Contains(t, body, `"has_subtree_deno_manifest":false`)
-	assert.Contains(t, body, `"has_docs_config":false`)
-	assert.Contains(t, body, `"has_go_toolchain":true`)
-	assert.Contains(t, body, `"deno_requested":false`)
-	assert.Contains(t, body, `"linux_packages":`)
-	assert.Contains(t, body, `"ref":"refs/heads/main"`)
-	assert.Contains(t, body, `"branch":"main"`)
-	assert.Contains(t, body, `"is_tag":false`)
-	assert.Contains(t, body, `"sha":"0123456789abcdef"`)
-	assert.Contains(t, body, `"short_sha":"0123456"`)
-	assert.Contains(t, body, `"repo":"dappcore/core"`)
-	assert.Contains(t, body, `"owner":"dappcore"`)
-	assert.Contains(t, body, `"build_options":"`)
-	assert.Contains(t, body, `"-obfuscated`)
-	assert.Contains(t, body, `"options":{"ldflags":["-s","-w"],"nsis":true,"obfuscate":true`)
-	assert.Contains(t, body, `"setup_plan":{"frontend_dirs":["`)
-	assert.Contains(t, body, `"primary_stack":"wails"`)
-	assert.Contains(t, body, `"primary_stack_suggestion":"wails2"`)
-	assert.Contains(t, body, `"tool":"go"`)
-	assert.Contains(t, body, `"tool":"garble"`)
-	assert.Contains(t, body, `"tool":"node"`)
-	assert.Contains(t, body, `"tool":"wails"`)
-	assert.Contains(t, body, `"go.mod":true`)
-	assert.Contains(t, body, `"main.go":true`)
-	assert.Contains(t, body, `"frontend/package.json":true`)
+	if !stdlibAssertContains(body, `"types":["wails","go","node"]`) {
+		t.Fatalf("expected %v to contain %v", body, `"types":["wails","go","node"]`)
+	}
+	if !stdlibAssertContains(body, `"configured_build_type":""`) {
+		t.Fatalf("expected %v to contain %v", body, `"configured_build_type":""`)
+	}
+	if !stdlibAssertContains(body, `"os":"`) {
+		t.Fatalf("expected %v to contain %v", body, `"os":"`)
+	}
+	if !stdlibAssertContains(body, `"arch":"`) {
+		t.Fatalf("expected %v to contain %v", body, `"arch":"`)
+	}
+	if !stdlibAssertContains(body, `"primary":"wails"`) {
+		t.Fatalf("expected %v to contain %v", body, `"primary":"wails"`)
+	}
+	if !stdlibAssertContains(body, `"primary_stack":"wails"`) {
+		t.Fatalf("expected %v to contain %v", body, `"primary_stack":"wails"`)
+	}
+	if !stdlibAssertContains(body, `"suggested_stack":"wails2"`) {
+		t.Fatalf("expected %v to contain %v", body, `"suggested_stack":"wails2"`)
+	}
+	if !stdlibAssertContains(body, `"primary_stack_suggestion":"wails2"`) {
+		t.Fatalf("expected %v to contain %v", body, `"primary_stack_suggestion":"wails2"`)
+	}
+	if !stdlibAssertContains(body, `"has_frontend":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_frontend":true`)
+	}
+	if !stdlibAssertContains(body, `"has_root_package_json":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_root_package_json":false`)
+	}
+	if !stdlibAssertContains(body, `"has_frontend_package_json":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_frontend_package_json":true`)
+	}
+	if !stdlibAssertContains(body, `"has_root_composer_json":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_root_composer_json":false`)
+	}
+	if !stdlibAssertContains(body, `"has_root_cargo_toml":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_root_cargo_toml":false`)
+	}
+	if !stdlibAssertContains(body, `"has_package_json":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_package_json":true`)
+	}
+	if !stdlibAssertContains(body, `"has_deno_manifest":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_deno_manifest":false`)
+	}
+	if !stdlibAssertContains(body, `"has_root_go_mod":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_root_go_mod":true`)
+	}
+	if !stdlibAssertContains(body, `"has_root_go_work":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_root_go_work":false`)
+	}
+	if !stdlibAssertContains(body, `"has_root_main_go":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_root_main_go":true`)
+	}
+	if !stdlibAssertContains(body, `"has_root_cmakelists":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_root_cmakelists":false`)
+	}
+	if !stdlibAssertContains(body, `"has_root_wails_json":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_root_wails_json":false`)
+	}
+	if !stdlibAssertContains(body, `"has_taskfile":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_taskfile":false`)
+	}
+	if !stdlibAssertContains(body, `"has_subtree_npm":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_subtree_npm":false`)
+	}
+	if !stdlibAssertContains(body, `"has_subtree_package_json":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_subtree_package_json":false`)
+	}
+	if !stdlibAssertContains(body, `"has_subtree_deno_manifest":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_subtree_deno_manifest":false`)
+	}
+	if !stdlibAssertContains(body, `"has_docs_config":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_docs_config":false`)
+	}
+	if !stdlibAssertContains(body, `"has_go_toolchain":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"has_go_toolchain":true`)
+	}
+	if !stdlibAssertContains(body, `"deno_requested":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"deno_requested":false`)
+	}
+	if !stdlibAssertContains(body, `"linux_packages":`) {
+		t.Fatalf("expected %v to contain %v", body, `"linux_packages":`)
+	}
+	if !stdlibAssertContains(body, `"ref":"refs/heads/main"`) {
+		t.Fatalf("expected %v to contain %v", body, `"ref":"refs/heads/main"`)
+	}
+	if !stdlibAssertContains(body, `"branch":"main"`) {
+		t.Fatalf("expected %v to contain %v", body, `"branch":"main"`)
+	}
+	if !stdlibAssertContains(body, `"is_tag":false`) {
+		t.Fatalf("expected %v to contain %v", body, `"is_tag":false`)
+	}
+	if !stdlibAssertContains(body, `"sha":"0123456789abcdef"`) {
+		t.Fatalf("expected %v to contain %v", body, `"sha":"0123456789abcdef"`)
+	}
+	if !stdlibAssertContains(body, `"short_sha":"0123456"`) {
+		t.Fatalf("expected %v to contain %v", body, `"short_sha":"0123456"`)
+	}
+	if !stdlibAssertContains(body, `"repo":"dappcore/core"`) {
+		t.Fatalf("expected %v to contain %v", body, `"repo":"dappcore/core"`)
+	}
+	if !stdlibAssertContains(body, `"owner":"dappcore"`) {
+		t.Fatalf("expected %v to contain %v", body, `"owner":"dappcore"`)
+	}
+	if !stdlibAssertContains(body, `"build_options":"`) {
+		t.Fatalf("expected %v to contain %v", body, `"build_options":"`)
+	}
+	if !stdlibAssertContains(body, `"-obfuscated`) {
+		t.Fatalf("expected %v to contain %v", body, `"-obfuscated`)
+	}
+	if !stdlibAssertContains(body, `"options":{"ldflags":["-s","-w"],"nsis":true,"obfuscate":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"options":{"ldflags":["-s","-w"],"nsis":true,"obfuscate":true`)
+	}
+	if !stdlibAssertContains(body, `"setup_plan":{"frontend_dirs":["`) {
+		t.Fatalf("expected %v to contain %v", body, `"setup_plan":{"frontend_dirs":["`)
+	}
+	if !stdlibAssertContains(body, `"primary_stack":"wails"`) {
+		t.Fatalf("expected %v to contain %v", body, `"primary_stack":"wails"`)
+	}
+	if !stdlibAssertContains(body, `"primary_stack_suggestion":"wails2"`) {
+		t.Fatalf("expected %v to contain %v", body, `"primary_stack_suggestion":"wails2"`)
+	}
+	if !stdlibAssertContains(body, `"tool":"go"`) {
+		t.Fatalf("expected %v to contain %v", body, `"tool":"go"`)
+	}
+	if !stdlibAssertContains(body, `"tool":"garble"`) {
+		t.Fatalf("expected %v to contain %v", body, `"tool":"garble"`)
+	}
+	if !stdlibAssertContains(body, `"tool":"node"`) {
+		t.Fatalf("expected %v to contain %v", body, `"tool":"node"`)
+	}
+	if !stdlibAssertContains(body, `"tool":"wails"`) {
+		t.Fatalf("expected %v to contain %v", body, `"tool":"wails"`)
+	}
+	if !stdlibAssertContains(body, `"go.mod":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"go.mod":true`)
+	}
+	if !stdlibAssertContains(body, `"main.go":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"main.go":true`)
+	}
+	if !stdlibAssertContains(body, `"frontend/package.json":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"frontend/package.json":true`)
+	}
+
 }
 
 func TestProvider_TriggerBuild_UsesFullBuildRuntimeConfig_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	require.NoError(t, io.Local.EnsureDir(ax.Join(projectDir, ".core")))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+	if err := io.Local.EnsureDir(ax.Join(projectDir, ".core")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 project:
   name: API Build
   main: ./cmd/api
@@ -1164,7 +1728,9 @@ build:
 targets:
   - os: linux
     arch: amd64
-`), 0o644))
+`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	oldGetBuilder := providerGetBuilder
 	oldDetermineVersion := providerDetermineVersion
@@ -1183,9 +1749,14 @@ targets:
 				capturedTargets = append([]build.Target{}, targets...)
 
 				artifactDir := ax.Join(cfg.OutputDir, "linux_amd64")
-				require.NoError(t, cfg.FS.EnsureDir(artifactDir))
+				if err := cfg.FS.EnsureDir(artifactDir); err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
 				artifactPath := ax.Join(artifactDir, cfg.Name)
-				require.NoError(t, cfg.FS.WriteMode(artifactPath, "binary", 0o755))
+				if err := cfg.FS.WriteMode(artifactPath, "binary", 0o755); err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
 
 				return []build.Artifact{{
 					Path: artifactPath,
@@ -1208,49 +1779,94 @@ targets:
 	ctx.Request = request
 
 	p.triggerBuild(ctx)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
-	require.NotNil(t, capturedCfg)
-	assert.Equal(t, build.Project{
-		Name:   "API Build",
-		Main:   "./cmd/api",
-		Binary: "api-build",
-	}, capturedCfg.Project)
-	assert.Equal(t, "api-build", capturedCfg.Name)
-	assert.Equal(t, "v1.2.3", capturedCfg.Version)
-	assert.Equal(t, []string{"-mod=readonly"}, capturedCfg.Flags)
-	assert.Equal(t, []string{"-s"}, capturedCfg.LDFlags)
-	assert.Equal(t, []string{"integration"}, capturedCfg.BuildTags)
-	assert.Equal(t, []string{"FOO=bar"}, capturedCfg.Env)
-	assert.True(t, capturedCfg.CGO)
-	assert.True(t, capturedCfg.Obfuscate)
-	assert.True(t, capturedCfg.Cache.Enabled)
-	assert.Equal(t, []string{
-		ax.Join(projectDir, "cache", "go-build"),
-		ax.Join(projectDir, "cache", "go-mod"),
-	}, capturedCfg.Cache.Paths)
-	assert.True(t, capturedCfg.FS.Exists(ax.Join(projectDir, ".core", "cache")))
-	assert.True(t, capturedCfg.FS.Exists(ax.Join(projectDir, "cache", "go-build")))
-	assert.True(t, capturedCfg.FS.Exists(ax.Join(projectDir, "cache", "go-mod")))
-	assert.Equal(t, []build.Target{{OS: "linux", Arch: "amd64"}}, capturedTargets)
-	assert.Contains(t, recorder.Body.String(), `"archive_format":"xz"`)
-	assert.Contains(t, recorder.Body.String(), `.tar.xz`)
-	assert.True(t, io.Local.Exists(ax.Join(projectDir, "dist", "api-build_linux_amd64.tar.xz")))
-	assert.True(t, io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")))
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
+	if stdlibAssertNil(capturedCfg) {
+		t.Fatal("expected non-nil")
+	}
+	if !stdlibAssertEqual(build.Project{Name: "API Build", Main: "./cmd/api", Binary: "api-build"}, capturedCfg.Project) {
+		t.Fatalf("want %v, got %v", build.Project{Name: "API Build", Main: "./cmd/api", Binary: "api-build"}, capturedCfg.Project)
+	}
+	if !stdlibAssertEqual("api-build", capturedCfg.Name) {
+		t.Fatalf("want %v, got %v", "api-build", capturedCfg.Name)
+	}
+	if !stdlibAssertEqual("v1.2.3", capturedCfg.Version) {
+		t.Fatalf("want %v, got %v", "v1.2.3", capturedCfg.Version)
+	}
+	if !stdlibAssertEqual([]string{"-mod=readonly"}, capturedCfg.Flags) {
+		t.Fatalf("want %v, got %v", []string{"-mod=readonly"}, capturedCfg.Flags)
+	}
+	if !stdlibAssertEqual([]string{"-s"}, capturedCfg.LDFlags) {
+		t.Fatalf("want %v, got %v", []string{"-s"}, capturedCfg.LDFlags)
+	}
+	if !stdlibAssertEqual([]string{"integration"}, capturedCfg.BuildTags) {
+		t.Fatalf("want %v, got %v", []string{"integration"}, capturedCfg.BuildTags)
+	}
+	if !stdlibAssertEqual([]string{"FOO=bar"}, capturedCfg.Env) {
+		t.Fatalf("want %v, got %v", []string{"FOO=bar"}, capturedCfg.Env)
+	}
+	if !(capturedCfg.CGO) {
+		t.Fatal("expected true")
+	}
+	if !(capturedCfg.Obfuscate) {
+		t.Fatal("expected true")
+	}
+	if !(capturedCfg.Cache.Enabled) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual([]string{ax.Join(projectDir, "cache", "go-build"), ax.Join(projectDir, "cache", "go-mod")}, capturedCfg.Cache.Paths) {
+		t.Fatalf("want %v, got %v", []string{ax.Join(projectDir, "cache", "go-build"), ax.Join(projectDir, "cache", "go-mod")}, capturedCfg.Cache.Paths)
+	}
+	if !(capturedCfg.FS.Exists(ax.Join(projectDir, ".core", "cache"))) {
+		t.Fatal("expected true")
+	}
+	if !(capturedCfg.FS.Exists(ax.Join(projectDir, "cache", "go-build"))) {
+		t.Fatal("expected true")
+	}
+	if !(capturedCfg.FS.Exists(ax.Join(projectDir, "cache", "go-mod"))) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual([]build.Target{{OS: "linux", Arch: "amd64"}}, capturedTargets) {
+		t.Fatalf("want %v, got %v", []build.Target{{OS: "linux", Arch: "amd64"}}, capturedTargets)
+	}
+	if !stdlibAssertContains(recorder.Body.String(), `"archive_format":"xz"`) {
+		t.Fatalf("expected %v to contain %v", recorder.Body.String(), `"archive_format":"xz"`)
+	}
+	if !stdlibAssertContains(recorder.Body.String(), `.tar.xz`) {
+		t.Fatalf("expected %v to contain %v", recorder.Body.String(), `.tar.xz`)
+	}
+	if !(io.Local.Exists(ax.Join(projectDir, "dist", "api-build_linux_amd64.tar.xz"))) {
+		t.Fatal("expected true")
+	}
+	if !(io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))) {
+		t.Fatal("expected true")
+	}
 
 	checksums, err := io.Local.Read(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))
-	require.NoError(t, err)
-	assert.Contains(t, checksums, "api-build_linux_amd64.tar.xz")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(checksums, "api-build_linux_amd64.tar.xz") {
+		t.Fatalf("expected %v to contain %v", checksums, "api-build_linux_amd64.tar.xz")
+	}
+
 }
 
 func TestProvider_TriggerBuild_DefaultsToRawArtifacts_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`version: 1
+	if err := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`version: 1
 project:
   name: provider
   binary: provider
@@ -1261,7 +1877,9 @@ targets:
     arch: `+runtime.GOARCH+`
 sign:
   enabled: false
-`), 0o644))
+`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	oldGetBuilder := providerGetBuilder
 	oldDetermineVersion := providerDetermineVersion
@@ -1275,12 +1893,17 @@ sign:
 			name: "go",
 			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 				artifactDir := ax.Join(cfg.OutputDir, runtime.GOOS+"_"+runtime.GOARCH)
-				require.NoError(t, cfg.FS.EnsureDir(artifactDir))
+				if err := cfg.FS.EnsureDir(artifactDir); err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
 				artifactPath := ax.Join(artifactDir, "provider")
 				if runtime.GOOS == "windows" {
 					artifactPath += ".exe"
 				}
-				require.NoError(t, cfg.FS.WriteMode(artifactPath, "binary", 0o755))
+				if err := cfg.FS.WriteMode(artifactPath, "binary", 0o755); err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
 
 				return []build.Artifact{{
 					Path: artifactPath,
@@ -1302,23 +1925,43 @@ sign:
 	ctx.Request = request
 
 	p.triggerBuild(ctx)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
+	if !stdlibAssertContains(recorder.Body.String(), `"project_type":"go"`) {
+		t.Fatalf("expected %v to contain %v", recorder.Body.String(), `"project_type":"go"`)
+	}
+	if stdlibAssertContains(recorder.Body.String(), `"archive_format"`) {
+		t.Fatalf("expected %v not to contain %v", recorder.Body.String(), `"archive_format"`)
+	}
+	if stdlibAssertContains(recorder.Body.String(), `"checksum_file"`) {
+		t.Fatalf("expected %v not to contain %v", recorder.Body.String(), `"checksum_file"`)
+	}
+	if !(io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider")) || io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider.exe"))) {
+		t.Fatal("expected true")
+	}
+	if io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")) {
+		t.Fatal("expected false")
+	}
+	if io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz")) {
+		t.Fatal("expected false")
+	}
+	if io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz")) {
+		t.Fatal("expected false")
+	}
 
-	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"project_type":"go"`)
-	assert.NotContains(t, recorder.Body.String(), `"archive_format"`)
-	assert.NotContains(t, recorder.Body.String(), `"checksum_file"`)
-	assert.True(t, io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider")) || io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider.exe")))
-	assert.False(t, io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")))
-	assert.False(t, io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz")))
-	assert.False(t, io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz")))
 }
 
 func TestProvider_TriggerBuild_WithoutBuildConfig_UsesLocalTarget_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	oldGetBuilder := providerGetBuilder
 	oldDetermineVersion := providerDetermineVersion
@@ -1335,9 +1978,14 @@ func TestProvider_TriggerBuild_WithoutBuildConfig_UsesLocalTarget_Good(t *testin
 				capturedTargets = append([]build.Target{}, targets...)
 
 				artifactDir := ax.Join(cfg.OutputDir, runtime.GOOS+"_"+runtime.GOARCH)
-				require.NoError(t, cfg.FS.EnsureDir(artifactDir))
+				if err := cfg.FS.EnsureDir(artifactDir); err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
 				artifactPath := ax.Join(artifactDir, "provider")
-				require.NoError(t, cfg.FS.WriteMode(artifactPath, "binary", 0o755))
+				if err := cfg.FS.WriteMode(artifactPath, "binary", 0o755); err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
 
 				return []build.Artifact{{
 					Path: artifactPath,
@@ -1359,9 +2007,13 @@ func TestProvider_TriggerBuild_WithoutBuildConfig_UsesLocalTarget_Good(t *testin
 	ctx.Request = request
 
 	p.triggerBuild(ctx)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
+	if !stdlibAssertEqual([]build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}, capturedTargets) {
+		t.Fatalf("want %v, got %v", []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}, capturedTargets)
+	}
 
-	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.Equal(t, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}, capturedTargets)
 }
 
 func TestProvider_TriggerRelease_UsesFullReleasePipeline_Good(t *testing.T) {
@@ -1377,7 +2029,10 @@ func TestProvider_TriggerRelease_UsesFullReleasePipeline_Good(t *testing.T) {
 	})
 
 	providerLoadReleaseConfig = func(dir string) (*release.Config, error) {
-		assert.Equal(t, projectDir, dir)
+		if !stdlibAssertEqual(projectDir, dir) {
+			t.Fatalf("want %v, got %v", projectDir, dir)
+		}
+
 		cfg := release.DefaultConfig()
 		cfg.SetProjectDir(dir)
 		return cfg, nil
@@ -1386,8 +2041,12 @@ func TestProvider_TriggerRelease_UsesFullReleasePipeline_Good(t *testing.T) {
 	called := false
 	providerRunRelease = func(ctx context.Context, cfg *release.Config, dryRun bool) (*release.Release, error) {
 		called = true
-		assert.False(t, dryRun)
-		require.NotNil(t, cfg)
+		if dryRun {
+			t.Fatal("expected false")
+		}
+		if stdlibAssertNil(cfg) {
+			t.Fatal("expected non-nil")
+		}
 
 		return &release.Release{
 			Version:   "v1.2.3",
@@ -1404,11 +2063,19 @@ func TestProvider_TriggerRelease_UsesFullReleasePipeline_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.triggerRelease(ctx)
+	if !(called) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
+	if !stdlibAssertContains(recorder.Body.String(), `"version":"v1.2.3"`) {
+		t.Fatalf("expected %v to contain %v", recorder.Body.String(), `"version":"v1.2.3"`)
+	}
+	if !stdlibAssertContains(recorder.Body.String(), `"dry_run":false`) {
+		t.Fatalf("expected %v to contain %v", recorder.Body.String(), `"dry_run":false`)
+	}
 
-	assert.True(t, called)
-	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"version":"v1.2.3"`)
-	assert.Contains(t, recorder.Body.String(), `"dry_run":false`)
 }
 
 func TestProvider_TriggerRelease_DryRun_Good(t *testing.T) {
@@ -1430,7 +2097,10 @@ func TestProvider_TriggerRelease_DryRun_Good(t *testing.T) {
 	}
 
 	providerRunRelease = func(ctx context.Context, cfg *release.Config, dryRun bool) (*release.Release, error) {
-		assert.True(t, dryRun)
+		if !(dryRun) {
+			t.Fatal("expected true")
+		}
+
 		return &release.Release{
 			Version: "v1.2.3",
 		}, nil
@@ -1444,9 +2114,13 @@ func TestProvider_TriggerRelease_DryRun_Good(t *testing.T) {
 	ctx.Request = request
 
 	p.triggerRelease(ctx)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
+	if !stdlibAssertContains(recorder.Body.String(), `"dry_run":true`) {
+		t.Fatalf("expected %v to contain %v", recorder.Body.String(), `"dry_run":true`)
+	}
 
-	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"dry_run":true`)
 }
 
 func TestProvider_ListArtifacts_RecursesIntoPlatformDirectories_Good(t *testing.T) {
@@ -1454,9 +2128,15 @@ func TestProvider_ListArtifacts_RecursesIntoPlatformDirectories_Good(t *testing.
 
 	projectDir := t.TempDir()
 	distDir := ax.Join(projectDir, "dist")
-	require.NoError(t, io.Local.EnsureDir(ax.Join(distDir, "linux_amd64")))
-	require.NoError(t, io.Local.Write(ax.Join(distDir, "CHECKSUMS.txt"), "checksums"))
-	require.NoError(t, io.Local.Write(ax.Join(distDir, "linux_amd64", "demo.tar.xz"), "archive"))
+	if err := io.Local.EnsureDir(ax.Join(distDir, "linux_amd64")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := io.Local.Write(ax.Join(distDir, "CHECKSUMS.txt"), "checksums"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := io.Local.Write(ax.Join(distDir, "linux_amd64", "demo.tar.xz"), "archive"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	p := NewProvider(projectDir, nil)
 	recorder := httptest.NewRecorder()
@@ -1466,13 +2146,24 @@ func TestProvider_ListArtifacts_RecursesIntoPlatformDirectories_Good(t *testing.
 	ctx.Request = request
 
 	p.listArtifacts(ctx)
+	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
+		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	}
 
-	assert.Equal(t, http.StatusOK, recorder.Code)
 	body := recorder.Body.String()
-	assert.Contains(t, body, `"exists":true`)
-	assert.Contains(t, body, `"name":"CHECKSUMS.txt"`)
-	assert.Contains(t, body, `"name":"linux_amd64/demo.tar.xz"`)
-	assert.Contains(t, body, ax.Join(distDir, "linux_amd64", "demo.tar.xz"))
+	if !stdlibAssertContains(body, `"exists":true`) {
+		t.Fatalf("expected %v to contain %v", body, `"exists":true`)
+	}
+	if !stdlibAssertContains(body, `"name":"CHECKSUMS.txt"`) {
+		t.Fatalf("expected %v to contain %v", body, `"name":"CHECKSUMS.txt"`)
+	}
+	if !stdlibAssertContains(body, `"name":"linux_amd64/demo.tar.xz"`) {
+		t.Fatalf("expected %v to contain %v", body, `"name":"linux_amd64/demo.tar.xz"`)
+	}
+	if !stdlibAssertContains(body, ax.Join(distDir, "linux_amd64", "demo.tar.xz")) {
+		t.Fatalf("expected %v to contain %v", body, ax.Join(distDir, "linux_amd64", "demo.tar.xz"))
+	}
+
 }
 
 type capturingBuilder struct {
