@@ -5,7 +5,6 @@ package release
 
 import (
 	"context"
-	"os"
 	"slices"
 
 	"dappco.re/go/build/internal/ax"
@@ -379,11 +378,11 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	buildOutputDir := outputDir
 	stageDir := ""
 	if !mediumEquals(artifactFS, io.Local) {
-		stageDir, err = os.MkdirTemp("", "core-release-*")
+		stageDir, err = ax.MkdirTemp("core-release-*")
 		if err != nil {
 			return nil, coreerr.E("release.Run", "failed to create release staging directory", err)
 		}
-		defer func() { _ = os.RemoveAll(stageDir) }()
+		defer func() { _ = ax.RemoveAll(stageDir) }()
 		buildOutputDir = ax.Join(stageDir, "dist")
 	}
 
