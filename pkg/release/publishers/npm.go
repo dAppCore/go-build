@@ -2,15 +2,14 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"text/template"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	"dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 //go:embed templates/npm/*.tmpl
@@ -69,10 +68,6 @@ func (p *NpmPublisher) Supports(target string) bool {
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	if err := validatePublisherRelease(p.Name(), release); err != nil {
-		return err
-	}
-
 	// Parse npm config
 	npmCfg := p.parseConfig(pubCfg, relCfg)
 
@@ -285,8 +280,8 @@ func (p *NpmPublisher) renderTemplate(m coreio.Medium, name string, data npmTemp
 		return "", coreerr.E("npm.renderTemplate", "failed to parse template "+name, err)
 	}
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	buf := core.NewBuffer()
+	if err := tmpl.Execute(buf, data); err != nil {
 		return "", coreerr.E("npm.renderTemplate", "failed to execute template "+name, err)
 	}
 

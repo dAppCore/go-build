@@ -2,7 +2,6 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"strings"
@@ -333,8 +332,8 @@ func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data ho
 		return "", coreerr.E("homebrew.renderTemplate", "failed to parse template "+name, err)
 	}
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	buf := core.NewBuffer()
+	if err := tmpl.Execute(buf, data); err != nil {
 		return "", coreerr.E("homebrew.renderTemplate", "failed to execute template "+name, err)
 	}
 
