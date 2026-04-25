@@ -7,17 +7,17 @@
 package buildcmd
 
 import (
+	// Note: AX-6 — context.Context is the command cancellation contract; core has no equivalent API.
 	"context"
-	stdio "io"
+	// Note: AX-6 — net/http is required for PWA downloads; core has no HTTP client primitive.
 	"net/http"
+	// Note: AX-6 — net/url is required for standards-compliant URL parsing/resolution; core has only path/string primitives here.
 	"net/url"
-	"path"
-	"strconv"
-	"strings"
+	// Note: AX-6 — unicode preserves Fields/slug whitespace semantics; core has no rune category primitive.
 	"unicode"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	"dappco.re/go/core/i18n"
 	coreerr "dappco.re/go/core/log"
 	"github.com/leaanthony/debme"
@@ -75,9 +75,7 @@ func downloadPWA(ctx context.Context, baseURL, destDir string) error {
 	if err != nil {
 		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch URL"})+" "+baseURL, err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := stdio.ReadAll(resp.Body)
+	body, err := readAllBytes(resp.Body)
 	if err != nil {
 		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "read response body"}), err)
 	}
@@ -165,15 +163,15 @@ func extractHTMLMetadataAndAssets(htmlContent, baseURL string) (pwaMetadata, []s
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
 		if node.Type == html.ElementNode {
-			switch strings.ToLower(strings.TrimSpace(node.Data)) {
+			switch core.Lower(core.Trim(node.Data)) {
 			case "title":
 				if metadata.DisplayName == "" {
-					metadata.DisplayName = strings.TrimSpace(nodeText(node))
+					metadata.DisplayName = core.Trim(nodeText(node))
 				}
 			case "meta":
-				content := strings.TrimSpace(attributeValue(node, "content"))
-				name := strings.ToLower(strings.TrimSpace(attributeValue(node, "name")))
-				property := strings.ToLower(strings.TrimSpace(attributeValue(node, "property")))
+				content := core.Trim(attributeValue(node, "content"))
+				name := core.Lower(core.Trim(attributeValue(node, "name")))
+				property := core.Lower(core.Trim(attributeValue(node, "property")))
 				if content != "" && (name == "description" || property == "og:description" || property == "twitter:description") && metadata.Description == "" {
 					metadata.Description = content
 				}
@@ -232,9 +230,7 @@ func fetchManifest(ctx context.Context, manifestURL string) (map[string]any, []b
 	if err != nil {
 		return nil, nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := stdio.ReadAll(resp.Body)
+	body, err := readAllBytes(resp.Body)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -258,9 +254,7 @@ func downloadAsset(ctx context.Context, assetURL, destDir string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := stdio.ReadAll(resp.Body)
+	body, err := readAllBytes(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -309,8 +303,8 @@ func runBuild(ctx context.Context, fromPath string) error {
 
 	templateData := map[string]string{
 		"AppModule":             appConfig.ModuleName,
-		"AppDisplayNameLiteral": strconv.Quote(appConfig.DisplayName),
-		"AppDescriptionLiteral": strconv.Quote(appConfig.Description),
+		"AppDisplayNameLiteral": core.Sprintf("%q", appConfig.DisplayName),
+		"AppDescriptionLiteral": core.Sprintf("%q", appConfig.Description),
 	}
 	if err := sod.Extract(buildDir, templateData); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "extract template"}), err)
@@ -347,12 +341,12 @@ func resolvePWAAppConfig(fromPath string) pwaAppConfig {
 	}
 
 	metadata := loadLocalPWAMetadata(fromPath)
-	displayName := strings.TrimSpace(metadata.DisplayName)
+	displayName := core.Trim(metadata.DisplayName)
 	if displayName == "" {
 		displayName = fallbackName
 	}
 
-	description := strings.TrimSpace(metadata.Description)
+	description := core.Trim(metadata.Description)
 	if description == "" {
 		description = defaultPWADescription
 	}
@@ -402,7 +396,7 @@ func loadLocalPWAMetadata(dir string) pwaMetadata {
 		if err != nil {
 			continue
 		}
-		manifestURL := "https://local.core/" + strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(relativePath, ax.DS(), "/")), "/")
+		manifestURL := core.Concat("https://local.core/", localPWAURLPath(relativePath))
 		manifestMetadata, _ := manifestMetadataAndAssetsFromBytes(manifestBody, manifestURL)
 		return mergePWAMetadata(metadata, manifestMetadata)
 	}
@@ -416,6 +410,22 @@ func getWithContext(ctx context.Context, targetURL string) (*http.Response, erro
 		return nil, err
 	}
 	return http.DefaultClient.Do(req)
+}
+
+func readAllBytes(reader any) ([]byte, error) {
+	result := core.ReadAll(reader)
+	if !result.OK {
+		if err, ok := result.Value.(error); ok {
+			return nil, err
+		}
+		return nil, coreerr.E("pwa.readAllBytes", "failed to read stream", nil)
+	}
+
+	content, ok := result.Value.(string)
+	if !ok {
+		return nil, coreerr.E("pwa.readAllBytes", "read stream returned non-string content", nil)
+	}
+	return []byte(content), nil
 }
 
 // copyDir recursively copies a directory from src to dst.
@@ -445,22 +455,12 @@ func copyDir(src, dst string) error {
 			return err
 		}
 
-		dstFile, err := ax.Create(dstPath)
+		content, err := readAllBytes(srcFile)
 		if err != nil {
-			_ = srcFile.Close()
 			return err
 		}
 
-		if _, err := stdio.Copy(dstFile, srcFile); err != nil {
-			_ = srcFile.Close()
-			_ = dstFile.Close()
-			return err
-		}
-		if err := srcFile.Close(); err != nil {
-			_ = dstFile.Close()
-			return err
-		}
-		if err := dstFile.Close(); err != nil {
+		if err := ax.WriteFile(dstPath, content, 0o644); err != nil {
 			return err
 		}
 	}
@@ -473,14 +473,14 @@ func manifestMetadataAndAssets(manifest map[string]any, manifestURL string) (pwa
 	var assets []string
 	base, _ := url.Parse(manifestURL)
 
-	if name, ok := manifest["name"].(string); ok && strings.TrimSpace(name) != "" {
-		metadata.DisplayName = strings.TrimSpace(name)
+	if name, ok := manifest["name"].(string); ok && core.Trim(name) != "" {
+		metadata.DisplayName = core.Trim(name)
 	} else if shortName, ok := manifest["short_name"].(string); ok {
-		metadata.DisplayName = strings.TrimSpace(shortName)
+		metadata.DisplayName = core.Trim(shortName)
 	}
 
 	if description, ok := manifest["description"].(string); ok {
-		metadata.Description = strings.TrimSpace(description)
+		metadata.Description = core.Trim(description)
 	}
 
 	if startURL, ok := manifest["start_url"].(string); ok {
@@ -518,22 +518,23 @@ func manifestMetadataAndAssetsFromBytes(body []byte, manifestURL string) (pwaMet
 
 func mergePWAMetadata(base, override pwaMetadata) pwaMetadata {
 	merged := base
-	if strings.TrimSpace(override.DisplayName) != "" {
-		merged.DisplayName = strings.TrimSpace(override.DisplayName)
+	if core.Trim(override.DisplayName) != "" {
+		merged.DisplayName = core.Trim(override.DisplayName)
 	}
-	if strings.TrimSpace(override.Description) != "" {
-		merged.Description = strings.TrimSpace(override.Description)
+	if core.Trim(override.Description) != "" {
+		merged.Description = core.Trim(override.Description)
 	}
-	if strings.TrimSpace(override.ManifestURL) != "" {
-		merged.ManifestURL = strings.TrimSpace(override.ManifestURL)
+	if core.Trim(override.ManifestURL) != "" {
+		merged.ManifestURL = core.Trim(override.ManifestURL)
 	}
 	merged.Icons = uniquePWAStrings(append(append([]string{}, base.Icons...), override.Icons...))
 	return merged
 }
 
 func attributeValue(node *html.Node, name string) string {
+	needle := core.Lower(name)
 	for _, attribute := range node.Attr {
-		if strings.EqualFold(attribute.Key, name) {
+		if core.Lower(attribute.Key) == needle {
 			return attribute.Val
 		}
 	}
@@ -541,7 +542,7 @@ func attributeValue(node *html.Node, name string) string {
 }
 
 func nodeText(node *html.Node) string {
-	var b strings.Builder
+	b := core.NewBuilder()
 	var walk func(*html.Node)
 	walk = func(current *html.Node) {
 		if current.Type == html.TextNode {
@@ -556,7 +557,7 @@ func nodeText(node *html.Node) string {
 }
 
 func parseRelTokens(value string) []string {
-	return uniquePWAStrings(strings.Fields(strings.ToLower(strings.TrimSpace(value))))
+	return uniquePWAStrings(pwaFields(core.Lower(core.Trim(value))))
 }
 
 func relHasAny(tokens []string, candidates ...string) bool {
@@ -571,13 +572,13 @@ func relHasAny(tokens []string, candidates ...string) bool {
 }
 
 func resolveAssetURL(base *url.URL, raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" || strings.HasPrefix(raw, "#") {
+	raw = core.Trim(raw)
+	if raw == "" || core.HasPrefix(raw, "#") {
 		return ""
 	}
 
-	lower := strings.ToLower(raw)
-	if strings.HasPrefix(lower, "data:") || strings.HasPrefix(lower, "javascript:") || strings.HasPrefix(lower, "mailto:") {
+	lower := core.Lower(raw)
+	if core.HasPrefix(lower, "data:") || core.HasPrefix(lower, "javascript:") || core.HasPrefix(lower, "mailto:") {
 		return ""
 	}
 
@@ -600,12 +601,12 @@ func appendResolvedAsset(assets *[]string, base *url.URL, raw string) {
 }
 
 func appendResolvedSrcSet(assets *[]string, base *url.URL, raw string) {
-	for _, candidate := range strings.Split(raw, ",") {
-		candidate = strings.TrimSpace(candidate)
+	for _, candidate := range core.Split(raw, ",") {
+		candidate = core.Trim(candidate)
 		if candidate == "" {
 			continue
 		}
-		fields := strings.Fields(candidate)
+		fields := pwaFields(candidate)
 		if len(fields) == 0 {
 			continue
 		}
@@ -621,7 +622,7 @@ func uniquePWAStrings(values []string) []string {
 	result := make([]string, 0, len(values))
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = core.Trim(value)
 		if value == "" {
 			continue
 		}
@@ -635,7 +636,7 @@ func uniquePWAStrings(values []string) []string {
 }
 
 func normalizeAssetURL(raw string) string {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
+	parsed, err := url.Parse(core.Trim(raw))
 	if err != nil {
 		return ""
 	}
@@ -649,15 +650,15 @@ func resolveAssetDestination(destDir, assetURL string) (string, error) {
 		return "", err
 	}
 
-	relativePath := path.Clean("/" + parsed.Path)
+	relativePath := cleanPWAURLPath(core.Concat("/", parsed.Path))
 	switch {
 	case relativePath == "/" || relativePath == ".":
 		relativePath = "/index.html"
-	case strings.HasSuffix(parsed.Path, "/"):
-		relativePath = path.Join(relativePath, "index.html")
+	case core.HasSuffix(parsed.Path, "/"):
+		relativePath = joinPWAURLPath(relativePath, "index.html")
 	}
 
-	return ax.Join(destDir, ax.FromSlash(strings.TrimPrefix(relativePath, "/"))), nil
+	return ax.Join(destDir, ax.FromSlash(core.TrimPrefix(relativePath, "/"))), nil
 }
 
 func localManifestCandidates(dir, manifestURL string) []string {
@@ -677,27 +678,27 @@ func localAssetPath(dir, assetURL string) string {
 		return ""
 	}
 
-	relativePath := path.Clean("/" + parsed.Path)
+	relativePath := cleanPWAURLPath(core.Concat("/", parsed.Path))
 	if relativePath == "/" || relativePath == "." {
 		relativePath = "/index.html"
 	}
-	return ax.Join(dir, ax.FromSlash(strings.TrimPrefix(relativePath, "/")))
+	return ax.Join(dir, ax.FromSlash(core.TrimPrefix(relativePath, "/")))
 }
 
 func slugifyPWAName(name string) string {
-	name = strings.TrimSpace(name)
+	name = core.Trim(name)
 	if name == "" {
 		return ""
 	}
 
-	var b strings.Builder
+	b := core.NewBuilder()
 	lastDash := false
-	for _, r := range strings.ToLower(name) {
+	for _, r := range core.Lower(name) {
 		switch {
-		case r <= unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r)):
+		case isPWAASCIILetter(r) || isPWAASCIIDigit(r):
 			b.WriteRune(r)
 			lastDash = false
-		case unicode.IsSpace(r) || r == '-' || r == '_' || r == '.':
+		case isPWASpace(r) || r == '-' || r == '_' || r == '.':
 			if b.Len() == 0 || lastDash {
 				continue
 			}
@@ -706,12 +707,67 @@ func slugifyPWAName(name string) string {
 		}
 	}
 
-	slug := strings.Trim(b.String(), "-")
+	slug := trimPWAHyphens(b.String())
 	if slug == "" {
 		return ""
 	}
 	if slug[0] >= '0' && slug[0] <= '9' {
-		return "app-" + slug
+		return core.Concat("app-", slug)
 	}
 	return slug
+}
+
+func cleanPWAURLPath(value string) string {
+	return core.CleanPath(value, "/")
+}
+
+func joinPWAURLPath(parts ...string) string {
+	return cleanPWAURLPath(core.Join("/", parts...))
+}
+
+func localPWAURLPath(relativePath string) string {
+	return core.TrimPrefix(cleanPWAURLPath(core.Concat("/", core.Replace(relativePath, ax.DS(), "/"))), "/")
+}
+
+func pwaFields(value string) []string {
+	fields := []string{}
+	start := -1
+	for i, r := range value {
+		if isPWASpace(r) {
+			if start >= 0 {
+				fields = append(fields, value[start:i])
+				start = -1
+			}
+			continue
+		}
+		if start < 0 {
+			start = i
+		}
+	}
+	if start >= 0 {
+		fields = append(fields, value[start:])
+	}
+	return fields
+}
+
+func trimPWAHyphens(value string) string {
+	for len(value) > 0 && value[0] == '-' {
+		value = value[1:]
+	}
+	for len(value) > 0 && value[len(value)-1] == '-' {
+		value = value[:len(value)-1]
+	}
+	return value
+}
+
+func isPWAASCIILetter(r rune) bool {
+	return r >= 'a' && r <= 'z'
+}
+
+func isPWAASCIIDigit(r rune) bool {
+	return r >= '0' && r <= '9'
+}
+
+func isPWASpace(r rune) bool {
+	return unicode.IsSpace(r)
 }
