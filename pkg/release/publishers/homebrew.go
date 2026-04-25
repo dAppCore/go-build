@@ -5,14 +5,13 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"strings"
 	"text/template"
 	"unicode"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	"dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 //go:embed templates/homebrew/*.tmpl
@@ -83,10 +82,6 @@ func (p *HomebrewPublisher) Supports(target string) bool {
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *HomebrewPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	if err := validatePublisherRelease(p.Name(), release); err != nil {
-		return err
-	}
-
 	// Parse config
 	cfg := p.parseConfig(pubCfg, relCfg)
 
@@ -348,9 +343,7 @@ func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data ho
 
 // toFormulaClass converts a package name to a Ruby class name.
 func toFormulaClass(name string) string {
-	parts := strings.FieldsFunc(name, func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	})
+	parts := formulaClassParts(name)
 	if len(parts) == 0 {
 		return "Core"
 	}
@@ -364,4 +357,23 @@ func toFormulaClass(name string) string {
 	}
 
 	return core.Join("", parts...)
+}
+
+func formulaClassParts(name string) []string {
+	parts := make([]string, 0)
+	part := make([]rune, 0, len(name))
+	for _, r := range name {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			part = append(part, r)
+			continue
+		}
+		if len(part) > 0 {
+			parts = append(parts, string(part))
+			part = part[:0]
+		}
+	}
+	if len(part) > 0 {
+		parts = append(parts, string(part))
+	}
+	return parts
 }
