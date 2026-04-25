@@ -4,8 +4,6 @@ package publishers
 import (
 	"bufio"
 	"context"
-	"encoding/json"
-	"errors"
 	stdio "io"
 	"io/fs"
 	"net/url"
@@ -392,7 +390,7 @@ func detectRepository(ctx context.Context, dir string) (string, error) {
 	if parseErr == nil {
 		parseErr = ghErr
 	} else if ghErr != nil {
-		parseErr = errors.Join(parseErr, ghErr)
+		parseErr = core.ErrorJoin(parseErr, ghErr)
 	}
 
 	return "", coreerr.E("github.detectRepository", "no GitHub remote found", parseErr)
@@ -412,7 +410,11 @@ func detectRepositoryViaGh(ctx context.Context, dir string) (string, error) {
 	var payload struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	}
-	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+	if result := core.JSONUnmarshal([]byte(output), &payload); !result.OK {
+		err, ok := result.Value.(error)
+		if !ok {
+			err = core.NewError("core.JSONUnmarshal failed without error")
+		}
 		return "", coreerr.E("github.detectRepositoryViaGh", "failed to parse gh repo view output", err)
 	}
 
