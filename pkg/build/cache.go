@@ -3,8 +3,6 @@
 package build
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
@@ -239,8 +237,7 @@ func CacheKey(fs io.Medium, dir, goos, goarch string) string {
 	seed = append(seed, '\n')
 	seed = append(seed, goarch...)
 
-	sum := sha256.Sum256(seed)
-	suffix := hex.EncodeToString(sum[:])[:12]
+	suffix := core.SHA256Hex(seed)[:12]
 
 	return core.Join("-", "go", goos, goarch, suffix)
 }
