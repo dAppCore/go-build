@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	// Note: AX-6 intrinsic — boundary copy from io.Medium / FileMode for artifact perms; no core equivalent.
 	stdio "io"
 	"io/fs"
 	"net/url"
