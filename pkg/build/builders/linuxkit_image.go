@@ -2,12 +2,11 @@
 package builders
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
+	// Note: AX-6 — core.HexEncode is not available in core v0.8.0-alpha.1; content hash output needs stable hex encoding.
 	"encoding/hex"
 	"runtime"
-	"strings"
 	"text/template"
 
 	"dappco.re/go/build/internal/ax"
@@ -156,12 +155,12 @@ func mergeLinuxKitImageConfig(defaults, override build.LinuxKitConfig) build.Lin
 func normalizeLinuxKitImageConfig(cfg build.LinuxKitConfig) build.LinuxKitConfig {
 	defaults := build.DefaultLinuxKitConfig()
 
-	cfg.Base = strings.TrimSpace(cfg.Base)
+	cfg.Base = core.Trim(cfg.Base)
 	if cfg.Base == "" {
 		cfg.Base = defaults.Base
 	}
 
-	cfg.Registry = strings.TrimSpace(cfg.Registry)
+	cfg.Registry = core.Trim(cfg.Registry)
 	cfg.Packages = uniqueStrings(cfg.Packages)
 	cfg.Mounts = uniqueStrings(cfg.Mounts)
 	if len(cfg.Mounts) == 0 {
@@ -184,7 +183,7 @@ func normalizeLinuxKitImageFormats(values []string) []string {
 	result := make([]string, 0, len(values))
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		value = strings.ToLower(strings.TrimSpace(value))
+		value = core.Lower(core.Trim(value))
 		if value == "" {
 			continue
 		}
@@ -225,8 +224,8 @@ func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage,
 		EntrypointCommand: "tail -f /dev/null",
 	}
 
-	var rendered bytes.Buffer
-	if err := tmpl.Execute(&rendered, data); err != nil {
+	rendered := core.NewBuilder()
+	if err := tmpl.Execute(rendered, data); err != nil {
 		return "", coreerr.E("LinuxKitImageBuilder.renderTemplate", "failed to render LinuxKit template", err)
 	}
 
@@ -331,8 +330,8 @@ func linuxKitServiceImageContentHash(baseImage build.LinuxKitBaseImage, cfg buil
 }
 
 func normalizeLinuxKitServiceVersionTag(value string) string {
-	value = strings.TrimSpace(value)
-	value = strings.TrimPrefix(value, "v")
+	value = core.Trim(value)
+	value = core.TrimPrefix(value, "v")
 	if value == "" {
 		value = "dev"
 	}
@@ -340,12 +339,35 @@ func normalizeLinuxKitServiceVersionTag(value string) string {
 }
 
 func normalizeLinuxKitServiceTag(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	replacer := strings.NewReplacer("/", "-", "\\", "-", ":", "-", " ", "-", "\t", "-", "_", "-", "..", ".")
-	value = replacer.Replace(value)
-	value = strings.Trim(value, "-.")
+	value = core.Lower(core.Trim(value))
+	value = core.Replace(value, "/", "-")
+	value = core.Replace(value, "\\", "-")
+	value = core.Replace(value, ":", "-")
+	value = core.Replace(value, " ", "-")
+	value = core.Replace(value, "\t", "-")
+	value = core.Replace(value, "_", "-")
+	value = core.Replace(value, "..", ".")
+	value = trimLinuxKitServiceTagEdges(value)
 	if value == "" {
 		return "latest"
+	}
+	return value
+}
+
+func trimLinuxKitServiceTagEdges(value string) string {
+	for core.HasPrefix(value, "-") || core.HasPrefix(value, ".") {
+		if core.HasPrefix(value, "-") {
+			value = core.TrimPrefix(value, "-")
+			continue
+		}
+		value = core.TrimPrefix(value, ".")
+	}
+	for core.HasSuffix(value, "-") || core.HasSuffix(value, ".") {
+		if core.HasSuffix(value, "-") {
+			value = core.TrimSuffix(value, "-")
+			continue
+		}
+		value = core.TrimSuffix(value, ".")
 	}
 	return value
 }
@@ -365,7 +387,7 @@ func uniqueStrings(values []string) []string {
 	result := make([]string, 0, len(values))
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = core.Trim(value)
 		if value == "" {
 			continue
 		}
