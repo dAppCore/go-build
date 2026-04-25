@@ -3,7 +3,6 @@
 package installers
 
 import (
-	"bytes"
 	"embed"
 	"regexp"
 	"text/template"
@@ -135,8 +134,8 @@ func GenerateInstaller(variant InstallerVariant, args ...any) (string, error) {
 		return "", coreerr.E("installers.GenerateInstaller", "failed to parse template "+entry.tmpl, err)
 	}
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, cfg); err != nil {
+	buf := core.NewBuffer(nil)
+	if err := tmpl.Execute(buf, cfg); err != nil {
 		return "", coreerr.E("installers.GenerateInstaller", "failed to render template "+entry.tmpl, err)
 	}
 
