@@ -6,12 +6,14 @@
 package api
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	// Note: AX-6 — fs.ErrNotExist is the public sentinel asserted by provider tests.
 	"io/fs"
+	// Note: AX-6 — gin handlers require standard HTTP status constants at the API boundary.
 	"net/http"
+	// Note: AX-6 — build signing behavior is gated by the current Go target OS.
 	"runtime"
+	// Note: AX-6 — artifact responses must be deterministically ordered before JSON output.
 	"sort"
 
 	"dappco.re/go/build/internal/ax"
@@ -22,6 +24,7 @@ import (
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/sdk"
+	"dappco.re/go/core"
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
 	"dappco.re/go/core/io"
@@ -592,13 +595,31 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 
 func decodeBuildRequest(c *gin.Context) (buildRequest, error) {
 	var request buildRequest
-	if c == nil || c.Request == nil || c.Request.Body == nil || c.Request.ContentLength == 0 {
+	if c == nil || c.Request == nil || c.Request.Body == nil {
 		return request, nil
 	}
-	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
+	body, err := c.GetRawData()
+	if err != nil {
+		return buildRequest{}, err
+	}
+	if len(core.Trim(string(body))) == 0 {
+		return request, nil
+	}
+	if err := decodeProviderJSON(body, &request); err != nil {
 		return buildRequest{}, err
 	}
 	return request, nil
+}
+
+func decodeProviderJSON(data []byte, target any) error {
+	result := core.JSONUnmarshal(data, target)
+	if result.OK {
+		return nil
+	}
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return coreerr.E("api.decodeProviderJSON", "failed to decode JSON", nil)
 }
 
 func resolveBuildOutputs(request buildRequest) (bool, bool) {
@@ -895,8 +916,8 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 		return
 	}
-	if len(bytes.TrimSpace(body)) > 0 {
-		if err := json.Unmarshal(body, &request); err != nil {
+	if len(core.Trim(string(body))) > 0 {
+		if err := decodeProviderJSON(body, &request); err != nil {
 			c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
 			return
 		}
