@@ -8,8 +8,8 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // LinuxKitImageBuilder renders and builds immutable LinuxKit base images.
@@ -43,6 +43,9 @@ func (b *LinuxKitImageBuilder) ListBaseImages() []build.LinuxKitBaseImage {
 
 // ArtifactPath returns the final output path for a requested immutable image format.
 func (b *LinuxKitImageBuilder) ArtifactPath(outputDir, name, format string) string {
+	if outputDir == "" {
+		return name + b.outputExtension(format)
+	}
 	return ax.Join(outputDir, name+b.outputExtension(format))
 }
 
@@ -52,10 +55,10 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 		return nil, coreerr.E("LinuxKitImageBuilder.Build", "build config is required", nil)
 	}
 
-	filesystem := cfg.FS
-	if filesystem == nil {
-		filesystem = io.Local
+	if cfg.FS == nil {
+		cfg.FS = io.Local
 	}
+	artifactFilesystem := build.ResolveOutputMedium(cfg)
 
 	imageCfg := mergeLinuxKitImageConfig(build.DefaultLinuxKitConfig(), cfg.LinuxKit)
 	baseImage, ok := build.LookupLinuxKitBaseImage(imageCfg.Base)
@@ -64,14 +67,28 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 	}
 
 	outputDir := cfg.OutputDir
-	if outputDir == "" {
+	if outputDir == "" && build.MediumIsLocal(artifactFilesystem) {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	if !ax.IsAbs(outputDir) && cfg.ProjectDir != "" {
+	if outputDir != "" && !ax.IsAbs(outputDir) && cfg.ProjectDir != "" && build.MediumIsLocal(artifactFilesystem) {
 		outputDir = ax.Join(cfg.ProjectDir, outputDir)
 	}
-	if err := filesystem.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("LinuxKitImageBuilder.Build", "failed to create output directory", err)
+	if outputDir != "" {
+		if err := artifactFilesystem.EnsureDir(outputDir); err != nil {
+			return nil, coreerr.E("LinuxKitImageBuilder.Build", "failed to create output directory", err)
+		}
+	}
+
+	commandOutputDir := outputDir
+	commandFilesystem := artifactFilesystem
+	if !build.MediumIsLocal(artifactFilesystem) {
+		stageDir, err := ax.TempDir("core-build-linuxkit-image-*")
+		if err != nil {
+			return nil, coreerr.E("LinuxKitImageBuilder.Build", "failed to create local artifact staging directory", err)
+		}
+		defer func() { _ = ax.RemoveAll(stageDir) }()
+		commandOutputDir = stageDir
+		commandFilesystem = io.Local
 	}
 
 	imageName := cfg.Name
@@ -90,11 +107,11 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 		return nil, err
 	}
 
-	templatePath := ax.Join(outputDir, "."+imageName+"-linuxkit.yml")
-	if err := ax.WriteFile(templatePath, []byte(renderedTemplate), 0o644); err != nil {
+	templatePath := ax.Join(commandOutputDir, "."+imageName+"-linuxkit.yml")
+	if err := commandFilesystem.WriteMode(templatePath, renderedTemplate, 0o644); err != nil {
 		return nil, coreerr.E("LinuxKitImageBuilder.Build", "failed to write LinuxKit template", err)
 	}
-	defer func() { _ = filesystem.Delete(templatePath) }()
+	defer func() { _ = commandFilesystem.Delete(templatePath) }()
 
 	linuxkitCommand, err := (&LinuxKitBuilder{}).resolveLinuxKitCli()
 	if err != nil {
@@ -112,7 +129,7 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 			continue
 		}
 
-		artifactPath, err := b.buildFormat(ctx, filesystem, linuxkitCommand, cfg.ProjectDir, outputDir, imageName, templatePath, format)
+		artifactPath, err := b.buildFormat(ctx, commandFilesystem, artifactFilesystem, linuxkitCommand, cfg.ProjectDir, commandOutputDir, outputDir, imageName, templatePath, format)
 		if err != nil {
 			return nil, err
 		}
@@ -396,7 +413,7 @@ func uniqueStrings(values []string) []string {
 	return result
 }
 
-func (b *LinuxKitImageBuilder) buildFormat(ctx context.Context, filesystem io.Medium, linuxkitCommand, projectDir, outputDir, imageName, templatePath, format string) (string, error) {
+func (b *LinuxKitImageBuilder) buildFormat(ctx context.Context, commandFilesystem io.Medium, artifactFilesystem io.Medium, linuxkitCommand, projectDir, commandOutputDir, outputDir, imageName, templatePath, format string) (string, error) {
 	linuxKitFormat := b.linuxKitFormat(format)
 	buildName := imageName
 	if format == "apple" {
@@ -407,7 +424,7 @@ func (b *LinuxKitImageBuilder) buildFormat(ctx context.Context, filesystem io.Me
 		"build",
 		"--format", linuxKitFormat,
 		"--name", buildName,
-		"--dir", outputDir,
+		"--dir", commandOutputDir,
 		templatePath,
 	}
 
@@ -415,21 +432,32 @@ func (b *LinuxKitImageBuilder) buildFormat(ctx context.Context, filesystem io.Me
 		return "", coreerr.E("LinuxKitImageBuilder.Build", "build failed for "+format, err)
 	}
 
-	builtPath := ax.Join(outputDir, buildName+b.intermediateExtension(format))
+	builtPath := ax.Join(commandOutputDir, buildName+b.intermediateExtension(format))
+	commandFinalPath := b.ArtifactPath(commandOutputDir, imageName, format)
 	finalPath := b.ArtifactPath(outputDir, imageName, format)
 
 	if format == "apple" {
-		if !filesystem.Exists(builtPath) {
+		if !commandFilesystem.Exists(builtPath) {
 			return "", coreerr.E("LinuxKitImageBuilder.Build", "apple container artifact not found: "+builtPath, nil)
 		}
-		if err := filesystem.Rename(builtPath, finalPath); err != nil {
+		if err := commandFilesystem.Rename(builtPath, commandFinalPath); err != nil {
 			return "", coreerr.E("LinuxKitImageBuilder.Build", "failed to rename Apple container artifact", err)
+		}
+		if commandFinalPath != finalPath {
+			if err := build.CopyMediumPath(commandFilesystem, commandFinalPath, artifactFilesystem, finalPath); err != nil {
+				return "", err
+			}
 		}
 		return finalPath, nil
 	}
 
-	if !filesystem.Exists(finalPath) {
-		return "", coreerr.E("LinuxKitImageBuilder.Build", "artifact not found after build: "+finalPath, nil)
+	if !commandFilesystem.Exists(commandFinalPath) {
+		return "", coreerr.E("LinuxKitImageBuilder.Build", "artifact not found after build: "+commandFinalPath, nil)
+	}
+	if commandFinalPath != finalPath {
+		if err := build.CopyMediumPath(commandFilesystem, commandFinalPath, artifactFilesystem, finalPath); err != nil {
+			return "", err
+		}
 	}
 
 	return finalPath, nil

@@ -48,26 +48,28 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	if cfg == nil {
 		return nil, coreerr.E("GoBuilder.Build", "config is nil", nil)
 	}
-	filesystem := ensureBuildFilesystem(cfg)
+	ensureBuildFilesystem(cfg)
+	artifactFilesystem := build.ResolveOutputMedium(cfg)
 
 	if len(targets) == 0 {
 		targets = []build.Target{{OS: core.Env("GOOS"), Arch: core.Env("GOARCH")}}
 	}
 
 	outputDir := cfg.OutputDir
-	if outputDir == "" {
+	if outputDir == "" && build.MediumIsLocal(artifactFilesystem) {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
 
-	// Ensure output directory exists
-	if err := filesystem.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("GoBuilder.Build", "failed to create output directory", err)
+	if outputDir != "" {
+		if err := artifactFilesystem.EnsureDir(outputDir); err != nil {
+			return nil, coreerr.E("GoBuilder.Build", "failed to create output directory", err)
+		}
 	}
 
 	var artifacts []build.Artifact
 
 	for _, target := range targets {
-		artifact, err := b.buildTarget(ctx, cfg, filesystem, outputDir, target)
+		artifact, err := b.buildTarget(ctx, cfg, artifactFilesystem, outputDir, target)
 		if err != nil {
 			return artifacts, coreerr.E("GoBuilder.Build", "failed to build "+target.String(), err)
 		}
@@ -78,7 +80,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 }
 
 // buildTarget compiles for a single target platform.
-func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, filesystem io.Medium, outputDir string, target build.Target) (build.Artifact, error) {
+func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, artifactFilesystem io.Medium, outputDir string, target build.Target) (build.Artifact, error) {
 	// Determine output binary name
 	binaryName := cfg.Name
 	if binaryName == "" {
@@ -97,12 +99,32 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, filesyst
 	}
 
 	// Create platform-specific output path: output/os_arch/binary
-	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-	if err := filesystem.EnsureDir(platformDir); err != nil {
+	platformName := core.Sprintf("%s_%s", target.OS, target.Arch)
+	platformDir := platformName
+	if outputDir != "" {
+		platformDir = ax.Join(outputDir, platformName)
+	}
+	if err := artifactFilesystem.EnsureDir(platformDir); err != nil {
 		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create platform directory", err)
 	}
 
 	outputPath := ax.Join(platformDir, binaryName)
+	commandOutputPath := outputPath
+	cleanup := func() {}
+	if !build.MediumIsLocal(artifactFilesystem) {
+		stageDir, err := ax.TempDir("core-build-go-*")
+		if err != nil {
+			return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create local artifact staging directory", err)
+		}
+		cleanup = func() { _ = ax.RemoveAll(stageDir) }
+		defer cleanup()
+
+		stagePlatformDir := ax.Join(stageDir, platformName)
+		if err := io.Local.EnsureDir(stagePlatformDir); err != nil {
+			return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create local platform staging directory", err)
+		}
+		commandOutputPath = ax.Join(stagePlatformDir, binaryName)
+	}
 
 	// Build the go/garble arguments.
 	args := []string{"build"}
@@ -131,7 +153,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, filesyst
 	}
 
 	// Add output path
-	args = append(args, "-o", outputPath)
+	args = append(args, "-o", commandOutputPath)
 
 	// Build the configured main package path, defaulting to the project root.
 	mainPackage := cfg.Project.Main
@@ -176,6 +198,12 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, filesyst
 	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, command, args...)
 	if err != nil {
 		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", command+" build failed: "+output, err)
+	}
+
+	if commandOutputPath != outputPath {
+		if err := build.CopyMediumPath(io.Local, commandOutputPath, artifactFilesystem, outputPath); err != nil {
+			return build.Artifact{}, err
+		}
 	}
 
 	return build.Artifact{

@@ -4,6 +4,7 @@ package build
 
 import (
 	"iter"
+	"reflect"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build/signing"
@@ -414,6 +415,93 @@ func DefaultConfig() *BuildConfig {
 		Sign:     signing.DefaultSignConfig(),
 		LinuxKit: DefaultLinuxKitConfig(),
 	}
+}
+
+// ResolveOutputMedium returns the artifact output medium for a runtime build
+// config, falling back to io.Local when no explicit medium was provided.
+func ResolveOutputMedium(cfg *Config) io.Medium {
+	if cfg == nil || cfg.OutputMedium == nil {
+		return io.Local
+	}
+	return cfg.OutputMedium
+}
+
+// MediumIsLocal reports whether a medium is the package-level local filesystem.
+func MediumIsLocal(medium io.Medium) bool {
+	return outputMediumEquals(medium, io.Local)
+}
+
+func outputMediumEquals(left, right io.Medium) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
+	leftType := reflect.TypeOf(left)
+	rightType := reflect.TypeOf(right)
+	if leftType != rightType || !leftType.Comparable() {
+		return false
+	}
+
+	return reflect.ValueOf(left).Interface() == reflect.ValueOf(right).Interface()
+}
+
+// CopyMediumPath copies a file or directory tree between media while preserving
+// file modes where the source medium exposes them.
+func CopyMediumPath(source io.Medium, sourcePath string, destination io.Medium, destinationPath string) error {
+	if source == nil {
+		source = io.Local
+	}
+	if destination == nil {
+		destination = io.Local
+	}
+
+	info, err := source.Stat(sourcePath)
+	if err != nil {
+		return coreerr.E("build.CopyMediumPath", "failed to stat source path "+sourcePath, err)
+	}
+
+	if info.IsDir() {
+		return copyMediumDirectory(source, sourcePath, destination, destinationPath)
+	}
+
+	destinationDir := ax.Dir(destinationPath)
+	if destinationDir != "" && destinationDir != "." {
+		if err := destination.EnsureDir(destinationDir); err != nil {
+			return coreerr.E("build.CopyMediumPath", "failed to create destination directory", err)
+		}
+	}
+
+	content, err := source.Read(sourcePath)
+	if err != nil {
+		return coreerr.E("build.CopyMediumPath", "failed to read source file "+sourcePath, err)
+	}
+
+	if err := destination.WriteMode(destinationPath, content, info.Mode()); err != nil {
+		return coreerr.E("build.CopyMediumPath", "failed to write destination file "+destinationPath, err)
+	}
+	return nil
+}
+
+func copyMediumDirectory(source io.Medium, sourcePath string, destination io.Medium, destinationPath string) error {
+	if destinationPath != "" && destinationPath != "." {
+		if err := destination.EnsureDir(destinationPath); err != nil {
+			return coreerr.E("build.CopyMediumPath", "failed to create destination directory "+destinationPath, err)
+		}
+	}
+
+	entries, err := source.List(sourcePath)
+	if err != nil {
+		return coreerr.E("build.CopyMediumPath", "failed to list source directory "+sourcePath, err)
+	}
+
+	for _, entry := range entries {
+		childSourcePath := ax.Join(sourcePath, entry.Name())
+		childDestinationPath := ax.Join(destinationPath, entry.Name())
+		if err := CopyMediumPath(source, childSourcePath, destination, childDestinationPath); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func defaultTargetConfigs() []TargetConfig {

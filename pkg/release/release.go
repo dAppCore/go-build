@@ -13,8 +13,8 @@ import (
 	"dappco.re/go/build/pkg/build/signing"      // Note: AX-6 — wires release signing and notarization hooks.
 	"dappco.re/go/build/pkg/release/publishers" // Note: AX-6 — publishes completed release artifacts to configured targets.
 	"dappco.re/go/core"                         // Note: AX-6 — provides approved string and formatting helpers.
-	"dappco.re/go/core/io"                      // Note: AX-6 — Core Medium abstraction for release filesystem access.
-	coreerr "dappco.re/go/core/log"             // Note: AX-6 — wraps release errors with Core logging semantics.
+	"dappco.re/go/io"                           // Note: AX-6 — Medium abstraction for release filesystem access.
+	coreerr "dappco.re/go/log"                  // Note: AX-6 — wraps release errors with Core logging semantics.
 )
 
 // release signing hooks allow tests to observe the release pipeline without
@@ -371,27 +371,9 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 
 	// Step 3: Build artifacts
 	outputDir := resolveReleaseOutputRoot(absProjectDir, cfg, artifactFS)
-	buildOutputDir := outputDir
-	stageDir := ""
-	if !mediumEquals(artifactFS, io.Local) {
-		stageDir, err = ax.TempDir("core-release-*")
-		if err != nil {
-			return nil, coreerr.E("release.Run", "failed to create release staging directory", err)
-		}
-		defer func() { _ = ax.RemoveAll(stageDir) }()
-		buildOutputDir = ax.Join(stageDir, "dist")
-	}
-
-	artifacts, err := buildArtifacts(ctx, projectFS, cfg, absProjectDir, buildOutputDir, version)
+	artifacts, err := buildArtifacts(ctx, projectFS, cfg, absProjectDir, outputDir, version)
 	if err != nil {
 		return nil, coreerr.E("release.Run", "build failed", err)
-	}
-
-	if !mediumEquals(artifactFS, io.Local) {
-		artifacts, err = mirrorReleaseArtifacts(projectFS, artifactFS, buildOutputDir, outputDir, artifacts)
-		if err != nil {
-			return nil, coreerr.E("release.Run", "failed to mirror release artifacts", err)
-		}
 	}
 
 	release := &Release{
@@ -434,6 +416,8 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 
 // buildArtifacts builds all artifacts for the release.
 func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, projectDir, outputDir, version string) ([]build.Artifact, error) {
+	artifactFS := resolveReleaseOutputMedium(cfg)
+
 	// Load build configuration
 	buildConfig, err := build.LoadConfig(filesystem, projectDir)
 	if err != nil {
@@ -490,6 +474,9 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to plan build", err)
 	}
+	plan.OutputDir = outputDir
+	plan.RuntimeConfig.OutputDir = outputDir
+	plan.RuntimeConfig.OutputMedium = artifactFS
 
 	pipelineResult, err := pipeline.Run(ctx, plan)
 	if err != nil {
@@ -497,7 +484,7 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	}
 	artifacts := pipelineResult.Artifacts
 
-	if err := writeArtifactMetadata(filesystem, binaryName, artifacts); err != nil {
+	if err := writeArtifactMetadata(artifactFS, binaryName, artifacts); err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to write artifact metadata", err)
 	}
 
@@ -511,11 +498,11 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	}
 
 	if buildConfig.Sign.Enabled {
-		if err := signReleaseBinaries(ctx, filesystem, buildConfig.Sign, signingArtifacts); err != nil {
+		if err := signReleaseBinaries(ctx, artifactFS, buildConfig.Sign, signingArtifacts); err != nil {
 			return nil, coreerr.E("release.buildArtifacts", "failed to sign binaries", err)
 		}
 
-		if err := notarizeReleaseBinaries(ctx, filesystem, buildConfig.Sign, signingArtifacts); err != nil {
+		if err := notarizeReleaseBinaries(ctx, artifactFS, buildConfig.Sign, signingArtifacts); err != nil {
 			return nil, coreerr.E("release.buildArtifacts", "failed to notarise binaries", err)
 		}
 	}
@@ -531,13 +518,13 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		return nil, coreerr.E("release.buildArtifacts", "invalid archive format", err)
 	}
 
-	archivedArtifacts, err := build.ArchiveAllWithFormat(filesystem, artifacts, archiveFormat)
+	archivedArtifacts, err := build.ArchiveAllWithFormat(artifactFS, artifacts, archiveFormat)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "archive failed", err)
 	}
 
 	// Compute checksums
-	checksummedArtifacts, err := build.ChecksumAll(filesystem, archivedArtifacts)
+	checksummedArtifacts, err := build.ChecksumAll(artifactFS, archivedArtifacts)
 	if err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "checksum failed", err)
 	}
@@ -547,12 +534,12 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	}
 
 	checksumPath := resolveChecksumPath(outputDir, cfg)
-	if err := build.WriteChecksumFile(filesystem, checksummedArtifacts, checksumPath); err != nil {
+	if err := build.WriteChecksumFile(artifactFS, checksummedArtifacts, checksumPath); err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to write checksums file", err)
 	}
 
 	// Sign CHECKSUMS.txt when signing is configured.
-	if err := signReleaseChecksums(ctx, filesystem, buildConfig.Sign, checksumPath); err != nil {
+	if err := signReleaseChecksums(ctx, artifactFS, buildConfig.Sign, checksumPath); err != nil {
 		return nil, coreerr.E("release.buildArtifacts", "failed to sign checksums file", err)
 	}
 
@@ -564,7 +551,7 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 
 	// Add the detached signature when one was created.
 	signaturePath := checksumPath + ".asc"
-	if filesystem.Exists(signaturePath) {
+	if artifactFS.Exists(signaturePath) {
 		checksummedArtifacts = append(checksummedArtifacts, build.Artifact{
 			Path: signaturePath,
 		})
