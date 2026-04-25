@@ -30,6 +30,7 @@ core build
 core build apple
 core build workflow
 core release
+core release --apple-testflight
 core sdk
 core build sdk
 core ci

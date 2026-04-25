@@ -47,6 +47,7 @@ func registerReleaseCommand(c *core.Core, path string) {
 				cmdutil.OptionBool(opts, "draft"),
 				cmdutil.OptionBool(opts, "prerelease"),
 				cmdutil.OptionString(opts, "archive-format"),
+				cmdutil.OptionBool(opts, "apple-testflight", "apple_testflight", "testflight"),
 			))
 		},
 	})
@@ -55,7 +56,7 @@ func registerReleaseCommand(c *core.Core, path string) {
 // runRelease executes the full release workflow: build + archive + checksum + publish.
 //
 // runRelease(ctx, true, false, "sdk", "v1.2.3", true, false, "xz") // dry run with an SDK-only target
-func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version string, draft, prerelease bool, archiveFormat string) (err error) {
+func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version string, draft, prerelease bool, archiveFormat string, appleTestFlightFlag ...bool) (err error) {
 	if ciMode {
 		defer func() {
 			emitCIErrorAnnotation(err)
@@ -66,6 +67,18 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 	projectDir, err := getReleaseWorkingDir()
 	if err != nil {
 		return coreerr.E("release", "get working directory", err)
+	}
+
+	target = core.Lower(core.Trim(target))
+	if releaseAppleTestFlightRequested(target, appleTestFlightFlag...) {
+		return runAppleBuildInDir(ctx, projectDir, appleCLIOptions{
+			Version:           version,
+			TestFlight:        true,
+			TestFlightChanged: true,
+		})
+	}
+	if target == "" {
+		target = "release"
 	}
 
 	// Check for release config
@@ -93,11 +106,6 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 	}
 	if err := applyReleaseArchiveFormatOverride(cfg, archiveFormat); err != nil {
 		return err
-	}
-
-	target = core.Lower(core.Trim(target))
-	if target == "" {
-		target = "release"
 	}
 
 	// Apply draft/prerelease overrides to all publishers
@@ -171,6 +179,14 @@ func applyReleaseArchiveFormatOverride(cfg *release.Config, archiveFormat string
 
 	cfg.Build.ArchiveFormat = string(formatValue)
 	return nil
+}
+
+func releaseAppleTestFlightRequested(target string, appleTestFlightFlag ...bool) bool {
+	if len(appleTestFlightFlag) > 0 && appleTestFlightFlag[0] {
+		return true
+	}
+
+	return target == "apple-testflight" || target == "testflight"
 }
 
 func resolveReleaseDryRun(dryRun, publish, weAreGoForLaunch bool) bool {

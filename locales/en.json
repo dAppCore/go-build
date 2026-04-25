@@ -120,9 +120,11 @@
           "no_config": "No release configuration found"
         },
         "flag": {
+          "apple_testflight": "Build the Apple target and upload it to TestFlight",
           "draft": "Create release as draft",
           "go_for_launch": "Confirm publish (required for non-dry-run)",
           "prerelease": "Mark release as pre-release",
+          "testflight": "Alias for --apple-testflight",
           "version": "Release version (e.g. v1.2.3)"
         },
         "hint": {

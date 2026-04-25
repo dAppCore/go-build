@@ -54,6 +54,7 @@ core release            # .core/release.yaml → build + archive + publish
 core release --publish  # explicit publish to GitHub/Forge
 core release --tag v1.0 # specify tag
 core release --draft    # create as draft
+core release --apple-testflight # build Apple target and upload to TestFlight
 ```
 
 ---
@@ -335,6 +336,8 @@ core release
   → generate CHECKSUMS.txt + GPG sign
   → publish to configured targets
 ```
+
+`core release --apple-testflight` and `core release --target apple-testflight` bypass `.core/release.yaml` and run the Apple build pipeline with TestFlight upload enabled. The Apple pipeline still loads `.core/build.yaml`, writes Xcode Cloud helper scripts when configured, signs with the configured Apple distribution identity, and uploads via `xcrun altool --upload-app`.
 
 ### 5.1 Publisher Interface
 

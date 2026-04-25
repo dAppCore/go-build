@@ -25,6 +25,7 @@ core build
 core build apple
 core build workflow
 core release
+core release --apple-testflight
 core sdk
 core build sdk
 core ci
@@ -87,6 +88,8 @@ The Apple surface is available both through `pkg/build/apple/` and `core build a
 - TestFlight and App Store submission
 - generated `Info.plist` and entitlements
 - Xcode Cloud helper scripts checked into the project
+
+`core release --apple-testflight` and `core release --target apple-testflight` route to the same Apple pipeline with TestFlight upload enabled.
 
 ## Module Path
 
