@@ -2,18 +2,17 @@
 package publishers
 
 import (
-	"bufio"
-	"context"
-	"errors"
-	stdio "io"
-	"io/fs"
-	"net/url"
-	"sort"
+	"bufio"    // Note: AX-6 — scans git remote output without ad hoc shell parsing.
+	"context"  // Note: AX-6 — carries cancellation through GitHub publishing commands.
+	stdio "io" // Note: AX-6 — reads artifact streams from Core Medium implementations.
+	"io/fs"    // Note: AX-6 — preserves staged artifact file modes.
+	"net/url"  // Note: AX-6 — parses GitHub remote URLs using the structured URL parser.
+	"sort"     // Note: AX-6 — keeps remote selection deterministic with origin first.
 
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax" // Note: AX-6 — Core-backed command, path, JSON, and temp helpers.
+	"dappco.re/go/core"              // Note: AX-6 — approved string helpers and Core error joining.
+	coreio "dappco.re/go/core/io"    // Note: AX-6 — Core Medium abstraction for artifact filesystem access.
+	coreerr "dappco.re/go/core/log"  // Note: AX-6 — wraps GitHub publisher errors with Core logging semantics.
 )
 
 // GitHubPublisher publishes releases to GitHub using the gh CLI.
@@ -388,7 +387,7 @@ func detectRepository(ctx context.Context, dir string) (string, error) {
 	if parseErr == nil {
 		parseErr = ghErr
 	} else if ghErr != nil {
-		parseErr = errors.Join(parseErr, ghErr)
+		parseErr = core.ErrorJoin(parseErr, ghErr)
 	}
 
 	return "", coreerr.E("github.detectRepository", "no GitHub remote found", parseErr)
