@@ -9,7 +9,7 @@ import (
 	"dappco.re/go/core"
 	coreio "dappco.re/go/io"
 	coreerr "dappco.re/go/log"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3" // Note: AX-6 — no core YAMLUnmarshal yet.
 )
 
 // ConfigFileName is the name of the release configuration file.
