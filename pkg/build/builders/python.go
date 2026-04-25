@@ -9,11 +9,11 @@ import (
 	"runtime"
 	"slices"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/core"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // PythonBuilder builds Python projects with pyproject.toml or requirements.txt markers.
@@ -49,6 +49,7 @@ func (b *PythonBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	if cfg == nil {
 		return nil, coreerr.E("PythonBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
 	if len(targets) == 0 {
 		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
@@ -58,19 +59,19 @@ func (b *PythonBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
+	if err := filesystem.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("PythonBuilder.Build", "failed to create output directory", err)
 	}
 
 	var artifacts []build.Artifact
 	for _, target := range targets {
 		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := cfg.FS.EnsureDir(platformDir); err != nil {
+		if err := filesystem.EnsureDir(platformDir); err != nil {
 			return artifacts, coreerr.E("PythonBuilder.Build", "failed to create platform directory", err)
 		}
 
 		bundlePath := ax.Join(platformDir, b.bundleName(cfg)+".zip")
-		if err := b.bundleProject(cfg.FS, cfg.ProjectDir, outputDir, bundlePath); err != nil {
+		if err := b.bundleProject(filesystem, cfg.ProjectDir, outputDir, bundlePath); err != nil {
 			return artifacts, err
 		}
 

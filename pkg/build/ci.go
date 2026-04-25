@@ -4,14 +4,11 @@ package build
 
 import (
 	"context"
-	"encoding/json"
-	"net/url"
-	"strings"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
-	io_interface "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	io_interface "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // CIContext holds environment information detected from a GitHub Actions run.
@@ -78,9 +75,9 @@ func FormatGitHubAnnotation(level, file string, line int, message string) string
 }
 
 func escapeGitHubAnnotationValue(value string) string {
-	value = strings.ReplaceAll(value, "%", "%25")
-	value = strings.ReplaceAll(value, "\r", "%0D")
-	value = strings.ReplaceAll(value, "\n", "%0A")
+	value = core.Replace(value, "%", "%25")
+	value = core.Replace(value, "\r", "%0D")
+	value = core.Replace(value, "\n", "%0A")
 	return value
 }
 
@@ -210,15 +207,14 @@ func parseGitRemote(raw string) (string, string) {
 		return "", ""
 	}
 
-	parts := strings.FieldsFunc(path, func(r rune) bool {
-		return r == '/' || r == '\\'
-	})
+	path = core.Replace(path, "\\", "/")
+	parts := core.Split(path, "/")
 	if len(parts) < 2 {
 		return "", ""
 	}
 
 	owner := parts[len(parts)-2]
-	repo := strings.TrimSuffix(parts[len(parts)-1], ".git")
+	repo := core.TrimSuffix(parts[len(parts)-1], ".git")
 	if owner == "" || repo == "" {
 		return "", ""
 	}
@@ -228,15 +224,20 @@ func parseGitRemote(raw string) (string, string) {
 }
 
 func remoteRepositoryPath(raw string) string {
-	if parsed, err := url.Parse(raw); err == nil && parsed.Scheme != "" {
-		return strings.Trim(parsed.Path, "/")
+	if splitURL := core.SplitN(raw, "://", 2); len(splitURL) == 2 && splitURL[0] != "" {
+		raw = splitURL[1]
+		pathParts := core.SplitN(raw, "/", 2)
+		if len(pathParts) != 2 {
+			return ""
+		}
+		return core.Trim(core.SplitN(pathParts[1], "?", 2)[0], "/")
 	}
 
-	if idx := strings.Index(raw, ":"); idx >= 0 && strings.Contains(raw[:idx], "@") {
-		return strings.Trim(raw[idx+1:], "/")
+	if splitSCM := core.SplitN(raw, ":", 2); len(splitSCM) == 2 && splitSCM[0] != "" && core.Contains(splitSCM[0], "@") {
+		return core.Trim(splitSCM[1], "/")
 	}
 
-	return strings.Trim(raw, "/")
+	return core.Trim(raw, "/")
 }
 
 // ArtifactName generates a canonical artifact filename from the build name, CI context, and target.
@@ -289,12 +290,12 @@ func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, ta
 		meta.Repo = ci.Repo
 	}
 
-	encodedBytes, err := json.MarshalIndent(meta, "", "  ")
-	if err != nil {
-		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", err)
+	encodedData := core.JSONMarshal(meta)
+	if !encodedData.OK {
+		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", encodedData.Error())
 	}
 
-	if err := fs.Write(path, string(encodedBytes)); err != nil {
+	if err := fs.Write(path, string(encodedData.Value.([]byte))); err != nil {
 		return coreerr.E("build.WriteArtifactMeta", "failed to write artifact meta", err)
 	}
 
@@ -337,30 +338,32 @@ func replaceArtifactBaseName(artifactPath, replacement string) string {
 
 func artifactPathSuffix(fileName string) string {
 	switch {
-	case strings.HasSuffix(fileName, ".tar.gz"):
+	case core.HasSuffix(fileName, ".tar.gz"):
 		return ".tar.gz"
-	case strings.HasSuffix(fileName, ".tar.xz"):
+	case core.HasSuffix(fileName, ".tar.xz"):
 		return ".tar.xz"
-	case strings.HasSuffix(fileName, ".tar.zst"):
+	case core.HasSuffix(fileName, ".tar.zst"):
 		return ".tar.zst"
-	case strings.HasSuffix(fileName, ".tar.bz2"):
+	case core.HasSuffix(fileName, ".tar.bz2"):
 		return ".tar.bz2"
-	case strings.HasSuffix(fileName, ".tgz"):
+	case core.HasSuffix(fileName, ".tgz"):
 		return ".tgz"
-	case strings.HasSuffix(fileName, ".txz"):
+	case core.HasSuffix(fileName, ".txz"):
 		return ".txz"
-	case strings.HasSuffix(fileName, ".zip"):
+	case core.HasSuffix(fileName, ".zip"):
 		return ".zip"
-	case strings.HasSuffix(fileName, ".exe"):
+	case core.HasSuffix(fileName, ".exe"):
 		return ".exe"
-	case strings.HasSuffix(fileName, ".dmg"):
+	case core.HasSuffix(fileName, ".dmg"):
 		return ".dmg"
-	case strings.HasSuffix(fileName, ".app"):
+	case core.HasSuffix(fileName, ".app"):
 		return ".app"
 	default:
-		if idx := strings.LastIndex(fileName, "."); idx > 0 {
-			return fileName[idx:]
+		parts := core.Split(fileName, ".")
+		if len(parts) <= 1 || (len(parts) == 2 && parts[0] == "") {
+			return ""
 		}
-		return ""
+
+		return "." + parts[len(parts)-1]
 	}
 }

@@ -3,13 +3,12 @@ package builders
 
 import (
 	"context"
-	"runtime"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // GoBuilder implements the Builder interface for Go projects.
@@ -49,9 +48,10 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	if cfg == nil {
 		return nil, coreerr.E("GoBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
 	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
+		targets = []build.Target{{OS: core.Env("GOOS"), Arch: core.Env("GOARCH")}}
 	}
 
 	outputDir := cfg.OutputDir
@@ -60,14 +60,14 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	}
 
 	// Ensure output directory exists
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
+	if err := filesystem.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("GoBuilder.Build", "failed to create output directory", err)
 	}
 
 	var artifacts []build.Artifact
 
 	for _, target := range targets {
-		artifact, err := b.buildTarget(ctx, cfg, outputDir, target)
+		artifact, err := b.buildTarget(ctx, cfg, filesystem, outputDir, target)
 		if err != nil {
 			return artifacts, coreerr.E("GoBuilder.Build", "failed to build "+target.String(), err)
 		}
@@ -78,7 +78,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 }
 
 // buildTarget compiles for a single target platform.
-func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, outputDir string, target build.Target) (build.Artifact, error) {
+func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, filesystem io.Medium, outputDir string, target build.Target) (build.Artifact, error) {
 	// Determine output binary name
 	binaryName := cfg.Name
 	if binaryName == "" {
@@ -98,7 +98,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, outputDi
 
 	// Create platform-specific output path: output/os_arch/binary
 	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-	if err := cfg.FS.EnsureDir(platformDir); err != nil {
+	if err := filesystem.EnsureDir(platformDir); err != nil {
 		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create platform directory", err)
 	}
 
@@ -220,7 +220,7 @@ func garbleInstallPaths() []string {
 
 	if gopath := core.Env("GOPATH"); gopath != "" {
 		sep := ":"
-		if runtime.GOOS == "windows" {
+		if core.Env("GOOS") == "windows" {
 			sep = ";"
 		}
 		for _, root := range core.Split(gopath, sep) {

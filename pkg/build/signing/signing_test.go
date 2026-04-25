@@ -2,12 +2,12 @@ package signing
 
 import (
 	"context"
+	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/io"
 )
 
 func TestSigning_SignBinariesSkipsNonDarwin_Good(t *testing.T) {
@@ -142,8 +142,13 @@ func TestSigning_SignChecksumsDisabled_Good(t *testing.T) {
 
 func TestSigning_DefaultSignConfig_Good(t *testing.T) {
 	cfg := DefaultSignConfig()
-	assert.True(t, cfg.Enabled)
-	assert.True(t, cfg.Windows.Signtool)
+	if !(cfg.Enabled) {
+		t.Fatal("expected true")
+	}
+	if !(cfg.Windows.Signtool) {
+		t.Fatal("expected true")
+	}
+
 }
 
 func TestSigning_SignConfigExpandEnv_Good(t *testing.T) {
@@ -152,21 +157,32 @@ func TestSigning_SignConfigExpandEnv_Good(t *testing.T) {
 		GPG: GPGConfig{Key: "$TEST_KEY"},
 	}
 	cfg.ExpandEnv()
-	assert.Equal(t, "ABC", cfg.GPG.Key)
+	if !stdlibAssertEqual("ABC", cfg.GPG.Key) {
+		t.Fatalf("want %v, got %v", "ABC", cfg.GPG.Key)
+	}
+
 }
 
 func TestSigning_WindowsSigner_Good(t *testing.T) {
 	fs := io.Local
 	s := NewWindowsSigner(WindowsConfig{Signtool: true, Certificate: "cert.pfx"})
-	assert.Equal(t, "signtool", s.Name())
+	if !stdlibAssertEqual("signtool", s.Name()) {
+		t.Fatalf("want %v, got %v", "signtool", s.Name())
+	}
 
 	if runtime.GOOS != "windows" {
-		assert.False(t, s.Available())
-		assert.Error(t, s.Sign(context.Background(), fs, "test.exe"))
+		if s.Available() {
+			t.Fatal("expected false")
+		}
+		if s.Sign(context.Background(), fs, "test.exe") == nil {
+			t.Fatal("expected error")
+
+			// On Windows, availability depends on the SDK toolchain being installed.
+		}
+
 		return
 	}
 
-	// On Windows, availability depends on the SDK toolchain being installed.
 	_ = s.Available()
 }
 
@@ -176,11 +192,14 @@ func TestSigning_WindowsSignerHonoursSigntoolToggle_Good(t *testing.T) {
 		Certificate:      "cert.pfx",
 		signtoolExplicit: true,
 	})
+	if s.Available() {
+		t.Fatal("expected false")
 
-	assert.False(t, s.Available())
+		// mockSigner is a test double that records calls to Sign.
+	}
+
 }
 
-// mockSigner is a test double that records calls to Sign.
 type mockSigner struct {
 	name        string
 	available   bool
@@ -226,7 +245,10 @@ func TestSigning_SignBinariesMockSigner_Good(t *testing.T) {
 		// This verifies the short-circuit behavior.
 		ctx := context.Background()
 		err := SignBinaries(ctx, io.Local, cfg, artifacts)
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 
 	t.Run("skips all when enabled is false", func(t *testing.T) {
@@ -236,7 +258,10 @@ func TestSigning_SignBinariesMockSigner_Good(t *testing.T) {
 
 		cfg := SignConfig{Enabled: false}
 		err := SignBinaries(context.Background(), io.Local, cfg, artifacts)
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 
 	t.Run("handles empty artifact list", func(t *testing.T) {
@@ -245,7 +270,10 @@ func TestSigning_SignBinariesMockSigner_Good(t *testing.T) {
 			MacOS:   MacOSConfig{Identity: "Developer ID"},
 		}
 		err := SignBinaries(context.Background(), io.Local, cfg, []Artifact{})
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 }
 
@@ -258,27 +286,45 @@ func TestSigning_signArtifactsWithSigner_Good(t *testing.T) {
 	}
 
 	err := signArtifactsWithSigner(context.Background(), io.Local, signer, "windows", artifacts)
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"/dist/windows_amd64/myapp.exe", "/dist/windows_arm64/myapp.exe"}, signer.signedPaths)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual([]string{"/dist/windows_amd64/myapp.exe", "/dist/windows_arm64/myapp.exe"}, signer.signedPaths) {
+		t.Fatalf("want %v, got %v", []string{"/dist/windows_amd64/myapp.exe", "/dist/windows_arm64/myapp.exe"}, signer.signedPaths)
+	}
+
 }
 
 func TestSigning_ResolveSigntoolCli_Good(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := fallbackDir + "/signtool.exe"
-	require.NoError(t, io.Local.Write(fallbackPath, "#!/bin/sh\nexit 0\n"))
+	if err := io.Local.Write(fallbackPath, "#!/bin/sh\nexit 0\n"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", "")
 
 	command, err := resolveSigntoolCli(fallbackPath)
-	require.NoError(t, err)
-	assert.Equal(t, fallbackPath, command)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(fallbackPath, command) {
+		t.Fatalf("want %v, got %v", fallbackPath, command)
+	}
+
 }
 
 func TestSigning_ResolveSigntoolCli_Bad(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	_, err := resolveSigntoolCli(t.TempDir() + "/missing-signtool.exe")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "signtool tool not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "signtool tool not found") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "signtool tool not found")
+	}
+
 }
 
 func TestSigning_SignChecksumsMockSigner_Good(t *testing.T) {
@@ -289,7 +335,10 @@ func TestSigning_SignChecksumsMockSigner_Good(t *testing.T) {
 		}
 
 		err := SignChecksums(context.Background(), io.Local, cfg, "/tmp/CHECKSUMS.txt")
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 
 	t.Run("skips when disabled", func(t *testing.T) {
@@ -299,7 +348,10 @@ func TestSigning_SignChecksumsMockSigner_Good(t *testing.T) {
 		}
 
 		err := SignChecksums(context.Background(), io.Local, cfg, "/tmp/CHECKSUMS.txt")
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 }
 
@@ -315,7 +367,10 @@ func TestSigning_NotarizeBinariesMockSigner_Good(t *testing.T) {
 		}
 
 		err := NotarizeBinaries(context.Background(), io.Local, cfg, artifacts)
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 
 	t.Run("skips when disabled", func(t *testing.T) {
@@ -329,7 +384,10 @@ func TestSigning_NotarizeBinariesMockSigner_Good(t *testing.T) {
 		}
 
 		err := NotarizeBinaries(context.Background(), io.Local, cfg, artifacts)
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 
 	t.Run("handles empty artifact list", func(t *testing.T) {
@@ -339,7 +397,10 @@ func TestSigning_NotarizeBinariesMockSigner_Good(t *testing.T) {
 		}
 
 		err := NotarizeBinaries(context.Background(), io.Local, cfg, []Artifact{})
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 }
 
@@ -368,14 +429,28 @@ func TestSigning_ExpandEnv_Good(t *testing.T) {
 		}
 
 		cfg.ExpandEnv()
+		if !stdlibAssertEqual("GPG123", cfg.GPG.Key) {
+			t.Fatalf("want %v, got %v", "GPG123", cfg.GPG.Key)
+		}
+		if !stdlibAssertEqual("Developer ID Application: Test", cfg.MacOS.Identity) {
+			t.Fatalf("want %v, got %v", "Developer ID Application: Test", cfg.MacOS.Identity)
+		}
+		if !stdlibAssertEqual("test@apple.com", cfg.MacOS.AppleID) {
+			t.Fatalf("want %v, got %v", "test@apple.com", cfg.MacOS.AppleID)
+		}
+		if !stdlibAssertEqual("TEAM123", cfg.MacOS.TeamID) {
+			t.Fatalf("want %v, got %v", "TEAM123", cfg.MacOS.TeamID)
+		}
+		if !stdlibAssertEqual("secret", cfg.MacOS.AppPassword) {
+			t.Fatalf("want %v, got %v", "secret", cfg.MacOS.AppPassword)
+		}
+		if !stdlibAssertEqual("/path/to/cert.pfx", cfg.Windows.Certificate) {
+			t.Fatalf("want %v, got %v", "/path/to/cert.pfx", cfg.Windows.Certificate)
+		}
+		if !stdlibAssertEqual("certpass", cfg.Windows.Password) {
+			t.Fatalf("want %v, got %v", "certpass", cfg.Windows.Password)
+		}
 
-		assert.Equal(t, "GPG123", cfg.GPG.Key)
-		assert.Equal(t, "Developer ID Application: Test", cfg.MacOS.Identity)
-		assert.Equal(t, "test@apple.com", cfg.MacOS.AppleID)
-		assert.Equal(t, "TEAM123", cfg.MacOS.TeamID)
-		assert.Equal(t, "secret", cfg.MacOS.AppPassword)
-		assert.Equal(t, "/path/to/cert.pfx", cfg.Windows.Certificate)
-		assert.Equal(t, "certpass", cfg.Windows.Password)
 	})
 
 	t.Run("preserves non-env values", func(t *testing.T) {
@@ -387,8 +462,123 @@ func TestSigning_ExpandEnv_Good(t *testing.T) {
 		}
 
 		cfg.ExpandEnv()
+		if !stdlibAssertEqual("literal-key", cfg.GPG.Key) {
+			t.Fatalf("want %v, got %v", "literal-key", cfg.GPG.Key)
+		}
+		if !stdlibAssertEqual("Developer ID Application: Literal", cfg.MacOS.Identity) {
+			t.Fatalf("want %v, got %v", "Developer ID Application: Literal", cfg.MacOS.Identity)
+		}
 
-		assert.Equal(t, "literal-key", cfg.GPG.Key)
-		assert.Equal(t, "Developer ID Application: Literal", cfg.MacOS.Identity)
 	})
+}
+
+func stdlibAssertEqual(want, got any) bool {
+	return reflect.DeepEqual(want, got)
+}
+
+func stdlibAssertNil(value any) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
+func stdlibAssertEmpty(value any) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	if !v.IsValid() {
+		return true
+	}
+	switch v.Kind() {
+	case reflect.Array, reflect.Chan, reflect.Map, reflect.Slice, reflect.String:
+		return v.Len() == 0
+	default:
+		return v.IsZero()
+	}
+}
+
+func stdlibAssertZero(value any) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	return !v.IsValid() || v.IsZero()
+}
+
+func stdlibAssertContains(container, elem any) bool {
+	if s, ok := container.(string); ok {
+		sub, ok := elem.(string)
+		return ok && strings.Contains(s, sub)
+	}
+
+	v := reflect.ValueOf(container)
+	if !v.IsValid() {
+		return false
+	}
+	switch v.Kind() {
+	case reflect.Map:
+		key := reflect.ValueOf(elem)
+		if !key.IsValid() {
+			return false
+		}
+		if key.Type().AssignableTo(v.Type().Key()) {
+			return v.MapIndex(key).IsValid()
+		}
+		if key.Type().ConvertibleTo(v.Type().Key()) {
+			return v.MapIndex(key.Convert(v.Type().Key())).IsValid()
+		}
+	case reflect.Array, reflect.Slice:
+		for i := 0; i < v.Len(); i++ {
+			if reflect.DeepEqual(v.Index(i).Interface(), elem) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func stdlibAssertElementsMatch(want, got any) bool {
+	wantValue := reflect.ValueOf(want)
+	gotValue := reflect.ValueOf(got)
+	if !wantValue.IsValid() || !gotValue.IsValid() {
+		return !wantValue.IsValid() && !gotValue.IsValid()
+	}
+	if !isListValue(wantValue) || !isListValue(gotValue) {
+		return reflect.DeepEqual(want, got)
+	}
+	if wantValue.Len() != gotValue.Len() {
+		return false
+	}
+
+	used := make([]bool, gotValue.Len())
+	for i := 0; i < wantValue.Len(); i++ {
+		found := false
+		wantElem := wantValue.Index(i).Interface()
+		for j := 0; j < gotValue.Len(); j++ {
+			if used[j] {
+				continue
+			}
+			if reflect.DeepEqual(wantElem, gotValue.Index(j).Interface()) {
+				used[j] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func isListValue(value reflect.Value) bool {
+	return value.Kind() == reflect.Array || value.Kind() == reflect.Slice
 }

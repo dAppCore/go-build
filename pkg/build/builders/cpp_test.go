@@ -9,14 +9,15 @@ import (
 	"dappco.re/go/build/internal/ax"
 
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/io"
 )
 
 func setupFakeCPPCommand(t *testing.T, binDir, name, script string) {
 	t.Helper()
-	require.NoError(t, ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755))
+	if err := ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 }
 
 func cppCrossTarget() build.Target {
@@ -38,7 +39,10 @@ func cppCrossTarget() build.Target {
 
 func TestCPP_CPPBuilderName_Good(t *testing.T) {
 	builder := NewCPPBuilder()
-	assert.Equal(t, "cpp", builder.Name())
+	if !stdlibAssertEqual("cpp", builder.Name()) {
+		t.Fatalf("want %v, got %v", "cpp", builder.Name())
+	}
+
 }
 
 func TestCPP_CPPBuilderDetect_Good(t *testing.T) {
@@ -47,23 +51,37 @@ func TestCPP_CPPBuilderDetect_Good(t *testing.T) {
 	t.Run("detects C++ project with CMakeLists.txt", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)"), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewCPPBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("returns false for non-C++ project", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewCPPBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 
 	t.Run("returns false for empty directory", func(t *testing.T) {
@@ -71,8 +89,13 @@ func TestCPP_CPPBuilderDetect_Good(t *testing.T) {
 
 		builder := NewCPPBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 }
 
@@ -80,9 +103,16 @@ func TestCPP_CPPBuilderBuild_Bad(t *testing.T) {
 	t.Run("returns error for nil config", func(t *testing.T) {
 		builder := NewCPPBuilder()
 		artifacts, err := builder.Build(nil, nil, []build.Target{{OS: "linux", Arch: "amd64"}})
-		assert.Error(t, err)
-		assert.Nil(t, artifacts)
-		assert.Contains(t, err.Error(), "config is nil")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertNil(artifacts) {
+			t.Fatalf("expected nil, got %v", artifacts)
+		}
+		if !stdlibAssertContains(err.Error(), "config is nil") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "config is nil")
+		}
+
 	})
 }
 
@@ -95,9 +125,12 @@ func TestCPP_CPPBuilderBuild_Good(t *testing.T) {
 		projectDir := t.TempDir()
 		binDir := t.TempDir()
 		logPath := ax.Join(t.TempDir(), "make.log")
-
-		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)\n"), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "Makefile"), []byte("all:\n\t@true\n"), 0o644))
+		if err := ax.WriteFile(ax.Join(projectDir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(projectDir, "Makefile"), []byte("all:\n\t@true\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		setupFakeCPPCommand(t, binDir, "make", `#!/bin/sh
 set -eu
@@ -130,16 +163,33 @@ exit 0
 			OutputDir:  ax.Join(projectDir, "dist"),
 			Name:       "testapp",
 		}, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.Equal(t, ax.Join(projectDir, "build", "packages", "test-1.0.tar.gz"), artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if !stdlibAssertEqual(ax.Join(projectDir, "build", "packages", "test-1.0.tar.gz"), artifacts[0].Path) {
+			t.Fatalf("want %v, got %v", ax.Join(projectDir, "build", "packages", "test-1.0.tar.gz"), artifacts[0].Path)
+		}
 
 		content, err := io.Local.Read(logPath)
-		require.NoError(t, err)
-		assert.Contains(t, content, "make configure")
-		assert.Contains(t, content, "make build")
-		assert.Contains(t, content, "make package")
-		assert.NotContains(t, content, "cmake ")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(content, "make configure") {
+			t.Fatalf("expected %v to contain %v", content, "make configure")
+		}
+		if !stdlibAssertContains(content, "make build") {
+			t.Fatalf("expected %v to contain %v", content, "make build")
+		}
+		if !stdlibAssertContains(content, "make package") {
+			t.Fatalf("expected %v to contain %v", content, "make package")
+		}
+		if stdlibAssertContains(content, "cmake ") {
+			t.Fatalf("expected %v not to contain %v", content, "cmake ")
+		}
+
 	})
 
 	t.Run("falls back to plain cmake for generic CMake projects", func(t *testing.T) {
@@ -147,8 +197,9 @@ exit 0
 		binDir := t.TempDir()
 		logPath := ax.Join(t.TempDir(), "cmake.log")
 		statePath := ax.Join(t.TempDir(), "cmake-state")
-
-		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)\nproject(demo)\n"), 0o644))
+		if err := ax.WriteFile(ax.Join(projectDir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)\nproject(demo)\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		setupFakeCPPCommand(t, binDir, "cmake", `#!/bin/sh
 set -eu
@@ -185,18 +236,39 @@ exit 1
 			OutputDir:  ax.Join(projectDir, "dist"),
 			Name:       "testapp",
 		}, []build.Target{target})
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.Equal(t, ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if !stdlibAssertEqual(ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path) {
+			t.Fatalf("want %v, got %v", ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path)
+		}
 
 		content, err := io.Local.Read(logPath)
-		require.NoError(t, err)
-		assert.Contains(t, content, "cmake -S")
-		assert.Contains(t, content, "cmake --build")
-		assert.NotContains(t, content, "conan ")
-		assert.NotContains(t, content, "make configure")
-		assert.NotContains(t, content, "make build")
-		assert.NotContains(t, content, "make package")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(content, "cmake -S") {
+			t.Fatalf("expected %v to contain %v", content, "cmake -S")
+		}
+		if !stdlibAssertContains(content, "cmake --build") {
+			t.Fatalf("expected %v to contain %v", content, "cmake --build")
+		}
+		if stdlibAssertContains(content, "conan ") {
+			t.Fatalf("expected %v not to contain %v", content, "conan ")
+		}
+		if stdlibAssertContains(content, "make configure") {
+			t.Fatalf("expected %v not to contain %v", content, "make configure")
+		}
+		if stdlibAssertContains(content, "make build") {
+			t.Fatalf("expected %v not to contain %v", content, "make build")
+		}
+		if stdlibAssertContains(content, "make package") {
+			t.Fatalf("expected %v not to contain %v", content, "make package")
+		}
+
 	})
 
 	t.Run("uses conan plus cmake for generic cross-builds when a conanfile exists", func(t *testing.T) {
@@ -204,9 +276,12 @@ exit 1
 		binDir := t.TempDir()
 		logPath := ax.Join(t.TempDir(), "conan-cmake.log")
 		statePath := ax.Join(t.TempDir(), "conan-cmake-state")
-
-		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)\nproject(demo)\n"), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "conanfile.txt"), []byte("[requires]\n"), 0o644))
+		if err := ax.WriteFile(ax.Join(projectDir, "CMakeLists.txt"), []byte("cmake_minimum_required(VERSION 3.16)\nproject(demo)\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(projectDir, "conanfile.txt"), []byte("[requires]\n"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		setupFakeCPPCommand(t, binDir, "conan", `#!/bin/sh
 set -eu
@@ -258,19 +333,42 @@ exit 1
 			OutputDir:  ax.Join(projectDir, "dist"),
 			Name:       "testapp",
 		}, []build.Target{target})
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.Equal(t, ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if !stdlibAssertEqual(ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path) {
+			t.Fatalf("want %v, got %v", ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path)
+		}
 
 		content, err := io.Local.Read(logPath)
-		require.NoError(t, err)
-		assert.Contains(t, content, "conan install . --output-folder "+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch)+" --build=missing --profile:host "+builder.targetToProfile(target))
-		assert.Contains(t, content, "cmake -S")
-		assert.Contains(t, content, "-DCMAKE_TOOLCHAIN_FILE="+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch, "conan_toolchain.cmake"))
-		assert.Contains(t, content, "cmake --build")
-		assert.NotContains(t, content, "make configure")
-		assert.NotContains(t, content, "make build")
-		assert.NotContains(t, content, "make package")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(content, "conan install . --output-folder "+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch)+" --build=missing --profile:host "+builder.targetToProfile(target)) {
+			t.Fatalf("expected %v to contain %v", content, "conan install . --output-folder "+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch)+" --build=missing --profile:host "+builder.targetToProfile(target))
+		}
+		if !stdlibAssertContains(content, "cmake -S") {
+			t.Fatalf("expected %v to contain %v", content, "cmake -S")
+		}
+		if !stdlibAssertContains(content, "-DCMAKE_TOOLCHAIN_FILE="+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch, "conan_toolchain.cmake")) {
+			t.Fatalf("expected %v to contain %v", content, "-DCMAKE_TOOLCHAIN_FILE="+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch, "conan_toolchain.cmake"))
+		}
+		if !stdlibAssertContains(content, "cmake --build") {
+			t.Fatalf("expected %v to contain %v", content, "cmake --build")
+		}
+		if stdlibAssertContains(content, "make configure") {
+			t.Fatalf("expected %v not to contain %v", content, "make configure")
+		}
+		if stdlibAssertContains(content, "make build") {
+			t.Fatalf("expected %v not to contain %v", content, "make build")
+		}
+		if stdlibAssertContains(content, "make package") {
+			t.Fatalf("expected %v not to contain %v", content, "make package")
+		}
+
 	})
 }
 
@@ -292,7 +390,10 @@ func TestCPP_CPPBuilderTargetToProfile_Good(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.os+"/"+tt.arch, func(t *testing.T) {
 			profile := builder.targetToProfile(build.Target{OS: tt.os, Arch: tt.arch})
-			assert.Equal(t, tt.expected, profile)
+			if !stdlibAssertEqual(tt.expected, profile) {
+				t.Fatalf("want %v, got %v", tt.expected, profile)
+			}
+
 		})
 	}
 }
@@ -302,7 +403,10 @@ func TestCPP_CPPBuilderTargetToProfile_Bad(t *testing.T) {
 
 	t.Run("returns empty for unknown target", func(t *testing.T) {
 		profile := builder.targetToProfile(build.Target{OS: "plan9", Arch: "mips"})
-		assert.Empty(t, profile)
+		if !stdlibAssertEmpty(profile) {
+			t.Fatalf("expected empty, got %v", profile)
+		}
+
 	})
 }
 
@@ -312,47 +416,86 @@ func TestCPP_CPPBuilderFindArtifacts_Good(t *testing.T) {
 	t.Run("finds packages in build/packages", func(t *testing.T) {
 		dir := t.TempDir()
 		packagesDir := ax.Join(dir, "build", "packages")
-		require.NoError(t, ax.MkdirAll(packagesDir, 0755))
+		if err := ax.MkdirAll(packagesDir, 0755); err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Create mock package files
-		require.NoError(t, ax.WriteFile(ax.Join(packagesDir, "test-1.0-linux-x86_64.tar.xz"), []byte("pkg"), 0644))
-		require.NoError(t, ax.WriteFile(ax.Join(packagesDir, "test-1.0-linux-x86_64.tar.xz.sha256"), []byte("checksum"), 0644))
-		require.NoError(t, ax.WriteFile(ax.Join(packagesDir, "test-1.0-linux-x86_64.rpm"), []byte("rpm"), 0644))
+				// Create mock package files
+				err)
+		}
+		if err := ax.WriteFile(ax.Join(packagesDir, "test-1.0-linux-x86_64.tar.xz"), []byte("pkg"), 0644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(packagesDir, "test-1.0-linux-x86_64.tar.xz.sha256"), []byte("checksum"), 0644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(packagesDir, "test-1.0-linux-x86_64.rpm"), []byte("rpm"), 0644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewCPPBuilder()
 		target := build.Target{OS: "linux", Arch: "amd64"}
 		artifacts, err := builder.findArtifacts(fs, dir, target)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Should find tar.xz and rpm but not sha256
-		assert.Len(t, artifacts, 2)
+				// Should find tar.xz and rpm but not sha256
+				err)
+		}
+		if len(artifacts) != 2 {
+			t.Fatalf("want len %v, got %v", 2, len(artifacts))
+		}
+
 		for _, a := range artifacts {
-			assert.Equal(t, "linux", a.OS)
-			assert.Equal(t, "amd64", a.Arch)
-			assert.False(t, ax.Ext(a.Path) == ".sha256")
+			if !stdlibAssertEqual("linux", a.OS) {
+				t.Fatalf("want %v, got %v", "linux", a.OS)
+			}
+			if !stdlibAssertEqual("amd64", a.Arch) {
+				t.Fatalf("want %v, got %v", "amd64", a.Arch)
+			}
+			if ax.Ext(a.Path) == ".sha256" {
+				t.Fatal("expected false")
+			}
+
 		}
 	})
 
 	t.Run("falls back to binaries in build/release/src", func(t *testing.T) {
 		dir := t.TempDir()
 		binDir := ax.Join(dir, "build", "release", "src")
-		require.NoError(t, ax.MkdirAll(binDir, 0755))
+		if err := ax.MkdirAll(binDir, 0755); err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Create mock binary (executable)
+				// Create mock binary (executable)
+				err)
+		}
+
 		binPath := ax.Join(binDir, "test-daemon")
-		require.NoError(t, ax.WriteFile(binPath, []byte("binary"), 0755))
+		if err := ax.WriteFile(binPath, []byte("binary"), 0755); err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Create a library (should be skipped)
-		require.NoError(t, ax.WriteFile(ax.Join(binDir, "libcrypto.a"), []byte("lib"), 0644))
+				// Create a library (should be skipped)
+				err)
+		}
+		if err := ax.WriteFile(ax.Join(binDir, "libcrypto.a"), []byte("lib"), 0644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewCPPBuilder()
 		target := build.Target{OS: "linux", Arch: "amd64"}
 		artifacts, err := builder.findArtifacts(fs, dir, target)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Should find the executable but not the library
-		assert.Len(t, artifacts, 1)
-		assert.Contains(t, artifacts[0].Path, "test-daemon")
+				// Should find the executable but not the library
+				err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if !stdlibAssertContains(artifacts[0].Path, "test-daemon") {
+			t.Fatalf("expected %v to contain %v", artifacts[0].Path, "test-daemon")
+		}
+
 	})
 }
 
@@ -360,12 +503,20 @@ func TestCPP_CPPBuilderResolveMakeCli_Good(t *testing.T) {
 	builder := NewCPPBuilder()
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "make")
-	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", "")
 
 	command, err := builder.resolveMakeCli(fallbackPath)
-	require.NoError(t, err)
-	assert.Equal(t, fallbackPath, command)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(fallbackPath, command) {
+		t.Fatalf("want %v, got %v", fallbackPath, command)
+	}
+
 }
 
 func TestCPP_CPPBuilderResolveMakeCli_Bad(t *testing.T) {
@@ -373,20 +524,33 @@ func TestCPP_CPPBuilderResolveMakeCli_Bad(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	_, err := builder.resolveMakeCli(ax.Join(t.TempDir(), "missing-make"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "make not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "make not found") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "make not found")
+	}
+
 }
 
 func TestCPP_CPPBuilderResolveConanCli_Good(t *testing.T) {
 	builder := NewCPPBuilder()
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "conan")
-	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", "")
 
 	command, err := builder.resolveConanCli(fallbackPath)
-	require.NoError(t, err)
-	assert.Equal(t, fallbackPath, command)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(fallbackPath, command) {
+		t.Fatalf("want %v, got %v", fallbackPath, command)
+	}
+
 }
 
 func TestCPP_CPPBuilderResolveConanCli_Bad(t *testing.T) {
@@ -394,8 +558,13 @@ func TestCPP_CPPBuilderResolveConanCli_Bad(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	_, err := builder.resolveConanCli(ax.Join(t.TempDir(), "missing-conan"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "conan not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "conan not found") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "conan not found")
+	}
+
 }
 
 func TestCPP_CPPBuilderInterface_Good(t *testing.T) {

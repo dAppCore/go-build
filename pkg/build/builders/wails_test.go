@@ -9,9 +9,7 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/io"
 )
 
 // setupWailsTestProject creates a minimal Wails project structure for testing.
@@ -25,9 +23,13 @@ func setupWailsTestProject(t *testing.T) string {
   "outputfilename": "testapp"
 }`
 	err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte(wailsJSON), 0o644)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v",
 
-	// Create a minimal go.mod
+			// Create a minimal go.mod
+			err)
+	}
+
 	goMod := `module testapp
 
 go 1.21
@@ -35,9 +37,13 @@ go 1.21
 require github.com/wailsapp/wails/v3 v3.0.0
 `
 	err = ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0o644)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v",
 
-	// Create a minimal main.go
+			// Create a minimal main.go
+			err)
+	}
+
 	mainGo := `package main
 
 func main() {
@@ -45,9 +51,13 @@ func main() {
 }
 `
 	err = ax.WriteFile(ax.Join(dir, "main.go"), []byte(mainGo), 0o644)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v",
 
-	// Create a minimal Taskfile.yml
+			// Create a minimal Taskfile.yml
+			err)
+	}
+
 	taskfile := `version: '3'
 tasks:
   build:
@@ -56,27 +66,37 @@ tasks:
       - touch {{.OUTPUT_DIR}}/{{.GOOS}}_{{.GOARCH}}/testapp
 `
 	err = ax.WriteFile(ax.Join(dir, "Taskfile.yml"), []byte(taskfile), 0o644)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v",
+
+			// setupWailsV2TestProject creates a Wails v2 project structure.
+			err)
+	}
 
 	return dir
 }
 
-// setupWailsV2TestProject creates a Wails v2 project structure.
 func setupWailsV2TestProject(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 
 	// wails.json
 	err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v",
 
-	// go.mod with v2
+			// go.mod with v2
+			err)
+	}
+
 	goMod := `module testapp
 go 1.21
 require github.com/wailsapp/wails/v2 v2.8.0
 `
 	err = ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0o644)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	return dir
 }
@@ -155,7 +175,10 @@ esac
 `
 
 	err := ax.WriteFile(ax.Join(binDir, "wails"), []byte(wailsScript), 0o755)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 }
 
 func setupFakeWails3Toolchain(t *testing.T, binDir string) {
@@ -212,8 +235,10 @@ done
 	printf 'fake wails3 binary\n' > "bin/${name}"
 	chmod +x "bin/${name}"
 `
+	if err := ax.WriteFile(ax.Join(binDir, "wails3"), []byte(wails3Script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	require.NoError(t, ax.WriteFile(ax.Join(binDir, "wails3"), []byte(wails3Script), 0o755))
 }
 
 func setupFakeWails3GoBuildToolchain(t *testing.T, binDir string) {
@@ -226,7 +251,9 @@ name="${NAME:-testapp}"
 mkdir -p "bin"
 go build -o "bin/${name}" .
 `
-	require.NoError(t, ax.WriteFile(ax.Join(binDir, "wails3"), []byte(wails3Script), 0o755))
+	if err := ax.WriteFile(ax.Join(binDir, "wails3"), []byte(wails3Script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	garbleScript := `#!/bin/sh
 set -eu
@@ -256,7 +283,10 @@ mkdir -p "$(dirname "$output")"
 printf 'fake garbled binary\n' > "$output"
 chmod +x "$output"
 `
-	require.NoError(t, ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755))
+	if err := ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 }
 
 func setupFakeFrontendCommand(t *testing.T, binDir, name string) {
@@ -274,8 +304,10 @@ if [ -n "$sequence_file" ]; then
 	fi
 fi
 `, "__NAME__", name)
+	if err := ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	require.NoError(t, ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755))
 }
 
 func TestWails_WailsBuilderBuildTaskfile_Good(t *testing.T) {
@@ -302,7 +334,9 @@ tasks:
       - touch {{.OUTPUT_DIR}}/{{.GOOS}}_{{.GOARCH}}/testapp
 `
 		err := ax.WriteFile(ax.Join(projectDir, "Taskfile.yml"), []byte(taskfile), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
@@ -316,8 +350,13 @@ tasks:
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		assert.NotEmpty(t, artifacts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertEmpty(artifacts) {
+			t.Fatal("expected non-empty")
+		}
+
 	})
 
 	t.Run("passes Wails v3 build vars through Taskfile builds", func(t *testing.T) {
@@ -341,7 +380,9 @@ mkdir -p "${OUTPUT_DIR}/${GOOS}_${GOARCH}"
 printf 'taskfile build\n' > "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}"
 chmod +x "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}"
 `
-		require.NoError(t, ax.WriteFile(taskPath, []byte(script), 0o755))
+		if err := ax.WriteFile(taskPath, []byte(script), 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		t.Setenv("TASK_BUILD_LOG_FILE", logPath)
 		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -359,20 +400,42 @@ chmod +x "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}"
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(string(content), "GOOS=windows") {
+			t.Fatalf("expected %v to contain %v", string(content), "GOOS=windows")
+		}
+		if !stdlibAssertContains(string(content), "GOARCH=amd64") {
+			t.Fatalf("expected %v to contain %v", string(content), "GOARCH=amd64")
+		}
+		if !stdlibAssertContains(string(content), "CGO_ENABLED=1") {
+			t.Fatalf("expected %v to contain %v", string(content), "CGO_ENABLED=1")
+		}
+		if !stdlibAssertContains(string(content), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3") {
+			t.Fatalf("expected %v to contain %v", string(content), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
+		}
+		if !stdlibAssertContains(string(content), "EXTRA_TAGS=integration") {
+			t.Fatalf("expected %v to contain %v", string(content), "EXTRA_TAGS=integration")
+		}
+		if !stdlibAssertContains(string(content), "WEBVIEW2_MODE=download") {
+			t.Fatalf("expected %v to contain %v", string(content), "WEBVIEW2_MODE=download")
+		}
+		if !stdlibAssertContains(string(content), `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -H windowsgui -X main.version=v1.2.3"`) {
+			t.Fatalf("expected %v to contain %v", string(content), `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -H windowsgui -X main.version=v1.2.3"`)
+		}
 
-		assert.Contains(t, string(content), "GOOS=windows")
-		assert.Contains(t, string(content), "GOARCH=amd64")
-		assert.Contains(t, string(content), "CGO_ENABLED=1")
-		assert.Contains(t, string(content), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
-		assert.Contains(t, string(content), "EXTRA_TAGS=integration")
-		assert.Contains(t, string(content), "WEBVIEW2_MODE=download")
-		assert.Contains(t, string(content), `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -H windowsgui -X main.version=v1.2.3"`)
 	})
 
 	t.Run("uses the garble shim for Wails v3 Taskfile builds", func(t *testing.T) {
@@ -388,7 +451,9 @@ name="${NAME:-testapp}"
 mkdir -p "${OUTPUT_DIR}/${GOOS}_${GOARCH}"
 go build -o "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}" .
 `
-		require.NoError(t, ax.WriteFile(taskPath, []byte(script), 0o755))
+		if err := ax.WriteFile(taskPath, []byte(script), 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		setupFakeWails3GoBuildToolchain(t, binDir)
 		t.Setenv("GARBLE_LOG_FILE", logPath)
@@ -404,20 +469,36 @@ go build -o "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}" .
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.FileExists(t, artifacts[0].Path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if _, err := os.Stat(artifacts[0].Path); err != nil {
+			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
-		assert.Contains(t, string(content), "build")
-		assert.Contains(t, string(content), "-o")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(string(content), "build") {
+			t.Fatalf("expected %v to contain %v", string(content), "build")
+		}
+		if !stdlibAssertContains(string(content), "-o") {
+			t.Fatalf("expected %v to contain %v", string(content), "-o")
+		}
+
 	})
 }
 
 func TestWails_WailsBuilderName_Good(t *testing.T) {
 	builder := NewWailsBuilder()
-	assert.Equal(t, "wails", builder.Name())
+	if !stdlibAssertEqual("wails", builder.Name()) {
+		t.Fatalf("want %v, got %v", "wails", builder.Name())
+	}
+
 }
 
 func TestWails_WailsBuilderBuildV3Config_Good(t *testing.T) {
@@ -433,13 +514,25 @@ func TestWails_WailsBuilderBuildV3Config_Good(t *testing.T) {
 	}
 
 	v3Config := builder.buildV3Config(cfg)
+	if stdlibAssertNil(v3Config) {
+		t.Fatal("expected non-nil")
+	}
+	if cfg.CGO {
+		t.Fatal("expected false")
+	}
+	if !(v3Config.CGO) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual(cfg.Name, v3Config.Name) {
+		t.Fatalf("want %v, got %v", cfg.Name, v3Config.Name)
+	}
+	if !stdlibAssertEqual(cfg.Flags, v3Config.Flags) {
+		t.Fatalf("want %v, got %v", cfg.Flags, v3Config.Flags)
+	}
+	if !stdlibAssertEqual(cfg.LDFlags, v3Config.LDFlags) {
+		t.Fatalf("want %v, got %v", cfg.LDFlags, v3Config.LDFlags)
+	}
 
-	require.NotNil(t, v3Config)
-	assert.False(t, cfg.CGO)
-	assert.True(t, v3Config.CGO)
-	assert.Equal(t, cfg.Name, v3Config.Name)
-	assert.Equal(t, cfg.Flags, v3Config.Flags)
-	assert.Equal(t, cfg.LDFlags, v3Config.LDFlags)
 }
 
 func TestWails_WailsBuilderResolveFrontendDir_Good(t *testing.T) {
@@ -449,31 +542,52 @@ func TestWails_WailsBuilderResolveFrontendDir_Good(t *testing.T) {
 	t.Run("finds nested package.json frontends", func(t *testing.T) {
 		projectDir := t.TempDir()
 		frontendDir := ax.Join(projectDir, "apps", "web")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		got := builder.resolveFrontendDir(fs, projectDir)
-		assert.Equal(t, frontendDir, got)
+		if !stdlibAssertEqual(frontendDir, got) {
+			t.Fatalf("want %v, got %v", frontendDir, got)
+		}
+
 	})
 
 	t.Run("finds nested deno.json frontends", func(t *testing.T) {
 		projectDir := t.TempDir()
 		frontendDir := ax.Join(projectDir, "packages", "site")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		got := builder.resolveFrontendDir(fs, projectDir)
-		assert.Equal(t, frontendDir, got)
+		if !stdlibAssertEqual(frontendDir, got) {
+			t.Fatalf("want %v, got %v", frontendDir, got)
+		}
+
 	})
 
 	t.Run("ignores frontends deeper than depth 2", func(t *testing.T) {
 		projectDir := t.TempDir()
 		frontendDir := ax.Join(projectDir, "apps", "marketing", "web")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		got := builder.resolveFrontendDir(fs, projectDir)
-		assert.Empty(t, got)
+		if !stdlibAssertEmpty(got) {
+			t.Fatalf("expected empty, got %v", got)
+		}
+
 	})
 
 	t.Run("falls back to frontend directory when DENO_ENABLE is set", func(t *testing.T) {
@@ -481,10 +595,15 @@ func TestWails_WailsBuilderResolveFrontendDir_Good(t *testing.T) {
 
 		projectDir := t.TempDir()
 		frontendDir := ax.Join(projectDir, "frontend")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		got := builder.resolveFrontendDir(fs, projectDir)
-		assert.Equal(t, frontendDir, got)
+		if !stdlibAssertEqual(frontendDir, got) {
+			t.Fatalf("want %v, got %v", frontendDir, got)
+		}
+
 	})
 }
 
@@ -515,9 +634,16 @@ func TestWails_WailsBuilderBuildV2_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
-		assert.True(t, io.Local.Exists(artifacts[0].Path))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+		if !(io.Local.Exists(artifacts[0].Path)) {
+			t.Fatal("expected true")
+		}
+
 	})
 }
 
@@ -528,16 +654,24 @@ func TestWails_copyBuildArtifact_PreservesMode_Good(t *testing.T) {
 
 	sourceDir := t.TempDir()
 	sourcePath := ax.Join(sourceDir, "testapp")
-	require.NoError(t, ax.WriteFile(sourcePath, []byte("fake wails binary\n"), 0o755))
+	if err := ax.WriteFile(sourcePath, []byte("fake wails binary\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	destDir := t.TempDir()
 	destPath := ax.Join(destDir, "testapp")
-
-	require.NoError(t, copyBuildArtifact(io.Local, sourcePath, destPath))
+	if err := copyBuildArtifact(io.Local, sourcePath, destPath); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	info, err := ax.Stat(destPath)
-	require.NoError(t, err)
-	assert.NotZero(t, info.Mode()&0o111)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stdlibAssertZero(info.Mode() & 0o111) {
+		t.Fatal("expected non-zero")
+	}
+
 }
 
 func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
@@ -581,27 +715,62 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		args := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.NotEmpty(t, args)
-		assert.Equal(t, "build", args[0])
-		assert.Contains(t, args, "-o")
-		assert.Contains(t, args, "testapp")
-		assert.Contains(t, args, "-tags")
-		assert.Contains(t, args, "integration,webkit2_41")
-		assert.Contains(t, args, "-ldflags")
-		assert.Contains(t, args, "-s -w -X main.version=v1.2.3")
-		assert.Contains(t, args, "-obfuscated")
-		assert.Contains(t, args, "-nsis")
-		assert.Contains(t, args, "-webview2")
-		assert.Contains(t, args, "embed")
-		assert.Contains(t, args, "GOCACHE="+goCacheDir)
-		assert.Contains(t, args, "GOMODCACHE="+goModCacheDir)
+		if stdlibAssertEmpty(args) {
+			t.Fatal("expected non-empty")
+		}
+		if !stdlibAssertEqual("build", args[0]) {
+			t.Fatalf("want %v, got %v", "build", args[0])
+		}
+		if !stdlibAssertContains(args, "-o") {
+			t.Fatalf("expected %v to contain %v", args, "-o")
+		}
+		if !stdlibAssertContains(args, "testapp") {
+			t.Fatalf("expected %v to contain %v", args, "testapp")
+		}
+		if !stdlibAssertContains(args, "-tags") {
+			t.Fatalf("expected %v to contain %v", args, "-tags")
+		}
+		if !stdlibAssertContains(args, "integration,webkit2_41") {
+			t.Fatalf("expected %v to contain %v", args, "integration,webkit2_41")
+		}
+		if !stdlibAssertContains(args, "-ldflags") {
+			t.Fatalf("expected %v to contain %v", args, "-ldflags")
+		}
+		if !stdlibAssertContains(args, "-s -w -X main.version=v1.2.3") {
+			t.Fatalf("expected %v to contain %v", args, "-s -w -X main.version=v1.2.3")
+		}
+		if !stdlibAssertContains(args, "-obfuscated") {
+			t.Fatalf("expected %v to contain %v", args, "-obfuscated")
+		}
+		if !stdlibAssertContains(args, "-nsis") {
+			t.Fatalf("expected %v to contain %v", args, "-nsis")
+		}
+		if !stdlibAssertContains(args, "-webview2") {
+			t.Fatalf("expected %v to contain %v", args, "-webview2")
+		}
+		if !stdlibAssertContains(args, "embed") {
+			t.Fatalf("expected %v to contain %v", args, "embed")
+		}
+		if !stdlibAssertContains(args, "GOCACHE="+goCacheDir) {
+			t.Fatalf("expected %v to contain %v", args, "GOCACHE="+goCacheDir)
+		}
+		if !stdlibAssertContains(args, "GOMODCACHE="+goModCacheDir) {
+			t.Fatalf("expected %v to contain %v", args, "GOMODCACHE="+goModCacheDir)
+		}
+
 	})
 
 	t.Run("omits Windows-only packaging flags for non-Windows targets", func(t *testing.T) {
@@ -619,19 +788,38 @@ func TestWails_WailsBuilderBuildV2Flags_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		args := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.NotEmpty(t, args)
-		assert.Contains(t, args, "-o")
-		assert.Contains(t, args, "testapp")
-		assert.NotContains(t, args, "-nsis")
-		assert.NotContains(t, args, "-webview2")
-		assert.NotContains(t, args, "embed")
+		if stdlibAssertEmpty(args) {
+			t.Fatal("expected non-empty")
+		}
+		if !stdlibAssertContains(args, "-o") {
+			t.Fatalf("expected %v to contain %v", args, "-o")
+		}
+		if !stdlibAssertContains(args, "testapp") {
+			t.Fatalf("expected %v to contain %v", args, "testapp")
+		}
+		if stdlibAssertContains(args, "-nsis") {
+			t.Fatalf("expected %v not to contain %v", args, "-nsis")
+		}
+		if stdlibAssertContains(args, "-webview2") {
+			t.Fatalf("expected %v not to contain %v", args, "-webview2")
+		}
+		if stdlibAssertContains(args, "embed") {
+			t.Fatalf("expected %v not to contain %v", args, "embed")
+		}
+
 	})
 }
 
@@ -691,23 +879,44 @@ func TestWails_WailsBuilderBuildV2_RespectsConfiguredOutputName_Good(t *testing.
 			}
 
 			artifacts, err := builder.Build(context.Background(), cfg, []build.Target{tc.target})
-			require.NoError(t, err)
-			require.Len(t, artifacts, 1)
-			assert.Equal(t, tc.expectedBase, ax.Base(artifacts[0].Path))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(artifacts) != 1 {
+				t.Fatalf("want len %v, got %v", 1, len(artifacts))
+			}
+			if !stdlibAssertEqual(tc.expectedBase, ax.Base(artifacts[0].Path)) {
+				t.Fatalf("want %v, got %v", tc.expectedBase, ax.Base(artifacts[0].Path))
+			}
 
 			content, err := ax.ReadFile(logPath)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
 			args := strings.Split(strings.TrimSpace(string(content)), "\n")
-			assert.Contains(t, args, "-o")
-			assert.Contains(t, args, "customapp")
+			if !stdlibAssertContains(args, "-o") {
+				t.Fatalf("expected %v to contain %v", args, "-o")
+			}
+			if !stdlibAssertContains(args, "customapp") {
+				t.Fatalf("expected %v to contain %v", args, "customapp")
+			}
+
 		})
 	}
 }
 
 func TestWails_WailsBuilderBuildV2Flags_Bad(t *testing.T) {
 	err := validateWebView2Mode("invalid")
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "webview2 must be one of")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err == nil {
+		t.Fatal("expected error")
+	} else if !stdlibAssertContains(err.Error(), "webview2 must be one of") {
+		t.Fatalf("expected error %v to contain %v", err, "webview2 must be one of")
+	}
+
 }
 
 func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
@@ -723,9 +932,15 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 
 		projectDir := setupWailsTestProject(t)
 		frontendDir := ax.Join(projectDir, "frontend")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -735,17 +950,29 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			FS:         io.Local,
 			ProjectDir: projectDir,
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 3)
-		assert.Equal(t, "deno", lines[0])
-		assert.Equal(t, "task", lines[1])
-		assert.Equal(t, "build", lines[2])
+		if len(lines) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(lines))
+		}
+		if !stdlibAssertEqual("deno", lines[0]) {
+			t.Fatalf("want %v, got %v", "deno", lines[0])
+		}
+		if !stdlibAssertEqual("task", lines[1]) {
+			t.Fatalf("want %v, got %v", "task", lines[1])
+		}
+		if !stdlibAssertEqual("build", lines[2]) {
+			t.Fatalf("want %v, got %v", "build", lines[2])
+		}
+
 	})
 
 	t.Run("uses configured deno build command when provided", func(t *testing.T) {
@@ -756,8 +983,12 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 
 		projectDir := setupWailsTestProject(t)
 		frontendDir := ax.Join(projectDir, "frontend")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend-custom.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -768,17 +999,29 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			ProjectDir: projectDir,
 			DenoBuild:  "deno-build --target release",
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 3)
-		assert.Equal(t, "deno-build", lines[0])
-		assert.Equal(t, "--target", lines[1])
-		assert.Equal(t, "release", lines[2])
+		if len(lines) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(lines))
+		}
+		if !stdlibAssertEqual("deno-build", lines[0]) {
+			t.Fatalf("want %v, got %v", "deno-build", lines[0])
+		}
+		if !stdlibAssertEqual("--target", lines[1]) {
+			t.Fatalf("want %v, got %v", "--target", lines[1])
+		}
+		if !stdlibAssertEqual("release", lines[2]) {
+			t.Fatalf("want %v, got %v", "release", lines[2])
+		}
+
 	})
 
 	t.Run("DENO_BUILD env override wins over config", func(t *testing.T) {
@@ -791,8 +1034,12 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 
 		projectDir := setupWailsTestProject(t)
 		frontendDir := ax.Join(projectDir, "frontend")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend-env.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -803,16 +1050,26 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			ProjectDir: projectDir,
 			DenoBuild:  "deno-build --config",
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 2)
-		assert.Equal(t, "env-deno-build", lines[0])
-		assert.Equal(t, "--env", lines[1])
+		if len(lines) != 2 {
+			t.Fatalf("want len %v, got %v", 2, len(lines))
+		}
+		if !stdlibAssertEqual("env-deno-build", lines[0]) {
+			t.Fatalf("want %v, got %v", "env-deno-build", lines[0])
+		}
+		if !stdlibAssertEqual("--env", lines[1]) {
+			t.Fatalf("want %v, got %v", "--env", lines[1])
+		}
+
 	})
 
 	t.Run("falls back to npm when only package.json exists", func(t *testing.T) {
@@ -822,7 +1079,9 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 		projectDir := setupWailsTestProject(t)
-		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+		if err := ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -832,17 +1091,29 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			FS:         io.Local,
 			ProjectDir: projectDir,
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 3)
-		assert.Equal(t, "npm", lines[0])
-		assert.Equal(t, "run", lines[1])
-		assert.Equal(t, "build", lines[2])
+		if len(lines) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(lines))
+		}
+		if !stdlibAssertEqual("npm", lines[0]) {
+			t.Fatalf("want %v, got %v", "npm", lines[0])
+		}
+		if !stdlibAssertEqual("run", lines[1]) {
+			t.Fatalf("want %v, got %v", "run", lines[1])
+		}
+		if !stdlibAssertEqual("build", lines[2]) {
+			t.Fatalf("want %v, got %v", "build", lines[2])
+		}
+
 	})
 
 	t.Run("uses configured npm build command when provided", func(t *testing.T) {
@@ -852,7 +1123,9 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 		projectDir := setupWailsTestProject(t)
-		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+		if err := ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend-npm-custom.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -863,17 +1136,29 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			ProjectDir: projectDir,
 			NpmBuild:   "npm-build --scope app",
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 3)
-		assert.Equal(t, "npm-build", lines[0])
-		assert.Equal(t, "--scope", lines[1])
-		assert.Equal(t, "app", lines[2])
+		if len(lines) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(lines))
+		}
+		if !stdlibAssertEqual("npm-build", lines[0]) {
+			t.Fatalf("want %v, got %v", "npm-build", lines[0])
+		}
+		if !stdlibAssertEqual("--scope", lines[1]) {
+			t.Fatalf("want %v, got %v", "--scope", lines[1])
+		}
+		if !stdlibAssertEqual("app", lines[2]) {
+			t.Fatalf("want %v, got %v", "app", lines[2])
+		}
+
 	})
 
 	t.Run("prefers deno when DENO_ENABLE is set without a deno manifest", func(t *testing.T) {
@@ -884,7 +1169,9 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 		t.Setenv("DENO_ENABLE", "true")
 
 		projectDir := setupWailsTestProject(t)
-		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+		if err := ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend-deno-enable.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -894,17 +1181,29 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			FS:         io.Local,
 			ProjectDir: projectDir,
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 3)
-		assert.Equal(t, "deno", lines[0])
-		assert.Equal(t, "task", lines[1])
-		assert.Equal(t, "build", lines[2])
+		if len(lines) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(lines))
+		}
+		if !stdlibAssertEqual("deno", lines[0]) {
+			t.Fatalf("want %v, got %v", "deno", lines[0])
+		}
+		if !stdlibAssertEqual("task", lines[1]) {
+			t.Fatalf("want %v, got %v", "task", lines[1])
+		}
+		if !stdlibAssertEqual("build", lines[2]) {
+			t.Fatalf("want %v, got %v", "build", lines[2])
+		}
+
 	})
 
 	t.Run("uses configured deno build command without a deno manifest", func(t *testing.T) {
@@ -914,7 +1213,9 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 		projectDir := setupWailsTestProject(t)
-		require.NoError(t, ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644))
+		if err := ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend-config-deno.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -925,17 +1226,29 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			ProjectDir: projectDir,
 			DenoBuild:  "deno-build --target release",
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 3)
-		assert.Equal(t, "deno-build", lines[0])
-		assert.Equal(t, "--target", lines[1])
-		assert.Equal(t, "release", lines[2])
+		if len(lines) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(lines))
+		}
+		if !stdlibAssertEqual("deno-build", lines[0]) {
+			t.Fatalf("want %v, got %v", "deno-build", lines[0])
+		}
+		if !stdlibAssertEqual("--target", lines[1]) {
+			t.Fatalf("want %v, got %v", "--target", lines[1])
+		}
+		if !stdlibAssertEqual("release", lines[2]) {
+			t.Fatalf("want %v, got %v", "release", lines[2])
+		}
+
 	})
 
 	t.Run("discovers nested package.json in a monorepo", func(t *testing.T) {
@@ -945,8 +1258,12 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 
 		projectDir := setupWailsTestProject(t)
 		frontendDir := ax.Join(projectDir, "apps", "web")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -956,17 +1273,29 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			FS:         io.Local,
 			ProjectDir: projectDir,
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 3)
-		assert.Equal(t, "npm", lines[0])
-		assert.Equal(t, "run", lines[1])
-		assert.Equal(t, "build", lines[2])
+		if len(lines) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(lines))
+		}
+		if !stdlibAssertEqual("npm", lines[0]) {
+			t.Fatalf("want %v, got %v", "npm", lines[0])
+		}
+		if !stdlibAssertEqual("run", lines[1]) {
+			t.Fatalf("want %v, got %v", "run", lines[1])
+		}
+		if !stdlibAssertEqual("build", lines[2]) {
+			t.Fatalf("want %v, got %v", "build", lines[2])
+		}
+
 	})
 
 	t.Run("uses bun when bun.lockb exists", func(t *testing.T) {
@@ -976,9 +1305,15 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 
 		projectDir := setupWailsTestProject(t)
 		frontendDir := ax.Join(projectDir, "frontend")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "bun.lockb"), []byte(""), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "bun.lockb"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -988,17 +1323,29 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			FS:         io.Local,
 			ProjectDir: projectDir,
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 3)
-		assert.Equal(t, "bun", lines[0])
-		assert.Equal(t, "run", lines[1])
-		assert.Equal(t, "build", lines[2])
+		if len(lines) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(lines))
+		}
+		if !stdlibAssertEqual("bun", lines[0]) {
+			t.Fatalf("want %v, got %v", "bun", lines[0])
+		}
+		if !stdlibAssertEqual("run", lines[1]) {
+			t.Fatalf("want %v, got %v", "run", lines[1])
+		}
+		if !stdlibAssertEqual("build", lines[2]) {
+			t.Fatalf("want %v, got %v", "build", lines[2])
+		}
+
 	})
 
 	t.Run("uses pnpm when pnpm-lock.yaml exists", func(t *testing.T) {
@@ -1008,9 +1355,15 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 
 		projectDir := setupWailsTestProject(t)
 		frontendDir := ax.Join(projectDir, "frontend")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "pnpm-lock.yaml"), []byte(""), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "pnpm-lock.yaml"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -1020,17 +1373,29 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			FS:         io.Local,
 			ProjectDir: projectDir,
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 3)
-		assert.Equal(t, "pnpm", lines[0])
-		assert.Equal(t, "run", lines[1])
-		assert.Equal(t, "build", lines[2])
+		if len(lines) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(lines))
+		}
+		if !stdlibAssertEqual("pnpm", lines[0]) {
+			t.Fatalf("want %v, got %v", "pnpm", lines[0])
+		}
+		if !stdlibAssertEqual("run", lines[1]) {
+			t.Fatalf("want %v, got %v", "run", lines[1])
+		}
+		if !stdlibAssertEqual("build", lines[2]) {
+			t.Fatalf("want %v, got %v", "build", lines[2])
+		}
+
 	})
 
 	t.Run("uses yarn when yarn.lock exists", func(t *testing.T) {
@@ -1040,9 +1405,15 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 
 		projectDir := setupWailsTestProject(t)
 		frontendDir := ax.Join(projectDir, "frontend")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "yarn.lock"), []byte(""), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "yarn.lock"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		logPath := ax.Join(t.TempDir(), "frontend.log")
 		t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -1052,16 +1423,26 @@ func TestWails_WailsBuilderPreBuild_Good(t *testing.T) {
 			FS:         io.Local,
 			ProjectDir: projectDir,
 		}
-
-		require.NoError(t, builder.PreBuild(context.Background(), cfg))
+		if err := builder.PreBuild(context.Background(), cfg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(logPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		require.Len(t, lines, 2)
-		assert.Equal(t, "yarn", lines[0])
-		assert.Equal(t, "build", lines[1])
+		if len(lines) != 2 {
+			t.Fatalf("want len %v, got %v", 2, len(lines))
+		}
+		if !stdlibAssertEqual("yarn", lines[0]) {
+			t.Fatalf("want %v, got %v", "yarn", lines[0])
+		}
+		if !stdlibAssertEqual("build", lines[1]) {
+			t.Fatalf("want %v, got %v", "build", lines[1])
+		}
+
 	})
 }
 
@@ -1078,9 +1459,15 @@ func TestWails_WailsBuilderBuildV2PreBuild_Good(t *testing.T) {
 
 	projectDir := setupWailsV2TestProject(t)
 	frontendDir := ax.Join(projectDir, "frontend")
-	require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
+	if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	outputDir := t.TempDir()
 	sequencePath := ax.Join(t.TempDir(), "build-sequence.log")
@@ -1100,18 +1487,35 @@ func TestWails_WailsBuilderBuildV2PreBuild_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, targets)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
 
 	content, err := ax.ReadFile(sequencePath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	require.GreaterOrEqual(t, len(lines), 4)
-	assert.Equal(t, "deno", lines[0])
-	assert.Equal(t, "task", lines[1])
-	assert.Equal(t, "build", lines[2])
-	assert.Equal(t, "wails", lines[3])
+	if len(lines) < 4 {
+		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 4)
+	}
+	if !stdlibAssertEqual("deno", lines[0]) {
+		t.Fatalf("want %v, got %v", "deno", lines[0])
+	}
+	if !stdlibAssertEqual("task", lines[1]) {
+		t.Fatalf("want %v, got %v", "task", lines[1])
+	}
+	if !stdlibAssertEqual("build", lines[2]) {
+		t.Fatalf("want %v, got %v", "build", lines[2])
+	}
+	if !stdlibAssertEqual("wails", lines[3]) {
+		t.Fatalf("want %v, got %v", "wails", lines[3])
+	}
+
 }
 
 func TestWails_WailsBuilderPropagatesEnvToExternalCommands_Good(t *testing.T) {
@@ -1126,9 +1530,15 @@ func TestWails_WailsBuilderPropagatesEnvToExternalCommands_Good(t *testing.T) {
 
 	projectDir := setupWailsV2TestProject(t)
 	frontendDir := ax.Join(projectDir, "frontend")
-	require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644))
+	if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	sequencePath := ax.Join(t.TempDir(), "build-sequence.log")
 	t.Setenv("BUILD_SEQUENCE_FILE", sequencePath)
@@ -1147,26 +1557,43 @@ func TestWails_WailsBuilderPropagatesEnvToExternalCommands_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, targets)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
 
 	content, err := ax.ReadFile(sequencePath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	require.Contains(t, lines, "CUSTOM_ENV=expected-value")
+	if !stdlibAssertContains(lines, "CUSTOM_ENV=expected-value") {
+		t.Fatalf("expected %v to contain %v", lines, "CUSTOM_ENV=expected-value")
+	}
+
 }
 
 func TestWails_WailsBuilderResolveWailsCli_Good(t *testing.T) {
 	builder := NewWailsBuilder()
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "wails")
-	require.NoError(t, ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", "")
 
 	command, err := builder.resolveWailsCli(fallbackPath)
-	require.NoError(t, err)
-	assert.Equal(t, fallbackPath, command)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(fallbackPath, command) {
+		t.Fatalf("want %v, got %v", fallbackPath, command)
+	}
+
 }
 
 func TestWails_WailsBuilderResolveWailsCli_Bad(t *testing.T) {
@@ -1174,8 +1601,13 @@ func TestWails_WailsBuilderResolveWailsCli_Bad(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	_, err := builder.resolveWailsCli(ax.Join(t.TempDir(), "missing-wails"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "wails CLI not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "wails CLI not found") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "wails CLI not found")
+	}
+
 }
 
 func TestWails_WailsBuilderDetect_Good(t *testing.T) {
@@ -1183,58 +1615,100 @@ func TestWails_WailsBuilderDetect_Good(t *testing.T) {
 	t.Run("detects Wails project with wails.json", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewWailsBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("returns false for Go-only project", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewWailsBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 
 	t.Run("detects Go project with root frontend package.json", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewWailsBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("detects Go project with nested frontend deno manifest", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.26\nuse ."), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.26\nuse ."), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		frontendDir := ax.Join(dir, "apps", "web")
-		require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-		require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644))
+		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewWailsBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("returns false for Node.js project", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewWailsBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 
 	t.Run("returns false for empty directory", func(t *testing.T) {
@@ -1242,8 +1716,13 @@ func TestWails_WailsBuilderDetect_Good(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 }
 
@@ -1251,103 +1730,171 @@ func TestWails_DetectPackageManager_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("detects declared packageManager value", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte(`{"packageManager":"yarn@4.5.1"}`), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "pnpm-lock.yaml"), []byte(""), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte(`{"packageManager":"yarn@4.5.1"}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(dir, "pnpm-lock.yaml"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "yarn", result)
+		if !stdlibAssertEqual("yarn", result) {
+			t.Fatalf("want %v, got %v", "yarn", result)
+		}
+
 	})
 
 	t.Run("detects bun from bun.lockb", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "bun.lockb"), []byte(""), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "bun", result)
+		if !stdlibAssertEqual("bun", result) {
+			t.Fatalf("want %v, got %v", "bun", result)
+		}
+
 	})
 
 	t.Run("detects bun from bun.lock", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "bun.lock"), []byte(""), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "bun", result)
+		if !stdlibAssertEqual("bun", result) {
+			t.Fatalf("want %v, got %v", "bun", result)
+		}
+
 	})
 
 	t.Run("detects pnpm from pnpm-lock.yaml", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "pnpm-lock.yaml"), []byte(""), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "pnpm", result)
+		if !stdlibAssertEqual("pnpm", result) {
+			t.Fatalf("want %v, got %v", "pnpm", result)
+		}
+
 	})
 
 	t.Run("detects yarn from yarn.lock", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "yarn.lock"), []byte(""), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "yarn", result)
+		if !stdlibAssertEqual("yarn", result) {
+			t.Fatalf("want %v, got %v", "yarn", result)
+		}
+
 	})
 
 	t.Run("detects npm from package-lock.json", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "package-lock.json"), []byte(""), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "npm", result)
+		if !stdlibAssertEqual("npm", result) {
+			t.Fatalf("want %v, got %v", "npm", result)
+		}
+
 	})
 
 	t.Run("defaults to npm when no lock file", func(t *testing.T) {
 		dir := t.TempDir()
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "npm", result)
+		if !stdlibAssertEqual("npm", result) {
+			t.Fatalf("want %v, got %v", "npm", result)
+		}
+
 	})
 
 	t.Run("prefers bun over other lock files", func(t *testing.T) {
 		dir := t.TempDir()
-		// Create multiple lock files
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "bun.lockb"), []byte(""), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "yarn.lock"), []byte(""), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "package-lock.json"), []byte(""), 0o644))
+		if err :=
+			// Create multiple lock files
+			ax.WriteFile(ax.Join(dir, "bun.lockb"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(dir, "yarn.lock"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(dir, "package-lock.json"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "bun", result)
+		if !stdlibAssertEqual("bun", result) {
+			t.Fatalf("want %v, got %v", "bun", result)
+		}
+
 	})
 
 	t.Run("prefers pnpm over yarn and npm", func(t *testing.T) {
 		dir := t.TempDir()
-		// Create multiple lock files (no bun)
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "pnpm-lock.yaml"), []byte(""), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "yarn.lock"), []byte(""), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "package-lock.json"), []byte(""), 0o644))
+		if err :=
+			// Create multiple lock files (no bun)
+			ax.WriteFile(ax.Join(dir, "pnpm-lock.yaml"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(dir, "yarn.lock"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(dir, "package-lock.json"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "pnpm", result)
+		if !stdlibAssertEqual("pnpm", result) {
+			t.Fatalf("want %v, got %v", "pnpm", result)
+		}
+
 	})
 
 	t.Run("prefers yarn over npm", func(t *testing.T) {
 		dir := t.TempDir()
-		// Create multiple lock files (no bun or pnpm)
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "yarn.lock"), []byte(""), 0o644))
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "package-lock.json"), []byte(""), 0o644))
+		if err :=
+			// Create multiple lock files (no bun or pnpm)
+			ax.WriteFile(ax.Join(dir, "yarn.lock"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(ax.Join(dir, "package-lock.json"), []byte(""), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "yarn", result)
+		if !stdlibAssertEqual("yarn", result) {
+			t.Fatalf("want %v, got %v", "yarn", result)
+		}
+
 	})
 
 	t.Run("normalises package manager version pins", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte(`{"packageManager":"npm@10.8.2"}`), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte(`{"packageManager":"npm@10.8.2"}`), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result := detectPackageManager(fs, dir)
-		assert.Equal(t, "npm", result)
+		if !stdlibAssertEqual("npm", result) {
+			t.Fatalf("want %v, got %v", "npm", result)
+		}
+
 	})
 }
 
@@ -1358,15 +1905,24 @@ func TestWails_CopyBuildArtifact_Good(t *testing.T) {
 		dir := t.TempDir()
 		sourcePath := ax.Join(dir, "build", "bin", "testapp")
 		destPath := ax.Join(dir, "dist", "linux_amd64", "testapp")
-
-		require.NoError(t, ax.MkdirAll(ax.Dir(sourcePath), 0o755))
-		require.NoError(t, fs.Write(sourcePath, "binary-data"))
-
-		require.NoError(t, copyBuildArtifact(fs, sourcePath, destPath))
+		if err := ax.MkdirAll(ax.Dir(sourcePath), 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := fs.Write(sourcePath, "binary-data"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := copyBuildArtifact(fs, sourcePath, destPath); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		got, err := fs.Read(destPath)
-		require.NoError(t, err)
-		assert.Equal(t, "binary-data", got)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("binary-data", got) {
+			t.Fatalf("want %v, got %v", "binary-data", got)
+		}
+
 	})
 
 	t.Run("copies app bundles recursively", func(t *testing.T) {
@@ -1374,15 +1930,24 @@ func TestWails_CopyBuildArtifact_Good(t *testing.T) {
 		sourcePath := ax.Join(dir, "build", "bin", "testapp.app")
 		binaryPath := ax.Join(sourcePath, "Contents", "MacOS", "testapp")
 		destPath := ax.Join(dir, "dist", "darwin_arm64", "testapp.app")
-
-		require.NoError(t, ax.MkdirAll(ax.Dir(binaryPath), 0o755))
-		require.NoError(t, fs.Write(binaryPath, "bundle-binary"))
-
-		require.NoError(t, copyBuildArtifact(fs, sourcePath, destPath))
+		if err := ax.MkdirAll(ax.Dir(binaryPath), 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := fs.Write(binaryPath, "bundle-binary"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := copyBuildArtifact(fs, sourcePath, destPath); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		got, err := fs.Read(ax.Join(destPath, "Contents", "MacOS", "testapp"))
-		require.NoError(t, err)
-		assert.Equal(t, "bundle-binary", got)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("bundle-binary", got) {
+			t.Fatalf("want %v, got %v", "bundle-binary", got)
+		}
+
 	})
 }
 
@@ -1391,9 +1956,16 @@ func TestWails_WailsBuilderBuildUnsafeVersion_Bad(t *testing.T) {
 		builder := NewWailsBuilder()
 
 		artifacts, err := builder.Build(context.Background(), nil, []build.Target{{OS: "linux", Arch: "amd64"}})
-		assert.Error(t, err)
-		assert.Nil(t, artifacts)
-		assert.Contains(t, err.Error(), "config is nil")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertNil(artifacts) {
+			t.Fatalf("expected nil, got %v", artifacts)
+		}
+		if !stdlibAssertContains(err.Error(), "config is nil") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "config is nil")
+		}
+
 	})
 
 	t.Run("returns error for empty targets", func(t *testing.T) {
@@ -1408,9 +1980,16 @@ func TestWails_WailsBuilderBuildUnsafeVersion_Bad(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{})
-		assert.Error(t, err)
-		assert.Nil(t, artifacts)
-		assert.Contains(t, err.Error(), "no targets specified")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertNil(artifacts) {
+			t.Fatalf("expected nil, got %v", artifacts)
+		}
+		if !stdlibAssertContains(err.Error(), "no targets specified") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "no targets specified")
+		}
+
 	})
 }
 
@@ -1440,13 +2019,24 @@ func TestWails_WailsBuilderBuild_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) !=
 
-		// Verify artifact properties
+			// Verify artifact properties
+			1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
+
 		artifact := artifacts[0]
-		assert.Equal(t, runtime.GOOS, artifact.OS)
-		assert.Equal(t, runtime.GOARCH, artifact.Arch)
+		if !stdlibAssertEqual(runtime.GOOS, artifact.OS) {
+			t.Fatalf("want %v, got %v", runtime.GOOS, artifact.OS)
+		}
+		if !stdlibAssertEqual(runtime.GOARCH, artifact.Arch) {
+			t.Fatalf("want %v, got %v", runtime.GOARCH, artifact.Arch)
+		}
+
 	})
 }
 
@@ -1460,7 +2050,9 @@ func TestWails_WailsBuilderBuildV3Fallback_Good(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	projectDir := setupWailsTestProject(t)
-	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+	if err := ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	logPath := ax.Join(t.TempDir(), "wails3.log")
 	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
@@ -1486,23 +2078,53 @@ func TestWails_WailsBuilderBuildV3Fallback_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-	assert.FileExists(t, artifacts[0].Path)
-	assert.Equal(t, "testapp", ax.Base(artifacts[0].Path))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if _, err := os.Stat(artifacts[0].Path); err != nil {
+		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+	}
+	if !stdlibAssertEqual("testapp", ax.Base(artifacts[0].Path)) {
+		t.Fatalf("want %v, got %v", "testapp", ax.Base(artifacts[0].Path))
+	}
 
 	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	require.GreaterOrEqual(t, len(lines), 4)
-	assert.Equal(t, "build", lines[0])
-	assert.Contains(t, lines, "GOOS=linux")
-	assert.Contains(t, lines, "GOARCH=amd64")
-	assert.Contains(t, lines, "EXTRA_TAGS=integration")
-	assert.Contains(t, strings.Join(lines, "\n"), `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -X main.version=v1.2.3"`)
-	assert.Contains(t, strings.Join(lines, "\n"), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
-	assert.Contains(t, lines, "GOCACHE="+goCacheDir)
-	assert.Contains(t, lines, "GOMODCACHE="+goModCacheDir)
+	if len(lines) < 4 {
+		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 4)
+	}
+	if !stdlibAssertEqual("build", lines[0]) {
+		t.Fatalf("want %v, got %v", "build", lines[0])
+	}
+	if !stdlibAssertContains(lines, "GOOS=linux") {
+		t.Fatalf("expected %v to contain %v", lines, "GOOS=linux")
+	}
+	if !stdlibAssertContains(lines, "GOARCH=amd64") {
+		t.Fatalf("expected %v to contain %v", lines, "GOARCH=amd64")
+	}
+	if !stdlibAssertContains(lines, "EXTRA_TAGS=integration") {
+		t.Fatalf("expected %v to contain %v", lines, "EXTRA_TAGS=integration")
+	}
+	if !stdlibAssertContains(strings.Join(lines, "\n"), `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -X main.version=v1.2.3"`) {
+		t.Fatalf("expected %v to contain %v", strings.Join(lines, "\n"), `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -X main.version=v1.2.3"`)
+	}
+	if !stdlibAssertContains(strings.Join(lines, "\n"), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3") {
+		t.Fatalf("expected %v to contain %v", strings.Join(lines, "\n"), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
+	}
+	if !stdlibAssertContains(lines, "GOCACHE="+goCacheDir) {
+		t.Fatalf("expected %v to contain %v", lines, "GOCACHE="+goCacheDir)
+	}
+	if !stdlibAssertContains(lines, "GOMODCACHE="+goModCacheDir) {
+		t.Fatalf("expected %v to contain %v", lines, "GOMODCACHE="+goModCacheDir)
+	}
+
 }
 
 func TestWails_WailsBuilderBuildV3Fallback_Obfuscate_Good(t *testing.T) {
@@ -1515,7 +2137,9 @@ func TestWails_WailsBuilderBuildV3Fallback_Obfuscate_Good(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	projectDir := setupWailsTestProject(t)
-	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+	if err := ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	logPath := ax.Join(t.TempDir(), "garble.log")
 	t.Setenv("GARBLE_LOG_FILE", logPath)
@@ -1530,16 +2154,32 @@ func TestWails_WailsBuilderBuildV3Fallback_Obfuscate_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-	assert.FileExists(t, artifacts[0].Path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if _, err := os.Stat(artifacts[0].Path); err != nil {
+		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+	}
 
 	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	require.GreaterOrEqual(t, len(lines), 1)
-	assert.Equal(t, "build", lines[0])
-	assert.Contains(t, strings.Join(lines, "\n"), "-o")
+	if len(lines) < 1 {
+		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 1)
+	}
+	if !stdlibAssertEqual("build", lines[0]) {
+		t.Fatalf("want %v, got %v", "build", lines[0])
+	}
+	if !stdlibAssertContains(strings.Join(lines, "\n"), "-o") {
+		t.Fatalf("expected %v to contain %v", strings.Join(lines, "\n"), "-o")
+	}
+
 }
 
 func TestWails_WailsBuilderBuildV3Fallback_PreBuild_Good(t *testing.T) {
@@ -1553,11 +2193,17 @@ func TestWails_WailsBuilderBuildV3Fallback_PreBuild_Good(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	projectDir := setupWailsTestProject(t)
-	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+	if err := ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	frontendDir := ax.Join(projectDir, "frontend")
-	require.NoError(t, ax.MkdirAll(frontendDir, 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644))
+	if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	logPath := ax.Join(t.TempDir(), "build-sequence.log")
 	t.Setenv("BUILD_SEQUENCE_FILE", logPath)
@@ -1571,21 +2217,44 @@ func TestWails_WailsBuilderBuildV3Fallback_PreBuild_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
 
 	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	require.GreaterOrEqual(t, len(lines), 7)
-	assert.Equal(t, "deno", lines[0])
-	assert.Equal(t, "task", lines[1])
-	assert.Equal(t, "build", lines[2])
-	assert.Equal(t, "wails3", lines[3])
-	assert.Equal(t, "build", lines[4])
-	assert.Contains(t, lines, "GOOS=linux")
-	assert.Contains(t, lines, "GOARCH=amd64")
+	if len(lines) < 7 {
+		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 7)
+	}
+	if !stdlibAssertEqual("deno", lines[0]) {
+		t.Fatalf("want %v, got %v", "deno", lines[0])
+	}
+	if !stdlibAssertEqual("task", lines[1]) {
+		t.Fatalf("want %v, got %v", "task", lines[1])
+	}
+	if !stdlibAssertEqual("build", lines[2]) {
+		t.Fatalf("want %v, got %v", "build", lines[2])
+	}
+	if !stdlibAssertEqual("wails3", lines[3]) {
+		t.Fatalf("want %v, got %v", "wails3", lines[3])
+	}
+	if !stdlibAssertEqual("build", lines[4]) {
+		t.Fatalf("want %v, got %v", "build", lines[4])
+	}
+	if !stdlibAssertContains(lines, "GOOS=linux") {
+		t.Fatalf("expected %v to contain %v", lines, "GOOS=linux")
+	}
+	if !stdlibAssertContains(lines, "GOARCH=amd64") {
+		t.Fatalf("expected %v to contain %v", lines, "GOARCH=amd64")
+	}
+
 }
 
 func TestWails_WailsBuilderBuildV3NSIS_Good(t *testing.T) {
@@ -1598,7 +2267,9 @@ func TestWails_WailsBuilderBuildV3NSIS_Good(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	projectDir := setupWailsTestProject(t)
-	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+	if err := ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	logPath := ax.Join(t.TempDir(), "wails3-package.log")
 	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
@@ -1613,18 +2284,38 @@ func TestWails_WailsBuilderBuildV3NSIS_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-	assert.FileExists(t, artifacts[0].Path)
-	assert.Equal(t, "testapp-installer.exe", ax.Base(artifacts[0].Path))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if _, err := os.Stat(artifacts[0].Path); err != nil {
+		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+	}
+	if !stdlibAssertEqual("testapp-installer.exe", ax.Base(artifacts[0].Path)) {
+		t.Fatalf("want %v, got %v", "testapp-installer.exe", ax.Base(artifacts[0].Path))
+	}
 
 	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	require.GreaterOrEqual(t, len(lines), 3)
-	assert.Equal(t, "package", lines[0])
-	assert.Contains(t, lines, "GOOS=windows")
-	assert.Contains(t, lines, "GOARCH=amd64")
+	if len(lines) < 3 {
+		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 3)
+	}
+	if !stdlibAssertEqual("package", lines[0]) {
+		t.Fatalf("want %v, got %v", "package", lines[0])
+	}
+	if !stdlibAssertContains(lines, "GOOS=windows") {
+		t.Fatalf("expected %v to contain %v", lines, "GOOS=windows")
+	}
+	if !stdlibAssertContains(lines, "GOARCH=amd64") {
+		t.Fatalf("expected %v to contain %v", lines, "GOARCH=amd64")
+	}
+
 }
 
 func TestWails_WailsBuilderBuildV3NSISWebView2Download_Good(t *testing.T) {
@@ -1637,7 +2328,9 @@ func TestWails_WailsBuilderBuildV3NSISWebView2Download_Good(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	projectDir := setupWailsTestProject(t)
-	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+	if err := ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	logPath := ax.Join(t.TempDir(), "wails3-package-webview2.log")
 	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
@@ -1653,13 +2346,24 @@ func TestWails_WailsBuilderBuildV3NSISWebView2Download_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-	assert.FileExists(t, artifacts[0].Path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if _, err := os.Stat(artifacts[0].Path); err != nil {
+		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+	}
 
 	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "WEBVIEW2_MODE=download")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(string(content), "WEBVIEW2_MODE=download") {
+		t.Fatalf("expected %v to contain %v", string(content), "WEBVIEW2_MODE=download")
+	}
+
 }
 
 func TestWails_buildV3TaskVars_WebView2Modes_Good(t *testing.T) {
@@ -1667,8 +2371,13 @@ func TestWails_buildV3TaskVars_WebView2Modes_Good(t *testing.T) {
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
 			taskVars, err := buildV3TaskVars(&build.Config{WebView2: mode}, build.Target{OS: "windows", Arch: "amd64"})
-			require.NoError(t, err)
-			assert.Contains(t, taskVars, "WEBVIEW2_MODE="+mode)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !stdlibAssertContains(taskVars, "WEBVIEW2_MODE="+mode) {
+				t.Fatalf("expected %v to contain %v", taskVars, "WEBVIEW2_MODE="+mode)
+			}
+
 		})
 	}
 }
@@ -1683,7 +2392,10 @@ func TestWails_WailsBuilderBuildV3NSISWebView2Embed_Good(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	projectDir := setupWailsTestProject(t)
-	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+	if err := ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	logPath := ax.Join(t.TempDir(), "wails3-package-webview2-embed.log")
 	t.Setenv("WAILS_BUILD_LOG_FILE", logPath)
 
@@ -1698,13 +2410,24 @@ func TestWails_WailsBuilderBuildV3NSISWebView2Embed_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "windows", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-	assert.FileExists(t, artifacts[0].Path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if _, err := os.Stat(artifacts[0].Path); err != nil {
+		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+	}
 
 	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "WEBVIEW2_MODE=embed")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(string(content), "WEBVIEW2_MODE=embed") {
+		t.Fatalf("expected %v to contain %v", string(content), "WEBVIEW2_MODE=embed")
+	}
+
 }
 
 func TestWails_WailsBuilderBuild_Bad(t *testing.T) {
@@ -1713,7 +2436,9 @@ func TestWails_WailsBuilderBuild_Bad(t *testing.T) {
 	}
 
 	projectDir := setupWailsTestProject(t)
-	require.NoError(t, ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")))
+	if err := ax.RemoveAll(ax.Join(projectDir, "Taskfile.yml")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
@@ -1725,13 +2450,22 @@ func TestWails_WailsBuilderBuild_Bad(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	require.Error(t, err)
-	assert.Empty(t, artifacts)
-	assert.Contains(t, err.Error(), "unsupported characters")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertEmpty(artifacts) {
+		t.Fatalf("expected empty, got %v", artifacts)
+	}
+	if !stdlibAssertContains(err.Error(), "unsupported characters") {
+
+		// Verify WailsBuilder implements Builder interface
+		t.Fatalf("expected %v to contain %v", err.Error(), "unsupported characters")
+	}
+
 }
 
 func TestWails_WailsBuilderInterface_Good(t *testing.T) {
-	// Verify WailsBuilder implements Builder interface
+
 	var _ build.Builder = (*WailsBuilder)(nil)
 	var _ build.Builder = NewWailsBuilder()
 }
@@ -1745,7 +2479,9 @@ func TestWails_WailsBuilder_Ugly(t *testing.T) {
 		// Create a Wails project without a frontend directory
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
@@ -1764,7 +2500,10 @@ func TestWails_WailsBuilder_Ugly(t *testing.T) {
 		// We expect an error (wails3 build will fail), but not a panic
 		// The error should be about wails3 build, not about frontend
 		if err != nil {
-			assert.NotContains(t, err.Error(), "frontend dependencies")
+			if stdlibAssertContains(err.Error(), "frontend dependencies") {
+				t.Fatalf("expected %v not to contain %v", err.Error(), "frontend dependencies")
+			}
+
 		}
 	})
 
@@ -1791,7 +2530,12 @@ func TestWails_WailsBuilder_Ugly(t *testing.T) {
 		cancel()
 
 		artifacts, err := builder.Build(ctx, cfg, targets)
-		assert.Error(t, err)
-		assert.Empty(t, artifacts)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertEmpty(artifacts) {
+			t.Fatalf("expected empty, got %v", artifacts)
+		}
+
 	})
 }

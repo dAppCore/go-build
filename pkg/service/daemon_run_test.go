@@ -6,12 +6,10 @@ import (
 	"testing"
 	"time"
 
-	coreapi "dappco.re/go/core/api"
-	providerpkg "dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/process"
-	"dappco.re/go/core/ws"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	coreapi "dappco.re/go/api"
+	providerpkg "dappco.re/go/api/pkg/provider"
+	"dappco.re/go/process"
+	"dappco.re/go/ws"
 )
 
 type stubAPIEngine struct {
@@ -108,11 +106,17 @@ func TestRun_WiresMCPAndAgentic_Good(t *testing.T) {
 		return engine, nil
 	}
 	newMCPServer = func(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) coreapi.RouteGroup {
-		require.NotNil(t, registry.Get("build"))
+		if stdlibAssertNil(registry.Get("build")) {
+			t.Fatal("expected non-nil")
+		}
+
 		return stubRouteGroup{name: "mcp", basePath: "/api/v1/mcp"}
 	}
 	newAgenticOrchestrator = func(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) agenticOrchestrator {
-		require.NotNil(t, registry.Get("build"))
+		if stdlibAssertNil(registry.Get("build")) {
+			t.Fatal("expected non-nil")
+		}
+
 		return agentic
 	}
 	newProcessDaemon = func(opts process.DaemonOptions) processDaemon {
@@ -147,21 +151,37 @@ func TestRun_WiresMCPAndAgentic_Good(t *testing.T) {
 
 	select {
 	case err := <-done:
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for daemon shutdown")
 	}
-
-	assert.True(t, stubDaemon.started)
-	assert.True(t, stubDaemon.stopped)
-	assert.Equal(t, []bool{true}, stubDaemon.ready)
+	if !(stubDaemon.started) {
+		t.Fatal("expected true")
+	}
+	if !(stubDaemon.stopped) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual([]bool{true}, stubDaemon.ready) {
+		t.Fatalf("want %v, got %v", []bool{true}, stubDaemon.ready)
+	}
 
 	engine.mu.Lock()
-	assert.Contains(t, engine.groups, "build")
-	assert.Contains(t, engine.groups, "mcp")
+	if !stdlibAssertContains(engine.groups, "build") {
+		t.Fatalf("expected %v to contain %v", engine.groups, "build")
+	}
+	if !stdlibAssertContains(engine.groups, "mcp") {
+		t.Fatalf("expected %v to contain %v", engine.groups, "mcp")
+	}
+
 	engine.mu.Unlock()
 
 	agentic.mu.Lock()
-	assert.Contains(t, agentic.notifications, "service.mcp.ready")
+	if !stdlibAssertContains(agentic.notifications, "service.mcp.ready") {
+		t.Fatalf("expected %v to contain %v", agentic.notifications, "service.mcp.ready")
+	}
+
 	agentic.mu.Unlock()
 }

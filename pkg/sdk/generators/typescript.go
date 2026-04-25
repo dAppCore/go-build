@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 // TypeScriptGenerator generates TypeScript SDKs from OpenAPI specs.

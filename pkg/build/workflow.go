@@ -7,8 +7,8 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	io_interface "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	io_interface "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 //go:embed templates/release.yml

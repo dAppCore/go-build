@@ -11,7 +11,7 @@ require (
 	dappco.re/go/core/log v0.1.2
 	dappco.re/go/core/process v0.5.1
 	dappco.re/go/core/ws v0.4.0
-	github.com/Snider/Borg v0.2.0
+	github.com/Snider/Borg v0.2.0 // Note: AX-6 deferred — awaiting dappco.re/go/crypt API parity
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kardianos/service v1.2.4

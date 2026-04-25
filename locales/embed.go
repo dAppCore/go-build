@@ -4,7 +4,7 @@ package locales
 import (
 	"embed"
 
-	"dappco.re/go/core/i18n"
+	"dappco.re/go/i18n"
 )
 
 // Usage example: use locales.FS from package consumers as needed.

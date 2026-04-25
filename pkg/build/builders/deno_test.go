@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"dappco.re/go/build/pkg/build"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDeno_ResolveDenoBuildCommand_Good(t *testing.T) {
@@ -19,10 +17,16 @@ func TestDeno_ResolveDenoBuildCommand_Good(t *testing.T) {
 			t.Fatal("resolver should not be called when DENO_BUILD is set")
 			return "", nil
 		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("deno", command) {
+			t.Fatalf("want %v, got %v", "deno", command)
+		}
+		if !stdlibAssertEqual([]string{"task", "build docs", "--watch"}, args) {
+			t.Fatalf("want %v, got %v", []string{"task", "build docs", "--watch"}, args)
+		}
 
-		require.NoError(t, err)
-		assert.Equal(t, "deno", command)
-		assert.Equal(t, []string{"task", "build docs", "--watch"}, args)
 	})
 
 	t.Run("config override is used when environment override is absent", func(t *testing.T) {
@@ -34,10 +38,16 @@ func TestDeno_ResolveDenoBuildCommand_Good(t *testing.T) {
 			t.Fatal("resolver should not be called when config override is set")
 			return "", nil
 		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("deno", command) {
+			t.Fatalf("want %v, got %v", "deno", command)
+		}
+		if !stdlibAssertEqual([]string{"task", "bundle app"}, args) {
+			t.Fatalf("want %v, got %v", []string{"task", "bundle app"}, args)
+		}
 
-		require.NoError(t, err)
-		assert.Equal(t, "deno", command)
-		assert.Equal(t, []string{"task", "bundle app"}, args)
 	})
 
 	t.Run("falls back to the resolver default when no override exists", func(t *testing.T) {
@@ -46,10 +56,16 @@ func TestDeno_ResolveDenoBuildCommand_Good(t *testing.T) {
 		command, args, err := resolveDenoBuildCommand(&build.Config{}, func(...string) (string, error) {
 			return "deno", nil
 		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("deno", command) {
+			t.Fatalf("want %v, got %v", "deno", command)
+		}
+		if !stdlibAssertEqual([]string{"task", "build"}, args) {
+			t.Fatalf("want %v, got %v", []string{"task", "build"}, args)
+		}
 
-		require.NoError(t, err)
-		assert.Equal(t, "deno", command)
-		assert.Equal(t, []string{"task", "build"}, args)
 	})
 }
 
@@ -61,9 +77,13 @@ func TestDeno_ResolveDenoBuildCommand_Bad(t *testing.T) {
 			t.Fatal("resolver should not be called when parsing fails")
 			return "", nil
 		})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "invalid DENO_BUILD command") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "invalid DENO_BUILD command")
+		}
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid DENO_BUILD command")
 	})
 
 	t.Run("resolver errors are surfaced when no override exists", func(t *testing.T) {
@@ -72,9 +92,13 @@ func TestDeno_ResolveDenoBuildCommand_Bad(t *testing.T) {
 		_, _, err := resolveDenoBuildCommand(nil, func(...string) (string, error) {
 			return "", errors.New("deno not found")
 		})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "deno not found") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "deno not found")
+		}
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "deno not found")
 	})
 }
 
@@ -85,10 +109,16 @@ func TestDeno_ResolveDenoBuildCommand_Ugly(t *testing.T) {
 		command, args, err := resolveDenoBuildCommand(&build.Config{}, func(...string) (string, error) {
 			return "deno", nil
 		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("deno", command) {
+			t.Fatalf("want %v, got %v", "deno", command)
+		}
+		if !stdlibAssertEqual([]string{"task", "build"}, args) {
+			t.Fatalf("want %v, got %v", []string{"task", "build"}, args)
+		}
 
-		require.NoError(t, err)
-		assert.Equal(t, "deno", command)
-		assert.Equal(t, []string{"task", "build"}, args)
 	})
 }
 
@@ -102,10 +132,16 @@ func TestDeno_ResolveNpmBuildCommand_Good(t *testing.T) {
 			t.Fatal("resolver should not be called when NPM_BUILD is set")
 			return "", nil
 		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("npm", command) {
+			t.Fatalf("want %v, got %v", "npm", command)
+		}
+		if !stdlibAssertEqual([]string{"run", "build docs", "--", "--watch"}, args) {
+			t.Fatalf("want %v, got %v", []string{"run", "build docs", "--", "--watch"}, args)
+		}
 
-		require.NoError(t, err)
-		assert.Equal(t, "npm", command)
-		assert.Equal(t, []string{"run", "build docs", "--", "--watch"}, args)
 	})
 
 	t.Run("config override is used when environment override is absent", func(t *testing.T) {
@@ -117,10 +153,16 @@ func TestDeno_ResolveNpmBuildCommand_Good(t *testing.T) {
 			t.Fatal("resolver should not be called when config override is set")
 			return "", nil
 		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("npm", command) {
+			t.Fatalf("want %v, got %v", "npm", command)
+		}
+		if !stdlibAssertEqual([]string{"run", "bundle app"}, args) {
+			t.Fatalf("want %v, got %v", []string{"run", "bundle app"}, args)
+		}
 
-		require.NoError(t, err)
-		assert.Equal(t, "npm", command)
-		assert.Equal(t, []string{"run", "bundle app"}, args)
 	})
 
 	t.Run("falls back to the resolver default when no override exists", func(t *testing.T) {
@@ -129,10 +171,16 @@ func TestDeno_ResolveNpmBuildCommand_Good(t *testing.T) {
 		command, args, err := resolveNpmBuildCommand(&build.Config{}, func(...string) (string, error) {
 			return "npm", nil
 		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("npm", command) {
+			t.Fatalf("want %v, got %v", "npm", command)
+		}
+		if !stdlibAssertEqual([]string{"run", "build"}, args) {
+			t.Fatalf("want %v, got %v", []string{"run", "build"}, args)
+		}
 
-		require.NoError(t, err)
-		assert.Equal(t, "npm", command)
-		assert.Equal(t, []string{"run", "build"}, args)
 	})
 }
 
@@ -144,9 +192,13 @@ func TestDeno_ResolveNpmBuildCommand_Bad(t *testing.T) {
 			t.Fatal("resolver should not be called when parsing fails")
 			return "", nil
 		})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "invalid NPM_BUILD command") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "invalid NPM_BUILD command")
+		}
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid NPM_BUILD command")
 	})
 
 	t.Run("resolver errors are surfaced when no override exists", func(t *testing.T) {
@@ -155,9 +207,13 @@ func TestDeno_ResolveNpmBuildCommand_Bad(t *testing.T) {
 		_, _, err := resolveNpmBuildCommand(nil, func(...string) (string, error) {
 			return "", errors.New("npm not found")
 		})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "npm not found") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "npm not found")
+		}
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "npm not found")
 	})
 }
 
@@ -168,34 +224,57 @@ func TestDeno_ResolveNpmBuildCommand_Ugly(t *testing.T) {
 		command, args, err := resolveNpmBuildCommand(&build.Config{}, func(...string) (string, error) {
 			return "npm", nil
 		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual("npm", command) {
+			t.Fatalf("want %v, got %v", "npm", command)
+		}
+		if !stdlibAssertEqual([]string{"run", "build"}, args) {
+			t.Fatalf("want %v, got %v", []string{"run", "build"}, args)
+		}
 
-		require.NoError(t, err)
-		assert.Equal(t, "npm", command)
-		assert.Equal(t, []string{"run", "build"}, args)
 	})
 }
 
 func TestDeno_SplitCommandLine_Good(t *testing.T) {
 	t.Run("handles quoted arguments and escaped spaces", func(t *testing.T) {
 		args, err := splitCommandLine(`deno task "build docs" --flag value\ with\ spaces`)
-		require.NoError(t, err)
-		assert.Equal(t, []string{"deno", "task", "build docs", "--flag", "value with spaces"}, args)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual([]string{"deno", "task", "build docs", "--flag", "value with spaces"}, args) {
+			t.Fatalf("want %v, got %v", []string{"deno", "task", "build docs", "--flag", "value with spaces"}, args)
+		}
+
 	})
 }
 
 func TestDeno_SplitCommandLine_Bad(t *testing.T) {
 	t.Run("rejects unterminated quotes", func(t *testing.T) {
 		args, err := splitCommandLine(`deno task "build docs`)
-		require.Error(t, err)
-		assert.Nil(t, args)
-		assert.Contains(t, err.Error(), "unterminated quote")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertNil(args) {
+			t.Fatalf("expected nil, got %v", args)
+		}
+		if !stdlibAssertContains(err.Error(), "unterminated quote") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "unterminated quote")
+		}
+
 	})
 }
 
 func TestDeno_SplitCommandLine_Ugly(t *testing.T) {
 	t.Run("empty input returns no args", func(t *testing.T) {
 		args, err := splitCommandLine("   ")
-		require.NoError(t, err)
-		assert.Nil(t, args)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertNil(args) {
+			t.Fatalf("expected nil, got %v", args)
+		}
+
 	})
 }

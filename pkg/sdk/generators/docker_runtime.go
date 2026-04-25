@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 var (

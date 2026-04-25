@@ -9,8 +9,8 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // TaskfileBuilder builds projects using Taskfile (https://taskfile.dev/).
@@ -37,27 +37,18 @@ func (b *TaskfileBuilder) Name() string {
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	// Check for Taskfile.yml, Taskfile.yaml, or Taskfile
-	taskfiles := []string{
-		"Taskfile.yml",
-		"Taskfile.yaml",
-		"Taskfile",
-		"taskfile.yml",
-		"taskfile.yaml",
-	}
-
-	for _, tf := range taskfiles {
-		if fs.IsFile(ax.Join(dir, tf)) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return build.IsTaskfileProject(fs, dir), nil
 }
 
 // Build runs the Taskfile build task for each target platform.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+	if cfg == nil {
+		return nil, coreerr.E("TaskfileBuilder.Build", "config is nil", nil)
+	}
+	filesystem := ensureBuildFilesystem(cfg)
+
 	taskCommand, err := b.resolveTaskCli()
 	if err != nil {
 		return nil, err
@@ -68,7 +59,7 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
+	if err := filesystem.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("TaskfileBuilder.Build", "failed to create output directory", err)
 	}
 

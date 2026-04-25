@@ -10,8 +10,8 @@ import (
 	"unicode"
 
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 const (

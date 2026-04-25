@@ -3,7 +3,7 @@ package projectdetect
 import (
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 type detector struct {

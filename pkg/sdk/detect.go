@@ -5,7 +5,7 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 // commonSpecPaths are checked in order when no spec is configured.

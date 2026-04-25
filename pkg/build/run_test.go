@@ -6,9 +6,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	coreio "dappco.re/go/io"
 )
 
 type runTestBuilder struct {
@@ -90,14 +88,24 @@ func TestRun_UsesOutputMedium_Good(t *testing.T) {
 			return &runTestBuilder{}, nil
 		}),
 	)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-
-	assert.Equal(t, ax.Join("releases", "linux_amd64", "core-build"), artifacts[0].Path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if !stdlibAssertEqual(ax.Join("releases", "linux_amd64", "core-build"), artifacts[0].Path) {
+		t.Fatalf("want %v, got %v", ax.Join("releases", "linux_amd64", "core-build"), artifacts[0].Path)
+	}
 
 	content, err := output.Read(ax.Join("releases", "linux_amd64", "core-build"))
-	require.NoError(t, err)
-	assert.Equal(t, "artifact:linux/amd64", content)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("artifact:linux/amd64", content) {
+		t.Fatalf("want %v, got %v", "artifact:linux/amd64", content)
+	}
+
 }
 
 func TestRun_UsesOutputMediumRootWhenOutputDirUnset_Good(t *testing.T) {
@@ -116,14 +124,24 @@ func TestRun_UsesOutputMediumRootWhenOutputDirUnset_Good(t *testing.T) {
 			return &runTestBuilder{}, nil
 		}),
 	)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-
-	assert.Equal(t, ax.Join("linux_amd64", "core-build"), artifacts[0].Path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if !stdlibAssertEqual(ax.Join("linux_amd64", "core-build"), artifacts[0].Path) {
+		t.Fatalf("want %v, got %v", ax.Join("linux_amd64", "core-build"), artifacts[0].Path)
+	}
 
 	content, err := output.Read(ax.Join("linux_amd64", "core-build"))
-	require.NoError(t, err)
-	assert.Equal(t, "artifact:linux/amd64", content)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("artifact:linux/amd64", content) {
+		t.Fatalf("want %v, got %v", "artifact:linux/amd64", content)
+	}
+
 }
 
 func TestRun_MirrorsDirectoryArtifacts_Good(t *testing.T) {
@@ -142,23 +160,38 @@ func TestRun_MirrorsDirectoryArtifacts_Good(t *testing.T) {
 			return &runTestBuilder{directoryArtifact: true}, nil
 		}),
 	)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
 
 	bundlePath := ax.Join("bundles", "darwin_arm64", "core-build.app")
-	assert.Equal(t, bundlePath, artifacts[0].Path)
-	assert.True(t, output.IsDir(bundlePath))
+	if !stdlibAssertEqual(bundlePath, artifacts[0].Path) {
+		t.Fatalf("want %v, got %v", bundlePath, artifacts[0].Path)
+	}
+	if !(output.IsDir(bundlePath)) {
+		t.Fatal("expected true")
+	}
 
 	binaryPath := ax.Join(bundlePath, "Contents", "MacOS", "core-build")
 	content, err := output.Read(binaryPath)
-	require.NoError(t, err)
-	assert.Equal(t, "bundle:darwin/arm64", content)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("bundle:darwin/arm64", content) {
+		t.Fatalf("want %v, got %v", "bundle:darwin/arm64", content)
+	}
+
 }
 
 func TestRun_UsesLocalTargetWhenBuildConfigMissing_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	output := coreio.NewMemoryMedium()
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	artifacts, err := Run(
 		WithProjectDir(projectDir),
@@ -170,17 +203,28 @@ func TestRun_UsesLocalTargetWhenBuildConfigMissing_Good(t *testing.T) {
 			return &runTestBuilder{}, nil
 		}),
 	)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
 
 	expectedPath := ax.Join("releases", runtime.GOOS+"_"+runtime.GOARCH, "core-build")
-	assert.Equal(t, expectedPath, artifacts[0].Path)
+	if !stdlibAssertEqual(expectedPath, artifacts[0].Path) {
+		t.Fatalf("want %v, got %v", expectedPath, artifacts[0].Path)
+	}
+
 }
 
 func TestRun_UsesBuiltinGoResolverWhenResolverUnset_Good(t *testing.T) {
 	projectDir := t.TempDir()
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/builtin\n\ngo 1.24\n"), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/builtin\n\ngo 1.24\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	output := coreio.NewMemoryMedium()
 	artifacts, err := Run(
@@ -192,15 +236,24 @@ func TestRun_UsesBuiltinGoResolverWhenResolverUnset_Good(t *testing.T) {
 		WithOutput(output),
 		WithOutputDir("releases"),
 	)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
 
 	expectedPath := ax.Join("releases", runtime.GOOS+"_"+runtime.GOARCH, "core-build")
 	if runtime.GOOS == "windows" {
 		expectedPath += ".exe"
 	}
-	assert.Equal(t, expectedPath, artifacts[0].Path)
-	assert.True(t, output.Exists(expectedPath))
+	if !stdlibAssertEqual(expectedPath, artifacts[0].Path) {
+		t.Fatalf("want %v, got %v", expectedPath, artifacts[0].Path)
+	}
+	if !(output.Exists(expectedPath)) {
+		t.Fatal("expected true")
+	}
+
 }
 
 func TestRun_Bad_NoBuilderResolverForUnsupportedProjectType(t *testing.T) {
@@ -211,8 +264,13 @@ func TestRun_Bad_NoBuilderResolverForUnsupportedProjectType(t *testing.T) {
 		WithBuildConfig(DefaultConfig()),
 		WithBuildType(string(ProjectTypeNode)),
 	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "builtin fallback only supports go projects")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "builtin fallback only supports go projects") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "builtin fallback only supports go projects")
+	}
+
 }
 
 func TestRun_ForwardsActionPortOverrides_Good(t *testing.T) {
@@ -237,14 +295,35 @@ func TestRun_ForwardsActionPortOverrides_Good(t *testing.T) {
 		}),
 		WithOutput(coreio.NewMemoryMedium()),
 	)
-	require.NoError(t, err)
-	require.NotNil(t, captured)
-	assert.Equal(t, []string{"integration", "release"}, captured.BuildTags)
-	assert.True(t, captured.Obfuscate)
-	assert.True(t, captured.NSIS)
-	assert.Equal(t, "embed", captured.WebView2)
-	assert.Equal(t, "deno task bundle", captured.DenoBuild)
-	assert.Equal(t, "npm run bundle", captured.NpmBuild)
-	assert.True(t, captured.Cache.Enabled)
-	assert.NotEmpty(t, captured.Cache.Paths)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stdlibAssertNil(captured) {
+		t.Fatal("expected non-nil")
+	}
+	if !stdlibAssertEqual([]string{"integration", "release"}, captured.BuildTags) {
+		t.Fatalf("want %v, got %v", []string{"integration", "release"}, captured.BuildTags)
+	}
+	if !(captured.Obfuscate) {
+		t.Fatal("expected true")
+	}
+	if !(captured.NSIS) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("embed", captured.WebView2) {
+		t.Fatalf("want %v, got %v", "embed", captured.WebView2)
+	}
+	if !stdlibAssertEqual("deno task bundle", captured.DenoBuild) {
+		t.Fatalf("want %v, got %v", "deno task bundle", captured.DenoBuild)
+	}
+	if !stdlibAssertEqual("npm run bundle", captured.NpmBuild) {
+		t.Fatalf("want %v, got %v", "npm run bundle", captured.NpmBuild)
+	}
+	if !(captured.Cache.Enabled) {
+		t.Fatal("expected true")
+	}
+	if stdlibAssertEmpty(captured.Cache.Paths) {
+		t.Fatal("expected non-empty")
+	}
+
 }

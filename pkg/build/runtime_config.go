@@ -3,7 +3,7 @@ package build
 import (
 	"strings"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // RuntimeConfigFromBuildConfig maps persisted build settings onto a runtime
@@ -86,12 +86,7 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 }
 
 func versionIsSafeRelease(version string) bool {
-	version = strings.TrimSpace(version)
-	if version == "" {
-		return false
-	}
-
-	return safeVersionLinkerValue.MatchString(version)
+	return ValidateVersionString(version) == nil
 }
 
 func stripVersionTemplateFlags(values []string) []string {

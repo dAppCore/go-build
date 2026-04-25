@@ -10,9 +10,9 @@ import (
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/release/publishers"
 	"dappco.re/go/core"
-	"dappco.re/go/core/cli/pkg/cli"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 var (

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	"github.com/stretchr/testify/require"
 )
 
 func capturePublisherOutput(t *testing.T, fn func()) string {
@@ -28,5 +27,8 @@ func capturePublisherOutput(t *testing.T, fn func()) string {
 
 func runPublisherCommand(t *testing.T, dir, command string, args ...string) {
 	t.Helper()
-	require.NoError(t, ax.ExecDir(context.Background(), dir, command, args...))
+	if err := ax.ExecDir(context.Background(), dir, command, args); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 }

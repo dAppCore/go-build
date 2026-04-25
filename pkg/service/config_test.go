@@ -7,8 +7,6 @@ import (
 	"time"
 
 	nativeservice "github.com/kardianos/service"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type recordingNativeController struct {
@@ -42,65 +40,122 @@ func TestDefaultConfig_Normalized_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := DefaultConfig(projectDir).Normalized()
+	if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
+		t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
+	}
+	if !stdlibAssertEqual("127.0.0.1:9101", cfg.APIAddr) {
+		t.Fatalf("want %v, got %v", "127.0.0.1:9101", cfg.APIAddr)
+	}
+	if !stdlibAssertEqual("127.0.0.1:9102", cfg.HealthAddr) {
+		t.Fatalf("want %v, got %v", "127.0.0.1:9102", cfg.HealthAddr)
+	}
+	if !(cfg.AutoRebuild) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertContains(cfg.Arguments, "service") {
+		t.Fatalf("expected %v to contain %v", cfg.Arguments, "service")
+	}
+	if !stdlibAssertContains(cfg.Arguments, "run") {
+		t.Fatalf("expected %v to contain %v", cfg.Arguments, "run")
+	}
+	if !stdlibAssertContains(cfg.Arguments, projectDir) {
+		t.Fatalf("expected %v to contain %v", cfg.Arguments, projectDir)
+	}
+	if !stdlibAssertEqual(projectDir, cfg.Environment["CORE_BUILD_PROJECT_DIR"]) {
+		t.Fatalf("want %v, got %v", projectDir, cfg.Environment["CORE_BUILD_PROJECT_DIR"])
+	}
 
-	assert.Equal(t, projectDir, cfg.ProjectDir)
-	assert.Equal(t, "127.0.0.1:9101", cfg.APIAddr)
-	assert.Equal(t, "127.0.0.1:9102", cfg.HealthAddr)
-	assert.True(t, cfg.AutoRebuild)
-	assert.Contains(t, cfg.Arguments, "service")
-	assert.Contains(t, cfg.Arguments, "run")
-	assert.Contains(t, cfg.Arguments, projectDir)
-	assert.Equal(t, projectDir, cfg.Environment["CORE_BUILD_PROJECT_DIR"])
 }
 
 func TestResolveConfig_UsesBuildMetadata_Good(t *testing.T) {
 	projectDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".core"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".core", "build.yaml"), []byte(`version: 1
+	if err := os.MkdirAll(filepath.Join(projectDir, ".core"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, ".core", "build.yaml"), []byte(`version: 1
 project:
   name: "Core Build"
   binary: "core-builder"
   description: "Background build daemon"
-`), 0o644))
+`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	cfg, err := ResolveConfig(projectDir)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("core-builder", cfg.Name) {
+		t.Fatalf("want %v, got %v", "core-builder", cfg.Name)
+	}
+	if !stdlibAssertEqual("Core Builder", cfg.DisplayName) {
+		t.Fatalf("want %v, got %v", "Core Builder", cfg.DisplayName)
+	}
+	if !stdlibAssertEqual("Background build daemon", cfg.Description) {
+		t.Fatalf("want %v, got %v", "Background build daemon", cfg.Description)
+	}
 
-	assert.Equal(t, "core-builder", cfg.Name)
-	assert.Equal(t, "Core Builder", cfg.DisplayName)
-	assert.Equal(t, "Background build daemon", cfg.Description)
 }
 
 func TestResolveNativeFormat_Good(t *testing.T) {
 	format, err := ResolveNativeFormat("launchd")
-	require.NoError(t, err)
-	assert.Equal(t, NativeFormatLaunchd, format)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(NativeFormatLaunchd, format) {
+		t.Fatalf("want %v, got %v", NativeFormatLaunchd, format)
+	}
+
 }
 
 func TestExport_Systemd_Good(t *testing.T) {
 	cfg := DefaultConfig(t.TempDir()).Normalized()
 
 	exported, err := Export(cfg, "systemd")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(NativeFormatSystemd, exported.Format) {
+		t.Fatalf("want %v, got %v", NativeFormatSystemd, exported.Format)
+	}
+	if !stdlibAssertEqual(cfg.Name+".service", exported.Filename) {
+		t.Fatalf("want %v, got %v", cfg.Name+".service", exported.Filename)
+	}
+	if !stdlibAssertContains(exported.Content, "[Unit]") {
+		t.Fatalf("expected %v to contain %v", exported.Content, "[Unit]")
+	}
+	if !stdlibAssertContains(exported.Content, "ExecStart=") {
+		t.Fatalf("expected %v to contain %v", exported.Content, "ExecStart=")
+	}
+	if !stdlibAssertContains(exported.Content, cfg.ProjectDir) {
+		t.Fatalf("expected %v to contain %v", exported.Content, cfg.ProjectDir)
+	}
 
-	assert.Equal(t, NativeFormatSystemd, exported.Format)
-	assert.Equal(t, cfg.Name+".service", exported.Filename)
-	assert.Contains(t, exported.Content, "[Unit]")
-	assert.Contains(t, exported.Content, "ExecStart=")
-	assert.Contains(t, exported.Content, cfg.ProjectDir)
 }
 
 func TestExport_Launchd_Good(t *testing.T) {
 	cfg := DefaultConfig(t.TempDir()).Normalized()
 
 	exported, err := Export(cfg, "launchd")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(NativeFormatLaunchd, exported.Format) {
+		t.Fatalf("want %v, got %v", NativeFormatLaunchd, exported.Format)
+	}
+	if !stdlibAssertEqual(cfg.Name+".plist", exported.Filename) {
+		t.Fatalf("want %v, got %v", cfg.Name+".plist", exported.Filename)
+	}
+	if !stdlibAssertContains(exported.Content, "<plist") {
+		t.Fatalf("expected %v to contain %v", exported.Content, "<plist")
+	}
+	if !stdlibAssertContains(exported.Content, "<key>ProgramArguments</key>") {
+		t.Fatalf("expected %v to contain %v", exported.Content, "<key>ProgramArguments</key>")
+	}
+	if !stdlibAssertContains(exported.Content, xmlEscape(cfg.Executable)) {
+		t.Fatalf("expected %v to contain %v", exported.Content, xmlEscape(cfg.Executable))
+	}
 
-	assert.Equal(t, NativeFormatLaunchd, exported.Format)
-	assert.Equal(t, cfg.Name+".plist", exported.Filename)
-	assert.Contains(t, exported.Content, "<plist")
-	assert.Contains(t, exported.Content, "<key>ProgramArguments</key>")
-	assert.Contains(t, exported.Content, xmlEscape(cfg.Executable))
 }
 
 func TestOSManager_ServiceConfigMapping_Good(t *testing.T) {
@@ -125,15 +180,35 @@ func TestOSManager_ServiceConfigMapping_Good(t *testing.T) {
 	cfg = cfg.Normalized()
 
 	err := manager.Install(cfg)
-	require.NoError(t, err)
-	require.NotNil(t, recorded)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stdlibAssertNil(recorded) {
+		t.Fatal("expected non-nil")
+	}
+	if !(controller.installed) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual(cfg.Name, recorded.Name) {
+		t.Fatalf("want %v, got %v", cfg.Name, recorded.Name)
+	}
+	if !stdlibAssertEqual(cfg.DisplayName, recorded.DisplayName) {
+		t.Fatalf("want %v, got %v", cfg.DisplayName, recorded.DisplayName)
+	}
+	if !stdlibAssertEqual(cfg.Description, recorded.Description) {
+		t.Fatalf("want %v, got %v", cfg.Description, recorded.Description)
+	}
+	if !stdlibAssertEqual(cfg.Executable, recorded.Executable) {
+		t.Fatalf("want %v, got %v", cfg.Executable, recorded.Executable)
+	}
+	if !stdlibAssertEqual(cfg.WorkingDirectory, recorded.WorkingDirectory) {
+		t.Fatalf("want %v, got %v", cfg.WorkingDirectory, recorded.WorkingDirectory)
+	}
+	if !stdlibAssertEqual(cfg.Environment["CORE_BUILD_API_ADDR"], recorded.EnvVars["CORE_BUILD_API_ADDR"]) {
+		t.Fatalf("want %v, got %v", cfg.Environment["CORE_BUILD_API_ADDR"], recorded.EnvVars["CORE_BUILD_API_ADDR"])
+	}
+	if !stdlibAssertContains(recorded.Arguments, "--watch-interval") {
+		t.Fatalf("expected %v to contain %v", recorded.Arguments, "--watch-interval")
+	}
 
-	assert.True(t, controller.installed)
-	assert.Equal(t, cfg.Name, recorded.Name)
-	assert.Equal(t, cfg.DisplayName, recorded.DisplayName)
-	assert.Equal(t, cfg.Description, recorded.Description)
-	assert.Equal(t, cfg.Executable, recorded.Executable)
-	assert.Equal(t, cfg.WorkingDirectory, recorded.WorkingDirectory)
-	assert.Equal(t, cfg.Environment["CORE_BUILD_API_ADDR"], recorded.EnvVars["CORE_BUILD_API_ADDR"])
-	assert.Contains(t, recorded.Arguments, "--watch-interval")
 }

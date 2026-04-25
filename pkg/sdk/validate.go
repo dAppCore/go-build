@@ -5,7 +5,7 @@ import (
 
 	"github.com/oasdiff/kin-openapi/openapi3"
 
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 // ValidateSpec detects and validates the OpenAPI specification for this SDK.

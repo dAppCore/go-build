@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // GPGSigner signs files using GPG.

@@ -8,11 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	coreapi "dappco.re/go/core/api"
-	providerpkg "dappco.re/go/core/api/pkg/provider"
 	"dappco.re/go/build/internal/ax"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	coreapi "dappco.re/go/api"
+	providerpkg "dappco.re/go/api/pkg/provider"
 )
 
 func TestMCP_DefaultNewMCPServer_ExposesDaemonTools_Good(t *testing.T) {
@@ -25,19 +23,20 @@ func TestMCP_DefaultNewMCPServer_ExposesDaemonTools_Good(t *testing.T) {
 	})
 
 	group := defaultNewMCPServer(DefaultConfig(projectDir).Normalized(), registry, nil)
+	if !stdlibAssertEqual("/api/v1/mcp", group.BasePath()) {
+		t.Fatalf("want %v, got %v", "/api/v1/mcp", group.BasePath())
+	}
+	if !stdlibAssertEqual([]string{"build_run", "daemon_status", "project_discover", "providers_list"}, mcpToolNames(group)) {
+		t.Fatalf("want %v, got %v", []string{"build_run", "daemon_status", "project_discover", "providers_list"}, mcpToolNames(group))
+	}
 
-	assert.Equal(t, "/api/v1/mcp", group.BasePath())
-	assert.Equal(t, []string{
-		"build_run",
-		"daemon_status",
-		"project_discover",
-		"providers_list",
-	}, mcpToolNames(group))
 }
 
 func TestMCP_BuildRunAndDiscover_Good(t *testing.T) {
 	projectDir := t.TempDir()
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	registry := providerpkg.NewRegistry()
 	registry.Add(stubDaemonProvider{
@@ -54,38 +53,60 @@ func TestMCP_BuildRunAndDiscover_Good(t *testing.T) {
 	called := false
 	runWatchedBuild = func(ctx context.Context, dir string) error {
 		called = true
-		assert.Equal(t, projectDir, dir)
+		if !stdlibAssertEqual(projectDir, dir) {
+			t.Fatalf("want %v, got %v", projectDir, dir)
+		}
+
 		return nil
 	}
 
 	group := defaultNewMCPServer(DefaultConfig(projectDir).Normalized(), registry, nil)
 
 	engine, err := coreapi.New()
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	engine.Register(group)
 
 	server := httptest.NewServer(engine.Handler())
 	defer server.Close()
 
 	buildResponse := postTool(t, server.URL+"/api/v1/mcp/build_run")
-	assert.Contains(t, buildResponse, `"success":true`)
-	assert.True(t, called)
+	if !stdlibAssertContains(buildResponse, `"success":true`) {
+		t.Fatalf("expected %v to contain %v", buildResponse, `"success":true`)
+	}
+	if !(called) {
+		t.Fatal("expected true")
+	}
 
 	discoverResponse := postTool(t, server.URL+"/api/v1/mcp/project_discover")
-	assert.Contains(t, discoverResponse, `"success":true`)
-	assert.Contains(t, discoverResponse, `"primary_stack":"go"`)
+	if !stdlibAssertContains(discoverResponse, `"success":true`) {
+		t.Fatalf("expected %v to contain %v", discoverResponse, `"success":true`)
+	}
+	if !stdlibAssertContains(discoverResponse, `"primary_stack":"go"`) {
+		t.Fatalf("expected %v to contain %v", discoverResponse, `"primary_stack":"go"`)
+	}
+
 }
 
 func postTool(t *testing.T, url string) string {
 	t.Helper()
 
 	response, err := http.Post(url, "application/json", bytes.NewBufferString(`{}`))
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, response.StatusCode, string(body))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(http.StatusOK, response.StatusCode) {
+		t.Fatal(string(body))
+	}
 
 	return string(body)
 }

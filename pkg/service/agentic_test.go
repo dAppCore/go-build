@@ -5,9 +5,7 @@ import (
 	"testing"
 	"time"
 
-	providerpkg "dappco.re/go/core/api/pkg/provider"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	providerpkg "dappco.re/go/api/pkg/provider"
 )
 
 type emittedAgenticEvent struct {
@@ -34,11 +32,17 @@ func TestAgentic_Run_TransformsDaemonEvents_Good(t *testing.T) {
 	go orchestrator.Run(ctx)
 
 	ready := waitForAgenticEvent(t, events)
-	require.Equal(t, "agentic.ready", ready.channel)
+	if !stdlibAssertEqual("agentic.ready", ready.channel) {
+		t.Fatalf("want %v, got %v", "agentic.ready", ready.channel)
+	}
 
 	readyPayload, ok := ready.payload.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "/srv/project", readyPayload["projectDir"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("/srv/project", readyPayload["projectDir"]) {
+		t.Fatalf("want %v, got %v", "/srv/project", readyPayload["projectDir"])
+	}
 
 	orchestrator.Notify("service.watch.changed", map[string]any{
 		"projectDir": "/srv/project",
@@ -46,12 +50,20 @@ func TestAgentic_Run_TransformsDaemonEvents_Good(t *testing.T) {
 	})
 
 	plan := waitForAgenticEvent(t, events)
-	require.Equal(t, "agentic.plan", plan.channel)
+	if !stdlibAssertEqual("agentic.plan", plan.channel) {
+		t.Fatalf("want %v, got %v", "agentic.plan", plan.channel)
+	}
 
 	planPayload, ok := plan.payload.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "build_run", planPayload["recommended_tool"])
-	assert.Equal(t, "service.watch.changed", planPayload["source_event"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("build_run", planPayload["recommended_tool"]) {
+		t.Fatalf("want %v, got %v", "build_run", planPayload["recommended_tool"])
+	}
+	if !stdlibAssertEqual("service.watch.changed", planPayload["source_event"]) {
+		t.Fatalf("want %v, got %v", "service.watch.changed", planPayload["source_event"])
+	}
 
 	orchestrator.Notify("build.failed", map[string]any{
 		"projectDir": "/srv/project",
@@ -59,17 +71,28 @@ func TestAgentic_Run_TransformsDaemonEvents_Good(t *testing.T) {
 	})
 
 	failed := waitForAgenticEvent(t, events)
-	require.Equal(t, "agentic.task.failed", failed.channel)
+	if !stdlibAssertEqual("agentic.task.failed", failed.channel) {
+		t.Fatalf("want %v, got %v", "agentic.task.failed", failed.channel)
+	}
 
 	failedPayload, ok := failed.payload.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "build_run", failedPayload["task"])
-	assert.Equal(t, "boom", failedPayload["error"])
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("build_run", failedPayload["task"]) {
+		t.Fatalf("want %v, got %v", "build_run", failedPayload["task"])
+	}
+	if !stdlibAssertEqual("boom", failedPayload["error"]) {
+		t.Fatalf("want %v, got %v", "boom", failedPayload["error"])
+	}
 
 	cancel()
 
 	stopped := waitForAgenticEvent(t, events)
-	require.Equal(t, "agentic.stopped", stopped.channel)
+	if !stdlibAssertEqual("agentic.stopped", stopped.channel) {
+		t.Fatalf("want %v, got %v", "agentic.stopped", stopped.channel)
+	}
+
 }
 
 func waitForAgenticEvent(t *testing.T, events <-chan emittedAgenticEvent) emittedAgenticEvent {

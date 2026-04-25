@@ -3,7 +3,7 @@ package build
 import (
 	"embed"
 
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 //go:embed images/*.yml

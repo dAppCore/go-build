@@ -4,11 +4,11 @@ package builders
 import (
 	"context"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/core"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // LinuxKitBuilder builds LinuxKit images.
@@ -34,33 +34,18 @@ func (b *LinuxKitBuilder) Name() string {
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	// Check for linuxkit.yml
-	if fs.IsFile(ax.Join(dir, "linuxkit.yml")) || fs.IsFile(ax.Join(dir, "linuxkit.yaml")) {
-		return true, nil
-	}
-	// Check for .core/linuxkit/
-	lkDir := ax.Join(dir, ".core", "linuxkit")
-	if fs.IsDir(lkDir) {
-		entries, err := fs.List(lkDir)
-		if err == nil {
-			for _, entry := range entries {
-				if entry.IsDir() {
-					continue
-				}
-				name := entry.Name()
-				if core.HasSuffix(name, ".yml") || core.HasSuffix(name, ".yaml") {
-					return true, nil
-				}
-			}
-		}
-	}
-	return false, nil
+	return build.IsLinuxKitProject(fs, dir), nil
 }
 
 // Build builds LinuxKit images for the specified targets.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+	if cfg == nil {
+		return nil, coreerr.E("LinuxKitBuilder.Build", "config is nil", nil)
+	}
+	filesystem := ensureBuildFilesystem(cfg)
+
 	linuxkitCommand, err := b.resolveLinuxKitCli()
 	if err != nil {
 		return nil, err
@@ -70,15 +55,15 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	configPath := cfg.LinuxKitConfig
 	if configPath == "" {
 		// Auto-detect
-		if cfg.FS.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yml")) {
+		if filesystem.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yml")) {
 			configPath = ax.Join(cfg.ProjectDir, "linuxkit.yml")
-		} else if cfg.FS.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yaml")) {
+		} else if filesystem.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yaml")) {
 			configPath = ax.Join(cfg.ProjectDir, "linuxkit.yaml")
 		} else {
 			// Look in .core/linuxkit/
 			lkDir := ax.Join(cfg.ProjectDir, ".core", "linuxkit")
-			if cfg.FS.IsDir(lkDir) {
-				entries, err := cfg.FS.List(lkDir)
+			if filesystem.IsDir(lkDir) {
+				entries, err := filesystem.List(lkDir)
 				if err == nil {
 					for _, entry := range entries {
 						if entry.IsDir() {
@@ -102,7 +87,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	}
 
 	// Validate config file exists
-	if !cfg.FS.IsFile(configPath) {
+	if !filesystem.IsFile(configPath) {
 		return nil, coreerr.E("LinuxKitBuilder.Build", "config file not found: "+configPath, nil)
 	}
 
@@ -117,7 +102,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
+	if err := filesystem.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("LinuxKitBuilder.Build", "failed to create output directory", err)
 	}
 
@@ -157,9 +142,9 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 			artifactPath := b.getArtifactPath(outputDir, outputName, format)
 
 			// Verify the artifact was created
-			if !cfg.FS.Exists(artifactPath) {
+			if !filesystem.Exists(artifactPath) {
 				// Try alternate naming conventions
-				artifactPath = b.findArtifact(cfg.FS, outputDir, outputName, format)
+				artifactPath = b.findArtifact(filesystem, outputDir, outputName, format)
 				if artifactPath == "" {
 					return nil, coreerr.E("LinuxKitBuilder.Build", "artifact not found after build: expected "+b.getArtifactPath(outputDir, outputName, format), nil)
 				}

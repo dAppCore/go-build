@@ -4,9 +4,7 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"errors"
 )
 
 // --- Breaking Change Detection Tests (oasdiff integration) ---
@@ -52,14 +50,27 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
+	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
-	assert.False(t, result.Breaking, "adding endpoints should not be breaking")
-	assert.Empty(t, result.Changes)
-	assert.Equal(t, "No breaking changes", result.Summary)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Breaking {
+		t.Fatal("adding endpoints should not be breaking")
+	}
+	if !stdlibAssertEmpty(result.Changes) {
+		t.Fatalf("expected empty, got %v", result.Changes)
+	}
+	if !stdlibAssertEqual("No breaking changes", result.Summary) {
+		t.Fatalf("want %v, got %v", "No breaking changes", result.Summary)
+	}
+
 }
 
 func TestBreaking_DiffRemoveEndpointBreaking_Good(t *testing.T) {
@@ -103,14 +114,27 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
+	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
-	assert.True(t, result.Breaking, "removing endpoints should be breaking")
-	assert.NotEmpty(t, result.Changes)
-	assert.Contains(t, result.Summary, "breaking change")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(result.Breaking) {
+		t.Fatal("removing endpoints should be breaking")
+	}
+	if stdlibAssertEmpty(result.Changes) {
+		t.Fatal("expected non-empty")
+	}
+	if !stdlibAssertContains(result.Summary, "breaking change") {
+		t.Fatalf("expected %v to contain %v", result.Summary, "breaking change")
+	}
+
 }
 
 func TestBreaking_DiffAddRequiredParamBreaking_Good(t *testing.T) {
@@ -148,13 +172,24 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
+	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
-	assert.True(t, result.Breaking, "adding required parameter should be breaking")
-	assert.NotEmpty(t, result.Changes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(result.Breaking) {
+		t.Fatal("adding required parameter should be breaking")
+	}
+	if stdlibAssertEmpty(result.Changes) {
+		t.Fatal("expected non-empty")
+	}
+
 }
 
 func TestBreaking_DiffAddOptionalParamNonBreaking_Good(t *testing.T) {
@@ -192,12 +227,21 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
+	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
-	assert.False(t, result.Breaking, "adding optional parameter should not be breaking")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Breaking {
+		t.Fatal("adding optional parameter should not be breaking")
+	}
+
 }
 
 func TestBreaking_DiffChangeResponseTypeBreaking_Good(t *testing.T) {
@@ -254,12 +298,21 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
+	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
-	assert.True(t, result.Breaking, "changing response schema type should be breaking")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(result.Breaking) {
+		t.Fatal("changing response schema type should be breaking")
+	}
+
 }
 
 func TestBreaking_DiffRemoveHTTPMethodBreaking_Good(t *testing.T) {
@@ -296,13 +349,24 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
+	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
-	assert.True(t, result.Breaking, "removing HTTP method should be breaking")
-	assert.NotEmpty(t, result.Changes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(result.Breaking) {
+		t.Fatal("removing HTTP method should be breaking")
+	}
+	if stdlibAssertEmpty(result.Changes) {
+		t.Fatal("expected non-empty")
+	}
+
 }
 
 func TestBreaking_DiffIdenticalSpecsNonBreaking_Good(t *testing.T) {
@@ -333,48 +397,75 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(spec), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(spec), 0644))
+	if err := ax.WriteFile(basePath, []byte(spec), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(spec), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
-	assert.False(t, result.Breaking, "identical specs should not be breaking")
-	assert.Empty(t, result.Changes)
-	assert.Equal(t, "No breaking changes", result.Summary)
-}
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Breaking {
+		t.Fatal("identical specs should not be breaking")
+	}
+	if !stdlibAssertEmpty(result.Changes) {
+		t.Fatalf("expected empty, got %v", result.Changes)
 
-// --- Error Handling Tests ---
+		// --- Error Handling Tests ---
+	}
+	if !stdlibAssertEqual("No breaking changes", result.Summary) {
+		t.Fatalf("want %v, got %v", "No breaking changes", result.Summary)
+	}
+
+}
 
 func TestBreaking_DiffNonExistentBase_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
+	if err := ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
 info:
   title: Test API
   version: "1.0.0"
 paths: {}
-`), 0644))
+`), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	_, err := Diff(ax.Join(tmpDir, "nonexistent.yaml"), revPath)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to load base spec")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "failed to load base spec") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "failed to load base spec")
+	}
+
 }
 
 func TestBreaking_DiffNonExistentRevision_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	basePath := ax.Join(tmpDir, "base.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(`openapi: "3.0.0"
+	if err := ax.WriteFile(basePath, []byte(`openapi: "3.0.0"
 info:
   title: Test API
   version: "1.0.0"
 paths: {}
-`), 0644))
+`), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	_, err := Diff(basePath, ax.Join(tmpDir, "nonexistent.yaml"))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to load revision spec")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "failed to load revision spec") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "failed to load revision spec")
+	}
+
 }
 
 func TestBreaking_DiffInvalidYAML_Bad(t *testing.T) {
@@ -382,19 +473,26 @@ func TestBreaking_DiffInvalidYAML_Bad(t *testing.T) {
 
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte("not: valid: openapi: spec: {{{{"), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
+	if err := ax.WriteFile(basePath, []byte("not: valid: openapi: spec: {{{{"), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
 info:
   title: Test API
   version: "1.0.0"
 paths: {}
-`), 0644))
+`), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	_, err := Diff(basePath, revPath)
-	assert.Error(t, err)
-}
+	if err == nil {
+		t.Fatal("expected error")
 
-// --- DiffExitCode Tests ---
+		// --- DiffExitCode Tests ---
+	}
+
+}
 
 func TestBreaking_DiffExitCode_Good(t *testing.T) {
 	tests := []struct {
@@ -418,7 +516,7 @@ func TestBreaking_DiffExitCode_Good(t *testing.T) {
 		{
 			name:     "error returns 2",
 			result:   nil,
-			err:      assert.AnError,
+			err:      errors.New("test error"),
 			expected: 2,
 		},
 		{
@@ -432,12 +530,16 @@ func TestBreaking_DiffExitCode_Good(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			code := DiffExitCode(tc.result, tc.err)
-			assert.Equal(t, tc.expected, code)
+			if !stdlibAssertEqual(tc.expected, code) {
+				t.Fatalf("want %v, got %v",
+
+					// --- DiffResult Structure Tests ---
+					tc.expected, code)
+			}
+
 		})
 	}
 }
-
-// --- DiffResult Structure Tests ---
 
 func TestBreaking_DiffResultSummary_Good(t *testing.T) {
 	t.Run("breaking result has count in summary", func(t *testing.T) {
@@ -482,16 +584,30 @@ paths:
 `
 		basePath := ax.Join(tmpDir, "base.yaml")
 		revPath := ax.Join(tmpDir, "rev.yaml")
-		require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
-		require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
+		if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result, err := Diff(basePath, revPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(result.Breaking) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertContains(result.
 
-		assert.True(t, result.Breaking)
-		assert.Contains(t, result.Summary, "breaking change")
-		// Should have at least 2 changes (removed /users and /orders)
-		assert.GreaterOrEqual(t, len(result.Changes), 2)
+			// Should have at least 2 changes (removed /users and /orders)
+			Summary, "breaking change") {
+			t.Fatalf("expected %v to contain %v", result.Summary, "breaking change")
+		}
+		if len(result.Changes) < 2 {
+			t.Fatalf("expected %v to be greater than or equal to %v", len(result.Changes), 2)
+		}
+
 	})
 }
 
@@ -518,16 +634,28 @@ paths: {}
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
+	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(result.Breaking) {
 
-	assert.True(t, result.Breaking)
-	// Changes should contain human-readable descriptions from oasdiff
+		// Changes should contain human-readable descriptions from oasdiff
+		t.Fatal("expected true")
+	}
+
 	for _, change := range result.Changes {
-		assert.NotEmpty(t, change, "each change should have a description")
+		if stdlibAssertEmpty(change) {
+			t.Fatal("each change should have a description")
+		}
+
 	}
 }
 
@@ -578,16 +706,26 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	require.NoError(t, ax.WriteFile(basePath, []byte(base), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(revision), 0644))
+	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(result.Breaking) {
 
-	assert.True(t, result.Breaking)
-	// Should detect: removed POST, removed DELETE, and possibly added required param
-	assert.GreaterOrEqual(t, len(result.Changes), 2,
-		"should detect multiple breaking changes, got: %v", result.Changes)
+		// Should detect: removed POST, removed DELETE, and possibly added required param
+		t.Fatal("expected true")
+	}
+	if len(result.Changes) < 2 {
+		t.Fatalf("should detect multiple breaking changes, got: %v", result.Changes)
+	}
+
 }
 
 // --- JSON Spec Support Tests ---
@@ -627,10 +765,19 @@ func TestBreaking_DiffJSONSpecs_Good(t *testing.T) {
 }`
 	basePath := ax.Join(tmpDir, "base.json")
 	revPath := ax.Join(tmpDir, "rev.json")
-	require.NoError(t, ax.WriteFile(basePath, []byte(baseJSON), 0644))
-	require.NoError(t, ax.WriteFile(revPath, []byte(revJSON), 0644))
+	if err := ax.WriteFile(basePath, []byte(baseJSON), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(revPath, []byte(revJSON), 0644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result, err := Diff(basePath, revPath)
-	require.NoError(t, err)
-	assert.False(t, result.Breaking, "adding endpoint in JSON format should not be breaking")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Breaking {
+		t.Fatal("adding endpoint in JSON format should not be breaking")
+	}
+
 }

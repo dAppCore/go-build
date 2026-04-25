@@ -12,6 +12,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 
 	io_interface "dappco.re/go/core/io"
+	// TODO(AX-6): Replace with dappco.re/go/crypt when it exposes Compress/Decompress API parity.
 	"github.com/Snider/Borg/pkg/compress"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -758,7 +759,7 @@ func verifyTarXzContent(t *testing.T, archivePath, expectedName string) {
 	xzData, err := ax.ReadFile(archivePath)
 	require.NoError(t, err)
 
-	// Decompress with Borg
+	// Decompress with the deferred Borg API.
 	tarData, err := compress.Decompress(xzData)
 	require.NoError(t, err)
 

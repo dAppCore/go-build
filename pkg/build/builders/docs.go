@@ -9,11 +9,11 @@ import (
 	"runtime"
 	"slices"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/core"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // DocsBuilder builds MkDocs projects.
@@ -49,6 +49,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	if cfg == nil {
 		return nil, coreerr.E("DocsBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
 	if len(targets) == 0 {
 		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
@@ -58,7 +59,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
+	if err := filesystem.EnsureDir(outputDir); err != nil {
 		return nil, coreerr.E("DocsBuilder.Build", "failed to create output directory", err)
 	}
 
@@ -75,12 +76,12 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	var artifacts []build.Artifact
 	for _, target := range targets {
 		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := cfg.FS.EnsureDir(platformDir); err != nil {
+		if err := filesystem.EnsureDir(platformDir); err != nil {
 			return artifacts, coreerr.E("DocsBuilder.Build", "failed to create platform directory", err)
 		}
 
 		siteDir := ax.Join(platformDir, "site")
-		if err := cfg.FS.EnsureDir(siteDir); err != nil {
+		if err := filesystem.EnsureDir(siteDir); err != nil {
 			return artifacts, coreerr.E("DocsBuilder.Build", "failed to create site directory", err)
 		}
 
@@ -106,7 +107,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		}
 
 		bundlePath := ax.Join(platformDir, b.bundleName(cfg)+".zip")
-		if err := b.bundleSite(cfg.FS, siteDir, bundlePath); err != nil {
+		if err := b.bundleSite(filesystem, siteDir, bundlePath); err != nil {
 			return artifacts, err
 		}
 

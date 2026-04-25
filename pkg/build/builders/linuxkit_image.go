@@ -3,11 +3,7 @@ package builders
 
 import (
 	"context"
-	"crypto/sha256"
-	// Note: AX-6 — core.HexEncode is not available in core v0.8.0-alpha.1; content hash output needs stable hex encoding.
-	"encoding/hex"
-	"runtime"
-	"text/template"
+	"text/template" // AX-6 intrinsic: no core template primitive.
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
@@ -124,7 +120,7 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 		artifacts = append(artifacts, build.Artifact{
 			Path: artifactPath,
 			OS:   "linux",
-			Arch: runtime.GOARCH,
+			Arch: core.Env("ARCH"),
 		})
 	}
 
@@ -224,7 +220,7 @@ func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage,
 		EntrypointCommand: "tail -f /dev/null",
 	}
 
-	rendered := core.NewBuilder()
+	rendered := core.NewBuffer()
 	if err := tmpl.Execute(rendered, data); err != nil {
 		return "", coreerr.E("LinuxKitImageBuilder.renderTemplate", "failed to render LinuxKit template", err)
 	}
@@ -325,8 +321,8 @@ func linuxKitServiceImageContentHash(baseImage build.LinuxKitBaseImage, cfg buil
 		core.Join(",", uniqueStrings(cfg.Mounts)...),
 		core.Sprintf("%t", cfg.GPU),
 	}
-	sum := sha256.Sum256([]byte(core.Join("\n", parts...)))
-	return hex.EncodeToString(sum[:6])
+	sum := core.SHA256([]byte(core.Join("\n", parts...)))
+	return core.HexEncode(sum[:6])
 }
 
 func normalizeLinuxKitServiceVersionTag(value string) string {
@@ -347,27 +343,27 @@ func normalizeLinuxKitServiceTag(value string) string {
 	value = core.Replace(value, "\t", "-")
 	value = core.Replace(value, "_", "-")
 	value = core.Replace(value, "..", ".")
-	value = trimLinuxKitServiceTagEdges(value)
+	value = trimLinuxKitServiceTagBoundary(value)
 	if value == "" {
 		return "latest"
 	}
 	return value
 }
 
-func trimLinuxKitServiceTagEdges(value string) string {
-	for core.HasPrefix(value, "-") || core.HasPrefix(value, ".") {
-		if core.HasPrefix(value, "-") {
+func trimLinuxKitServiceTagBoundary(value string) string {
+	for value != "" {
+		switch {
+		case core.HasPrefix(value, "-"):
 			value = core.TrimPrefix(value, "-")
-			continue
-		}
-		value = core.TrimPrefix(value, ".")
-	}
-	for core.HasSuffix(value, "-") || core.HasSuffix(value, ".") {
-		if core.HasSuffix(value, "-") {
+		case core.HasPrefix(value, "."):
+			value = core.TrimPrefix(value, ".")
+		case core.HasSuffix(value, "-"):
 			value = core.TrimSuffix(value, "-")
-			continue
+		case core.HasSuffix(value, "."):
+			value = core.TrimSuffix(value, ".")
+		default:
+			return value
 		}
-		value = core.TrimSuffix(value, ".")
 	}
 	return value
 }

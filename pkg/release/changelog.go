@@ -10,7 +10,7 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )

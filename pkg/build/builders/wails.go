@@ -9,8 +9,8 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // WailsBuilder implements the Builder interface for Wails v3 projects.
@@ -47,6 +47,7 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	if cfg == nil {
 		return nil, coreerr.E("WailsBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
 	if len(targets) == 0 {
 		return nil, coreerr.E("WailsBuilder.Build", "no targets specified", nil)
@@ -61,14 +62,14 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	}
 
 	// Detect Wails version
-	isV3 := b.isWailsV3(cfg.FS, cfg.ProjectDir)
+	isV3 := b.isWailsV3(filesystem, cfg.ProjectDir)
 
 	if isV3 {
 		// Wails v3 projects already ship Taskfiles. Prefer them when present because
 		// they capture project-specific packaging logic. Fall back to the CLI when a
 		// project is Wails-backed but does not expose Task targets.
 		taskBuilder := NewTaskfileBuilder()
-		if detected, _ := taskBuilder.Detect(cfg.FS, cfg.ProjectDir); detected {
+		if detected, _ := taskBuilder.Detect(filesystem, cfg.ProjectDir); detected {
 			return taskBuilder.Build(ctx, b.buildV3Config(cfg), targets)
 		}
 
@@ -94,7 +95,7 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	}
 
 	// Ensure output directory exists
-	if err := cfg.FS.EnsureDir(cfg.OutputDir); err != nil {
+	if err := filesystem.EnsureDir(cfg.OutputDir); err != nil {
 		return nil, coreerr.E("WailsBuilder.Build", "failed to create output directory", err)
 	}
 
@@ -126,6 +127,8 @@ func (b *WailsBuilder) buildV3Config(cfg *build.Config) *build.Config {
 
 // buildV3Target builds a Wails v3 project for a single target using the wails3 CLI.
 func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, target build.Target) (build.Artifact, error) {
+	filesystem := ensureBuildFilesystem(cfg)
+
 	wailsCommand, err := b.resolveWails3Cli()
 	if err != nil {
 		return build.Artifact{}, err
@@ -183,18 +186,18 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV3Target", "wails3 "+verb+" failed: "+output, err)
 	}
 
-	sourcePath, err := b.findV3Artifact(cfg.FS, cfg.ProjectDir, binaryName, target, verb == "package")
+	sourcePath, err := b.findV3Artifact(filesystem, cfg.ProjectDir, binaryName, target, verb == "package")
 	if err != nil {
 		return build.Artifact{}, err
 	}
 
 	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-	if err := cfg.FS.EnsureDir(platformDir); err != nil {
+	if err := filesystem.EnsureDir(platformDir); err != nil {
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV3Target", "failed to create output dir", err)
 	}
 
 	destPath := ax.Join(platformDir, ax.Base(sourcePath))
-	if err := copyBuildArtifact(cfg.FS, sourcePath, destPath); err != nil {
+	if err := copyBuildArtifact(filesystem, sourcePath, destPath); err != nil {
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV3Target", "failed to copy artifact "+sourcePath, err)
 	}
 
@@ -393,6 +396,8 @@ func (b *WailsBuilder) findFrontendDir(fs io.Medium, dir string, depth int) stri
 
 // buildV2Target compiles for a single target platform using wails (v2).
 func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, target build.Target) (build.Artifact, error) {
+	filesystem := ensureBuildFilesystem(cfg)
+
 	if cfg.WebView2 != "" && target.OS == "windows" {
 		if err := validateWebView2Mode(cfg.WebView2); err != nil {
 			return build.Artifact{}, err
@@ -467,7 +472,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	wailsOutputDir := ax.Join(cfg.ProjectDir, "build", "bin")
 
 	// Find the artifact in Wails output dir
-	sourcePath, err := b.findArtifact(cfg.FS, wailsOutputDir, binaryName, target)
+	sourcePath, err := b.findArtifact(filesystem, wailsOutputDir, binaryName, target)
 	if err != nil {
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to find Wails v2 build artifact", err)
 	}
@@ -475,14 +480,14 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Move/Copy to our output dir
 	// Create platform specific dir in our output
 	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-	if err := cfg.FS.EnsureDir(platformDir); err != nil {
+	if err := filesystem.EnsureDir(platformDir); err != nil {
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to create output dir", err)
 	}
 
 	destPath := ax.Join(platformDir, ax.Base(sourcePath))
 
 	// Copy the selected artifact, preserving directory bundles such as .app packages.
-	if err := copyBuildArtifact(cfg.FS, sourcePath, destPath); err != nil {
+	if err := copyBuildArtifact(filesystem, sourcePath, destPath); err != nil {
 		return build.Artifact{}, coreerr.E("WailsBuilder.buildV2Target", "failed to copy artifact "+sourcePath, err)
 	}
 

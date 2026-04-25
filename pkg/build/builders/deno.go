@@ -6,7 +6,7 @@ import (
 
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 // resolveDenoBuildCommand returns the Deno build invocation using the action-style

@@ -10,14 +10,15 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/io"
 )
 
 func TestDocs_DocsBuilderName_Good(t *testing.T) {
 	builder := NewDocsBuilder()
-	assert.Equal(t, "docs", builder.Name())
+	if !stdlibAssertEqual("docs", builder.Name()) {
+		t.Fatalf("want %v, got %v", "docs", builder.Name())
+	}
+
 }
 
 func TestDocs_DocsBuilderDetect_Good(t *testing.T) {
@@ -26,30 +27,49 @@ func TestDocs_DocsBuilderDetect_Good(t *testing.T) {
 	t.Run("detects mkdocs.yml", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewDocsBuilder()
 		detected, err := builder.Detect(fs, dir)
-		require.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("detects mkdocs.yaml", func(t *testing.T) {
 		dir := t.TempDir()
 		err := ax.WriteFile(ax.Join(dir, "mkdocs.yaml"), []byte("site_name: Demo\n"), 0o644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewDocsBuilder()
 		detected, err := builder.Detect(fs, dir)
-		require.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("returns false without mkdocs.yml", func(t *testing.T) {
 		builder := NewDocsBuilder()
 		detected, err := builder.Detect(fs, t.TempDir())
-		require.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 }
 
@@ -59,12 +79,17 @@ func TestDocs_DocsBuilderBuild_Good(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	require.NoError(t, ax.WriteFile(ax.Join(dir, "mkdocs.yaml"), []byte("site_name: Demo\n"), 0o644))
+	if err := ax.WriteFile(ax.Join(dir, "mkdocs.yaml"), []byte("site_name: Demo\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	binDir := t.TempDir()
 	mkdocsPath := ax.Join(binDir, "mkdocs")
 	script := "#!/bin/sh\nset -eu\nif [ -n \"${DOCS_BUILD_LOG_FILE:-}\" ]; then\n  env | sort > \"${DOCS_BUILD_LOG_FILE}\"\nfi\nsite_dir=\"\"\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = \"--site-dir\" ]; then\n    shift\n    site_dir=\"$1\"\n  fi\n  shift\ndone\nmkdir -p \"$site_dir\"\nprintf '%s' 'demo docs' > \"$site_dir/index.html\"\n"
-	require.NoError(t, ax.WriteFile(mkdocsPath, []byte(script), 0o755))
+	if err := ax.WriteFile(mkdocsPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	logPath := ax.Join(t.TempDir(), "docs.env")
 
@@ -78,39 +103,81 @@ func TestDocs_DocsBuilderBuild_Good(t *testing.T) {
 
 	builder := NewDocsBuilder()
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
 
 	artifact := artifacts[0]
-	assert.Equal(t, "linux", artifact.OS)
-	assert.Equal(t, "amd64", artifact.Arch)
-	assert.FileExists(t, artifact.Path)
+	if !stdlibAssertEqual("linux", artifact.OS) {
+		t.Fatalf("want %v, got %v", "linux", artifact.OS)
+	}
+	if !stdlibAssertEqual("amd64", artifact.Arch) {
+		t.Fatalf("want %v, got %v", "amd64", artifact.Arch)
+	}
+	if _, err := os.Stat(artifact.Path); err != nil {
+		t.Fatalf("expected file to exist: %v", artifact.Path)
+	}
 
 	reader, err := zip.OpenReader(artifact.Path)
-	require.NoError(t, err)
-	defer func() { _ = reader.Close() }()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	require.Len(t, reader.File, 1)
-	assert.Equal(t, "index.html", reader.File[0].Name)
+	defer func() { _ = reader.Close() }()
+	if len(reader.File) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(reader.File))
+	}
+	if !stdlibAssertEqual("index.html", reader.File[0].Name) {
+		t.Fatalf("want %v, got %v", "index.html", reader.File[0].Name)
+	}
 
 	file, err := reader.File[0].Open()
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = file.Close() }()
 
 	data, err := stdio.ReadAll(file)
-	require.NoError(t, err)
-	assert.Equal(t, "demo docs", string(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("demo docs", string(data)) {
+		t.Fatalf("want %v, got %v", "demo docs", string(data))
+	}
 
 	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "FOO=bar")
-	assert.Contains(t, string(content), "GOOS=linux")
-	assert.Contains(t, string(content), "GOARCH=amd64")
-	assert.Contains(t, string(content), "TARGET_OS=linux")
-	assert.Contains(t, string(content), "TARGET_ARCH=amd64")
-	assert.Contains(t, string(content), "OUTPUT_DIR="+ax.Join(dir, "dist"))
-	assert.Contains(t, string(content), "TARGET_DIR="+ax.Join(dir, "dist", "linux_amd64"))
-	assert.Contains(t, string(content), "NAME=demo-site")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(string(content), "FOO=bar") {
+		t.Fatalf("expected %v to contain %v", string(content), "FOO=bar")
+	}
+	if !stdlibAssertContains(string(content), "GOOS=linux") {
+		t.Fatalf("expected %v to contain %v", string(content), "GOOS=linux")
+	}
+	if !stdlibAssertContains(string(content), "GOARCH=amd64") {
+		t.Fatalf("expected %v to contain %v", string(content), "GOARCH=amd64")
+	}
+	if !stdlibAssertContains(string(content), "TARGET_OS=linux") {
+		t.Fatalf("expected %v to contain %v", string(content), "TARGET_OS=linux")
+	}
+	if !stdlibAssertContains(string(content), "TARGET_ARCH=amd64") {
+		t.Fatalf("expected %v to contain %v", string(content), "TARGET_ARCH=amd64")
+	}
+	if !stdlibAssertContains(string(content), "OUTPUT_DIR="+ax.Join(dir, "dist")) {
+		t.Fatalf("expected %v to contain %v", string(content), "OUTPUT_DIR="+ax.Join(dir, "dist"))
+	}
+	if !stdlibAssertContains(string(content), "TARGET_DIR="+ax.Join(dir, "dist", "linux_amd64")) {
+		t.Fatalf("expected %v to contain %v", string(content), "TARGET_DIR="+ax.Join(dir, "dist", "linux_amd64"))
+	}
+	if !stdlibAssertContains(string(content), "NAME=demo-site") {
+		t.Fatalf("expected %v to contain %v", string(content), "NAME=demo-site")
+	}
+
 }
 
 func TestDocs_DocsBuilderBuild_Good_NestedConfig(t *testing.T) {
@@ -119,13 +186,20 @@ func TestDocs_DocsBuilderBuild_Good_NestedConfig(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	require.NoError(t, ax.MkdirAll(ax.Join(dir, "docs"), 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(dir, "docs", "mkdocs.yaml"), []byte("site_name: Demo\n"), 0o644))
+	if err := ax.MkdirAll(ax.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(dir, "docs", "mkdocs.yaml"), []byte("site_name: Demo\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	binDir := t.TempDir()
 	mkdocsPath := ax.Join(binDir, "mkdocs")
 	script := "#!/bin/sh\nset -eu\nif [ -n \"${DOCS_BUILD_LOG_FILE:-}\" ]; then\n  env | sort >> \"${DOCS_BUILD_LOG_FILE}\"\n  printf '%s\\n' \"$@\" >> \"${DOCS_BUILD_LOG_FILE}\"\nfi\nsite_dir=\"\"\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = \"--site-dir\" ]; then\n    shift\n    site_dir=\"$1\"\n  fi\n  shift\ndone\nmkdir -p \"$site_dir\"\nprintf '%s' 'demo docs' > \"$site_dir/index.html\"\n"
-	require.NoError(t, ax.WriteFile(mkdocsPath, []byte(script), 0o755))
+	if err := ax.WriteFile(mkdocsPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	logPath := ax.Join(t.TempDir(), "docs.args")
 
@@ -139,14 +213,27 @@ func TestDocs_DocsBuilderBuild_Good_NestedConfig(t *testing.T) {
 
 	builder := NewDocsBuilder()
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
 
 	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "--config-file")
-	assert.Contains(t, string(content), "docs/mkdocs.yaml")
-	assert.Contains(t, string(content), "TARGET_DIR="+ax.Join(dir, "dist", "linux_amd64"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(string(content), "--config-file") {
+		t.Fatalf("expected %v to contain %v", string(content), "--config-file")
+	}
+	if !stdlibAssertContains(string(content), "docs/mkdocs.yaml") {
+		t.Fatalf("expected %v to contain %v", string(content), "docs/mkdocs.yaml")
+	}
+	if !stdlibAssertContains(string(content), "TARGET_DIR="+ax.Join(dir, "dist", "linux_amd64")) {
+		t.Fatalf("expected %v to contain %v", string(content), "TARGET_DIR="+ax.Join(dir, "dist", "linux_amd64"))
+	}
+
 }
 
 func TestDocs_DocsBuilderBuild_Bad(t *testing.T) {
@@ -154,8 +241,13 @@ func TestDocs_DocsBuilderBuild_Bad(t *testing.T) {
 
 	t.Run("returns error when config is nil", func(t *testing.T) {
 		artifacts, err := builder.Build(context.Background(), nil, []build.Target{{OS: "linux", Arch: "amd64"}})
-		require.Error(t, err)
-		assert.Nil(t, artifacts)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertNil(artifacts) {
+			t.Fatalf("expected nil, got %v", artifacts)
+		}
+
 	})
 
 	t.Run("returns error when mkdocs.yml is missing", func(t *testing.T) {
@@ -166,7 +258,12 @@ func TestDocs_DocsBuilderBuild_Bad(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-		require.Error(t, err)
-		assert.Nil(t, artifacts)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertNil(artifacts) {
+			t.Fatalf("expected nil, got %v", artifacts)
+		}
+
 	})
 }

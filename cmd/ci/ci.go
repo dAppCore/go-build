@@ -7,9 +7,9 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/core/cli/pkg/cli"
-	"dappco.re/go/core/i18n"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/i18n"
+	coreerr "dappco.re/go/log"
 )
 
 // Style aliases used by CI command output.

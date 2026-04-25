@@ -4,15 +4,16 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/io"
 )
 
 func TestAUR_AURPublisherName_Good(t *testing.T) {
 	t.Run("returns aur", func(t *testing.T) {
 		p := NewAURPublisher()
-		assert.Equal(t, "aur", p.Name())
+		if !stdlibAssertEqual("aur", p.Name()) {
+			t.Fatalf("want %v, got %v", "aur", p.Name())
+		}
+
 	})
 }
 
@@ -23,10 +24,16 @@ func TestAUR_AURPublisherParseConfig_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "aur"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Package) {
+			t.Fatalf("expected empty, got %v", cfg.Package)
+		}
+		if !stdlibAssertEmpty(cfg.Maintainer) {
+			t.Fatalf("expected empty, got %v", cfg.Maintainer)
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Package)
-		assert.Empty(t, cfg.Maintainer)
-		assert.Nil(t, cfg.Official)
 	})
 
 	t.Run("parses package and maintainer from extended config", func(t *testing.T) {
@@ -39,9 +46,13 @@ func TestAUR_AURPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEqual("mypackage", cfg.Package) {
+			t.Fatalf("want %v, got %v", "mypackage", cfg.Package)
+		}
+		if !stdlibAssertEqual("John Doe <john@example.com>", cfg.Maintainer) {
+			t.Fatalf("want %v, got %v", "John Doe <john@example.com>", cfg.Maintainer)
+		}
 
-		assert.Equal(t, "mypackage", cfg.Package)
-		assert.Equal(t, "John Doe <john@example.com>", cfg.Maintainer)
 	})
 
 	t.Run("parses official config", func(t *testing.T) {
@@ -56,10 +67,16 @@ func TestAUR_AURPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if stdlibAssertNil(cfg.Official) {
+			t.Fatal("expected non-nil")
+		}
+		if !(cfg.Official.Enabled) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertEqual("dist/aur-files", cfg.Official.Output) {
+			t.Fatalf("want %v, got %v", "dist/aur-files", cfg.Official.Output)
+		}
 
-		require.NotNil(t, cfg.Official)
-		assert.True(t, cfg.Official.Enabled)
-		assert.Equal(t, "dist/aur-files", cfg.Official.Output)
 	})
 
 	t.Run("handles missing official fields", func(t *testing.T) {
@@ -71,10 +88,16 @@ func TestAUR_AURPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if stdlibAssertNil(cfg.Official) {
+			t.Fatal("expected non-nil")
+		}
+		if cfg.Official.Enabled {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertEmpty(cfg.Official.Output) {
+			t.Fatalf("expected empty, got %v", cfg.Official.Output)
+		}
 
-		require.NotNil(t, cfg.Official)
-		assert.False(t, cfg.Official.Enabled)
-		assert.Empty(t, cfg.Official.Output)
 	})
 }
 
@@ -99,16 +122,34 @@ func TestAUR_AURPublisherRenderTemplate_Good(t *testing.T) {
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/aur/PKGBUILD.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, "# Maintainer: John Doe <john@example.com>") {
+			t.Fatalf("expected %v to contain %v", result, "# Maintainer: John Doe <john@example.com>")
+		}
+		if !stdlibAssertContains(result, "pkgname='myapp-bin'") {
+			t.Fatalf("expected %v to contain %v", result, "pkgname='myapp-bin'")
+		}
+		if !stdlibAssertContains(result, "pkgver='1.2.3'") {
+			t.Fatalf("expected %v to contain %v", result, "pkgver='1.2.3'")
+		}
+		if !stdlibAssertContains(result, `pkgdesc='My awesome CLI'`) {
+			t.Fatalf("expected %v to contain %v", result, `pkgdesc='My awesome CLI'`)
+		}
+		if !stdlibAssertContains(result, "url='https://github.com/owner/myapp'") {
+			t.Fatalf("expected %v to contain %v", result, "url='https://github.com/owner/myapp'")
+		}
+		if !stdlibAssertContains(result, "license=('MIT')") {
+			t.Fatalf("expected %v to contain %v", result, "license=('MIT')")
+		}
+		if !stdlibAssertContains(result, "sha256sums_x86_64=('abc123')") {
+			t.Fatalf("expected %v to contain %v", result, "sha256sums_x86_64=('abc123')")
+		}
+		if !stdlibAssertContains(result, "sha256sums_aarch64=('def456')") {
+			t.Fatalf("expected %v to contain %v", result, "sha256sums_aarch64=('def456')")
+		}
 
-		assert.Contains(t, result, "# Maintainer: John Doe <john@example.com>")
-		assert.Contains(t, result, "pkgname='myapp-bin'")
-		assert.Contains(t, result, "pkgver='1.2.3'")
-		assert.Contains(t, result, `pkgdesc='My awesome CLI'`)
-		assert.Contains(t, result, "url='https://github.com/owner/myapp'")
-		assert.Contains(t, result, "license=('MIT')")
-		assert.Contains(t, result, "sha256sums_x86_64=('abc123')")
-		assert.Contains(t, result, "sha256sums_aarch64=('def456')")
 	})
 
 	t.Run("renders .SRCINFO template with data", func(t *testing.T) {
@@ -127,16 +168,34 @@ func TestAUR_AURPublisherRenderTemplate_Good(t *testing.T) {
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/aur/.SRCINFO.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, "pkgbase = myapp-bin") {
+			t.Fatalf("expected %v to contain %v", result, "pkgbase = myapp-bin")
+		}
+		if !stdlibAssertContains(result, "pkgdesc = My CLI") {
+			t.Fatalf("expected %v to contain %v", result, "pkgdesc = My CLI")
+		}
+		if !stdlibAssertContains(result, "pkgver = 1.0.0") {
+			t.Fatalf("expected %v to contain %v", result, "pkgver = 1.0.0")
+		}
+		if !stdlibAssertContains(result, "arch = x86_64") {
+			t.Fatalf("expected %v to contain %v", result, "arch = x86_64")
+		}
+		if !stdlibAssertContains(result, "arch = aarch64") {
+			t.Fatalf("expected %v to contain %v", result, "arch = aarch64")
+		}
+		if !stdlibAssertContains(result, "sha256sums_x86_64 = checksum1") {
+			t.Fatalf("expected %v to contain %v", result, "sha256sums_x86_64 = checksum1")
+		}
+		if !stdlibAssertContains(result, "sha256sums_aarch64 = checksum2") {
+			t.Fatalf("expected %v to contain %v", result, "sha256sums_aarch64 = checksum2")
+		}
+		if !stdlibAssertContains(result, "pkgname = myapp-bin") {
+			t.Fatalf("expected %v to contain %v", result, "pkgname = myapp-bin")
+		}
 
-		assert.Contains(t, result, "pkgbase = myapp-bin")
-		assert.Contains(t, result, "pkgdesc = My CLI")
-		assert.Contains(t, result, "pkgver = 1.0.0")
-		assert.Contains(t, result, "arch = x86_64")
-		assert.Contains(t, result, "arch = aarch64")
-		assert.Contains(t, result, "sha256sums_x86_64 = checksum1")
-		assert.Contains(t, result, "sha256sums_aarch64 = checksum2")
-		assert.Contains(t, result, "pkgname = myapp-bin")
 	})
 }
 
@@ -146,8 +205,13 @@ func TestAUR_AURPublisherRenderTemplate_Bad(t *testing.T) {
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := aurTemplateData{}
 		_, err := p.renderTemplate(io.Local, "templates/aur/nonexistent.tmpl", data)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to read template")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		}
+
 	})
 }
 
@@ -171,17 +235,37 @@ func TestAUR_AURPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: AUR Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: AUR Publish")
+		}
+		if !stdlibAssertContains(output, "Package:    myapp-bin") {
+			t.Fatalf("expected %v to contain %v", output, "Package:    myapp-bin")
+		}
+		if !stdlibAssertContains(output, "Version:    1.0.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    1.0.0")
+		}
+		if !stdlibAssertContains(output, "Maintainer: John Doe <john@example.com>") {
+			t.Fatalf("expected %v to contain %v", output, "Maintainer: John Doe <john@example.com>")
+		}
+		if !stdlibAssertContains(output, "Repository: owner/repo") {
+			t.Fatalf("expected %v to contain %v", output, "Repository: owner/repo")
+		}
+		if !stdlibAssertContains(output, "Generated PKGBUILD:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated PKGBUILD:")
+		}
+		if !stdlibAssertContains(output, "Generated .SRCINFO:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated .SRCINFO:")
+		}
+		if !stdlibAssertContains(output, "Would push to AUR: ssh://aur@aur.archlinux.org/myapp-bin.git") {
+			t.Fatalf("expected %v to contain %v", output, "Would push to AUR: ssh://aur@aur.archlinux.org/myapp-bin.git")
+		}
+		if !stdlibAssertContains(output, "END DRY RUN") {
+			t.Fatalf("expected %v to contain %v", output, "END DRY RUN")
+		}
 
-		assert.Contains(t, output, "DRY RUN: AUR Publish")
-		assert.Contains(t, output, "Package:    myapp-bin")
-		assert.Contains(t, output, "Version:    1.0.0")
-		assert.Contains(t, output, "Maintainer: John Doe <john@example.com>")
-		assert.Contains(t, output, "Repository: owner/repo")
-		assert.Contains(t, output, "Generated PKGBUILD:")
-		assert.Contains(t, output, "Generated .SRCINFO:")
-		assert.Contains(t, output, "Would push to AUR: ssh://aur@aur.archlinux.org/myapp-bin.git")
-		assert.Contains(t, output, "END DRY RUN")
 	})
 
 	t.Run("shows official output path instead of push in official mode", func(t *testing.T) {
@@ -205,9 +289,16 @@ func TestAUR_AURPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Would write files for official PR to: dist/aur-files")
-		assert.NotContains(t, output, "Would push to AUR:")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Would write files for official PR to: dist/aur-files") {
+			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/aur-files")
+		}
+		if stdlibAssertContains(output, "Would push to AUR:") {
+			t.Fatalf("expected %v not to contain %v", output, "Would push to AUR:")
+		}
+
 	})
 }
 
@@ -224,8 +315,13 @@ func TestAUR_AURPublisherPublish_Bad(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "maintainer is required")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "maintainer is required") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "maintainer is required")
+		}
+
 	})
 }
 
@@ -236,9 +332,15 @@ func TestAUR_AURConfigDefaults_Good(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Package) {
+			t.Fatalf("expected empty, got %v", cfg.Package)
+		}
+		if !stdlibAssertEmpty(cfg.Maintainer) {
+			t.Fatalf("expected empty, got %v", cfg.Maintainer)
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Package)
-		assert.Empty(t, cfg.Maintainer)
-		assert.Nil(t, cfg.Official)
 	})
 }

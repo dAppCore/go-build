@@ -6,7 +6,7 @@ package build
 import (
 	"context"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // ProjectType represents a detected project type.

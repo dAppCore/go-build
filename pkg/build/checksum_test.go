@@ -3,11 +3,10 @@ package build
 import (
 	"testing"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/core"
+	"dappco.re/go/io"
+	"os"
 )
 
 // setupChecksumTestFile creates a test file with known content.
@@ -17,7 +16,9 @@ func setupChecksumTestFile(t *testing.T, content string) string {
 	dir := t.TempDir()
 	path := ax.Join(dir, "testfile")
 	err := ax.WriteFile(path, []byte(content), 0644)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	return path
 }
@@ -36,8 +37,13 @@ func TestChecksum_Checksum_Good(t *testing.T) {
 		}
 
 		result, err := Checksum(fs, artifact)
-		require.NoError(t, err)
-		assert.Equal(t, expectedChecksum, result.Checksum)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(expectedChecksum, result.Checksum) {
+			t.Fatalf("want %v, got %v", expectedChecksum, result.Checksum)
+		}
+
 	})
 
 	t.Run("preserves artifact fields", func(t *testing.T) {
@@ -50,12 +56,22 @@ func TestChecksum_Checksum_Good(t *testing.T) {
 		}
 
 		result, err := Checksum(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(path, result.Path) {
+			t.Fatalf("want %v, got %v", path, result.Path)
+		}
+		if !stdlibAssertEqual("darwin", result.OS) {
+			t.Fatalf("want %v, got %v", "darwin", result.OS)
+		}
+		if !stdlibAssertEqual("arm64", result.Arch) {
+			t.Fatalf("want %v, got %v", "arm64", result.Arch)
+		}
+		if stdlibAssertEmpty(result.Checksum) {
+			t.Fatal("expected non-empty")
+		}
 
-		assert.Equal(t, path, result.Path)
-		assert.Equal(t, "darwin", result.OS)
-		assert.Equal(t, "arm64", result.Arch)
-		assert.NotEmpty(t, result.Checksum)
 	})
 
 	t.Run("produces 64 character hex string", func(t *testing.T) {
@@ -64,10 +80,16 @@ func TestChecksum_Checksum_Good(t *testing.T) {
 		artifact := Artifact{Path: path, OS: "linux", Arch: "amd64"}
 
 		result, err := Checksum(fs, artifact)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// SHA256 produces 32 bytes = 64 hex characters
-		assert.Len(t, result.Checksum, 64)
+				// SHA256 produces 32 bytes = 64 hex characters
+				err)
+		}
+		if len(result.Checksum) != 64 {
+			t.Fatalf("want len %v, got %v", 64, len(result.Checksum))
+		}
+
 	})
 
 	t.Run("different content produces different checksums", func(t *testing.T) {
@@ -75,12 +97,18 @@ func TestChecksum_Checksum_Good(t *testing.T) {
 		path2 := setupChecksumTestFile(t, "content two")
 
 		result1, err := Checksum(fs, Artifact{Path: path1, OS: "linux", Arch: "amd64"})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result2, err := Checksum(fs, Artifact{Path: path2, OS: "linux", Arch: "amd64"})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stdlibAssertEqual(result1.Checksum, result2.Checksum) {
+			t.Fatalf("did not want %v", result2.Checksum)
+		}
 
-		assert.NotEqual(t, result1.Checksum, result2.Checksum)
 	})
 
 	t.Run("same content produces same checksum", func(t *testing.T) {
@@ -89,12 +117,18 @@ func TestChecksum_Checksum_Good(t *testing.T) {
 		path2 := setupChecksumTestFile(t, content)
 
 		result1, err := Checksum(fs, Artifact{Path: path1, OS: "linux", Arch: "amd64"})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		result2, err := Checksum(fs, Artifact{Path: path2, OS: "linux", Arch: "amd64"})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(result1.Checksum, result2.Checksum) {
+			t.Fatalf("want %v, got %v", result1.Checksum, result2.Checksum)
+		}
 
-		assert.Equal(t, result1.Checksum, result2.Checksum)
 	})
 }
 
@@ -108,9 +142,16 @@ func TestChecksum_Checksum_Bad(t *testing.T) {
 		}
 
 		result, err := Checksum(fs, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "artifact path is empty")
-		assert.Empty(t, result.Checksum)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "artifact path is empty") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "artifact path is empty")
+		}
+		if !stdlibAssertEmpty(result.Checksum) {
+			t.Fatalf("expected empty, got %v", result.Checksum)
+		}
+
 	})
 
 	t.Run("returns error for non-existent file", func(t *testing.T) {
@@ -121,9 +162,16 @@ func TestChecksum_Checksum_Bad(t *testing.T) {
 		}
 
 		result, err := Checksum(fs, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to open file")
-		assert.Empty(t, result.Checksum)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to open file") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to open file")
+		}
+		if !stdlibAssertEmpty(result.Checksum) {
+			t.Fatalf("expected empty, got %v", result.Checksum)
+		}
+
 	})
 }
 
@@ -143,27 +191,50 @@ func TestChecksum_ChecksumAll_Good(t *testing.T) {
 		}
 
 		results, err := ChecksumAll(fs, artifacts)
-		require.NoError(t, err)
-		require.Len(t, results, 3)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) != 3 {
+			t.Fatalf("want len %v, got %v", 3, len(results))
+		}
 
 		for i, result := range results {
-			assert.Equal(t, artifacts[i].Path, result.Path)
-			assert.Equal(t, artifacts[i].OS, result.OS)
-			assert.Equal(t, artifacts[i].Arch, result.Arch)
-			assert.NotEmpty(t, result.Checksum)
+			if !stdlibAssertEqual(artifacts[i].Path, result.Path) {
+				t.Fatalf("want %v, got %v", artifacts[i].Path, result.Path)
+			}
+			if !stdlibAssertEqual(artifacts[i].OS, result.OS) {
+				t.Fatalf("want %v, got %v", artifacts[i].OS, result.OS)
+			}
+			if !stdlibAssertEqual(artifacts[i].Arch, result.Arch) {
+				t.Fatalf("want %v, got %v", artifacts[i].Arch, result.Arch)
+			}
+			if stdlibAssertEmpty(result.Checksum) {
+				t.Fatal("expected non-empty")
+			}
+
 		}
 	})
 
 	t.Run("returns nil for empty slice", func(t *testing.T) {
 		results, err := ChecksumAll(fs, []Artifact{})
-		assert.NoError(t, err)
-		assert.Nil(t, results)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertNil(results) {
+			t.Fatalf("expected nil, got %v", results)
+		}
+
 	})
 
 	t.Run("returns nil for nil slice", func(t *testing.T) {
 		results, err := ChecksumAll(fs, nil)
-		assert.NoError(t, err)
-		assert.Nil(t, results)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertNil(results) {
+			t.Fatalf("expected nil, got %v", results)
+		}
+
 	})
 }
 
@@ -178,10 +249,18 @@ func TestChecksum_ChecksumAll_Bad(t *testing.T) {
 		}
 
 		results, err := ChecksumAll(fs, artifacts)
-		assert.Error(t, err)
-		// Should have the first successful result
-		assert.Len(t, results, 1)
-		assert.NotEmpty(t, results[0].Checksum)
+		if err == nil {
+			t.Fatal("expected error")
+
+			// Should have the first successful result
+		}
+		if len(results) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(results))
+		}
+		if stdlibAssertEmpty(results[0].Checksum) {
+			t.Fatal("expected non-empty")
+		}
+
 	})
 }
 
@@ -197,18 +276,32 @@ func TestChecksum_WriteChecksumFile_Good(t *testing.T) {
 		}
 
 		err := WriteChecksumFile(fs, artifacts, checksumPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Read and verify content
+				// Read and verify content
+				err)
+		}
+
 		content, err := ax.ReadFile(checksumPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		lines := core.Split(core.Trim(string(content)), "\n")
-		require.Len(t, lines, 2)
+		if len(lines) != 2 {
+			t.Fatalf("want len %v, got %v",
 
-		// Lines should be sorted alphabetically
-		assert.Equal(t, "789xyz000111  app_darwin_arm64.tar.gz", lines[0])
-		assert.Equal(t, "abc123def456  app_linux_amd64.tar.gz", lines[1])
+				// Lines should be sorted alphabetically
+				2, len(lines))
+		}
+		if !stdlibAssertEqual("789xyz000111  app_darwin_arm64.tar.gz", lines[0]) {
+			t.Fatalf("want %v, got %v", "789xyz000111  app_darwin_arm64.tar.gz", lines[0])
+		}
+		if !stdlibAssertEqual("abc123def456  app_linux_amd64.tar.gz", lines[1]) {
+			t.Fatalf("want %v, got %v", "abc123def456  app_linux_amd64.tar.gz", lines[1])
+		}
+
 	})
 
 	t.Run("creates parent directories", func(t *testing.T) {
@@ -220,8 +313,13 @@ func TestChecksum_WriteChecksumFile_Good(t *testing.T) {
 		}
 
 		err := WriteChecksumFile(fs, artifacts, checksumPath)
-		require.NoError(t, err)
-		assert.FileExists(t, checksumPath)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, err := os.Stat(checksumPath); err != nil {
+			t.Fatalf("expected file to exist: %v", checksumPath)
+		}
+
 	})
 
 	t.Run("does nothing for empty artifacts", func(t *testing.T) {
@@ -229,10 +327,16 @@ func TestChecksum_WriteChecksumFile_Good(t *testing.T) {
 		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
 
 		err := WriteChecksumFile(fs, []Artifact{}, checksumPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// File should not exist
-		assert.False(t, ax.Exists(checksumPath))
+				// File should not exist
+				err)
+		}
+		if ax.Exists(checksumPath) {
+			t.Fatal("expected false")
+		}
+
 	})
 
 	t.Run("does nothing for nil artifacts", func(t *testing.T) {
@@ -240,7 +344,10 @@ func TestChecksum_WriteChecksumFile_Good(t *testing.T) {
 		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
 
 		err := WriteChecksumFile(fs, nil, checksumPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	})
 
 	t.Run("uses only basename for filenames", func(t *testing.T) {
@@ -252,33 +359,51 @@ func TestChecksum_WriteChecksumFile_Good(t *testing.T) {
 		}
 
 		err := WriteChecksumFile(fs, artifacts, checksumPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(checksumPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v",
 
-		// Should only contain the basename
-		assert.Contains(t, string(content), "myapp_linux_amd64.tar.gz")
-		assert.NotContains(t, string(content), "/some/deep/nested/path/")
+				// Should only contain the basename
+				err)
+		}
+		if !stdlibAssertContains(string(content), "myapp_linux_amd64.tar.gz") {
+			t.Fatalf("expected %v to contain %v", string(content), "myapp_linux_amd64.tar.gz")
+		}
+		if stdlibAssertContains(string(content), "/some/deep/nested/path/") {
+			t.Fatalf("expected %v not to contain %v", string(content), "/some/deep/nested/path/")
+		}
+
 	})
 
 	t.Run("uses relative paths for nested artifacts inside the output tree", func(t *testing.T) {
 		dir := t.TempDir()
 		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
 		artifactPath := ax.Join(dir, "go", "myapp_linux_amd64.tar.gz")
-		require.NoError(t, ax.MkdirAll(ax.Dir(artifactPath), 0o755))
+		if err := ax.MkdirAll(ax.Dir(artifactPath), 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		artifacts := []Artifact{
 			{Path: artifactPath, Checksum: "checksum123", OS: "linux", Arch: "amd64"},
 		}
 
 		err := WriteChecksumFile(fs, artifacts, checksumPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		content, err := ax.ReadFile(checksumPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(string(content), "go/myapp_linux_amd64.tar.gz") {
+			t.Fatalf("expected %v to contain %v", string(content), "go/myapp_linux_amd64.tar.gz")
+		}
 
-		assert.Contains(t, string(content), "go/myapp_linux_amd64.tar.gz")
 	})
 }
 
@@ -293,7 +418,12 @@ func TestChecksum_WriteChecksumFile_Bad(t *testing.T) {
 		}
 
 		err := WriteChecksumFile(fs, artifacts, checksumPath)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "has no checksum")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "has no checksum") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "has no checksum")
+		}
+
 	})
 }

@@ -2,13 +2,8 @@ package buildcmd
 
 import (
 	"context"
-	"crypto/sha256"
-	// Note: AX-6 — core has no exported HexEncode; cache signatures require stable SHA-256 hex output.
-	"encoding/hex"
-	// Note: AX-6 — coreio Medium exposes fs.FileMode metadata that must be preserved for copied artifacts.
-	"io/fs"
-	"runtime"
-	"sort"
+	"io/fs" // AX-6: fs.FileMode is structural for core/io.Medium.WriteMode.
+	"slices"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
@@ -255,7 +250,7 @@ func cachedImageArtifacts(imageBuilder *builders.LinuxKitImageBuilder, outputDir
 		artifacts = append(artifacts, build.Artifact{
 			Path: imageBuilder.ArtifactPath(outputDir, imageName, format),
 			OS:   "linux",
-			Arch: runtime.GOARCH,
+			Arch: core.Env("ARCH"),
 		})
 	}
 	return artifacts
@@ -317,44 +312,31 @@ func normalizeImageVersionTag(version string) string {
 	version = core.Replace(version, ":", "-")
 	version = core.Replace(version, " ", "-")
 	version = core.Replace(version, "\t", "-")
-	return trimImageVersionTagBoundary(version)
+	return trimImageVersionTagEdges(version)
 }
 
-func trimImageVersionTagBoundary(version string) string {
-	for version != "" {
-		switch {
-		case core.HasPrefix(version, "-"):
-			version = core.TrimPrefix(version, "-")
-		case core.HasPrefix(version, "."):
-			version = core.TrimPrefix(version, ".")
-		case core.HasSuffix(version, "-"):
-			version = core.TrimSuffix(version, "-")
-		case core.HasSuffix(version, "."):
-			version = core.TrimSuffix(version, ".")
-		default:
-			return version
-		}
+func trimImageVersionTagEdges(version string) string {
+	start := 0
+	for start < len(version) && isImageVersionTagEdge(version[start]) {
+		start++
 	}
-	return version
+
+	end := len(version)
+	for end > start && isImageVersionTagEdge(version[end-1]) {
+		end--
+	}
+
+	return version[start:end]
+}
+
+func isImageVersionTagEdge(ch byte) bool {
+	return ch == '-' || ch == '.'
 }
 
 func copyImageArtifact(filesystem coreio.Medium, sourcePath, destinationPath string) error {
-	file, err := filesystem.Open(sourcePath)
+	content, err := filesystem.Read(sourcePath)
 	if err != nil {
 		return err
-	}
-
-	readResult := core.ReadAll(file)
-	if !readResult.OK {
-		if err, ok := readResult.Value.(error); ok {
-			return err
-		}
-		return coreerr.E("build.copyImageArtifact", "failed to read image artifact", nil)
-	}
-
-	content, ok := readResult.Value.(string)
-	if !ok {
-		return coreerr.E("build.copyImageArtifact", "failed to read image artifact", nil)
 	}
 
 	mode := fs.FileMode(0o644)
@@ -408,7 +390,7 @@ func resolveOCIImageReference(registry, imageName, version string) string {
 		tag = "dev"
 	}
 
-	registry = core.Trim(trimTrailingSlashes(registry))
+	registry = trimTrailingImageRegistrySlashes(core.Trim(registry))
 	if registry == "" {
 		return imageName + ":" + tag
 	}
@@ -416,11 +398,11 @@ func resolveOCIImageReference(registry, imageName, version string) string {
 	return registry + "/" + imageName + ":" + tag
 }
 
-func trimTrailingSlashes(value string) string {
-	for core.HasSuffix(value, "/") {
-		value = core.TrimSuffix(value, "/")
+func trimTrailingImageRegistrySlashes(registry string) string {
+	for core.HasSuffix(registry, "/") {
+		registry = core.TrimSuffix(registry, "/")
 	}
-	return value
+	return registry
 }
 
 func loadOCIImageArchive(ctx context.Context, projectDir, dockerCommand, artifactPath string) (string, error) {
@@ -545,8 +527,7 @@ func imageBuildCacheSignature(metadata imageBuildCacheMetadata) string {
 		metadata.Registry,
 	}
 
-	sum := sha256.Sum256([]byte(core.Join("\n", parts...)))
-	return hex.EncodeToString(sum[:])
+	return core.SHA256Hex([]byte(core.Join("\n", parts...)))
 }
 
 func normalizeImageCacheValues(values []string) []string {
@@ -568,6 +549,14 @@ func normalizeImageCacheValues(values []string) []string {
 		result = append(result, value)
 	}
 
-	sort.Strings(result)
+	slices.SortFunc(result, func(a, b string) int {
+		if a < b {
+			return -1
+		}
+		if a > b {
+			return 1
+		}
+		return 0
+	})
 	return result
 }

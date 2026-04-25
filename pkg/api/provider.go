@@ -6,15 +6,9 @@
 package api
 
 import (
+	"cmp"
 	"context"
-	// Note: AX-6 — fs.ErrNotExist is the public sentinel asserted by provider tests.
-	"io/fs"
-	// Note: AX-6 — gin handlers require standard HTTP status constants at the API boundary.
-	"net/http"
-	// Note: AX-6 — build signing behavior is gated by the current Go target OS.
-	"runtime"
-	// Note: AX-6 — artifact responses must be deterministically ordered before JSON output.
-	"sort"
+	"slices"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/projectdetect"
@@ -49,6 +43,13 @@ type buildRequest struct {
 	Checksum *bool `json:"checksum,omitempty"`
 	Package  *bool `json:"package,omitempty"`
 }
+
+const (
+	statusOK                  = 200
+	statusBadRequest          = 400
+	statusInternalServerError = 500
+	statusServiceUnavailable  = 503
+)
 
 var (
 	providerResolveProjectType = resolveProjectType
@@ -309,19 +310,19 @@ func (p *BuildProvider) resolveDir() (string, error) {
 func (p *BuildProvider) getConfig(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	cfg, err := build.LoadConfig(p.medium, dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
 	}
 
 	hasConfig := build.ConfigExists(p.medium, dir)
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"config":     cfg,
 		"has_config": hasConfig,
 		"path":       build.ConfigPath(dir),
@@ -331,25 +332,25 @@ func (p *BuildProvider) getConfig(c *gin.Context) {
 func (p *BuildProvider) discoverProject(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	cfg, err := build.LoadConfig(p.medium, dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
 	}
 
 	discovery, err := build.DiscoverFull(p.medium, dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("discover_failed", err.Error()))
 		return
 	}
 	options := build.ComputeOptions(cfg, discovery)
 	setupPlan, err := build.ComputeSetupPlan(p.medium, dir, cfg, discovery)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("setup_plan_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("setup_plan_failed", err.Error()))
 		return
 	}
 
@@ -364,7 +365,7 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		primary = string(discovery.Types[0])
 	}
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"types":                     typeStrings,
 		"configured_type":           discovery.ConfiguredType,
 		"configured_build_type":     discovery.ConfiguredBuildType,
@@ -429,13 +430,13 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	request, err := decodeBuildRequest(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
 		return
 	}
 	archiveOutput, checksumOutput := resolveBuildOutputs(request)
@@ -445,19 +446,19 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	if hasBuildConfig {
 		cfg, err = build.LoadConfig(p.medium, dir)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+			c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
 			return
 		}
 	}
 
 	projectTypes, err := build.Discover(p.medium, dir)
 	if err != nil || len(projectTypes) == 0 {
-		c.JSON(http.StatusBadRequest, api.Fail("no_project", "no buildable project detected"))
+		c.JSON(statusBadRequest, api.Fail("no_project", "no buildable project detected"))
 		return
 	}
 	for _, projectType := range projectTypes {
 		if _, err := providerGetBuilder(projectType); err != nil {
-			c.JSON(http.StatusBadRequest, api.Fail("unsupported_type", err.Error()))
+			c.JSON(statusBadRequest, api.Fail("unsupported_type", err.Error()))
 			return
 		}
 	}
@@ -480,7 +481,7 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		BuildConfig: cfg,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("build_prepare_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("build_prepare_failed", err.Error()))
 		return
 	}
 
@@ -499,13 +500,14 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	result, err := pipeline.Run(c.Request.Context(), plan)
 	if err != nil {
 		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, api.Fail("build_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("build_failed", err.Error()))
 		return
 	}
 	artifacts := result.Artifacts
 
 	signCfg := plan.BuildConfig.Sign
-	if signCfg.Enabled && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
+	goos := currentGOOS()
+	if signCfg.Enabled && (goos == "darwin" || goos == "windows") {
 		signingArtifacts := make([]signing.Artifact, len(artifacts))
 		for i, artifact := range artifacts {
 			signingArtifacts[i] = signing.Artifact{
@@ -517,14 +519,14 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 
 		if err := providerSignBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts); err != nil {
 			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(http.StatusInternalServerError, api.Fail("sign_failed", err.Error()))
+			c.JSON(statusInternalServerError, api.Fail("sign_failed", err.Error()))
 			return
 		}
 
-		if runtime.GOOS == "darwin" && signCfg.MacOS.Notarize {
+		if goos == "darwin" && signCfg.MacOS.Notarize {
 			if err := providerNotarizeBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts); err != nil {
 				p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-				c.JSON(http.StatusInternalServerError, api.Fail("notarize_failed", err.Error()))
+				c.JSON(statusInternalServerError, api.Fail("notarize_failed", err.Error()))
 				return
 			}
 		}
@@ -542,14 +544,14 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		archiveFormat, err := build.ParseArchiveFormat(plan.BuildConfig.Build.ArchiveFormat)
 		if err != nil {
 			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(http.StatusBadRequest, api.Fail("archive_format_invalid", err.Error()))
+			c.JSON(statusBadRequest, api.Fail("archive_format_invalid", err.Error()))
 			return
 		}
 
 		finalArtifacts, err = build.ArchiveAllWithFormat(p.medium, finalArtifacts, archiveFormat)
 		if err != nil {
 			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(http.StatusInternalServerError, api.Fail("archive_failed", err.Error()))
+			c.JSON(statusInternalServerError, api.Fail("archive_failed", err.Error()))
 			return
 		}
 
@@ -560,21 +562,21 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		checksummed, err := build.ChecksumAll(p.medium, finalArtifacts)
 		if err != nil {
 			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(http.StatusInternalServerError, api.Fail("checksum_failed", err.Error()))
+			c.JSON(statusInternalServerError, api.Fail("checksum_failed", err.Error()))
 			return
 		}
 
 		checksumPath := ax.Join(plan.OutputDir, "CHECKSUMS.txt")
 		if err := build.WriteChecksumFile(p.medium, checksummed, checksumPath); err != nil {
 			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(http.StatusInternalServerError, api.Fail("checksum_write_failed", err.Error()))
+			c.JSON(statusInternalServerError, api.Fail("checksum_write_failed", err.Error()))
 			return
 		}
 
 		if signCfg.Enabled {
 			if err := providerSignChecksums(c.Request.Context(), p.medium, signCfg, checksumPath); err != nil {
 				p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-				c.JSON(http.StatusInternalServerError, api.Fail("checksum_sign_failed", err.Error()))
+				c.JSON(statusInternalServerError, api.Fail("checksum_sign_failed", err.Error()))
 				return
 			}
 		}
@@ -590,36 +592,22 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	})
 
 	response["artifacts"] = finalArtifacts
-	c.JSON(http.StatusOK, api.OK(response))
+	c.JSON(statusOK, api.OK(response))
 }
 
 func decodeBuildRequest(c *gin.Context) (buildRequest, error) {
 	var request buildRequest
-	if c == nil || c.Request == nil || c.Request.Body == nil {
+	if c == nil || c.Request == nil || c.Request.Body == nil || c.Request.ContentLength == 0 {
 		return request, nil
 	}
 	body, err := c.GetRawData()
 	if err != nil {
 		return buildRequest{}, err
 	}
-	if len(core.Trim(string(body))) == 0 {
-		return request, nil
-	}
-	if err := decodeProviderJSON(body, &request); err != nil {
+	if err := decodeJSONBody(body, &request); err != nil {
 		return buildRequest{}, err
 	}
 	return request, nil
-}
-
-func decodeProviderJSON(data []byte, target any) error {
-	result := core.JSONUnmarshal(data, target)
-	if result.OK {
-		return nil
-	}
-	if err, ok := result.Value.(error); ok {
-		return err
-	}
-	return coreerr.E("api.decodeProviderJSON", "failed to decode JSON", nil)
 }
 
 func resolveBuildOutputs(request buildRequest) (bool, bool) {
@@ -667,13 +655,13 @@ type artifactInfo struct {
 func (p *BuildProvider) listArtifacts(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	distDir := ax.Join(dir, "dist")
 	if !p.medium.IsDir(distDir) {
-		c.JSON(http.StatusOK, api.OK(map[string]any{
+		c.JSON(statusOK, api.OK(map[string]any{
 			"artifacts": []artifactInfo{},
 			"exists":    false,
 		}))
@@ -682,19 +670,19 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 
 	artifacts, err := p.collectArtifacts(distDir, distDir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("list_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("list_failed", err.Error()))
 		return
 	}
 
-	sort.Slice(artifacts, func(i, j int) bool {
-		return artifacts[i].Name < artifacts[j].Name
+	slices.SortFunc(artifacts, func(a, b artifactInfo) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	if artifacts == nil {
 		artifacts = []artifactInfo{}
 	}
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"artifacts": artifacts,
 		"exists":    true,
 	}))
@@ -743,17 +731,17 @@ func (p *BuildProvider) collectArtifacts(distDir, currentDir string) ([]artifact
 func (p *BuildProvider) getVersion(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	version, err := release.DetermineVersionWithContext(c.Request.Context(), dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("version_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("version_failed", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"version": version,
 	}))
 }
@@ -761,7 +749,7 @@ func (p *BuildProvider) getVersion(c *gin.Context) {
 func (p *BuildProvider) getChangelog(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
@@ -771,11 +759,11 @@ func (p *BuildProvider) getChangelog(c *gin.Context) {
 
 	changelog, err := release.GenerateWithContext(c.Request.Context(), dir, fromRef, toRef)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("changelog_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("changelog_failed", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"changelog": changelog,
 	}))
 }
@@ -783,13 +771,13 @@ func (p *BuildProvider) getChangelog(c *gin.Context) {
 func (p *BuildProvider) triggerRelease(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	cfg, err := providerLoadReleaseConfig(dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
 	}
 
@@ -802,7 +790,7 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 
 	rel, err := providerRunRelease(c.Request.Context(), cfg, dryRun)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("release_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("release_failed", err.Error()))
 		return
 	}
 
@@ -812,7 +800,7 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 		"dry_run":        dryRun,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"version":   rel.Version,
 		"artifacts": rel.Artifacts,
 		"changelog": rel.Changelog,
@@ -906,31 +894,29 @@ func (r ReleaseWorkflowRequest) resolveOutputPath(dir string, medium io.Medium) 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	var request ReleaseWorkflowRequest
 	body, err := c.GetRawData()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
 		return
 	}
-	if len(core.Trim(string(body))) > 0 {
-		if err := decodeProviderJSON(body, &request); err != nil {
-			c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
-			return
-		}
+	if err := decodeJSONBody(body, &request); err != nil {
+		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
+		return
 	}
 
 	workflowPath, err := request.resolveWorkflowTargetPath(dir, p.medium)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
 		return
 	}
 
 	if err := build.WriteReleaseWorkflow(p.medium, workflowPath); err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
 		return
 	}
 
@@ -939,7 +925,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		"generated": true,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"generated": true,
 		"path":      workflowPath,
 	}))
@@ -952,17 +938,17 @@ func (p *BuildProvider) getSdkDiff(c *gin.Context) {
 	revisionPath := c.Query("revision")
 
 	if basePath == "" || revisionPath == "" {
-		c.JSON(http.StatusBadRequest, api.Fail("missing_params", "base and revision query parameters are required"))
+		c.JSON(statusBadRequest, api.Fail("missing_params", "base and revision query parameters are required"))
 		return
 	}
 
 	result, err := sdk.Diff(basePath, revisionPath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("diff_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("diff_failed", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, api.OK(result))
+	c.JSON(statusOK, api.OK(result))
 }
 
 type sdkGenerateRequest struct {
@@ -972,7 +958,7 @@ type sdkGenerateRequest struct {
 func (p *BuildProvider) generateSdk(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
@@ -984,7 +970,7 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 
 	sdkCfg, err := sdkcfg.LoadProjectConfig(p.medium, dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
 	}
 
@@ -998,7 +984,7 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("sdk_generate_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("sdk_generate_failed", err.Error()))
 		return
 	}
 
@@ -1006,7 +992,7 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 		"language": req.Language,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"generated": true,
 		"language":  req.Language,
 	}))
@@ -1014,7 +1000,7 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 
 func (p *BuildProvider) streamEvents(c *gin.Context) {
 	if p.hub == nil {
-		c.JSON(http.StatusServiceUnavailable, api.Fail("event_hub_unavailable", "build event stream is unavailable"))
+		c.JSON(statusServiceUnavailable, api.Fail("event_hub_unavailable", "build event stream is unavailable"))
 		return
 	}
 
@@ -1027,9 +1013,31 @@ func (p *BuildProvider) streamEvents(c *gin.Context) {
 func getBuilder(projectType build.ProjectType) (build.Builder, error) {
 	builder, err := builders.ResolveBuilder(projectType)
 	if err != nil {
-		return nil, fs.ErrNotExist
+		return nil, err
 	}
 	return builder, nil
+}
+
+func currentGOOS() string {
+	if goos := core.Env("GOOS"); goos != "" {
+		return goos
+	}
+	return core.Env("OS")
+}
+
+func decodeJSONBody(body []byte, target any) error {
+	if core.Trim(string(body)) == "" {
+		return nil
+	}
+
+	result := core.JSONUnmarshalString(string(body), target)
+	if result.OK {
+		return nil
+	}
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return coreerr.E("api.decodeJSONBody", "invalid JSON", nil)
 }
 
 // emitEvent sends a WS event if the hub is available.

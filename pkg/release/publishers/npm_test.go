@@ -4,16 +4,16 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core/io"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/io"
 )
 
 func TestNpm_NpmPublisherName_Good(t *testing.T) {
 	t.Run("returns npm", func(t *testing.T) {
 		p := NewNpmPublisher()
-		assert.Equal(t, "npm", p.Name())
+		if !stdlibAssertEqual("npm", p.Name()) {
+			t.Fatalf("want %v, got %v", "npm", p.Name())
+		}
+
 	})
 }
 
@@ -24,9 +24,13 @@ func TestNpm_NpmPublisherParseConfig_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "npm"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Package) {
+			t.Fatalf("expected empty, got %v", cfg.Package)
+		}
+		if !stdlibAssertEqual("public", cfg.Access) {
+			t.Fatalf("want %v, got %v", "public", cfg.Access)
+		}
 
-		assert.Empty(t, cfg.Package)
-		assert.Equal(t, "public", cfg.Access)
 	})
 
 	t.Run("parses package and access from extended config", func(t *testing.T) {
@@ -39,9 +43,13 @@ func TestNpm_NpmPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEqual("@myorg/mypackage", cfg.Package) {
+			t.Fatalf("want %v, got %v", "@myorg/mypackage", cfg.Package)
+		}
+		if !stdlibAssertEqual("restricted", cfg.Access) {
+			t.Fatalf("want %v, got %v", "restricted", cfg.Access)
+		}
 
-		assert.Equal(t, "@myorg/mypackage", cfg.Package)
-		assert.Equal(t, "restricted", cfg.Access)
 	})
 
 	t.Run("keeps default access when not specified", func(t *testing.T) {
@@ -53,9 +61,13 @@ func TestNpm_NpmPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEqual("@myorg/mypackage", cfg.Package) {
+			t.Fatalf("want %v, got %v", "@myorg/mypackage", cfg.Package)
+		}
+		if !stdlibAssertEqual("public", cfg.Access) {
+			t.Fatalf("want %v, got %v", "public", cfg.Access)
+		}
 
-		assert.Equal(t, "@myorg/mypackage", cfg.Package)
-		assert.Equal(t, "public", cfg.Access)
 	})
 
 	t.Run("handles nil extended config", func(t *testing.T) {
@@ -65,9 +77,13 @@ func TestNpm_NpmPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Package) {
+			t.Fatalf("expected empty, got %v", cfg.Package)
+		}
+		if !stdlibAssertEqual("public", cfg.Access) {
+			t.Fatalf("want %v, got %v", "public", cfg.Access)
+		}
 
-		assert.Empty(t, cfg.Package)
-		assert.Equal(t, "public", cfg.Access)
 	})
 
 	t.Run("handles empty strings in config", func(t *testing.T) {
@@ -80,9 +96,13 @@ func TestNpm_NpmPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Package) {
+			t.Fatalf("expected empty, got %v", cfg.Package)
+		}
+		if !stdlibAssertEqual("public", cfg.Access) {
+			t.Fatalf("want %v, got %v", "public", cfg.Access)
+		}
 
-		assert.Empty(t, cfg.Package)
-		assert.Equal(t, "public", cfg.Access)
 	})
 }
 
@@ -102,15 +122,31 @@ func TestNpm_NpmPublisherRenderTemplate_Good(t *testing.T) {
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/npm/package.json.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, `"name": "@myorg/mycli"`) {
+			t.Fatalf("expected %v to contain %v", result, `"name": "@myorg/mycli"`)
+		}
+		if !stdlibAssertContains(result, `"version": "1.2.3"`) {
+			t.Fatalf("expected %v to contain %v", result, `"version": "1.2.3"`)
+		}
+		if !stdlibAssertContains(result, `"description": "My awesome CLI"`) {
+			t.Fatalf("expected %v to contain %v", result, `"description": "My awesome CLI"`)
+		}
+		if !stdlibAssertContains(result, `"license": "MIT"`) {
+			t.Fatalf("expected %v to contain %v", result, `"license": "MIT"`)
+		}
+		if !stdlibAssertContains(result, "owner/myapp") {
+			t.Fatalf("expected %v to contain %v", result, "owner/myapp")
+		}
+		if !stdlibAssertContains(result, `"myapp": "./bin/run.js"`) {
+			t.Fatalf("expected %v to contain %v", result, `"myapp": "./bin/run.js"`)
+		}
+		if !stdlibAssertContains(result, `"access": "public"`) {
+			t.Fatalf("expected %v to contain %v", result, `"access": "public"`)
+		}
 
-		assert.Contains(t, result, `"name": "@myorg/mycli"`)
-		assert.Contains(t, result, `"version": "1.2.3"`)
-		assert.Contains(t, result, `"description": "My awesome CLI"`)
-		assert.Contains(t, result, `"license": "MIT"`)
-		assert.Contains(t, result, "owner/myapp")
-		assert.Contains(t, result, `"myapp": "./bin/run.js"`)
-		assert.Contains(t, result, `"access": "public"`)
 	})
 
 	t.Run("renders restricted access correctly", func(t *testing.T) {
@@ -126,9 +162,13 @@ func TestNpm_NpmPublisherRenderTemplate_Good(t *testing.T) {
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/npm/package.json.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, `"access": "restricted"`) {
+			t.Fatalf("expected %v to contain %v", result, `"access": "restricted"`)
+		}
 
-		assert.Contains(t, result, `"access": "restricted"`)
 	})
 
 	t.Run("renders install.js with resolved release asset names", func(t *testing.T) {
@@ -151,12 +191,22 @@ func TestNpm_NpmPublisherRenderTemplate_Good(t *testing.T) {
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/npm/install.js.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, `const CHECKSUM_FILE = "CHECKSUMS.txt";`) {
+			t.Fatalf("expected %v to contain %v", result, `const CHECKSUM_FILE = "CHECKSUMS.txt";`)
+		}
+		if !stdlibAssertContains(result, `myapp_linux_amd64.tar.gz`) {
+			t.Fatalf("expected %v to contain %v", result, `myapp_linux_amd64.tar.gz`)
+		}
+		if !stdlibAssertContains(result, `myapp_windows_amd64.zip`) {
+			t.Fatalf("expected %v to contain %v", result, `myapp_windows_amd64.zip`)
+		}
+		if stdlibAssertContains(result, `/checksums.txt`) {
+			t.Fatalf("expected %v not to contain %v", result, `/checksums.txt`)
+		}
 
-		assert.Contains(t, result, `const CHECKSUM_FILE = "CHECKSUMS.txt";`)
-		assert.Contains(t, result, `myapp_linux_amd64.tar.gz`)
-		assert.Contains(t, result, `myapp_windows_amd64.zip`)
-		assert.NotContains(t, result, `/checksums.txt`)
 	})
 }
 
@@ -166,8 +216,13 @@ func TestNpm_NpmPublisherRenderTemplate_Bad(t *testing.T) {
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := npmTemplateData{}
 		_, err := p.renderTemplate(io.Local, "templates/npm/nonexistent.tmpl", data)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to read template")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		}
+
 	})
 }
 
@@ -187,17 +242,37 @@ func TestNpm_NpmPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: npm Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: npm Publish")
+		}
+		if !stdlibAssertContains(output, "Package:    @myorg/mycli") {
+			t.Fatalf("expected %v to contain %v", output, "Package:    @myorg/mycli")
+		}
+		if !stdlibAssertContains(output, "Version:    1.0.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    1.0.0")
+		}
+		if !stdlibAssertContains(output, "Access:     public") {
+			t.Fatalf("expected %v to contain %v", output, "Access:     public")
+		}
+		if !stdlibAssertContains(output, "Repository: owner/repo") {
+			t.Fatalf("expected %v to contain %v", output, "Repository: owner/repo")
+		}
+		if !stdlibAssertContains(output, "Binary:     mycli") {
+			t.Fatalf("expected %v to contain %v", output, "Binary:     mycli")
+		}
+		if !stdlibAssertContains(output, "Generated package.json:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated package.json:")
+		}
+		if !stdlibAssertContains(output, "Would run: npm publish --access public") {
+			t.Fatalf("expected %v to contain %v", output, "Would run: npm publish --access public")
+		}
+		if !stdlibAssertContains(output, "END DRY RUN") {
+			t.Fatalf("expected %v to contain %v", output, "END DRY RUN")
+		}
 
-		assert.Contains(t, output, "DRY RUN: npm Publish")
-		assert.Contains(t, output, "Package:    @myorg/mycli")
-		assert.Contains(t, output, "Version:    1.0.0")
-		assert.Contains(t, output, "Access:     public")
-		assert.Contains(t, output, "Repository: owner/repo")
-		assert.Contains(t, output, "Binary:     mycli")
-		assert.Contains(t, output, "Generated package.json:")
-		assert.Contains(t, output, "Would run: npm publish --access public")
-		assert.Contains(t, output, "END DRY RUN")
 	})
 
 	t.Run("shows restricted access correctly", func(t *testing.T) {
@@ -213,10 +288,16 @@ func TestNpm_NpmPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Access:     restricted") {
+			t.Fatalf("expected %v to contain %v", output, "Access:     restricted")
+		}
+		if !stdlibAssertContains(output, "Would run: npm publish --access restricted") {
+			t.Fatalf("expected %v to contain %v", output, "Would run: npm publish --access restricted")
+		}
 
-		assert.Contains(t, output, "Access:     restricted")
-		assert.Contains(t, output, "Would run: npm publish --access restricted")
 	})
 }
 
@@ -233,8 +314,13 @@ func TestNpm_NpmPublisherPublish_Bad(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "package name is required")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "package name is required") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "package name is required")
+		}
+
 	})
 
 	t.Run("fails when NPM_TOKEN not set in non-dry-run", func(t *testing.T) {
@@ -254,8 +340,13 @@ func TestNpm_NpmPublisherPublish_Bad(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "NPM_TOKEN environment variable is required")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "NPM_TOKEN environment variable is required") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "NPM_TOKEN environment variable is required")
+		}
+
 	})
 }
 
@@ -266,9 +357,13 @@ func TestNpm_NpmConfigDefaults_Good(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Package) {
+			t.Fatalf("expected empty, got %v", cfg.Package)
+		}
+		if !stdlibAssertEqual("public", cfg.Access) {
+			t.Fatalf("want %v, got %v", "public", cfg.Access)
+		}
 
-		assert.Empty(t, cfg.Package)
-		assert.Equal(t, "public", cfg.Access)
 	})
 }
 
@@ -284,14 +379,30 @@ func TestNpm_NpmTemplateData_Good(t *testing.T) {
 			ProjectName: "cli",
 			Access:      "public",
 		}
+		if !stdlibAssertEqual("@myorg/package", data.Package) {
+			t.Fatalf("want %v, got %v", "@myorg/package", data.Package)
+		}
+		if !stdlibAssertEqual("1.0.0", data.Version) {
+			t.Fatalf("want %v, got %v", "1.0.0", data.Version)
+		}
+		if !stdlibAssertEqual("description", data.Description) {
+			t.Fatalf("want %v, got %v", "description", data.Description)
+		}
+		if !stdlibAssertEqual("MIT", data.License) {
+			t.Fatalf("want %v, got %v", "MIT", data.License)
+		}
+		if !stdlibAssertEqual("org/repo", data.Repository) {
+			t.Fatalf("want %v, got %v", "org/repo", data.Repository)
+		}
+		if !stdlibAssertEqual("cli", data.BinaryName) {
+			t.Fatalf("want %v, got %v", "cli", data.BinaryName)
+		}
+		if !stdlibAssertEqual("cli", data.ProjectName) {
+			t.Fatalf("want %v, got %v", "cli", data.ProjectName)
+		}
+		if !stdlibAssertEqual("public", data.Access) {
+			t.Fatalf("want %v, got %v", "public", data.Access)
+		}
 
-		assert.Equal(t, "@myorg/package", data.Package)
-		assert.Equal(t, "1.0.0", data.Version)
-		assert.Equal(t, "description", data.Description)
-		assert.Equal(t, "MIT", data.License)
-		assert.Equal(t, "org/repo", data.Repository)
-		assert.Equal(t, "cli", data.BinaryName)
-		assert.Equal(t, "cli", data.ProjectName)
-		assert.Equal(t, "public", data.Access)
 	})
 }

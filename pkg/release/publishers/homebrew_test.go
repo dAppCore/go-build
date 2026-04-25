@@ -6,15 +6,17 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/io"
+	"os"
 )
 
 func TestHomebrew_HomebrewPublisherName_Good(t *testing.T) {
 	t.Run("returns homebrew", func(t *testing.T) {
 		p := NewHomebrewPublisher()
-		assert.Equal(t, "homebrew", p.Name())
+		if !stdlibAssertEqual("homebrew", p.Name()) {
+			t.Fatalf("want %v, got %v", "homebrew", p.Name())
+		}
+
 	})
 }
 
@@ -25,10 +27,16 @@ func TestHomebrew_HomebrewPublisherParseConfig_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "homebrew"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Tap) {
+			t.Fatalf("expected empty, got %v", cfg.Tap)
+		}
+		if !stdlibAssertEmpty(cfg.Formula) {
+			t.Fatalf("expected empty, got %v", cfg.Formula)
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Tap)
-		assert.Empty(t, cfg.Formula)
-		assert.Nil(t, cfg.Official)
 	})
 
 	t.Run("parses tap and formula from extended config", func(t *testing.T) {
@@ -41,9 +49,13 @@ func TestHomebrew_HomebrewPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEqual("host-uk/homebrew-tap", cfg.Tap) {
+			t.Fatalf("want %v, got %v", "host-uk/homebrew-tap", cfg.Tap)
+		}
+		if !stdlibAssertEqual("myformula", cfg.Formula) {
+			t.Fatalf("want %v, got %v", "myformula", cfg.Formula)
+		}
 
-		assert.Equal(t, "host-uk/homebrew-tap", cfg.Tap)
-		assert.Equal(t, "myformula", cfg.Formula)
 	})
 
 	t.Run("parses official config", func(t *testing.T) {
@@ -58,10 +70,16 @@ func TestHomebrew_HomebrewPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if stdlibAssertNil(cfg.Official) {
+			t.Fatal("expected non-nil")
+		}
+		if !(cfg.Official.Enabled) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertEqual("dist/brew", cfg.Official.Output) {
+			t.Fatalf("want %v, got %v", "dist/brew", cfg.Official.Output)
+		}
 
-		require.NotNil(t, cfg.Official)
-		assert.True(t, cfg.Official.Enabled)
-		assert.Equal(t, "dist/brew", cfg.Official.Output)
 	})
 
 	t.Run("handles missing official fields", func(t *testing.T) {
@@ -73,10 +91,16 @@ func TestHomebrew_HomebrewPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if stdlibAssertNil(cfg.Official) {
+			t.Fatal("expected non-nil")
+		}
+		if cfg.Official.Enabled {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertEmpty(cfg.Official.Output) {
+			t.Fatalf("expected empty, got %v", cfg.Official.Output)
+		}
 
-		require.NotNil(t, cfg.Official)
-		assert.False(t, cfg.Official.Enabled)
-		assert.Empty(t, cfg.Official.Output)
 	})
 }
 
@@ -116,7 +140,10 @@ func TestHomebrew_HomebrewPublisherToFormulaClass_Good(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result := toFormulaClass(tc.input)
-			assert.Equal(t, tc.expected, result)
+			if !stdlibAssertEqual(tc.expected, result) {
+				t.Fatalf("want %v, got %v", tc.expected, result)
+			}
+
 		})
 	}
 }
@@ -133,22 +160,42 @@ func TestHomebrew_HomebrewPublisherBuildChecksumMap_Good(t *testing.T) {
 		}
 
 		checksums := buildChecksumMap(artifacts)
+		if !stdlibAssertEqual("abc123", checksums.DarwinAmd64) {
+			t.Fatalf("want %v, got %v", "abc123", checksums.DarwinAmd64)
+		}
+		if !stdlibAssertEqual("def456", checksums.DarwinArm64) {
+			t.Fatalf("want %v, got %v", "def456", checksums.DarwinArm64)
+		}
+		if !stdlibAssertEqual("ghi789", checksums.LinuxAmd64) {
+			t.Fatalf("want %v, got %v", "ghi789", checksums.LinuxAmd64)
+		}
+		if !stdlibAssertEqual("jkl012", checksums.LinuxArm64) {
+			t.Fatalf("want %v, got %v", "jkl012", checksums.LinuxArm64)
+		}
+		if !stdlibAssertEqual("mno345", checksums.WindowsAmd64) {
+			t.Fatalf("want %v, got %v", "mno345", checksums.WindowsAmd64)
+		}
+		if !stdlibAssertEqual("pqr678", checksums.WindowsArm64) {
+			t.Fatalf("want %v, got %v", "pqr678", checksums.WindowsArm64)
+		}
 
-		assert.Equal(t, "abc123", checksums.DarwinAmd64)
-		assert.Equal(t, "def456", checksums.DarwinArm64)
-		assert.Equal(t, "ghi789", checksums.LinuxAmd64)
-		assert.Equal(t, "jkl012", checksums.LinuxArm64)
-		assert.Equal(t, "mno345", checksums.WindowsAmd64)
-		assert.Equal(t, "pqr678", checksums.WindowsArm64)
 	})
 
 	t.Run("handles empty artifacts", func(t *testing.T) {
 		checksums := buildChecksumMap([]build.Artifact{})
+		if !stdlibAssertEmpty(checksums.DarwinAmd64) {
+			t.Fatalf("expected empty, got %v", checksums.DarwinAmd64)
+		}
+		if !stdlibAssertEmpty(checksums.DarwinArm64) {
+			t.Fatalf("expected empty, got %v", checksums.DarwinArm64)
+		}
+		if !stdlibAssertEmpty(checksums.LinuxAmd64) {
+			t.Fatalf("expected empty, got %v", checksums.LinuxAmd64)
+		}
+		if !stdlibAssertEmpty(checksums.LinuxArm64) {
+			t.Fatalf("expected empty, got %v", checksums.LinuxArm64)
+		}
 
-		assert.Empty(t, checksums.DarwinAmd64)
-		assert.Empty(t, checksums.DarwinArm64)
-		assert.Empty(t, checksums.LinuxAmd64)
-		assert.Empty(t, checksums.LinuxArm64)
 	})
 
 	t.Run("handles partial platform coverage", func(t *testing.T) {
@@ -158,11 +205,19 @@ func TestHomebrew_HomebrewPublisherBuildChecksumMap_Good(t *testing.T) {
 		}
 
 		checksums := buildChecksumMap(artifacts)
+		if !stdlibAssertEmpty(checksums.DarwinAmd64) {
+			t.Fatalf("expected empty, got %v", checksums.DarwinAmd64)
+		}
+		if !stdlibAssertEqual("def456", checksums.DarwinArm64) {
+			t.Fatalf("want %v, got %v", "def456", checksums.DarwinArm64)
+		}
+		if !stdlibAssertEqual("ghi789", checksums.LinuxAmd64) {
+			t.Fatalf("want %v, got %v", "ghi789", checksums.LinuxAmd64)
+		}
+		if !stdlibAssertEmpty(checksums.LinuxArm64) {
+			t.Fatalf("expected empty, got %v", checksums.LinuxArm64)
+		}
 
-		assert.Empty(t, checksums.DarwinAmd64)
-		assert.Equal(t, "def456", checksums.DarwinArm64)
-		assert.Equal(t, "ghi789", checksums.LinuxAmd64)
-		assert.Empty(t, checksums.LinuxArm64)
 	})
 }
 
@@ -186,18 +241,40 @@ func TestHomebrew_HomebrewPublisherRenderTemplate_Good(t *testing.T) {
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/homebrew/formula.rb.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, "class MyApp < Formula") {
+			t.Fatalf("expected %v to contain %v", result, "class MyApp < Formula")
+		}
+		if !stdlibAssertContains(result, `desc 'My awesome CLI'`) {
+			t.Fatalf("expected %v to contain %v", result, `desc 'My awesome CLI'`)
+		}
+		if !stdlibAssertContains(result, `version '1.2.3'`) {
+			t.Fatalf("expected %v to contain %v", result, `version '1.2.3'`)
+		}
+		if !stdlibAssertContains(result, `license 'MIT'`) {
+			t.Fatalf("expected %v to contain %v", result, `license 'MIT'`)
+		}
+		if !stdlibAssertContains(result, "owner/myapp") {
+			t.Fatalf("expected %v to contain %v", result, "owner/myapp")
+		}
+		if !stdlibAssertContains(result, "abc123") {
+			t.Fatalf("expected %v to contain %v", result, "abc123")
+		}
+		if !stdlibAssertContains(result, "def456") {
+			t.Fatalf("expected %v to contain %v", result, "def456")
+		}
+		if !stdlibAssertContains(result, "ghi789") {
+			t.Fatalf("expected %v to contain %v", result, "ghi789")
+		}
+		if !stdlibAssertContains(result, "jkl012") {
+			t.Fatalf("expected %v to contain %v", result, "jkl012")
+		}
+		if !stdlibAssertContains(result, `bin.install 'myapp'`) {
+			t.Fatalf("expected %v to contain %v", result, `bin.install 'myapp'`)
+		}
 
-		assert.Contains(t, result, "class MyApp < Formula")
-		assert.Contains(t, result, `desc 'My awesome CLI'`)
-		assert.Contains(t, result, `version '1.2.3'`)
-		assert.Contains(t, result, `license 'MIT'`)
-		assert.Contains(t, result, "owner/myapp")
-		assert.Contains(t, result, "abc123")
-		assert.Contains(t, result, "def456")
-		assert.Contains(t, result, "ghi789")
-		assert.Contains(t, result, "jkl012")
-		assert.Contains(t, result, `bin.install 'myapp'`)
 	})
 }
 
@@ -207,8 +284,13 @@ func TestHomebrew_HomebrewPublisherRenderTemplate_Bad(t *testing.T) {
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := homebrewTemplateData{}
 		_, err := p.renderTemplate(io.Local, "templates/homebrew/nonexistent.tmpl", data)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to read template")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		}
+
 	})
 }
 
@@ -233,15 +315,31 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: Homebrew Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Homebrew Publish")
+		}
+		if !stdlibAssertContains(output, "Formula:    MyApp") {
+			t.Fatalf("expected %v to contain %v", output, "Formula:    MyApp")
+		}
+		if !stdlibAssertContains(output, "Version:    1.0.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    1.0.0")
+		}
+		if !stdlibAssertContains(output, "Tap:        owner/homebrew-tap") {
+			t.Fatalf("expected %v to contain %v", output, "Tap:        owner/homebrew-tap")
+		}
+		if !stdlibAssertContains(output, "Repository: owner/repo") {
+			t.Fatalf("expected %v to contain %v", output, "Repository: owner/repo")
+		}
+		if !stdlibAssertContains(output, "Would commit to tap: owner/homebrew-tap") {
+			t.Fatalf("expected %v to contain %v", output, "Would commit to tap: owner/homebrew-tap")
+		}
+		if !stdlibAssertContains(output, "END DRY RUN") {
+			t.Fatalf("expected %v to contain %v", output, "END DRY RUN")
+		}
 
-		assert.Contains(t, output, "DRY RUN: Homebrew Publish")
-		assert.Contains(t, output, "Formula:    MyApp")
-		assert.Contains(t, output, "Version:    1.0.0")
-		assert.Contains(t, output, "Tap:        owner/homebrew-tap")
-		assert.Contains(t, output, "Repository: owner/repo")
-		assert.Contains(t, output, "Would commit to tap: owner/homebrew-tap")
-		assert.Contains(t, output, "END DRY RUN")
 	})
 
 	t.Run("shows official output path when enabled", func(t *testing.T) {
@@ -262,8 +360,13 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Would write files for official PR to: custom/path")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Would write files for official PR to: custom/path") {
+			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/path")
+		}
+
 	})
 
 	t.Run("suppresses tap publish output in official mode", func(t *testing.T) {
@@ -285,9 +388,16 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Would write files for official PR to: custom/path")
-		assert.NotContains(t, output, "Would commit to tap:")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Would write files for official PR to: custom/path") {
+			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/path")
+		}
+		if stdlibAssertContains(output, "Would commit to tap:") {
+			t.Fatalf("expected %v not to contain %v", output, "Would commit to tap:")
+		}
+
 	})
 
 	t.Run("uses default official output path when not specified", func(t *testing.T) {
@@ -307,8 +417,13 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Would write files for official PR to: dist/homebrew")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Would write files for official PR to: dist/homebrew") {
+			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/homebrew")
+		}
+
 	})
 }
 
@@ -325,8 +440,13 @@ func TestHomebrew_HomebrewPublisherPublish_Bad(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "tap is required")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "tap is required") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "tap is required")
+		}
+
 	})
 
 	t.Run("official mode writes files without requiring tap publish tooling", func(t *testing.T) {
@@ -354,8 +474,13 @@ func TestHomebrew_HomebrewPublisherPublish_Bad(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "myapp"}
 
 		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		require.NoError(t, err)
-		assert.FileExists(t, ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb"))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, err := os.Stat(ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb")); err != nil {
+			t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb"))
+		}
+
 	})
 }
 
@@ -366,9 +491,15 @@ func TestHomebrew_HomebrewConfigDefaults_Good(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Tap) {
+			t.Fatalf("expected empty, got %v", cfg.Tap)
+		}
+		if !stdlibAssertEmpty(cfg.Formula) {
+			t.Fatalf("expected empty, got %v", cfg.Formula)
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Tap)
-		assert.Empty(t, cfg.Formula)
-		assert.Nil(t, cfg.Official)
 	})
 }

@@ -7,8 +7,8 @@ import (
 
 	"dappco.re/go/core"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // Release represents a release to be published.
@@ -110,6 +110,9 @@ func validatePublisherRelease(name string, release *Release) error {
 	}
 	if release.FS == nil {
 		return coreerr.E(name+".Validate", "release filesystem (FS) is nil", nil)
+	}
+	if err := build.ValidateVersionIdentifier(release.Version); err != nil {
+		return coreerr.E(name+".Validate", "release version contains unsupported characters", err)
 	}
 	return nil
 }

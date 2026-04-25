@@ -14,8 +14,8 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	buildservice "dappco.re/go/build/pkg/service"
-	"dappco.re/go/core/cli/pkg/cli"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/cli/pkg/cli"
+	coreerr "dappco.re/go/log"
 )
 
 var (

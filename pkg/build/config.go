@@ -9,9 +9,9 @@ import (
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
-	"gopkg.in/yaml.v3"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+	"gopkg.in/yaml.v3" // Note: AX-6 — no core YAMLUnmarshal yet.
 )
 
 // ConfigFileName is the name of the build configuration file.

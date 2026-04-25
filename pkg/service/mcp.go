@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"sort"
 
-	coreapi "dappco.re/go/core/api"
-	providerpkg "dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/ws"
+	coreapi "dappco.re/go/api"
+	providerpkg "dappco.re/go/api/pkg/provider"
+	"dappco.re/go/ws"
 	"github.com/gin-gonic/gin"
 )
 

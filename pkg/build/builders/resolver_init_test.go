@@ -4,16 +4,23 @@ import (
 	"testing"
 
 	"dappco.re/go/build/pkg/build"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestResolver_InitRegistersDefaultBuilderResolver_Good(t *testing.T) {
 	resolver := build.DefaultBuilderResolver()
-	require.NotNil(t, resolver)
+	if stdlibAssertNil(resolver) {
+		t.Fatal("expected non-nil")
+	}
 
 	builder, err := resolver(build.ProjectTypeGo)
-	require.NoError(t, err)
-	require.NotNil(t, builder)
-	assert.Equal(t, "go", builder.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stdlibAssertNil(builder) {
+		t.Fatal("expected non-nil")
+	}
+	if !stdlibAssertEqual("go", builder.Name()) {
+		t.Fatalf("want %v, got %v", "go", builder.Name())
+	}
+
 }

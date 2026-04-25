@@ -3,7 +3,6 @@
 package build
 
 import (
-	"os"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
@@ -333,7 +332,7 @@ func applyCacheEnvironment(cfg *CacheConfig) {
 		if len(parts) != 2 {
 			continue
 		}
-		_ = os.Setenv(parts[0], parts[1])
+		_ = core.Setenv(parts[0], parts[1])
 	}
 }
 
