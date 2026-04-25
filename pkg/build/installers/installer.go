@@ -6,10 +6,10 @@ import (
 	"bytes"
 	"embed"
 	"regexp"
-	"strings"
 	"text/template"
 
-	coreerr "dappco.re/go/log"
+	"dappco.re/go/core"
+	coreerr "dappco.re/go/core/log"
 )
 
 //go:embed templates/*.tmpl
@@ -213,26 +213,35 @@ func normalizeInstallerArgs(args ...any) (InstallerConfig, error) {
 }
 
 func normalizeInstallerConfig(cfg InstallerConfig) InstallerConfig {
-	baseURL := strings.TrimRight(strings.TrimSpace(cfg.ScriptBaseURL), "/")
+	baseURL := core.Trim(cfg.ScriptBaseURL)
+	for core.HasSuffix(baseURL, "/") {
+		baseURL = core.TrimSuffix(baseURL, "/")
+	}
 	if baseURL == "" {
 		baseURL = DefaultScriptBaseURL
 	}
 	cfg.ScriptBaseURL = baseURL
-	if strings.TrimSpace(cfg.BinaryName) == "" {
+	if core.Trim(cfg.BinaryName) == "" {
 		cfg.BinaryName = defaultInstallerBinaryName(cfg.Repo)
 	}
 	return cfg
 }
 
 func defaultInstallerBinaryName(repo string) string {
-	repo = strings.TrimSpace(repo)
+	repo = core.Trim(repo)
 	if repo == "" {
 		return ""
 	}
 
-	parts := strings.FieldsFunc(repo, func(r rune) bool {
-		return r == '/' || r == '\\'
-	})
+	repo = core.Replace(repo, "\\", "/")
+	for core.HasSuffix(repo, "/") {
+		repo = core.TrimSuffix(repo, "/")
+	}
+	if repo == "" {
+		return ""
+	}
+
+	parts := core.Split(repo, "/")
 	if len(parts) == 0 {
 		return ""
 	}
@@ -245,11 +254,11 @@ func shellQuote(value string) string {
 		return "''"
 	}
 
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+	return "'" + core.Replace(value, "'", `'"'"'`) + "'"
 }
 
 func canonicalVariant(variant InstallerVariant) InstallerVariant {
-	normalized := InstallerVariant(strings.ToLower(strings.TrimSpace(string(variant))))
+	normalized := InstallerVariant(core.Lower(core.Trim(string(variant))))
 	if normalized == "agentic" {
 		return VariantAgent
 	}
@@ -257,7 +266,7 @@ func canonicalVariant(variant InstallerVariant) InstallerVariant {
 }
 
 func validateInstallerVersion(version string) error {
-	version = strings.TrimSpace(version)
+	version = core.Trim(version)
 	if version == "" {
 		return nil
 	}
