@@ -4,8 +4,8 @@ package publishers
 import (
 	"context"
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
 	coreerr "dappco.re/go/log"
 )
 
@@ -22,6 +22,24 @@ type LinuxKitConfig struct {
 	Formats []string `yaml:"formats"`
 	// Platforms are the target platforms (linux/amd64, linux/arm64).
 	Platforms []string `yaml:"platforms"`
+	// Targets describe optional cloud upload targets for cloud image formats.
+	Targets []LinuxKitTarget `yaml:"targets"`
+}
+
+// LinuxKitTarget describes a cloud upload target for LinuxKit images.
+type LinuxKitTarget struct {
+	// Name is an optional target name.
+	Name string `json:"name" yaml:"name"`
+	// Type is the target type (aws, gcp, s3, gcs).
+	Type string `json:"type" yaml:"type"`
+	// Provider is the cloud provider (aws or gcp).
+	Provider string `json:"provider" yaml:"provider"`
+	// Bucket is the destination bucket name.
+	Bucket string `json:"bucket" yaml:"bucket"`
+	// Prefix is the object key prefix inside the bucket.
+	Prefix string `json:"prefix" yaml:"prefix"`
+	// Region is the AWS region for S3 uploads.
+	Region string `json:"region" yaml:"region"`
 }
 
 // LinuxKitPublisher builds and publishes LinuxKit images.
@@ -67,7 +85,7 @@ func (p *LinuxKitPublisher) Supports(target string) bool {
 	return supportsPublisherTarget(p.Name(), target)
 }
 
-// Publish builds LinuxKit images and uploads them to the GitHub release.
+// Publish builds LinuxKit images and routes them by output format.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
@@ -91,12 +109,12 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 		return coreerr.E("linuxkit.Publish", "config file not found: "+lkCfg.Config, nil)
 	}
 
-	// Determine repository for artifact upload
+	// Determine repository for dry-run display.
 	repo := ""
 	if relCfg != nil {
 		repo = relCfg.GetRepository()
 	}
-	if repo == "" {
+	if repo == "" && dryRun {
 		detectedRepo, err := detectRepository(ctx, release.ProjectDir)
 		if err != nil {
 			return coreerr.E("linuxkit.Publish", "could not determine repository", err)
@@ -108,7 +126,7 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 		return p.dryRunPublish(release, lkCfg, repo)
 	}
 
-	return p.executePublish(ctx, release, lkCfg, repo, linuxkitCommand)
+	return p.executePublish(ctx, release, lkCfg, linuxkitCommand)
 }
 
 // parseConfig extracts LinuxKit-specific configuration.
@@ -144,6 +162,15 @@ func (p *LinuxKitPublisher) parseConfig(pubCfg PublisherConfig, projectDir strin
 				}
 			}
 		}
+		if targets, ok := ext["targets"]; ok {
+			cfg.Targets = append(cfg.Targets, parseLinuxKitTargets(targets)...)
+		}
+		if target, ok := ext["target"]; ok {
+			cfg.Targets = append(cfg.Targets, parseLinuxKitTargets(target)...)
+		}
+		appendLinuxKitTargetValue(&cfg, "aws", ext["aws"])
+		appendLinuxKitTargetValue(&cfg, "gcp", ext["gcp"])
+		appendLinuxKitBucketTargets(&cfg, ext)
 	}
 
 	return cfg
@@ -180,7 +207,7 @@ func (p *LinuxKitPublisher) dryRunPublish(release *Release, cfg LinuxKitConfig, 
 	}
 	publisherPrintln()
 
-	publisherPrintln("Would upload artifacts to release:")
+	publisherPrintln("Would produce/upload artifacts:")
 	for _, platform := range cfg.Platforms {
 		parts := core.Split(platform, "/")
 		arch := "amd64"
@@ -204,8 +231,8 @@ func (p *LinuxKitPublisher) dryRunPublish(release *Release, cfg LinuxKitConfig, 
 	return nil
 }
 
-// executePublish builds LinuxKit images and uploads them.
-func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release, cfg LinuxKitConfig, repo, linuxkitCommand string) error {
+// executePublish builds LinuxKit images and routes them by format.
+func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release, cfg LinuxKitConfig, linuxkitCommand string) error {
 	outputDir := ax.Join(release.ProjectDir, "dist", "linuxkit")
 
 	// Create output directory
@@ -214,7 +241,6 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 	}
 
 	baseName := p.buildBaseName(release.Version)
-	var artifacts []string
 
 	// Build for each platform and format
 	for _, platform := range cfg.Platforms {
@@ -236,23 +262,9 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 
 			// Track artifact for upload
 			artifactPath := p.getArtifactPath(outputDir, outputName, format)
-			artifacts = append(artifacts, artifactPath)
-		}
-	}
-
-	// Upload artifacts to GitHub release
-	for _, artifactPath := range artifacts {
-		if !release.FS.Exists(artifactPath) {
-			return coreerr.E("linuxkit.Publish", "artifact not found after build: "+artifactPath, nil)
-		}
-
-		if err := UploadArtifact(ctx, repo, release.Version, artifactPath); err != nil {
-			return coreerr.E("linuxkit.Publish", "failed to upload "+ax.Base(artifactPath), err)
-		}
-
-		// Print helpful usage info for docker format
-		if core.HasSuffix(artifactPath, ".docker.tar") {
-			publisherPrint("  Load with: docker load < %s", ax.Base(artifactPath))
+			if err := p.publishLinuxKitArtifact(ctx, release, cfg, format, artifactPath); err != nil {
+				return err
+			}
 		}
 	}
 

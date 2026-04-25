@@ -2,6 +2,7 @@ package publishers
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
@@ -629,8 +630,8 @@ func TestLinuxKit_LinuxKitPublisherDryRunPublish_Good(t *testing.T) {
 		if !stdlibAssertContains(output, "linuxkit build") {
 			t.Fatalf("expected %v to contain %v", output, "linuxkit build")
 		}
-		if !stdlibAssertContains(output, "Would upload artifacts to release:") {
-			t.Fatalf("expected %v to contain %v", output, "Would upload artifacts to release:")
+		if !stdlibAssertContains(output, "Would produce/upload artifacts:") {
+			t.Fatalf("expected %v to contain %v", output, "Would produce/upload artifacts:")
 		}
 		if !stdlibAssertContains(output, "linuxkit-1.0.0-amd64.iso") {
 			t.Fatalf("expected %v to contain %v", output, "linuxkit-1.0.0-amd64.iso")
@@ -1127,4 +1128,359 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRun_Good(t *testing.T) {
 		}
 
 	})
+}
+
+func TestPublish_IsoQcow2Raw_Good(t *testing.T) {
+	result := runLinuxKitPublishFixture(t, []string{"iso", "qcow2", "raw"}, "ok", nil)
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+
+	assertLinuxKitArtifactExists(t, result, "iso")
+	assertLinuxKitArtifactExists(t, result, "qcow2")
+	assertLinuxKitArtifactExists(t, result, "raw")
+}
+
+func TestPublish_Iso_Good(t *testing.T) {
+	result := runLinuxKitPublishFixture(t, []string{"iso"}, "ok", nil)
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	assertLinuxKitArtifactExists(t, result, "iso")
+}
+
+func TestPublish_Iso_Bad(t *testing.T) {
+	assertLinuxKitPublishError(t, "iso", "fail", "build failed")
+}
+
+func TestPublish_Iso_Ugly(t *testing.T) {
+	assertLinuxKitPublishError(t, "iso", "missing", "artifact not found after build")
+}
+
+func TestPublish_Qcow2_Good(t *testing.T) {
+	result := runLinuxKitPublishFixture(t, []string{"qcow2"}, "ok", nil)
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	assertLinuxKitArtifactExists(t, result, "qcow2")
+}
+
+func TestPublish_Qcow2_Bad(t *testing.T) {
+	assertLinuxKitPublishError(t, "qcow2", "fail", "build failed")
+}
+
+func TestPublish_Qcow2_Ugly(t *testing.T) {
+	assertLinuxKitPublishError(t, "qcow2", "missing", "artifact not found after build")
+}
+
+func TestPublish_Raw_Good(t *testing.T) {
+	result := runLinuxKitPublishFixture(t, []string{"raw"}, "ok", nil)
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	assertLinuxKitArtifactExists(t, result, "raw")
+}
+
+func TestPublish_Raw_Bad(t *testing.T) {
+	assertLinuxKitPublishError(t, "raw", "fail", "build failed")
+}
+
+func TestPublish_Raw_Ugly(t *testing.T) {
+	assertLinuxKitPublishError(t, "raw", "missing", "artifact not found after build")
+}
+
+func TestPublish_Qcow2WithCloudTargets_Good(t *testing.T) {
+	result := runLinuxKitPublishFixture(t, []string{"qcow2"}, "ok", map[string]any{
+		"targets": []any{
+			map[string]any{"provider": "aws", "bucket": "aws-bucket", "prefix": "images"},
+			map[string]any{"provider": "gcp", "bucket": "gcp-bucket", "prefix": "images"},
+		},
+	})
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	assertLinuxKitArtifactExists(t, result, "qcow2")
+
+	log := readLinuxKitCloudLog(t, result.CloudLog)
+	if !stdlibAssertContains(log, "aws s3 cp") {
+		t.Fatalf("expected %v to contain %v", log, "aws s3 cp")
+	}
+	if !stdlibAssertContains(log, "s3://aws-bucket/images/linuxkit-1.2.3-amd64.qcow2") {
+		t.Fatalf("expected %v to contain %v", log, "s3://aws-bucket/images/linuxkit-1.2.3-amd64.qcow2")
+	}
+	if !stdlibAssertContains(log, "gcloud storage cp") {
+		t.Fatalf("expected %v to contain %v", log, "gcloud storage cp")
+	}
+	if !stdlibAssertContains(log, "gs://gcp-bucket/images/linuxkit-1.2.3-amd64.qcow2") {
+		t.Fatalf("expected %v to contain %v", log, "gs://gcp-bucket/images/linuxkit-1.2.3-amd64.qcow2")
+	}
+}
+
+func TestPublish_AWS_Good(t *testing.T) {
+	result := runLinuxKitPublishFixture(t, []string{"aws"}, "ok", map[string]any{
+		"targets": []any{
+			map[string]any{"provider": "aws", "bucket": "aws-bucket", "prefix": "images", "region": "eu-west-2"},
+		},
+	})
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	assertLinuxKitArtifactExists(t, result, "aws")
+
+	log := readLinuxKitCloudLog(t, result.CloudLog)
+	if !stdlibAssertContains(log, "s3://aws-bucket/images/linuxkit-1.2.3-amd64.raw") {
+		t.Fatalf("expected %v to contain %v", log, "s3://aws-bucket/images/linuxkit-1.2.3-amd64.raw")
+	}
+	if !stdlibAssertContains(log, "--region eu-west-2") {
+		t.Fatalf("expected %v to contain %v", log, "--region eu-west-2")
+	}
+}
+
+func TestPublish_AWS_Bad(t *testing.T) {
+	result := runLinuxKitPublishFixture(t, []string{"aws"}, "ok", nil)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(result.Err.Error(), "aws target bucket is required") {
+		t.Fatalf("expected %v to contain %v", result.Err.Error(), "aws target bucket is required")
+	}
+}
+
+func TestPublish_GCP_Good(t *testing.T) {
+	result := runLinuxKitPublishFixture(t, []string{"gcp"}, "ok", map[string]any{
+		"targets": []any{
+			`{"provider":"gcp","bucket":"gcp-bucket","prefix":"images"}`,
+		},
+	})
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	assertLinuxKitArtifactExists(t, result, "gcp")
+
+	log := readLinuxKitCloudLog(t, result.CloudLog)
+	if !stdlibAssertContains(log, "gs://gcp-bucket/images/linuxkit-1.2.3-amd64.img.tar.gz") {
+		t.Fatalf("expected %v to contain %v", log, "gs://gcp-bucket/images/linuxkit-1.2.3-amd64.img.tar.gz")
+	}
+}
+
+func TestPublish_GCP_Bad(t *testing.T) {
+	result := runLinuxKitPublishFixture(t, []string{"gcp"}, "ok", nil)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(result.Err.Error(), "gcp target bucket is required") {
+		t.Fatalf("expected %v to contain %v", result.Err.Error(), "gcp target bucket is required")
+	}
+}
+
+type linuxKitPublishFixtureResult struct {
+	ArtifactPaths map[string]string
+	CloudLog      string
+	Err           error
+	Output        string
+	ProjectDir    string
+}
+
+func runLinuxKitPublishFixture(t *testing.T, formats []string, linuxKitMode string, extended map[string]any) linuxKitPublishFixtureResult {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	binDir := ax.Join(tmpDir, "bin")
+	if err := ax.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	installFakeLinuxKitTool(t, binDir, linuxKitMode)
+	installFakeLinuxKitCloudTool(t, binDir, "aws")
+	installFakeLinuxKitCloudTool(t, binDir, "gcloud")
+
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+":"+oldPath)
+	cloudLog := ax.Join(tmpDir, "cloud.log")
+	t.Setenv("LINUXKIT_CLOUD_LOG", cloudLog)
+	t.Setenv("LINUXKIT_CLOUD_MODE", "ok")
+
+	configPath := ax.Join(tmpDir, "config.yml")
+	if err := ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	formatValues := make([]any, 0, len(formats))
+	for _, format := range formats {
+		formatValues = append(formatValues, format)
+	}
+
+	ext := map[string]any{
+		"config":    "config.yml",
+		"formats":   formatValues,
+		"platforms": []any{"linux/amd64"},
+	}
+	for key, value := range extended {
+		ext[key] = value
+	}
+
+	release := &Release{
+		Version:    "v1.2.3",
+		ProjectDir: tmpDir,
+		FS:         io.Local,
+	}
+	pubCfg := PublisherConfig{
+		Type:     "linuxkit",
+		Extended: ext,
+	}
+	relCfg := &mockReleaseConfig{repository: "owner/repo"}
+
+	p := NewLinuxKitPublisher()
+	var publishErr error
+	output := capturePublisherOutput(t, func() {
+		publishErr = p.Publish(context.TODO(), release, pubCfg, relCfg, false)
+	})
+
+	outputDir := ax.Join(tmpDir, "dist", "linuxkit")
+	baseName := p.buildBaseName(release.Version)
+	artifactPaths := make(map[string]string, len(formats))
+	for _, format := range formats {
+		artifactPaths[format] = p.getArtifactPath(outputDir, baseName+"-amd64", format)
+	}
+
+	return linuxKitPublishFixtureResult{
+		ArtifactPaths: artifactPaths,
+		CloudLog:      cloudLog,
+		Err:           publishErr,
+		Output:        output,
+		ProjectDir:    tmpDir,
+	}
+}
+
+func assertLinuxKitArtifactExists(t *testing.T, result linuxKitPublishFixtureResult, format string) {
+	t.Helper()
+
+	artifactPath := result.ArtifactPaths[format]
+	if !io.Local.Exists(artifactPath) {
+		t.Fatalf("expected artifact to exist: %s", artifactPath)
+	}
+
+	content, err := ax.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(string(content), "linuxkit:"+format) {
+		t.Fatalf("expected %v to contain %v", string(content), "linuxkit:"+format)
+	}
+}
+
+func assertLinuxKitPublishError(t *testing.T, format, linuxKitMode, expected string) {
+	t.Helper()
+
+	result := runLinuxKitPublishFixture(t, []string{format}, linuxKitMode, nil)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(result.Err.Error(), expected) {
+		t.Fatalf("expected %v to contain %v", result.Err.Error(), expected)
+	}
+}
+
+func readLinuxKitCloudLog(t *testing.T, path string) string {
+	t.Helper()
+
+	if !ax.Exists(path) {
+		return ""
+	}
+	data, err := ax.ReadFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return string(data)
+}
+
+func installFakeLinuxKitTool(t *testing.T, binDir, mode string) {
+	t.Helper()
+
+	script := `#!/bin/sh
+mode="` + mode + `"
+format=""
+name=""
+dir=""
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		--format)
+			format="$2"
+			shift 2
+			;;
+		--name)
+			name="$2"
+			shift 2
+			;;
+		--dir)
+			dir="$2"
+			shift 2
+			;;
+		--arch)
+			shift 2
+			;;
+		*)
+			shift
+			;;
+	esac
+done
+if [ "$mode" = "fail" ]; then
+	echo "fake linuxkit failed" >&2
+	exit 23
+fi
+if [ "$mode" = "missing" ]; then
+	exit 0
+fi
+case "$format" in
+	iso|iso-bios|iso-efi)
+		ext=".iso"
+		;;
+	raw|raw-bios|raw-efi|aws)
+		ext=".raw"
+		;;
+	qcow2|qcow2-bios|qcow2-efi)
+		ext=".qcow2"
+		;;
+	gcp)
+		ext=".img.tar.gz"
+		;;
+	docker)
+		ext=".docker.tar"
+		;;
+	tar)
+		ext=".tar"
+		;;
+	kernel+initrd)
+		ext="-initrd.img"
+		;;
+	*)
+		ext=".$format"
+		;;
+esac
+/bin/mkdir -p "$dir"
+printf 'linuxkit:%s:%s' "$format" "$name" > "$dir/$name$ext"
+`
+	if err := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func installFakeLinuxKitCloudTool(t *testing.T, binDir, name string) {
+	t.Helper()
+
+	script := `#!/bin/sh
+if [ -n "$LINUXKIT_CLOUD_LOG" ]; then
+	printf '%s' "` + name + `" >> "$LINUXKIT_CLOUD_LOG"
+	for arg in "$@"; do
+		printf ' %s' "$arg" >> "$LINUXKIT_CLOUD_LOG"
+	done
+	printf '\n' >> "$LINUXKIT_CLOUD_LOG"
+fi
+if [ "$LINUXKIT_CLOUD_MODE" = "fail" ]; then
+	exit 31
+fi
+exit 0
+`
+	if err := ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
