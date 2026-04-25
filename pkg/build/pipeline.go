@@ -169,8 +169,10 @@ func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) (*PipelinePlan
 			return nil, coreerr.E("build.Pipeline.Plan", "failed to determine build version", err)
 		}
 	}
-	if err := ValidateVersionIdentifier(version); err != nil {
-		return nil, coreerr.E("build.Pipeline.Plan", "invalid build version override", err)
+	if version != "" {
+		if err := ValidateVersionString(version); err != nil {
+			return nil, coreerr.E("build.Pipeline.Plan", "invalid build version override", err)
+		}
 	}
 
 	runtimeCfg := RuntimeConfigFromBuildConfig(filesystem, projectDir, outputDir, buildName, buildConfig, req.Push, req.ImageName, version)

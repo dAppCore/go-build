@@ -3,11 +3,12 @@
 package installers
 
 import (
+	"bytes"
 	"embed"
 	"regexp"
+	"strings"
 	"text/template"
 
-	"dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -134,8 +135,8 @@ func GenerateInstaller(variant InstallerVariant, args ...any) (string, error) {
 		return "", coreerr.E("installers.GenerateInstaller", "failed to parse template "+entry.tmpl, err)
 	}
 
-	buf := core.NewBuffer(nil)
-	if err := tmpl.Execute(buf, cfg); err != nil {
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cfg); err != nil {
 		return "", coreerr.E("installers.GenerateInstaller", "failed to render template "+entry.tmpl, err)
 	}
 
@@ -212,35 +213,26 @@ func normalizeInstallerArgs(args ...any) (InstallerConfig, error) {
 }
 
 func normalizeInstallerConfig(cfg InstallerConfig) InstallerConfig {
-	baseURL := core.Trim(cfg.ScriptBaseURL)
-	for core.HasSuffix(baseURL, "/") {
-		baseURL = core.TrimSuffix(baseURL, "/")
-	}
+	baseURL := strings.TrimRight(strings.TrimSpace(cfg.ScriptBaseURL), "/")
 	if baseURL == "" {
 		baseURL = DefaultScriptBaseURL
 	}
 	cfg.ScriptBaseURL = baseURL
-	if core.Trim(cfg.BinaryName) == "" {
+	if strings.TrimSpace(cfg.BinaryName) == "" {
 		cfg.BinaryName = defaultInstallerBinaryName(cfg.Repo)
 	}
 	return cfg
 }
 
 func defaultInstallerBinaryName(repo string) string {
-	repo = core.Trim(repo)
+	repo = strings.TrimSpace(repo)
 	if repo == "" {
 		return ""
 	}
 
-	repo = core.Replace(repo, "\\", "/")
-	for core.HasSuffix(repo, "/") {
-		repo = core.TrimSuffix(repo, "/")
-	}
-	if repo == "" {
-		return ""
-	}
-
-	parts := core.Split(repo, "/")
+	parts := strings.FieldsFunc(repo, func(r rune) bool {
+		return r == '/' || r == '\\'
+	})
 	if len(parts) == 0 {
 		return ""
 	}
@@ -253,11 +245,11 @@ func shellQuote(value string) string {
 		return "''"
 	}
 
-	return "'" + core.Replace(value, "'", `'"'"'`) + "'"
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
 
 func canonicalVariant(variant InstallerVariant) InstallerVariant {
-	normalized := InstallerVariant(core.Lower(core.Trim(string(variant))))
+	normalized := InstallerVariant(strings.ToLower(strings.TrimSpace(string(variant))))
 	if normalized == "agentic" {
 		return VariantAgent
 	}
@@ -265,7 +257,6 @@ func canonicalVariant(variant InstallerVariant) InstallerVariant {
 }
 
 func validateInstallerVersion(version string) error {
-	version = core.Trim(version)
 	if version == "" {
 		return nil
 	}

@@ -148,6 +148,16 @@ func TestInstaller_GenerateInstaller_Bad(t *testing.T) {
 		}
 
 	})
+
+	t.Run("version with spaces returns error", func(t *testing.T) {
+		script, err := GenerateInstaller(VariantCI, InstallerConfig{
+			Version:    " v1.2.3 ",
+			Repo:       "dappcore/core",
+			BinaryName: "core",
+		})
+		assert.Error(t, err)
+		assert.Empty(t, script)
+	})
 }
 
 func TestInstaller_GenerateInstaller_Ugly(t *testing.T) {

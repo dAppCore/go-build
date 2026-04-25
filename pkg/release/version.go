@@ -167,11 +167,10 @@ func ValidateVersion(version string) bool {
 // This is intentionally looser than semver validation so release automation can
 // accept safe non-semver labels such as "dev" when needed.
 func ValidateVersionIdentifier(version string) error {
-	version = strings.TrimSpace(version)
 	if version == "" {
 		return nil
 	}
-	if err := build.ValidateVersionIdentifier(version); err != nil {
+	if err := build.ValidateVersionString(version); err != nil {
 		return coreerr.E("release.ValidateVersionIdentifier", "version contains unsupported characters", err)
 	}
 
