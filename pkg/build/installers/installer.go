@@ -3,13 +3,12 @@
 package installers
 
 import (
-	"bytes"
-	"embed"
-	"regexp"
-	"strings"
-	"text/template"
+	"embed"         // Note: AX-6 — embeds installer templates into the package.
+	"regexp"        // Note: AX-6 — validates release versions with a precompiled pattern.
+	"text/template" // Note: AX-6 — renders shell installer templates.
 
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/core"             // Note: AX-6 — provides approved string helpers and template writer construction.
+	coreerr "dappco.re/go/core/log" // Note: AX-6 — wraps installer errors with Core logging semantics.
 )
 
 //go:embed templates/*.tmpl
@@ -135,8 +134,10 @@ func GenerateInstaller(variant InstallerVariant, args ...any) (string, error) {
 		return "", coreerr.E("installers.GenerateInstaller", "failed to parse template "+entry.tmpl, err)
 	}
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, cfg); err != nil {
+	// Note: AX-6 — core.NewBuffer is unavailable in the pinned core module;
+	// core.NewBuilder is the available Core-owned writer.
+	buf := core.NewBuilder()
+	if err := tmpl.Execute(buf, cfg); err != nil {
 		return "", coreerr.E("installers.GenerateInstaller", "failed to render template "+entry.tmpl, err)
 	}
 
@@ -213,31 +214,31 @@ func normalizeInstallerArgs(args ...any) (InstallerConfig, error) {
 }
 
 func normalizeInstallerConfig(cfg InstallerConfig) InstallerConfig {
-	baseURL := strings.TrimRight(strings.TrimSpace(cfg.ScriptBaseURL), "/")
+	baseURL := trimTrailingSlashes(core.Trim(cfg.ScriptBaseURL))
 	if baseURL == "" {
 		baseURL = DefaultScriptBaseURL
 	}
 	cfg.ScriptBaseURL = baseURL
-	if strings.TrimSpace(cfg.BinaryName) == "" {
+	if core.Trim(cfg.BinaryName) == "" {
 		cfg.BinaryName = defaultInstallerBinaryName(cfg.Repo)
 	}
 	return cfg
 }
 
 func defaultInstallerBinaryName(repo string) string {
-	repo = strings.TrimSpace(repo)
+	repo = core.Trim(repo)
 	if repo == "" {
 		return ""
 	}
 
-	parts := strings.FieldsFunc(repo, func(r rune) bool {
-		return r == '/' || r == '\\'
-	})
-	if len(parts) == 0 {
-		return ""
+	parts := core.Split(core.Replace(repo, "\\", "/"), "/")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] != "" {
+			return parts[i]
+		}
 	}
 
-	return parts[len(parts)-1]
+	return ""
 }
 
 func shellQuote(value string) string {
@@ -245,11 +246,11 @@ func shellQuote(value string) string {
 		return "''"
 	}
 
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+	return "'" + core.Replace(value, "'", `'"'"'`) + "'"
 }
 
 func canonicalVariant(variant InstallerVariant) InstallerVariant {
-	normalized := InstallerVariant(strings.ToLower(strings.TrimSpace(string(variant))))
+	normalized := InstallerVariant(core.Lower(core.Trim(string(variant))))
 	if normalized == "agentic" {
 		return VariantAgent
 	}
@@ -257,7 +258,7 @@ func canonicalVariant(variant InstallerVariant) InstallerVariant {
 }
 
 func validateInstallerVersion(version string) error {
-	version = strings.TrimSpace(version)
+	version = core.Trim(version)
 	if version == "" {
 		return nil
 	}
@@ -266,4 +267,11 @@ func validateInstallerVersion(version string) error {
 	}
 
 	return nil
+}
+
+func trimTrailingSlashes(value string) string {
+	for core.HasSuffix(value, "/") {
+		value = core.TrimSuffix(value, "/")
+	}
+	return value
 }
