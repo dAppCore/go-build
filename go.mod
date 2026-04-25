@@ -4,14 +4,14 @@ go 1.26.0
 
 require (
 	dappco.re/go/core v0.8.0-alpha.1
-	dappco.re/go/api v0.8.0-alpha.1
-	dappco.re/go/cli v0.8.0-alpha.1
-	dappco.re/go/i18n v0.8.0-alpha.1
-	dappco.re/go/io v0.8.0-alpha.1
-	dappco.re/go/log v0.8.0-alpha.1
-	dappco.re/go/process v0.8.0-alpha.1
-	dappco.re/go/ws v0.8.0-alpha.1
-	github.com/Snider/Borg v0.2.0
+	dappco.re/go/core/api v0.3.0
+	dappco.re/go/core/cli v0.5.2
+	dappco.re/go/core/i18n v0.2.3
+	dappco.re/go/core/io v0.4.1
+	dappco.re/go/core/log v0.1.2
+	dappco.re/go/core/process v0.5.1
+	dappco.re/go/core/ws v0.4.0
+	github.com/Snider/Borg v0.2.0 // Note: AX-6 deferred — awaiting dappco.re/go/crypt API parity
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kardianos/service v1.2.4
@@ -19,6 +19,7 @@ require (
 	github.com/leaanthony/gosod v1.0.4
 	github.com/oasdiff/kin-openapi v0.136.1
 	github.com/oasdiff/oasdiff v1.12.3
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.53.0
 	golang.org/x/text v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -26,7 +27,7 @@ require (
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
-	dappco.re/go/inference v0.8.0-alpha.1 // indirect
+	dappco.re/go/core/inference v0.3.0 // indirect
 	github.com/99designs/gqlgen v0.17.88 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/TwiN/go-color v1.4.1 // indirect
@@ -50,6 +51,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
@@ -110,6 +112,7 @@ require (
 	github.com/oasdiff/yaml3 v0.0.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/redis/go-redis/v9 v9.18.0 // indirect
