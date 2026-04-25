@@ -4,13 +4,11 @@ package publishers
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	stdio "io"
 	"io/fs"
 	"net/url"
 	"sort"
-	"strings"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
@@ -197,26 +195,24 @@ func shouldMarkGitHubPrerelease(release *Release, pubCfg PublisherConfig) bool {
 }
 
 func isSemverPrerelease(version string) bool {
-	version = strings.TrimSpace(version)
-	version = strings.TrimPrefix(version, "v")
+	version = core.Trim(version)
+	version = core.TrimPrefix(version, "v")
 	if version == "" {
 		return false
 	}
 
-	if buildIndex := strings.Index(version, "+"); buildIndex >= 0 {
-		version = version[:buildIndex]
-	}
+	version = core.SplitN(version, "+", 2)[0]
 
-	dashIndex := strings.Index(version, "-")
-	if dashIndex <= 0 || dashIndex == len(version)-1 {
+	parts := core.SplitN(version, "-", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return false
 	}
 
-	return isCoreSemver(version[:dashIndex])
+	return isCoreSemver(parts[0])
 }
 
 func isCoreSemver(version string) bool {
-	parts := strings.Split(version, ".")
+	parts := core.Split(version, ".")
 	if len(parts) != 3 {
 		return false
 	}
@@ -412,11 +408,11 @@ func detectRepositoryViaGh(ctx context.Context, dir string) (string, error) {
 	var payload struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	}
-	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+	if err := ax.JSONUnmarshal([]byte(output), &payload); err != nil {
 		return "", coreerr.E("github.detectRepositoryViaGh", "failed to parse gh repo view output", err)
 	}
 
-	repo := strings.TrimSpace(payload.NameWithOwner)
+	repo := core.Trim(payload.NameWithOwner)
 	if repo == "" {
 		return "", coreerr.E("github.detectRepositoryViaGh", "gh repo view did not report a repository", nil)
 	}
@@ -442,7 +438,7 @@ func parseGitHubRepo(url string) (string, error) {
 	}
 
 	parsed, err := urlpkgParse(url)
-	if err == nil && strings.EqualFold(parsed.Hostname(), "github.com") {
+	if err == nil && core.Lower(parsed.Hostname()) == "github.com" {
 		return normaliseGitHubRepoPath(parsed.Path)
 	}
 
@@ -457,9 +453,9 @@ func listGitRemotes(ctx context.Context, dir string) ([]gitRemote, error) {
 
 	seen := make(map[string]struct{})
 	remotes := make([]gitRemote, 0)
-	scanner := bufio.NewScanner(strings.NewReader(output))
+	scanner := bufio.NewScanner(core.NewReader(output))
 	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
+		fields := splitRemoteFields(scanner.Text())
 		if len(fields) < 2 {
 			continue
 		}
@@ -498,20 +494,60 @@ func listGitRemotes(ctx context.Context, dir string) ([]gitRemote, error) {
 }
 
 func normaliseGitHubRepoPath(path string) (string, error) {
-	path = strings.TrimSpace(path)
-	path = strings.Trim(path, "/")
-	path = strings.TrimSuffix(path, ".git")
-	path = strings.Trim(path, "/")
+	path = core.Trim(path)
+	path = trimSlashes(path)
+	path = core.TrimSuffix(path, ".git")
+	path = trimSlashes(path)
 	if path == "" {
 		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil)
 	}
 
-	parts := strings.Split(path, "/")
+	parts := core.Split(path, "/")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil)
 	}
 
 	return parts[0] + "/" + parts[1], nil
+}
+
+func splitRemoteFields(line string) []string {
+	fields := make([]string, 0, 3)
+	start := -1
+	for index, r := range line {
+		if isRemoteFieldSeparator(r) {
+			if start >= 0 {
+				fields = append(fields, line[start:index])
+				start = -1
+			}
+			continue
+		}
+		if start < 0 {
+			start = index
+		}
+	}
+	if start >= 0 {
+		fields = append(fields, line[start:])
+	}
+	return fields
+}
+
+func isRemoteFieldSeparator(r rune) bool {
+	switch r {
+	case ' ', '\t', '\n', '\r', '\v', '\f':
+		return true
+	default:
+		return false
+	}
+}
+
+func trimSlashes(path string) string {
+	for core.HasPrefix(path, "/") {
+		path = core.TrimPrefix(path, "/")
+	}
+	for core.HasSuffix(path, "/") {
+		path = core.TrimSuffix(path, "/")
+	}
+	return path
 }
 
 func urlpkgParse(rawURL string) (*url.URL, error) {
