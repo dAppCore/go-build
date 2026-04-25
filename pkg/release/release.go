@@ -4,18 +4,17 @@
 package release
 
 import (
-	"context"
-	"os"
-	"slices"
+	"context" // Note: AX-6 — carries cancellation through release build and publish workflows.
+	"slices"  // Note: AX-6 — sorts discovered release artifacts deterministically.
 
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/build/pkg/build/builders"
-	"dappco.re/go/build/pkg/build/signing"
-	"dappco.re/go/build/pkg/release/publishers"
-	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"            // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
+	"dappco.re/go/build/pkg/build"              // Note: AX-6 — release pipeline depends on build config, artifacts, and checksum helpers.
+	"dappco.re/go/build/pkg/build/builders"     // Note: AX-6 — resolves project builders for release artifact generation.
+	"dappco.re/go/build/pkg/build/signing"      // Note: AX-6 — wires release signing and notarization hooks.
+	"dappco.re/go/build/pkg/release/publishers" // Note: AX-6 — publishes completed release artifacts to configured targets.
+	"dappco.re/go/core"                         // Note: AX-6 — provides approved string and formatting helpers.
+	"dappco.re/go/core/io"                      // Note: AX-6 — Core Medium abstraction for release filesystem access.
+	coreerr "dappco.re/go/core/log"             // Note: AX-6 — wraps release errors with Core logging semantics.
 )
 
 // release signing hooks allow tests to observe the release pipeline without
@@ -375,11 +374,11 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	buildOutputDir := outputDir
 	stageDir := ""
 	if !mediumEquals(artifactFS, io.Local) {
-		stageDir, err = os.MkdirTemp("", "core-release-*")
+		stageDir, err = ax.TempDir("core-release-*")
 		if err != nil {
 			return nil, coreerr.E("release.Run", "failed to create release staging directory", err)
 		}
-		defer func() { _ = os.RemoveAll(stageDir) }()
+		defer func() { _ = ax.RemoveAll(stageDir) }()
 		buildOutputDir = ax.Join(stageDir, "dist")
 	}
 
