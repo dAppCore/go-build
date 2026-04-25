@@ -1,9 +1,8 @@
 package buildcmd
 
 import (
-	"strings"
-
 	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 )
 
@@ -12,7 +11,7 @@ func emitCIErrorAnnotation(err error) {
 		return
 	}
 
-	message := strings.TrimSpace(err.Error())
+	message := core.Trim(err.Error())
 	if message == "" {
 		return
 	}

@@ -2,7 +2,6 @@ package buildcmd
 
 import (
 	"context"
-	"strings"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
@@ -73,7 +72,7 @@ func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, 
 		return coreerr.E("build.runBuildInstallers", "failed to load build config", err)
 	}
 
-	installerVersion := strings.TrimSpace(version)
+	installerVersion := core.Trim(version)
 	if installerVersion == "" {
 		installerVersion, err = resolveInstallersVersion(ctx, projectDir)
 		if err != nil {
@@ -84,7 +83,7 @@ func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, 
 		return coreerr.E("build.runBuildInstallers", "invalid installer version; use a safe release identifier", err)
 	}
 
-	installerRepo := strings.TrimSpace(repo)
+	installerRepo := core.Trim(repo)
 	if installerRepo == "" {
 		installerRepo, err = resolveInstallersRepository(ctx, projectDir)
 		if err != nil {
@@ -110,7 +109,7 @@ func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, 
 
 	normalizedVariant, ok := normalizeInstallersVariant(variant)
 	if !ok {
-		return coreerr.E("build.runBuildInstallers", "unknown installer variant: "+strings.TrimSpace(variant), nil)
+		return coreerr.E("build.runBuildInstallers", "unknown installer variant: "+core.Trim(variant), nil)
 	}
 
 	cli.Print("%s %s\n", buildHeaderStyle.Render("Installers"), "generating installer scripts")
@@ -160,7 +159,7 @@ func resolveInstallersRepository(ctx context.Context, projectDir string) (string
 	}
 
 	if releaseConfig != nil {
-		repo := strings.TrimSpace(releaseConfig.GetRepository())
+		repo := core.Trim(releaseConfig.GetRepository())
 		if repo != "" {
 			return repo, nil
 		}
@@ -175,7 +174,7 @@ func resolveInstallersRepository(ctx context.Context, projectDir string) (string
 }
 
 func normalizeInstallersVariant(value string) (build.InstallerVariant, bool) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	switch core.Lower(core.Trim(value)) {
 	case "", "all":
 		return "", true
 	case "full", "setup", "setup.sh":
