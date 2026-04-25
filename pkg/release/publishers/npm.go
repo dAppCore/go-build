@@ -2,15 +2,15 @@
 package publishers
 
 import (
-	"bytes"
-	"context"
-	"embed"
-	"text/template"
+	"bytes"         // Note: AX-6 — template rendering writes into an in-memory buffer.
+	"context"       // Note: AX-6 — carries cancellation through publish and npm operations.
+	"embed"         // Note: AX-6 — embeds npm templates for release publishing.
+	"text/template" // Note: AX-6 — renders npm package templates.
 
-	"dappco.re/go/core"
-	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax" // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
+	"dappco.re/go/core"              // Note: AX-6 — provides approved string and formatting helpers.
+	coreio "dappco.re/go/core/io"    // Note: AX-6 — Core Medium abstraction for release filesystem access.
+	coreerr "dappco.re/go/core/log"  // Note: AX-6 — wraps publisher errors with Core logging semantics.
 )
 
 //go:embed templates/npm/*.tmpl

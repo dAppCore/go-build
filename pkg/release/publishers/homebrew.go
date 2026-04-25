@@ -2,17 +2,16 @@
 package publishers
 
 import (
-	"bytes"
-	"context"
-	"embed"
-	"strings"
-	"text/template"
-	"unicode"
+	"bytes"         // Note: AX-6 — template rendering writes into an in-memory buffer.
+	"context"       // Note: AX-6 — carries cancellation through publish and git operations.
+	"embed"         // Note: AX-6 — embeds Homebrew templates for release publishing.
+	"text/template" // Note: AX-6 — renders Homebrew formula templates.
+	"unicode"       // Note: AX-6 — classifies runes while deriving Ruby formula class names.
 
-	"dappco.re/go/core"
-	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax" // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
+	"dappco.re/go/core"              // Note: AX-6 — provides approved string and formatting helpers.
+	coreio "dappco.re/go/core/io"    // Note: AX-6 — Core Medium abstraction for release filesystem access.
+	coreerr "dappco.re/go/core/log"  // Note: AX-6 — wraps publisher errors with Core logging semantics.
 )
 
 //go:embed templates/homebrew/*.tmpl
@@ -344,9 +343,7 @@ func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data ho
 
 // toFormulaClass converts a package name to a Ruby class name.
 func toFormulaClass(name string) string {
-	parts := strings.FieldsFunc(name, func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	})
+	parts := splitFormulaClassParts(name)
 	if len(parts) == 0 {
 		return "Core"
 	}
@@ -360,4 +357,29 @@ func toFormulaClass(name string) string {
 	}
 
 	return core.Join("", parts...)
+}
+
+func splitFormulaClassParts(name string) []string {
+	var parts []string
+	start := -1
+
+	for i, r := range name {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			if start == -1 {
+				start = i
+			}
+			continue
+		}
+
+		if start != -1 {
+			parts = append(parts, name[start:i])
+			start = -1
+		}
+	}
+
+	if start != -1 {
+		parts = append(parts, name[start:])
+	}
+
+	return parts
 }
