@@ -5,8 +5,8 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"strings"
 	"text/template"
-	"unicode"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
@@ -343,7 +343,9 @@ func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data ho
 
 // toFormulaClass converts a package name to a Ruby class name.
 func toFormulaClass(name string) string {
-	parts := formulaClassParts(name)
+	parts := strings.FieldsFunc(name, func(r rune) bool {
+		return !core.IsLetter(r) && !core.IsDigit(r)
+	})
 	if len(parts) == 0 {
 		return "Core"
 	}
@@ -357,23 +359,4 @@ func toFormulaClass(name string) string {
 	}
 
 	return core.Join("", parts...)
-}
-
-func formulaClassParts(name string) []string {
-	parts := make([]string, 0)
-	part := make([]rune, 0, len(name))
-	for _, r := range name {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			part = append(part, r)
-			continue
-		}
-		if len(part) > 0 {
-			parts = append(parts, string(part))
-			part = part[:0]
-		}
-	}
-	if len(part) > 0 {
-		parts = append(parts, string(part))
-	}
-	return parts
 }
