@@ -8,18 +8,13 @@ package buildcmd
 
 import (
 	"context"
-	stdio "io"
-	"net/http"
-	"net/url"
-	"path"
-	"strconv"
-	"strings"
-	"unicode"
+	stdio "io" // AX-6 intrinsic: response and file streams expose standard io contracts.
+	"net/http" // AX-6 intrinsic: core has no HTTP fetch primitive yet.
 
-	"dappco.re/go/core"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/i18n"
-	coreerr "dappco.re/go/log"
+	"dappco.re/go/core"
+	"dappco.re/go/core/i18n"
+	coreerr "dappco.re/go/core/log"
 	"github.com/leaanthony/debme"
 	"github.com/leaanthony/gosod"
 	"golang.org/x/net/html"
@@ -152,8 +147,7 @@ func extractHTMLMetadataAndAssets(htmlContent, baseURL string) (pwaMetadata, []s
 		return pwaMetadata{}, nil, err
 	}
 
-	base, err := url.Parse(baseURL)
-	if err != nil {
+	if _, err := core.URLParse(baseURL); err != nil {
 		return pwaMetadata{}, nil, err
 	}
 
@@ -165,15 +159,15 @@ func extractHTMLMetadataAndAssets(htmlContent, baseURL string) (pwaMetadata, []s
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
 		if node.Type == html.ElementNode {
-			switch strings.ToLower(strings.TrimSpace(node.Data)) {
+			switch core.Lower(core.Trim(node.Data)) {
 			case "title":
 				if metadata.DisplayName == "" {
-					metadata.DisplayName = strings.TrimSpace(nodeText(node))
+					metadata.DisplayName = core.Trim(nodeText(node))
 				}
 			case "meta":
-				content := strings.TrimSpace(attributeValue(node, "content"))
-				name := strings.ToLower(strings.TrimSpace(attributeValue(node, "name")))
-				property := strings.ToLower(strings.TrimSpace(attributeValue(node, "property")))
+				content := core.Trim(attributeValue(node, "content"))
+				name := core.Lower(core.Trim(attributeValue(node, "name")))
+				property := core.Lower(core.Trim(attributeValue(node, "property")))
 				if content != "" && (name == "description" || property == "og:description" || property == "twitter:description") && metadata.Description == "" {
 					metadata.Description = content
 				}
@@ -181,7 +175,7 @@ func extractHTMLMetadataAndAssets(htmlContent, baseURL string) (pwaMetadata, []s
 				relValue := attributeValue(node, "rel")
 				href := attributeValue(node, "href")
 				rel := parseRelTokens(relValue)
-				resolved := resolveAssetURL(base, href)
+				resolved := resolveAssetURL(baseURL, href)
 				if resolved != "" && relHasAny(rel, "stylesheet", "icon", "shortcut", "apple-touch-icon", "mask-icon", "preload", "modulepreload", "prefetch", "manifest") {
 					assets = append(assets, resolved)
 				}
@@ -192,15 +186,15 @@ func extractHTMLMetadataAndAssets(htmlContent, baseURL string) (pwaMetadata, []s
 					metadata.Icons = append(metadata.Icons, resolved)
 				}
 			case "script":
-				appendResolvedAsset(&assets, base, attributeValue(node, "src"))
+				appendResolvedAsset(&assets, baseURL, attributeValue(node, "src"))
 			case "img":
-				appendResolvedAsset(&assets, base, attributeValue(node, "src"))
-				appendResolvedSrcSet(&assets, base, attributeValue(node, "srcset"))
+				appendResolvedAsset(&assets, baseURL, attributeValue(node, "src"))
+				appendResolvedSrcSet(&assets, baseURL, attributeValue(node, "srcset"))
 			case "source":
-				appendResolvedAsset(&assets, base, attributeValue(node, "src"))
-				appendResolvedSrcSet(&assets, base, attributeValue(node, "srcset"))
+				appendResolvedAsset(&assets, baseURL, attributeValue(node, "src"))
+				appendResolvedSrcSet(&assets, baseURL, attributeValue(node, "srcset"))
 			case "video":
-				appendResolvedAsset(&assets, base, attributeValue(node, "poster"))
+				appendResolvedAsset(&assets, baseURL, attributeValue(node, "poster"))
 			}
 		}
 
@@ -309,8 +303,8 @@ func runBuild(ctx context.Context, fromPath string) error {
 
 	templateData := map[string]string{
 		"AppModule":             appConfig.ModuleName,
-		"AppDisplayNameLiteral": strconv.Quote(appConfig.DisplayName),
-		"AppDescriptionLiteral": strconv.Quote(appConfig.Description),
+		"AppDisplayNameLiteral": core.Sprintf("%q", appConfig.DisplayName),
+		"AppDescriptionLiteral": core.Sprintf("%q", appConfig.Description),
 	}
 	if err := sod.Extract(buildDir, templateData); err != nil {
 		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "extract template"}), err)
@@ -347,12 +341,12 @@ func resolvePWAAppConfig(fromPath string) pwaAppConfig {
 	}
 
 	metadata := loadLocalPWAMetadata(fromPath)
-	displayName := strings.TrimSpace(metadata.DisplayName)
+	displayName := core.Trim(metadata.DisplayName)
 	if displayName == "" {
 		displayName = fallbackName
 	}
 
-	description := strings.TrimSpace(metadata.Description)
+	description := core.Trim(metadata.Description)
 	if description == "" {
 		description = defaultPWADescription
 	}
@@ -402,7 +396,8 @@ func loadLocalPWAMetadata(dir string) pwaMetadata {
 		if err != nil {
 			continue
 		}
-		manifestURL := "https://local.core/" + strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(relativePath, ax.DS(), "/")), "/")
+		manifestURLPath := core.CleanPath(core.Concat("/", core.Replace(relativePath, ax.DS(), "/")), "/")
+		manifestURL := core.Concat("https://local.core/", core.TrimPrefix(manifestURLPath, "/"))
 		manifestMetadata, _ := manifestMetadataAndAssetsFromBytes(manifestBody, manifestURL)
 		return mergePWAMetadata(metadata, manifestMetadata)
 	}
@@ -471,20 +466,19 @@ func copyDir(src, dst string) error {
 func manifestMetadataAndAssets(manifest map[string]any, manifestURL string) (pwaMetadata, []string) {
 	metadata := pwaMetadata{}
 	var assets []string
-	base, _ := url.Parse(manifestURL)
 
-	if name, ok := manifest["name"].(string); ok && strings.TrimSpace(name) != "" {
-		metadata.DisplayName = strings.TrimSpace(name)
+	if name, ok := manifest["name"].(string); ok && core.Trim(name) != "" {
+		metadata.DisplayName = core.Trim(name)
 	} else if shortName, ok := manifest["short_name"].(string); ok {
-		metadata.DisplayName = strings.TrimSpace(shortName)
+		metadata.DisplayName = core.Trim(shortName)
 	}
 
 	if description, ok := manifest["description"].(string); ok {
-		metadata.Description = strings.TrimSpace(description)
+		metadata.Description = core.Trim(description)
 	}
 
 	if startURL, ok := manifest["start_url"].(string); ok {
-		appendResolvedAsset(&assets, base, startURL)
+		appendResolvedAsset(&assets, manifestURL, startURL)
 	}
 
 	if icons, ok := manifest["icons"].([]any); ok {
@@ -494,7 +488,7 @@ func manifestMetadataAndAssets(manifest map[string]any, manifestURL string) (pwa
 				continue
 			}
 			src, _ := iconMap["src"].(string)
-			resolved := resolveAssetURL(base, src)
+			resolved := resolveAssetURL(manifestURL, src)
 			if resolved == "" {
 				continue
 			}
@@ -518,14 +512,14 @@ func manifestMetadataAndAssetsFromBytes(body []byte, manifestURL string) (pwaMet
 
 func mergePWAMetadata(base, override pwaMetadata) pwaMetadata {
 	merged := base
-	if strings.TrimSpace(override.DisplayName) != "" {
-		merged.DisplayName = strings.TrimSpace(override.DisplayName)
+	if core.Trim(override.DisplayName) != "" {
+		merged.DisplayName = core.Trim(override.DisplayName)
 	}
-	if strings.TrimSpace(override.Description) != "" {
-		merged.Description = strings.TrimSpace(override.Description)
+	if core.Trim(override.Description) != "" {
+		merged.Description = core.Trim(override.Description)
 	}
-	if strings.TrimSpace(override.ManifestURL) != "" {
-		merged.ManifestURL = strings.TrimSpace(override.ManifestURL)
+	if core.Trim(override.ManifestURL) != "" {
+		merged.ManifestURL = core.Trim(override.ManifestURL)
 	}
 	merged.Icons = uniquePWAStrings(append(append([]string{}, base.Icons...), override.Icons...))
 	return merged
@@ -533,7 +527,7 @@ func mergePWAMetadata(base, override pwaMetadata) pwaMetadata {
 
 func attributeValue(node *html.Node, name string) string {
 	for _, attribute := range node.Attr {
-		if strings.EqualFold(attribute.Key, name) {
+		if core.Lower(attribute.Key) == core.Lower(name) {
 			return attribute.Val
 		}
 	}
@@ -541,7 +535,7 @@ func attributeValue(node *html.Node, name string) string {
 }
 
 func nodeText(node *html.Node) string {
-	var b strings.Builder
+	b := core.NewBuilder()
 	var walk func(*html.Node)
 	walk = func(current *html.Node) {
 		if current.Type == html.TextNode {
@@ -556,7 +550,49 @@ func nodeText(node *html.Node) string {
 }
 
 func parseRelTokens(value string) []string {
-	return uniquePWAStrings(strings.Fields(strings.ToLower(strings.TrimSpace(value))))
+	return uniquePWAStrings(pwaFields(core.Lower(core.Trim(value))))
+}
+
+func pwaFields(value string) []string {
+	var fields []string
+	fieldStart := -1
+	for i, r := range value {
+		if pwaIsSpace(r) {
+			if fieldStart >= 0 {
+				fields = append(fields, value[fieldStart:i])
+				fieldStart = -1
+			}
+			continue
+		}
+		if fieldStart < 0 {
+			fieldStart = i
+		}
+	}
+	if fieldStart >= 0 {
+		fields = append(fields, value[fieldStart:])
+	}
+	return fields
+}
+
+func pwaIsSpace(r rune) bool {
+	switch r {
+	case ' ', '\t', '\n', '\r', '\f', '\v':
+		return true
+	default:
+		return false
+	}
+}
+
+func trimPWAEdgeDashes(value string) string {
+	start := 0
+	for start < len(value) && value[start] == '-' {
+		start++
+	}
+	end := len(value)
+	for end > start && value[end-1] == '-' {
+		end--
+	}
+	return value[start:end]
 }
 
 func relHasAny(tokens []string, candidates ...string) bool {
@@ -570,17 +606,21 @@ func relHasAny(tokens []string, candidates ...string) bool {
 	return false
 }
 
-func resolveAssetURL(base *url.URL, raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" || strings.HasPrefix(raw, "#") {
+func resolveAssetURL(baseURL, raw string) string {
+	raw = core.Trim(raw)
+	if raw == "" || core.HasPrefix(raw, "#") {
 		return ""
 	}
 
-	lower := strings.ToLower(raw)
-	if strings.HasPrefix(lower, "data:") || strings.HasPrefix(lower, "javascript:") || strings.HasPrefix(lower, "mailto:") {
+	lower := core.Lower(raw)
+	if core.HasPrefix(lower, "data:") || core.HasPrefix(lower, "javascript:") || core.HasPrefix(lower, "mailto:") {
 		return ""
 	}
 
+	base, err := core.URLParse(baseURL)
+	if err != nil {
+		return ""
+	}
 	resolved, err := base.Parse(raw)
 	if err != nil {
 		return ""
@@ -592,24 +632,24 @@ func resolveAssetURL(base *url.URL, raw string) string {
 	return resolved.String()
 }
 
-func appendResolvedAsset(assets *[]string, base *url.URL, raw string) {
-	resolved := resolveAssetURL(base, raw)
+func appendResolvedAsset(assets *[]string, baseURL, raw string) {
+	resolved := resolveAssetURL(baseURL, raw)
 	if resolved != "" {
 		*assets = append(*assets, resolved)
 	}
 }
 
-func appendResolvedSrcSet(assets *[]string, base *url.URL, raw string) {
-	for _, candidate := range strings.Split(raw, ",") {
-		candidate = strings.TrimSpace(candidate)
+func appendResolvedSrcSet(assets *[]string, baseURL, raw string) {
+	for _, candidate := range core.Split(raw, ",") {
+		candidate = core.Trim(candidate)
 		if candidate == "" {
 			continue
 		}
-		fields := strings.Fields(candidate)
+		fields := pwaFields(candidate)
 		if len(fields) == 0 {
 			continue
 		}
-		appendResolvedAsset(assets, base, fields[0])
+		appendResolvedAsset(assets, baseURL, fields[0])
 	}
 }
 
@@ -621,7 +661,7 @@ func uniquePWAStrings(values []string) []string {
 	result := make([]string, 0, len(values))
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = core.Trim(value)
 		if value == "" {
 			continue
 		}
@@ -635,7 +675,7 @@ func uniquePWAStrings(values []string) []string {
 }
 
 func normalizeAssetURL(raw string) string {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
+	parsed, err := core.URLParse(core.Trim(raw))
 	if err != nil {
 		return ""
 	}
@@ -644,20 +684,20 @@ func normalizeAssetURL(raw string) string {
 }
 
 func resolveAssetDestination(destDir, assetURL string) (string, error) {
-	parsed, err := url.Parse(assetURL)
+	parsed, err := core.URLParse(assetURL)
 	if err != nil {
 		return "", err
 	}
 
-	relativePath := path.Clean("/" + parsed.Path)
+	relativePath := core.CleanPath(core.Concat("/", parsed.Path), "/")
 	switch {
 	case relativePath == "/" || relativePath == ".":
 		relativePath = "/index.html"
-	case strings.HasSuffix(parsed.Path, "/"):
-		relativePath = path.Join(relativePath, "index.html")
+	case core.HasSuffix(parsed.Path, "/"):
+		relativePath = core.JoinPath(relativePath, "index.html")
 	}
 
-	return ax.Join(destDir, ax.FromSlash(strings.TrimPrefix(relativePath, "/"))), nil
+	return ax.Join(destDir, ax.FromSlash(core.TrimPrefix(relativePath, "/"))), nil
 }
 
 func localManifestCandidates(dir, manifestURL string) []string {
@@ -672,32 +712,32 @@ func localManifestCandidates(dir, manifestURL string) []string {
 }
 
 func localAssetPath(dir, assetURL string) string {
-	parsed, err := url.Parse(assetURL)
+	parsed, err := core.URLParse(assetURL)
 	if err != nil {
 		return ""
 	}
 
-	relativePath := path.Clean("/" + parsed.Path)
+	relativePath := core.CleanPath(core.Concat("/", parsed.Path), "/")
 	if relativePath == "/" || relativePath == "." {
 		relativePath = "/index.html"
 	}
-	return ax.Join(dir, ax.FromSlash(strings.TrimPrefix(relativePath, "/")))
+	return ax.Join(dir, ax.FromSlash(core.TrimPrefix(relativePath, "/")))
 }
 
 func slugifyPWAName(name string) string {
-	name = strings.TrimSpace(name)
+	name = core.Trim(name)
 	if name == "" {
 		return ""
 	}
 
-	var b strings.Builder
+	b := core.NewBuilder()
 	lastDash := false
-	for _, r := range strings.ToLower(name) {
+	for _, r := range core.Lower(name) {
 		switch {
-		case r <= unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r)):
+		case r <= 127 && (core.IsLetter(r) || core.IsDigit(r)):
 			b.WriteRune(r)
 			lastDash = false
-		case unicode.IsSpace(r) || r == '-' || r == '_' || r == '.':
+		case pwaIsSpace(r) || r == '-' || r == '_' || r == '.':
 			if b.Len() == 0 || lastDash {
 				continue
 			}
@@ -706,7 +746,7 @@ func slugifyPWAName(name string) string {
 		}
 	}
 
-	slug := strings.Trim(b.String(), "-")
+	slug := trimPWAEdgeDashes(b.String())
 	if slug == "" {
 		return ""
 	}
