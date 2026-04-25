@@ -3,12 +3,12 @@ package buildcmd
 import (
 	"context"
 	"crypto/sha256"
+	// Note: AX-6 — core has no exported HexEncode; cache signatures require stable SHA-256 hex output.
 	"encoding/hex"
-	stdio "io"
+	// Note: AX-6 — coreio Medium exposes fs.FileMode metadata that must be preserved for copied artifacts.
 	"io/fs"
 	"runtime"
 	"sort"
-	"strings"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
@@ -162,7 +162,7 @@ func runBuildImage(req ImageBuildRequest) error {
 	}
 
 	publishedRef := ""
-	if containsImageFormat(formats, "oci") && strings.TrimSpace(runtimeCfg.LinuxKit.Registry) != "" {
+	if containsImageFormat(formats, "oci") && core.Trim(runtimeCfg.LinuxKit.Registry) != "" {
 		ociArtifactPath := imageBuilder.ArtifactPath(outputDir, imageName, "oci")
 		publishedRef, err = publishOCIImageArchive(ctx, projectDir, ociArtifactPath, runtimeCfg.LinuxKit.Registry, imageName, version)
 		if err != nil {
@@ -208,11 +208,11 @@ func resolveImmutableImageVersion(ctx context.Context, projectDir string) immuta
 		return immutableImageVersion{BuildVersion: "dev"}
 	}
 
-	tag = strings.TrimSpace(tag)
+	tag = core.Trim(tag)
 	if tag == "" {
 		return immutableImageVersion{BuildVersion: "dev"}
 	}
-	if !strings.HasPrefix(tag, "v") {
+	if !core.HasPrefix(tag, "v") {
 		tag = "v" + tag
 	}
 
@@ -232,7 +232,7 @@ func parseImageFormats(value string) []string {
 	formats := make([]string, 0, len(parts))
 	seen := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
-		part = strings.ToLower(strings.TrimSpace(part))
+		part = core.Lower(core.Trim(part))
 		if part == "" {
 			continue
 		}
@@ -248,7 +248,7 @@ func parseImageFormats(value string) []string {
 func cachedImageArtifacts(imageBuilder *builders.LinuxKitImageBuilder, outputDir, imageName string, formats []string) []build.Artifact {
 	artifacts := make([]build.Artifact, 0, len(formats))
 	for _, format := range formats {
-		format = strings.TrimSpace(format)
+		format = core.Trim(format)
 		if format == "" {
 			continue
 		}
@@ -262,9 +262,9 @@ func cachedImageArtifacts(imageBuilder *builders.LinuxKitImageBuilder, outputDir
 }
 
 func containsImageFormat(formats []string, want string) bool {
-	want = strings.ToLower(strings.TrimSpace(want))
+	want = core.Lower(core.Trim(want))
 	for _, format := range formats {
-		if strings.ToLower(strings.TrimSpace(format)) == want {
+		if core.Lower(core.Trim(format)) == want {
 			return true
 		}
 	}
@@ -301,20 +301,40 @@ func versionedImageArtifactPath(path, versionTag string) string {
 	}
 
 	ext := ax.Ext(path)
-	base := strings.TrimSuffix(ax.Base(path), ext)
+	base := core.TrimSuffix(ax.Base(path), ext)
 	return ax.Join(ax.Dir(path), base+"-"+versionTag+ext)
 }
 
 func normalizeImageVersionTag(version string) string {
-	version = strings.TrimSpace(version)
-	version = strings.TrimPrefix(version, "v")
+	version = core.Trim(version)
+	version = core.TrimPrefix(version, "v")
 	if version == "" {
 		return ""
 	}
 
-	replacer := strings.NewReplacer("/", "-", "\\", "-", ":", "-", " ", "-", "\t", "-")
-	version = replacer.Replace(version)
-	version = strings.Trim(version, "-.")
+	version = core.Replace(version, "/", "-")
+	version = core.Replace(version, "\\", "-")
+	version = core.Replace(version, ":", "-")
+	version = core.Replace(version, " ", "-")
+	version = core.Replace(version, "\t", "-")
+	return trimImageVersionTagBoundary(version)
+}
+
+func trimImageVersionTagBoundary(version string) string {
+	for version != "" {
+		switch {
+		case core.HasPrefix(version, "-"):
+			version = core.TrimPrefix(version, "-")
+		case core.HasPrefix(version, "."):
+			version = core.TrimPrefix(version, ".")
+		case core.HasSuffix(version, "-"):
+			version = core.TrimSuffix(version, "-")
+		case core.HasSuffix(version, "."):
+			version = core.TrimSuffix(version, ".")
+		default:
+			return version
+		}
+	}
 	return version
 }
 
@@ -323,11 +343,18 @@ func copyImageArtifact(filesystem coreio.Medium, sourcePath, destinationPath str
 	if err != nil {
 		return err
 	}
-	defer func() { _ = file.Close() }()
 
-	content, err := stdio.ReadAll(file)
-	if err != nil {
-		return err
+	readResult := core.ReadAll(file)
+	if !readResult.OK {
+		if err, ok := readResult.Value.(error); ok {
+			return err
+		}
+		return coreerr.E("build.copyImageArtifact", "failed to read image artifact", nil)
+	}
+
+	content, ok := readResult.Value.(string)
+	if !ok {
+		return coreerr.E("build.copyImageArtifact", "failed to read image artifact", nil)
 	}
 
 	mode := fs.FileMode(0o644)
@@ -335,11 +362,11 @@ func copyImageArtifact(filesystem coreio.Medium, sourcePath, destinationPath str
 		mode = info.Mode()
 	}
 
-	return filesystem.WriteMode(destinationPath, string(content), mode)
+	return filesystem.WriteMode(destinationPath, content, mode)
 }
 
 func publishOCIImageArchive(ctx context.Context, projectDir, artifactPath, registry, imageName, version string) (string, error) {
-	if strings.TrimSpace(registry) == "" || strings.TrimSpace(artifactPath) == "" {
+	if core.Trim(registry) == "" || core.Trim(artifactPath) == "" {
 		return "", nil
 	}
 
@@ -381,12 +408,19 @@ func resolveOCIImageReference(registry, imageName, version string) string {
 		tag = "dev"
 	}
 
-	registry = strings.TrimSpace(strings.TrimRight(registry, "/"))
+	registry = core.Trim(trimTrailingSlashes(registry))
 	if registry == "" {
 		return imageName + ":" + tag
 	}
 
 	return registry + "/" + imageName + ":" + tag
+}
+
+func trimTrailingSlashes(value string) string {
+	for core.HasSuffix(value, "/") {
+		value = core.TrimSuffix(value, "/")
+	}
+	return value
 }
 
 func loadOCIImageArchive(ctx context.Context, projectDir, dockerCommand, artifactPath string) (string, error) {
@@ -404,13 +438,13 @@ func loadOCIImageArchive(ctx context.Context, projectDir, dockerCommand, artifac
 }
 
 func parseLoadedDockerImageReference(output string) string {
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
+	for _, line := range core.Split(output, "\n") {
+		line = core.Trim(line)
 		switch {
-		case strings.HasPrefix(line, "Loaded image:"):
-			return strings.TrimSpace(strings.TrimPrefix(line, "Loaded image:"))
-		case strings.HasPrefix(line, "Loaded image ID:"):
-			return strings.TrimSpace(strings.TrimPrefix(line, "Loaded image ID:"))
+		case core.HasPrefix(line, "Loaded image:"):
+			return core.Trim(core.TrimPrefix(line, "Loaded image:"))
+		case core.HasPrefix(line, "Loaded image ID:"):
+			return core.Trim(core.TrimPrefix(line, "Loaded image ID:"))
 		}
 	}
 	return ""
@@ -437,12 +471,12 @@ func allImageArtifactsExist(filesystem coreio.Medium, imageBuilder *builders.Lin
 		return false
 	}
 
-	expectedVersion := strings.TrimSpace(expected.BuildVersion)
+	expectedVersion := core.Trim(expected.BuildVersion)
 	if expectedVersion == "" {
 		return true
 	}
 
-	return strings.TrimSpace(metadata.BuildVersion) == expectedVersion
+	return core.Trim(metadata.BuildVersion) == expectedVersion
 }
 
 func writeImageBuildCacheMetadata(filesystem coreio.Medium, outputDir, imageName string, cfg build.LinuxKitConfig, version string) error {
@@ -488,12 +522,12 @@ func buildImageCacheMetadata(imageName string, cfg build.LinuxKitConfig, version
 		ImageName:    imageName,
 		Base:         base,
 		BaseVersion:  baseVersion,
-		BuildVersion: strings.TrimSpace(version),
+		BuildVersion: core.Trim(version),
 		Formats:      normalizeImageCacheValues(cfg.Formats),
 		Packages:     normalizeImageCacheValues(cfg.Packages),
 		Mounts:       normalizeImageCacheValues(cfg.Mounts),
 		GPU:          cfg.GPU,
-		Registry:     strings.TrimSpace(cfg.Registry),
+		Registry:     core.Trim(cfg.Registry),
 	}
 	metadata.Signature = imageBuildCacheSignature(metadata)
 	return metadata
@@ -523,7 +557,7 @@ func normalizeImageCacheValues(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	result := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = core.Trim(value)
 		if value == "" {
 			continue
 		}
