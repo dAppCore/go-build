@@ -19,7 +19,7 @@ tags:
 
 **Repository:** `core/go-build` (build/release), `core/cli` (CLI commands)
 **Module:** `dappco.re/go/build`
-**Sub-specs:** [Models](RFC.models.md) | [Commands](RFC.commands.md) | [Build Pipeline](RFC.build-pipeline.md) | [Release Pipeline](RFC.release-pipeline.md) | [SDK Generation](RFC.sdk-generation.md) | [API Provider](RFC.api-provider.md) | [CI Workflow](RFC.ci-workflow.md) | [cmd build](RFC.cmd-build.md) | [cmd sdk](RFC.cmd-sdk.md) | [Action Port](RFC.action-port.md)
+**Sub-specs:** [Models](RFC.models.md) | [Commands](RFC.commands.md) | [Build Pipeline](RFC.build-pipeline.md) | [Release Pipeline](RFC.release-pipeline.md) | [SDK Generation](RFC.sdk-generation.md) | [API Provider](RFC.api-provider.md) | [CI Workflow](RFC.ci-workflow.md) | [cmd build](RFC.cmd-build.md) | [cmd sdk](RFC.cmd-sdk.md) | [Action Port](RFC.action-port.md) | [Installer CDN](RFC.installer-cdn.md)
 
 ---
 
@@ -825,6 +825,8 @@ router.Use(p.Register(router, hub))
 
 Hosted at `https://lthn.sh/`
 
+CDN delivery, channel layout, version pinning, rollback, and signature verification are specified in [Installer CDN](RFC.installer-cdn.md).
+
 | Script | Variant | Usage |
 |--------|---------|-------|
 | `setup.sh` | full | Default install |
@@ -938,7 +940,7 @@ Implementation: kardianos/service for abstraction + native config export.
 | go.sh | Go development variant | ✓ |
 | agent.sh | AI agent variant | ✓ |
 | dev.sh | Multi-repo development variant | ✓ |
-| CDN hosting | lthn.sh script distribution | ✓ |
+| CDN hosting | lthn.sh script distribution | Aspirational |
 
 ### CI & Workflow
 
