@@ -4,15 +4,18 @@ package publishers
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"errors"
 	stdio "io"
 	"io/fs"
 	"net/url"
-	"sort"
+	"slices"
+	"strings"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	coreio "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // GitHubPublisher publishes releases to GitHub using the gh CLI.
@@ -63,10 +66,6 @@ func (p *GitHubPublisher) Supports(target string) bool {
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false) // dryRun=true to preview
 func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	if err := validatePublisherRelease(p.Name(), release); err != nil {
-		return err
-	}
-
 	// Determine repository
 	repo := ""
 	if relCfg != nil {
@@ -198,23 +197,26 @@ func shouldMarkGitHubPrerelease(release *Release, pubCfg PublisherConfig) bool {
 }
 
 func isSemverPrerelease(version string) bool {
-	version = core.Trim(version)
-	version = core.TrimPrefix(version, "v")
+	version = strings.TrimSpace(version)
+	version = strings.TrimPrefix(version, "v")
 	if version == "" {
 		return false
 	}
 
-	version = core.SplitN(version, "+", 2)[0]
-	prereleaseParts := core.SplitN(version, "-", 2)
-	if len(prereleaseParts) != 2 || prereleaseParts[0] == "" || prereleaseParts[1] == "" {
+	if buildIndex := strings.Index(version, "+"); buildIndex >= 0 {
+		version = version[:buildIndex]
+	}
+
+	dashIndex := strings.Index(version, "-")
+	if dashIndex <= 0 || dashIndex == len(version)-1 {
 		return false
 	}
 
-	return isCoreSemver(prereleaseParts[0])
+	return isCoreSemver(version[:dashIndex])
 }
 
 func isCoreSemver(version string) bool {
-	parts := core.Split(version, ".")
+	parts := strings.Split(version, ".")
 	if len(parts) != 3 {
 		return false
 	}
@@ -390,7 +392,7 @@ func detectRepository(ctx context.Context, dir string) (string, error) {
 	if parseErr == nil {
 		parseErr = ghErr
 	} else if ghErr != nil {
-		parseErr = core.ErrorJoin(parseErr, ghErr)
+		parseErr = errors.Join(parseErr, ghErr)
 	}
 
 	return "", coreerr.E("github.detectRepository", "no GitHub remote found", parseErr)
@@ -410,15 +412,11 @@ func detectRepositoryViaGh(ctx context.Context, dir string) (string, error) {
 	var payload struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	}
-	if result := core.JSONUnmarshal([]byte(output), &payload); !result.OK {
-		err, ok := result.Value.(error)
-		if !ok {
-			err = core.NewError("core.JSONUnmarshal failed without error")
-		}
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
 		return "", coreerr.E("github.detectRepositoryViaGh", "failed to parse gh repo view output", err)
 	}
 
-	repo := core.Trim(payload.NameWithOwner)
+	repo := strings.TrimSpace(payload.NameWithOwner)
 	if repo == "" {
 		return "", coreerr.E("github.detectRepositoryViaGh", "gh repo view did not report a repository", nil)
 	}
@@ -444,7 +442,7 @@ func parseGitHubRepo(url string) (string, error) {
 	}
 
 	parsed, err := urlpkgParse(url)
-	if err == nil && core.Lower(parsed.Hostname()) == "github.com" {
+	if err == nil && strings.EqualFold(parsed.Hostname(), "github.com") {
 		return normaliseGitHubRepoPath(parsed.Path)
 	}
 
@@ -459,15 +457,15 @@ func listGitRemotes(ctx context.Context, dir string) ([]gitRemote, error) {
 
 	seen := make(map[string]struct{})
 	remotes := make([]gitRemote, 0)
-	scanner := bufio.NewScanner(core.NewReader(output))
+	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
-		name, remoteURL, ok := firstGitRemoteFields(scanner.Text())
-		if !ok {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 2 {
 			continue
 		}
 
-		name = core.Trim(name)
-		remoteURL = core.Trim(remoteURL)
+		name := core.Trim(fields[0])
+		remoteURL := core.Trim(fields[1])
 		if name == "" || remoteURL == "" {
 			continue
 		}
@@ -483,62 +481,37 @@ func listGitRemotes(ctx context.Context, dir string) ([]gitRemote, error) {
 		return nil, err
 	}
 
-	sort.SliceStable(remotes, func(i, j int) bool {
-		if remotes[i].Name == remotes[j].Name {
-			return remotes[i].URL < remotes[j].URL
+	slices.SortFunc(remotes, func(a, b gitRemote) int {
+		if a.Name == b.Name {
+			return strings.Compare(a.URL, b.URL)
 		}
-		if remotes[i].Name == "origin" {
-			return true
+		if a.Name == "origin" {
+			return -1
 		}
-		if remotes[j].Name == "origin" {
-			return false
+		if b.Name == "origin" {
+			return 1
 		}
-		return remotes[i].Name < remotes[j].Name
+		return strings.Compare(a.Name, b.Name)
 	})
 
 	return remotes, nil
 }
 
 func normaliseGitHubRepoPath(path string) (string, error) {
-	path = core.Trim(path)
-	path = trimPathSlashes(path)
-	path = core.TrimSuffix(path, ".git")
-	path = trimPathSlashes(path)
+	path = strings.TrimSpace(path)
+	path = strings.Trim(path, "/")
+	path = strings.TrimSuffix(path, ".git")
+	path = strings.Trim(path, "/")
 	if path == "" {
 		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil)
 	}
 
-	parts := core.Split(path, "/")
+	parts := strings.Split(path, "/")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil)
 	}
 
 	return parts[0] + "/" + parts[1], nil
-}
-
-func firstGitRemoteFields(line string) (string, string, bool) {
-	scanner := bufio.NewScanner(core.NewReader(line))
-	scanner.Split(bufio.ScanWords)
-
-	if !scanner.Scan() {
-		return "", "", false
-	}
-	name := scanner.Text()
-
-	if !scanner.Scan() {
-		return "", "", false
-	}
-	return name, scanner.Text(), true
-}
-
-func trimPathSlashes(path string) string {
-	for core.HasPrefix(path, "/") {
-		path = core.TrimPrefix(path, "/")
-	}
-	for core.HasSuffix(path, "/") {
-		path = core.TrimSuffix(path, "/")
-	}
-	return path
 }
 
 func urlpkgParse(rawURL string) (*url.URL, error) {
