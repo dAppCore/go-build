@@ -233,7 +233,6 @@ func TestSDK_GenerateWithStatus_SkipsUnavailableWhenConfigured_Good(t *testing.T
 	}
 
 }
-
 func TestSDK_NilSafety_Good(t *testing.T) {
 	var s *SDK
 

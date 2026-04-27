@@ -69,6 +69,10 @@ func (p *NpmPublisher) Supports(target string) bool {
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	// Parse npm config
 	npmCfg := p.parseConfig(pubCfg, relCfg)
 
