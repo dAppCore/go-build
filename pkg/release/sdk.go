@@ -4,10 +4,12 @@ package release
 import (
 	"context"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/sdk"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // SDKRelease holds the result of an SDK release.
@@ -29,28 +31,38 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	if cfg == nil {
 		return nil, coreerr.E("release.RunSDK", "config is nil", nil)
 	}
-	if cfg.SDK == nil {
-		return nil, coreerr.E("release.RunSDK", "sdk not configured in .core/release.yaml", nil)
-	}
 
 	projectDir := cfg.projectDir
 	if projectDir == "" {
 		projectDir = "."
 	}
 
+	sdkConfig, err := resolveReleaseSDKConfig(projectDir, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	s := sdk.New(projectDir, sdkConfig)
+	sdkConfig = s.Config()
+	if sdkConfig == nil {
+		return nil, coreerr.E("release.RunSDK", "failed to resolve sdk config", nil)
+	}
+
 	// Determine version
 	version := cfg.version
 	if version == "" {
-		var err error
 		version, err = DetermineVersionWithContext(ctx, projectDir)
 		if err != nil {
 			return nil, coreerr.E("release.RunSDK", "failed to determine version", err)
 		}
 	}
+	if err := ValidateVersionIdentifier(version); err != nil {
+		return nil, coreerr.E("release.RunSDK", "invalid SDK release version override", err)
+	}
 
 	// Run diff check if enabled
-	if cfg.SDK.Diff.Enabled {
-		breaking, err := checkBreakingChanges(ctx, projectDir, cfg.SDK)
+	if sdkConfig.Diff.Enabled {
+		breaking, err := checkBreakingChanges(ctx, projectDir, sdkConfig)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, coreerr.E("release.RunSDK", "diff check cancelled", ctx.Err())
@@ -58,7 +70,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 			// Non-fatal: warn and continue
 			core.Print(nil, "Warning: diff check failed: %v", err)
 		} else if breaking {
-			if cfg.SDK.Diff.FailOnBreaking {
+			if sdkConfig.Diff.FailOnBreaking {
 				return nil, coreerr.E("release.RunSDK", "breaking API changes detected", nil)
 			}
 			core.Print(nil, "Warning: breaking API changes detected")
@@ -66,11 +78,11 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	}
 
 	// Prepare result
-	output := resolveSDKOutputRoot(cfg.SDK)
+	output := resolveSDKOutputRoot(sdkConfig)
 
 	result := &SDKRelease{
 		Version:   version,
-		Languages: cfg.SDK.Languages,
+		Languages: append([]string(nil), sdkConfig.Languages...),
 		Output:    output,
 	}
 
@@ -79,8 +91,6 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) (*SDKRelease, error) 
 	}
 
 	// Generate SDKs
-	sdkCfg := toSDKConfig(cfg.SDK)
-	s := sdk.New(projectDir, sdkCfg)
 	s.SetVersion(version)
 
 	if err := s.Generate(ctx); err != nil {
@@ -120,17 +130,19 @@ func checkBreakingChanges(ctx context.Context, projectDir string, cfg *SDKConfig
 	}
 
 	// Detect spec path
-	specPath := cfg.Spec
-	if specPath == "" {
-		s := sdk.New(projectDir, nil)
-		specPath, err = s.DetectSpec()
-		if err != nil {
-			return false, err
-		}
+	specPath, err := detectSDKSpecPath(projectDir, cfg)
+	if err != nil {
+		return false, err
 	}
 
+	baseSpecPath, cleanup, err := materializeTaggedSDKSpec(ctx, projectDir, prevTag, specPath)
+	if err != nil {
+		return false, err
+	}
+	defer cleanup()
+
 	// Run diff
-	result, err := sdk.Diff(prevTag, specPath)
+	result, err := sdk.Diff(baseSpecPath, specPath)
 	if err != nil {
 		return false, err
 	}
@@ -138,26 +150,66 @@ func checkBreakingChanges(ctx context.Context, projectDir string, cfg *SDKConfig
 	return result.Breaking, nil
 }
 
-// toSDKConfig converts release.SDKConfig to sdk.Config.
+func detectSDKSpecPath(projectDir string, cfg *SDKConfig) (string, error) {
+	specCfg := &sdk.Config{}
+	if cfg != nil {
+		specCfg.Spec = cfg.Spec
+	}
+
+	return sdk.New(projectDir, specCfg).DetectSpec()
+}
+
+func materializeTaggedSDKSpec(ctx context.Context, projectDir, tag, specPath string) (string, func(), error) {
+	relativeSpecPath, err := ax.Rel(projectDir, specPath)
+	if err != nil {
+		return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "spec path must be inside the project directory", err)
+	}
+
+	gitSpecPath := core.Replace(relativeSpecPath, ax.DS(), "/")
+	content, err := ax.RunDir(ctx, projectDir, "git", "show", core.Sprintf("%s:%s", tag, gitSpecPath))
+	if err != nil {
+		return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "failed to load spec from "+tag, err)
+	}
+
+	tempDir, err := ax.TempDir("core-build-sdk-diff-*")
+	if err != nil {
+		return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "failed to create temp dir", err)
+	}
+
+	tempPath := ax.Join(tempDir, "base"+ax.Ext(specPath))
+	if err := ax.WriteString(tempPath, content, 0o644); err != nil {
+		_ = ax.RemoveAll(tempDir)
+		return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "failed to write tagged spec", err)
+	}
+
+	return tempPath, func() {
+		_ = ax.RemoveAll(tempDir)
+	}, nil
+}
+
+func resolveReleaseSDKConfig(projectDir string, cfg *Config) (*sdk.Config, error) {
+	if cfg != nil && cfg.SDK != nil {
+		resolved := toSDKConfig(cfg.SDK)
+		resolved.ApplyDefaults()
+		return resolved, nil
+	}
+
+	buildCfg, err := build.LoadConfig(io.Local, projectDir)
+	if err != nil {
+		return nil, coreerr.E("release.resolveReleaseSDKConfig", "failed to load build config", err)
+	}
+	if buildCfg != nil && buildCfg.SDK != nil {
+		resolved := sdk.CloneConfig(buildCfg.SDK)
+		resolved.ApplyDefaults()
+		return resolved, nil
+	}
+
+	resolved := sdk.DefaultConfig()
+	resolved.ApplyDefaults()
+	return resolved, nil
+}
+
+// toSDKConfig clones release SDK config into the runtime SDK config type.
 func toSDKConfig(cfg *SDKConfig) *sdk.Config {
-	if cfg == nil {
-		return nil
-	}
-	return &sdk.Config{
-		Spec:      cfg.Spec,
-		Languages: cfg.Languages,
-		Output:    cfg.Output,
-		Package: sdk.PackageConfig{
-			Name:    cfg.Package.Name,
-			Version: cfg.Package.Version,
-		},
-		Diff: sdk.DiffConfig{
-			Enabled:        cfg.Diff.Enabled,
-			FailOnBreaking: cfg.Diff.FailOnBreaking,
-		},
-		Publish: sdk.PublishConfig{
-			Repo: cfg.Publish.Repo,
-			Path: cfg.Publish.Path,
-		},
-	}
+	return sdk.CloneConfig(cfg)
 }

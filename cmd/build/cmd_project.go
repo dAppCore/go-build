@@ -1,26 +1,31 @@
-// cmd_project.go implements the main project build logic.
+// cmd_project.go implements project build orchestration and auto-detection.
 //
-// This handles auto-detection of project types (Go, Wails, Node, PHP, Docs, Docker, LinuxKit, Taskfile)
-// and orchestrates the build process including signing, archiving, and checksums.
+// runProjectBuild(ProjectBuildRequest{
+//   BuildType: "go",
+//   TargetsFlag: "linux/amd64,darwin/arm64",
+//   ArchiveOutput: true,
+// }) executes end-to-end build/sign/archive/checksum flow for the selected project.
 
 package buildcmd
 
 import (
 	"context"
 	"runtime"
+	"strings"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/build/pkg/build/builders"
+	"dappco.re/go/build/pkg/build/signing"
+	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/internal/projectdetect"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/build/pkg/build/builders"
-	"dappco.re/go/core/build/pkg/build/signing"
-	"dappco.re/go/core/build/pkg/release"
-	"dappco.re/go/core/i18n"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/i18n"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
+
+var getProjectBuildWorkingDir = ax.Getwd
 
 // ProjectBuildRequest groups the inputs for the main `core build` command.
 //
@@ -30,25 +35,59 @@ import (
 //		TargetsFlag: "linux/amd64,linux/arm64",
 //	}
 type ProjectBuildRequest struct {
-	Context        context.Context
-	BuildType      string
-	CIMode         bool
-	TargetsFlag    string
-	OutputDir      string
-	ArchiveOutput  bool
-	ChecksumOutput bool
-	ArchiveFormat  string
-	ConfigPath     string
-	Format         string
-	Push           bool
-	ImageName      string
-	NoSign         bool
-	Notarize       bool
-	Verbose        bool
+	Context           context.Context
+	BuildType         string
+	Version           string
+	CIMode            bool
+	TargetsFlag       string
+	OutputDir         string
+	BuildName         string
+	BuildTagsFlag     string
+	Obfuscate         bool
+	ObfuscateSet      bool
+	NSIS              bool
+	NSISSet           bool
+	WebView2          string
+	WebView2Set       bool
+	DenoBuild         string
+	DenoBuildSet      bool
+	NpmBuild          string
+	NpmBuildSet       bool
+	BuildCache        bool
+	BuildCacheSet     bool
+	ArchiveOutput     bool
+	ArchiveOutputSet  bool
+	ChecksumOutput    bool
+	ChecksumOutputSet bool
+	PackageSet        bool
+	ArchiveFormat     string
+	ConfigPath        string
+	Format            string
+	Push              bool
+	ImageName         string
+	Sign              bool
+	SignSet           bool
+	NoSign            bool
+	Notarize          bool
+	Verbose           bool
 }
 
 // runProjectBuild handles the main `core build` command with auto-detection.
-func runProjectBuild(req ProjectBuildRequest) error {
+//
+//	runProjectBuild(ProjectBuildRequest{
+//	  BuildType: "node",
+//	  TargetsFlag: "linux/amd64",
+//	  ArchiveOutput: true,
+//	  ChecksumOutput: true,
+//	  Format: "gz",
+//	})
+func runProjectBuild(req ProjectBuildRequest) (err error) {
+	if req.CIMode {
+		defer func() {
+			emitCIErrorAnnotation(err)
+		}()
+	}
+
 	ctx := req.Context
 	if ctx == nil {
 		ctx = context.Background()
@@ -57,7 +96,7 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	filesystem := io.Local
 
 	// Get current working directory as project root
-	projectDir, err := ax.Getwd()
+	projectDir, err := getProjectBuildWorkingDir()
 	if err != nil {
 		return coreerr.E("build.Run", "failed to get working directory", err)
 	}
@@ -66,6 +105,10 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	// project-type builder registry.
 	if req.BuildType == "pwa" {
 		return runLocalPwaBuild(ctx, projectDir)
+	}
+
+	if shouldUseGoBuildPassthrough(filesystem, projectDir, req) {
+		return runGoBuildPassthrough(ctx, projectDir, req)
 	}
 
 	// Load configuration from .core/build.yaml (or defaults)
@@ -90,26 +133,7 @@ func runProjectBuild(req ProjectBuildRequest) error {
 		return runLocalPwaBuild(ctx, projectDir)
 	}
 
-	if err := build.SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
-		return coreerr.E("build.Run", "failed to set up build cache", err)
-	}
-
-	// Detect project type if not specified
-	var projectType build.ProjectType
-	if req.BuildType != "" {
-		projectType = build.ProjectType(req.BuildType)
-	} else if buildConfig.Build.Type != "" {
-		// Use type from .core/build.yaml
-		projectType = build.ProjectType(buildConfig.Build.Type)
-	} else {
-		projectType, err = projectdetect.DetectProjectType(filesystem, projectDir)
-		if err != nil {
-			return coreerr.E("build.Run", "failed to detect project type", err)
-		}
-		if projectType == "" {
-			return coreerr.E("build.Run", "no buildable project type found in "+projectDir, nil)
-		}
-	}
+	applyProjectBuildOverrides(buildConfig, req)
 
 	// Determine targets
 	var buildTargets []build.Target
@@ -129,66 +153,55 @@ func runProjectBuild(req ProjectBuildRequest) error {
 		}
 	}
 
-	// Determine output directory
-	outputDir := req.OutputDir
-	if outputDir == "" {
-		outputDir = "dist"
+	pipeline := &build.Pipeline{
+		FS:             filesystem,
+		ResolveBuilder: getBuilder,
+		ResolveVersion: resolveBuildVersion,
 	}
-	if !ax.IsAbs(outputDir) {
-		outputDir = ax.Join(projectDir, outputDir)
-	}
-	outputDir = ax.Clean(outputDir)
-
-	// Determine binary name
-	binaryName := buildConfig.Project.Binary
-	if binaryName == "" {
-		binaryName = buildConfig.Project.Name
-	}
-	if binaryName == "" {
-		binaryName = ax.Base(projectDir)
+	plan, err := pipeline.Plan(ctx, build.PipelineRequest{
+		ProjectDir:  projectDir,
+		BuildConfig: buildConfig,
+		BuildType:   req.BuildType,
+		Version:     req.Version,
+		OutputDir:   req.OutputDir,
+		BuildName:   req.BuildName,
+		Targets:     buildTargets,
+		Push:        req.Push,
+		ImageName:   req.ImageName,
+	})
+	if err != nil {
+		return err
 	}
 
 	// Print build info (verbose mode only)
 	if req.Verbose && !req.CIMode {
 		cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.build")), i18n.T("cmd.build.building_project"))
-		cli.Print("  %s %s\n", i18n.T("cmd.build.label.type"), buildTargetStyle.Render(string(projectType)))
-		cli.Print("  %s %s\n", i18n.T("cmd.build.label.output"), buildTargetStyle.Render(outputDir))
-		cli.Print("  %s %s\n", i18n.T("cmd.build.label.binary"), buildTargetStyle.Render(binaryName))
-		cli.Print("  %s %s\n", i18n.T("cmd.build.label.targets"), buildTargetStyle.Render(formatTargets(buildTargets)))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.label.type"), buildTargetStyle.Render(formatProjectTypes(plan.ProjectTypes)))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.label.output"), buildTargetStyle.Render(plan.OutputDir))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.label.binary"), buildTargetStyle.Render(plan.BuildName))
+		cli.Print("  %s %s\n", i18n.T("cmd.build.label.targets"), buildTargetStyle.Render(formatTargets(plan.Targets)))
 		cli.Blank()
 	}
 
-	// Get the appropriate builder
-	builder, err := getBuilder(projectType)
-	if err != nil {
-		return err
-	}
-
-	// Create build config for the builder
-	version, err := resolveBuildVersion(ctx, projectDir)
-	if err != nil {
-		return coreerr.E("build.Run", "failed to determine build version", err)
-	}
-
-	cfg := buildRuntimeConfig(filesystem, projectDir, outputDir, binaryName, buildConfig, req.Push, req.ImageName, version)
-	discovery, err := build.DiscoverFull(filesystem, projectDir)
-	if err != nil {
-		return coreerr.E("build.Run", "failed to inspect project for build options", err)
-	}
-	build.ApplyOptions(cfg, build.ComputeOptions(buildConfig, discovery))
-
 	// Parse formats for LinuxKit
 	if req.Format != "" {
-		cfg.Formats = core.Split(req.Format, ",")
+		plan.RuntimeConfig.Formats = core.Split(req.Format, ",")
 	}
 
 	// Execute build
-	artifacts, err := builder.Build(ctx, cfg, buildTargets)
+	pipelineResult, err := pipeline.Run(ctx, plan)
 	if err != nil {
 		if !req.CIMode {
 			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
 		}
 		return err
+	}
+	artifacts := pipelineResult.Artifacts
+	if req.CIMode {
+		artifacts, err = rewriteArtifactsForCI(filesystem, plan.BuildName, artifacts)
+		if err != nil {
+			return err
+		}
 	}
 
 	if req.Verbose && !req.CIMode {
@@ -208,13 +221,7 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	}
 
 	// Sign binaries if enabled.
-	signCfg := buildConfig.Sign
-	if req.Notarize {
-		signCfg.MacOS.Notarize = true
-	}
-	if req.NoSign {
-		signCfg.Enabled = false
-	}
+	signCfg := resolveBuildSignConfig(plan.BuildConfig.Sign, req)
 
 	if signCfg.Enabled && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
 		if req.Verbose && !req.CIMode {
@@ -284,13 +291,13 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	// Compute checksums if enabled
 	var checksummedArtifacts []build.Artifact
 	if req.ChecksumOutput && len(archivedArtifacts) > 0 {
-		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, outputDir, archivedArtifacts, signCfg, req.CIMode, req.Verbose)
+		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, plan.OutputDir, archivedArtifacts, signCfg, req.CIMode, req.Verbose)
 		if err != nil {
 			return err
 		}
 	} else if req.ChecksumOutput && len(artifacts) > 0 && !req.ArchiveOutput {
 		// Checksum raw binaries if archiving is disabled
-		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, outputDir, artifacts, signCfg, req.CIMode, req.Verbose)
+		checksummedArtifacts, err = computeAndWriteChecksums(ctx, filesystem, projectDir, plan.OutputDir, artifacts, signCfg, req.CIMode, req.Verbose)
 		if err != nil {
 			return err
 		}
@@ -300,7 +307,7 @@ func runProjectBuild(req ProjectBuildRequest) error {
 	if req.CIMode {
 		// Determine which artifacts to output (prefer checksummed > archived > raw).
 		outputArtifacts := selectOutputArtifacts(artifacts, archivedArtifacts, checksummedArtifacts)
-		if err := writeArtifactMetadata(filesystem, binaryName, outputArtifacts); err != nil {
+		if err := writeArtifactMetadata(filesystem, plan.BuildName, outputArtifacts); err != nil {
 			return err
 		}
 
@@ -315,11 +322,206 @@ func runProjectBuild(req ProjectBuildRequest) error {
 		cli.Print("%s %s %s\n",
 			buildSuccessStyle.Render(i18n.T("common.label.success")),
 			i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}),
-			buildDimStyle.Render(core.Sprintf("(%s)", outputDir)),
+			buildDimStyle.Render(core.Sprintf("(%s)", plan.OutputDir)),
 		)
 	}
 
 	return nil
+}
+
+func resolveBuildSignConfig(base signing.SignConfig, req ProjectBuildRequest) signing.SignConfig {
+	signCfg := base
+
+	if req.Notarize {
+		signCfg.MacOS.Notarize = true
+		if !req.NoSign {
+			signCfg.Enabled = true
+		}
+	}
+	if req.NoSign {
+		signCfg.Enabled = false
+	}
+
+	return signCfg
+}
+
+func shouldUseGoBuildPassthrough(filesystem io.Medium, projectDir string, req ProjectBuildRequest) bool {
+	if req.ConfigPath != "" || build.ConfigExists(filesystem, projectDir) {
+		return false
+	}
+
+	if req.BuildType != "" && req.BuildType != string(build.ProjectTypeGo) {
+		return false
+	}
+
+	if !build.IsGoProject(filesystem, projectDir) {
+		return false
+	}
+
+	projectTypes, err := build.Discover(filesystem, projectDir)
+	if err != nil || len(projectTypes) != 1 || projectTypes[0] != build.ProjectTypeGo {
+		return false
+	}
+
+	if req.ObfuscateSet || req.NSISSet || req.WebView2Set || req.DenoBuildSet || req.NpmBuildSet || req.BuildCacheSet || req.SignSet || req.NoSign || req.Notarize {
+		return false
+	}
+
+	if req.Push || req.ImageName != "" || req.Format != "" {
+		return false
+	}
+	if req.CIMode || req.Version != "" || req.ArchiveFormat != "" {
+		return false
+	}
+	if req.ArchiveOutputSet && req.ArchiveOutput {
+		return false
+	}
+	if req.ChecksumOutputSet && req.ChecksumOutput {
+		return false
+	}
+	if req.PackageSet && (req.ArchiveOutput || req.ChecksumOutput) {
+		return false
+	}
+
+	if req.TargetsFlag == "" {
+		return true
+	}
+
+	targets, err := parseTargets(req.TargetsFlag)
+	if err != nil {
+		return false
+	}
+
+	return len(targets) == 1
+}
+
+func runGoBuildPassthrough(ctx context.Context, projectDir string, req ProjectBuildRequest) error {
+	args := []string{"build"}
+
+	if outputPath := resolveGoPassthroughOutput(req.OutputDir, req.BuildName); outputPath != "" {
+		args = append(args, "-o", outputPath)
+	}
+
+	if tags := parseBuildTagsFlag(req.BuildTagsFlag); len(tags) > 0 {
+		args = append(args, "-tags", core.Join(",", tags...))
+	}
+
+	args = append(args, ".")
+
+	env := []string{}
+	if req.TargetsFlag != "" {
+		targets, err := parseTargets(req.TargetsFlag)
+		if err != nil {
+			return err
+		}
+		if len(targets) != 1 {
+			return coreerr.E("build.Run", "go build passthrough supports exactly one target", nil)
+		}
+
+		env = append(env,
+			"GOOS="+targets[0].OS,
+			"GOARCH="+targets[0].Arch,
+		)
+	}
+
+	if err := ax.ExecWithEnv(ctx, projectDir, env, "go", args...); err != nil {
+		return coreerr.E("build.Run", "go build passthrough failed", err)
+	}
+
+	return nil
+}
+
+func resolveGoPassthroughOutput(outputDir, buildName string) string {
+	switch {
+	case outputDir != "" && buildName != "":
+		return ax.Join(outputDir, buildName)
+	case outputDir != "":
+		return outputDir
+	default:
+		return buildName
+	}
+}
+
+func applyProjectBuildOverrides(cfg *build.BuildConfig, req ProjectBuildRequest) {
+	if cfg == nil {
+		return
+	}
+
+	if tags := parseBuildTagsFlag(req.BuildTagsFlag); len(tags) > 0 {
+		cfg.Build.BuildTags = tags
+	}
+
+	if req.ObfuscateSet {
+		cfg.Build.Obfuscate = req.Obfuscate
+	}
+	if req.NSISSet {
+		cfg.Build.NSIS = req.NSIS
+	}
+	if req.WebView2Set {
+		cfg.Build.WebView2 = req.WebView2
+	}
+	if req.DenoBuildSet {
+		cfg.Build.DenoBuild = req.DenoBuild
+	}
+	if req.NpmBuildSet {
+		cfg.Build.NpmBuild = req.NpmBuild
+	}
+	if req.BuildCacheSet {
+		if req.BuildCache {
+			enableDefaultBuildCache(&cfg.Build.Cache)
+		} else {
+			cfg.Build.Cache.Enabled = false
+		}
+	}
+	if req.SignSet {
+		cfg.Sign.Enabled = req.Sign
+	}
+}
+
+func parseBuildTagsFlag(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var tags []string
+	for _, part := range strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || unicodeIsSpace(r)
+	}) {
+		tag := strings.TrimSpace(part)
+		if tag == "" {
+			continue
+		}
+		if _, ok := seen[tag]; ok {
+			continue
+		}
+		seen[tag] = struct{}{}
+		tags = append(tags, tag)
+	}
+
+	return tags
+}
+
+func enableDefaultBuildCache(cfg *build.CacheConfig) {
+	if cfg == nil {
+		return
+	}
+
+	cfg.Enabled = true
+	if cfg.Directory == "" {
+		cfg.Directory = ax.Join(build.ConfigDir, "cache")
+	}
+	if len(cfg.Paths) == 0 {
+		cfg.Paths = build.DefaultBuildCachePaths("")
+	}
+}
+
+func resolveProjectBuildName(projectDir string, buildConfig *build.BuildConfig, override string) string {
+	return build.ResolveBuildName(projectDir, buildConfig, override)
+}
+
+func unicodeIsSpace(r rune) bool {
+	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
 }
 
 // selectOutputArtifacts chooses the final artifact list for CI output.
@@ -337,15 +539,15 @@ func selectOutputArtifacts(rawArtifacts, archivedArtifacts, checksummedArtifacts
 
 // writeArtifactMetadata writes artifact_meta.json files next to built artifacts when CI metadata is available.
 func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []build.Artifact) error {
-	ci := build.DetectCI()
-	if ci == nil {
-		ci = build.DetectGitHubMetadata()
-	}
+	ci := resolveCIContext()
 	if ci == nil {
 		return nil
 	}
 
 	for _, artifact := range artifacts {
+		if artifact.OS == "" || artifact.Arch == "" {
+			continue
+		}
 		metaPath := ax.Join(ax.Dir(artifact.Path), "artifact_meta.json")
 		if err := build.WriteArtifactMeta(filesystem, metaPath, buildName, build.Target{OS: artifact.OS, Arch: artifact.Arch}, ci); err != nil {
 			return err
@@ -355,41 +557,45 @@ func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []b
 	return nil
 }
 
+func rewriteArtifactsForCI(filesystem io.Medium, buildName string, artifacts []build.Artifact) ([]build.Artifact, error) {
+	ci := resolveCIContext()
+	if ci == nil {
+		return artifacts, nil
+	}
+
+	rewritten := make([]build.Artifact, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		ciPath := build.CIArtifactPath(buildName, ci, artifact)
+		if ciPath == "" || ciPath == artifact.Path {
+			rewritten = append(rewritten, artifact)
+			continue
+		}
+
+		if err := filesystem.EnsureDir(ax.Dir(ciPath)); err != nil {
+			return nil, coreerr.E("build.rewriteArtifactsForCI", "failed to create artifact directory", err)
+		}
+		if err := io.Copy(filesystem, artifact.Path, filesystem, ciPath); err != nil {
+			return nil, coreerr.E("build.rewriteArtifactsForCI", "failed to copy artifact", err)
+		}
+
+		artifact.Path = ciPath
+		rewritten = append(rewritten, artifact)
+	}
+
+	return rewritten, nil
+}
+
+func resolveCIContext() *build.CIContext {
+	if ci := build.DetectCI(); ci != nil {
+		return ci
+	}
+
+	return build.DetectGitHubMetadata()
+}
+
 // buildRuntimeConfig maps persisted build configuration onto the runtime builder config.
 func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName string, buildConfig *build.BuildConfig, push bool, imageName string, version string) *build.Config {
-	buildDefaults := buildConfig.Build
-	cfg := &build.Config{
-		FS:             filesystem,
-		Project:        buildConfig.Project,
-		ProjectDir:     projectDir,
-		OutputDir:      outputDir,
-		Name:           binaryName,
-		Version:        version,
-		LDFlags:        append([]string{}, buildDefaults.LDFlags...),
-		Flags:          append([]string{}, buildDefaults.Flags...),
-		BuildTags:      append([]string{}, buildDefaults.BuildTags...),
-		Env:            append([]string{}, buildDefaults.Env...),
-		Cache:          buildDefaults.Cache,
-		CGO:            buildDefaults.CGO,
-		Obfuscate:      buildDefaults.Obfuscate,
-		NSIS:           buildDefaults.NSIS,
-		WebView2:       buildDefaults.WebView2,
-		Dockerfile:     buildDefaults.Dockerfile,
-		Registry:       buildDefaults.Registry,
-		Image:          buildDefaults.Image,
-		Tags:           append([]string{}, buildDefaults.Tags...),
-		BuildArgs:      build.CloneStringMap(buildDefaults.BuildArgs),
-		Push:           buildDefaults.Push || push,
-		Load:           buildDefaults.Load,
-		LinuxKitConfig: buildDefaults.LinuxKitConfig,
-		Formats:        append([]string{}, buildDefaults.Formats...),
-	}
-
-	if imageName != "" {
-		cfg.Image = imageName
-	}
-
-	return cfg
+	return build.RuntimeConfigFromBuildConfig(filesystem, projectDir, outputDir, binaryName, buildConfig, push, imageName, version)
 }
 
 // resolveArchiveFormat selects the archive format from CLI overrides or config defaults.
@@ -462,9 +668,29 @@ func computeAndWriteChecksums(ctx context.Context, filesystem io.Medium, project
 			buildSuccessStyle.Render("*"),
 			buildTargetStyle.Render(relChecksumPath),
 		)
+
+		signaturePath := checksumPath + ".asc"
+		if filesystem.Exists(signaturePath) {
+			relSignaturePath, err := ax.Rel(projectDir, signaturePath)
+			if err != nil {
+				relSignaturePath = signaturePath
+			}
+			cli.Print("  %s %s\n",
+				buildSuccessStyle.Render("*"),
+				buildTargetStyle.Render(relSignaturePath),
+			)
+		}
 	}
 
-	return checksummedArtifacts, nil
+	outputArtifacts := append([]build.Artifact(nil), checksummedArtifacts...)
+	outputArtifacts = append(outputArtifacts, build.Artifact{Path: checksumPath})
+
+	signaturePath := checksumPath + ".asc"
+	if filesystem.Exists(signaturePath) {
+		outputArtifacts = append(outputArtifacts, build.Artifact{Path: signaturePath})
+	}
+
+	return outputArtifacts, nil
 }
 
 // parseTargets parses a comma-separated list of OS/arch pairs.
@@ -505,32 +731,24 @@ func formatTargets(targets []build.Target) string {
 	return core.Join(", ", parts...)
 }
 
+func formatProjectTypes(projectTypes []build.ProjectType) string {
+	if len(projectTypes) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(projectTypes))
+	for _, projectType := range projectTypes {
+		parts = append(parts, string(projectType))
+	}
+
+	return core.Join(", ", parts...)
+}
+
 // getBuilder returns the appropriate builder for the project type.
 func getBuilder(projectType build.ProjectType) (build.Builder, error) {
-	switch projectType {
-	case build.ProjectTypeWails:
-		return builders.NewWailsBuilder(), nil
-	case build.ProjectTypeGo:
-		return builders.NewGoBuilder(), nil
-	case build.ProjectTypeDocker:
-		return builders.NewDockerBuilder(), nil
-	case build.ProjectTypeLinuxKit:
-		return builders.NewLinuxKitBuilder(), nil
-	case build.ProjectTypeTaskfile:
-		return builders.NewTaskfileBuilder(), nil
-	case build.ProjectTypeCPP:
-		return builders.NewCPPBuilder(), nil
-	case build.ProjectTypeNode:
-		return builders.NewNodeBuilder(), nil
-	case build.ProjectTypePHP:
-		return builders.NewPHPBuilder(), nil
-	case build.ProjectTypePython:
-		return builders.NewPythonBuilder(), nil
-	case build.ProjectTypeRust:
-		return builders.NewRustBuilder(), nil
-	case build.ProjectTypeDocs:
-		return builders.NewDocsBuilder(), nil
-	default:
-		return nil, coreerr.E("build.getBuilder", "unsupported project type: "+string(projectType), nil)
+	builder, err := builders.ResolveBuilder(projectType)
+	if err != nil {
+		return nil, coreerr.E("build.getBuilder", "unsupported project type: "+string(projectType), err)
 	}
+	return builder, nil
 }

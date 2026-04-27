@@ -3,15 +3,12 @@ package builders
 
 import (
 	"context"
-	"os"
-	"runtime"
-	"strings"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // GoBuilder implements the Builder interface for Go projects.
@@ -51,25 +48,24 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	if cfg == nil {
 		return nil, coreerr.E("GoBuilder.Build", "config is nil", nil)
 	}
+	ensureBuildFilesystem(cfg)
+	artifactFilesystem := build.ResolveOutputMedium(cfg)
 
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
-	}
+	targets = defaultHostTargets(targets)
 
 	outputDir := cfg.OutputDir
-	if outputDir == "" {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+	if outputDir == "" && build.MediumIsLocal(artifactFilesystem) {
+		outputDir = defaultOutputDir(cfg)
 	}
 
-	// Ensure output directory exists
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("GoBuilder.Build", "failed to create output directory", err)
+	if err := ensureOutputDir(artifactFilesystem, outputDir, "GoBuilder.Build"); err != nil {
+		return nil, err
 	}
 
 	var artifacts []build.Artifact
 
 	for _, target := range targets {
-		artifact, err := b.buildTarget(ctx, cfg, outputDir, target)
+		artifact, err := b.buildTarget(ctx, cfg, artifactFilesystem, outputDir, target)
 		if err != nil {
 			return artifacts, coreerr.E("GoBuilder.Build", "failed to build "+target.String(), err)
 		}
@@ -80,7 +76,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 }
 
 // buildTarget compiles for a single target platform.
-func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, outputDir string, target build.Target) (build.Artifact, error) {
+func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, artifactFilesystem io.Medium, outputDir string, target build.Target) (build.Artifact, error) {
 	// Determine output binary name
 	binaryName := cfg.Name
 	if binaryName == "" {
@@ -98,13 +94,26 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, outputDi
 		binaryName += ".exe"
 	}
 
-	// Create platform-specific output path: output/os_arch/binary
-	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-	if err := cfg.FS.EnsureDir(platformDir); err != nil {
-		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create platform directory", err)
+	platformID := platformName(target)
+	platformDir, err := ensurePlatformDir(artifactFilesystem, outputDir, target, "GoBuilder.buildTarget")
+	if err != nil {
+		return build.Artifact{}, err
 	}
 
 	outputPath := ax.Join(platformDir, binaryName)
+	commandOutputPath := outputPath
+	stage, err := prepareStagedOutput(outputDir, artifactFilesystem, "core-build-go-*", "GoBuilder.buildTarget")
+	if err != nil {
+		return build.Artifact{}, err
+	}
+	defer stage.cleanup()
+	if !build.MediumIsLocal(artifactFilesystem) {
+		stagePlatformDir := ax.Join(stage.commandOutputDir, platformID)
+		if err := stage.commandFS.EnsureDir(stagePlatformDir); err != nil {
+			return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create local platform staging directory", err)
+		}
+		commandOutputPath = ax.Join(stagePlatformDir, binaryName)
+	}
 
 	// Build the go/garble arguments.
 	args := []string{"build"}
@@ -122,14 +131,18 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, outputDi
 	// Add ldflags if specified, and inject the build version when needed.
 	ldflags := append([]string{}, cfg.LDFlags...)
 	if cfg.Version != "" && !hasVersionLDFlag(ldflags) {
-		ldflags = append(ldflags, core.Sprintf("-X main.version=%s", cfg.Version))
+		versionFlag, err := build.VersionLinkerFlag(cfg.Version)
+		if err != nil {
+			return build.Artifact{}, err
+		}
+		ldflags = append(ldflags, versionFlag)
 	}
 	if len(ldflags) > 0 {
 		args = append(args, "-ldflags", core.Join(" ", ldflags...))
 	}
 
 	// Add output path
-	args = append(args, "-o", outputPath)
+	args = append(args, "-o", commandOutputPath)
 
 	// Build the configured main package path, defaulting to the project root.
 	mainPackage := cfg.Project.Main
@@ -139,27 +152,14 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, outputDi
 	args = append(args, mainPackage)
 
 	// Set up environment.
-	env := append([]string{}, cfg.Env...)
-	env = append(env, build.CacheEnvironment(&cfg.Cache)...)
-	env = append(env,
-		core.Sprintf("TARGET_OS=%s", target.OS),
-		core.Sprintf("TARGET_ARCH=%s", target.Arch),
-		core.Sprintf("OUTPUT_DIR=%s", outputDir),
-		core.Sprintf("TARGET_DIR=%s", platformDir),
-		core.Sprintf("GOOS=%s", target.OS),
-		core.Sprintf("GOARCH=%s", target.Arch),
-	)
+	env := appendConfiguredEnv(cfg, standardTargetValues(outputDir, platformDir, target)...)
 	if binaryName != "" {
 		env = append(env, core.Sprintf("NAME=%s", binaryName))
 	}
 	if cfg.Version != "" {
 		env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
 	}
-	if cfg.CGO {
-		env = append(env, "CGO_ENABLED=1")
-	} else {
-		env = append(env, "CGO_ENABLED=0")
-	}
+	env = append(env, cgoEnvValue(cfg.CGO))
 
 	command := "go"
 	var err error
@@ -174,6 +174,12 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, outputDi
 	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, command, args...)
 	if err != nil {
 		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", command+" build failed: "+output, err)
+	}
+
+	if commandOutputPath != outputPath {
+		if err := build.CopyMediumPath(io.Local, commandOutputPath, artifactFilesystem, outputPath); err != nil {
+			return build.Artifact{}, err
+		}
 	}
 
 	return build.Artifact{
@@ -217,8 +223,12 @@ func garbleInstallPaths() []string {
 	}
 
 	if gopath := core.Env("GOPATH"); gopath != "" {
-		for _, root := range strings.Split(gopath, string(os.PathListSeparator)) {
-			root = strings.TrimSpace(root)
+		sep := ":"
+		if core.Env("GOOS") == "windows" {
+			sep = ";"
+		}
+		for _, root := range core.Split(gopath, sep) {
+			root = core.Trim(root)
 			if root == "" {
 				continue
 			}
@@ -232,7 +242,7 @@ func garbleInstallPaths() []string {
 // hasVersionLDFlag reports whether a version linker flag is already present.
 func hasVersionLDFlag(ldflags []string) bool {
 	for _, flag := range ldflags {
-		if strings.Contains(flag, "main.version=") || strings.Contains(flag, "main.Version=") {
+		if core.Contains(flag, "main.version=") || core.Contains(flag, "main.Version=") {
 			return true
 		}
 	}

@@ -5,10 +5,12 @@ import (
 	"context"
 	"regexp"
 	"strconv"
+	"strings"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 // semverRegex matches semantic version strings with or without 'v' prefix.
@@ -33,10 +35,22 @@ func DetermineVersion(dir string) (string, error) {
 //
 // version, err := release.DetermineVersionWithContext(ctx, ".") // → "v1.2.4"
 func DetermineVersionWithContext(ctx context.Context, dir string) (string, error) {
+	if git := build.DetectGitHubMetadata(); git != nil && git.IsTag {
+		tag := normalizeVersion(strings.TrimSpace(git.Tag))
+		if !ValidateVersion(tag) {
+			return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+tag, nil)
+		}
+		return tag, nil
+	}
+
 	// Check if HEAD has a tag
 	headTag, err := getTagOnHeadWithContext(ctx, dir)
 	if err == nil && headTag != "" {
-		return normalizeVersion(headTag), nil
+		headTag = normalizeVersion(headTag)
+		if !ValidateVersion(headTag) {
+			return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+headTag, nil)
+		}
+		return headTag, nil
 	}
 	if err != nil && ctx.Err() != nil {
 		return "", coreerr.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err())
@@ -50,6 +64,9 @@ func DetermineVersionWithContext(ctx context.Context, dir string) (string, error
 	if err != nil || latestTag == "" {
 		// No tags exist, return default
 		return "v0.0.1", nil
+	}
+	if !ValidateVersion(latestTag) {
+		return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+latestTag, nil)
 	}
 
 	// Increment patch version
@@ -144,6 +161,22 @@ func ValidateVersion(version string) bool {
 	return semverRegex.MatchString(version)
 }
 
+// ValidateVersionIdentifier reports whether a version override is safe to
+// interpolate into release metadata and command arguments.
+//
+// This is intentionally looser than semver validation so release automation can
+// accept safe non-semver labels such as "dev" when needed.
+func ValidateVersionIdentifier(version string) error {
+	if version == "" {
+		return nil
+	}
+	if err := build.ValidateVersionString(version); err != nil {
+		return coreerr.E("release.ValidateVersionIdentifier", "version contains unsupported characters", err)
+	}
+
+	return nil
+}
+
 // normalizeVersion ensures the version starts with 'v'.
 func normalizeVersion(version string) string {
 	if !core.HasPrefix(version, "v") {
@@ -173,8 +206,8 @@ func getLatestTagWithContext(ctx context.Context, dir string) (string, error) {
 //
 // result := release.CompareVersions("v1.2.3", "v1.2.4") // → -1
 func CompareVersions(a, b string) int {
-	aMajor, aMinor, aPatch, _, _, errA := ParseVersion(a)
-	bMajor, bMinor, bPatch, _, _, errB := ParseVersion(b)
+	aMajor, aMinor, aPatch, aPrerelease, _, errA := ParseVersion(a)
+	bMajor, bMinor, bPatch, bPrerelease, _, errB := ParseVersion(b)
 
 	// Invalid versions are considered less than valid ones
 	if errA != nil && errB != nil {
@@ -218,5 +251,75 @@ func CompareVersions(a, b string) int {
 		return 1
 	}
 
-	return 0
+	return comparePrereleaseVersions(aPrerelease, bPrerelease)
+}
+
+func comparePrereleaseVersions(a, b string) int {
+	switch {
+	case a == "" && b == "":
+		return 0
+	case a == "":
+		return 1
+	case b == "":
+		return -1
+	}
+
+	aParts := strings.Split(a, ".")
+	bParts := strings.Split(b, ".")
+	limit := len(aParts)
+	if len(bParts) < limit {
+		limit = len(bParts)
+	}
+
+	for i := 0; i < limit; i++ {
+		if aParts[i] == bParts[i] {
+			continue
+		}
+
+		aNumeric, aIsNumeric := parsePrereleaseNumber(aParts[i])
+		bNumeric, bIsNumeric := parsePrereleaseNumber(bParts[i])
+		switch {
+		case aIsNumeric && bIsNumeric:
+			if aNumeric < bNumeric {
+				return -1
+			}
+			return 1
+		case aIsNumeric:
+			return -1
+		case bIsNumeric:
+			return 1
+		case aParts[i] < bParts[i]:
+			return -1
+		default:
+			return 1
+		}
+	}
+
+	switch {
+	case len(aParts) < len(bParts):
+		return -1
+	case len(aParts) > len(bParts):
+		return 1
+	default:
+		return 0
+	}
+}
+
+func parsePrereleaseNumber(value string) (int, bool) {
+	if value == "" {
+		return 0, false
+	}
+
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, false
+	}
+
+	return n, true
 }

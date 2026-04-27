@@ -6,13 +6,15 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
-	"io"
-	"strings"
+	stdio "io"
+	stdfs "io/fs"
+	"slices"
 
+	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
 	io_interface "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+	// TODO(AX-6): Replace with dappco.re/go/crypt when it exposes Compress/Decompress API parity.
 	"github.com/Snider/Borg/pkg/compress"
 )
 
@@ -35,7 +37,7 @@ const (
 //	format, err := build.ParseArchiveFormat("xz")  // → build.ArchiveFormatXZ
 //	format, err := build.ParseArchiveFormat("zip") // → build.ArchiveFormatZip
 func ParseArchiveFormat(value string) (ArchiveFormat, error) {
-	switch core.Trim(strings.ToLower(value)) {
+	switch core.Trim(core.Lower(value)) {
 	case "", "gz", "gzip", "tgz", "tar.gz", "tar-gz":
 		return ArchiveFormatGzip, nil
 	case "xz", "txz", "tar.xz", "tar-xz":
@@ -79,12 +81,8 @@ func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format Archive
 	}
 
 	// Verify the source file exists
-	info, err := fs.Stat(artifact.Path)
-	if err != nil {
+	if _, err := fs.Stat(artifact.Path); err != nil {
 		return Artifact{}, coreerr.E("build.Archive", "source file not found", err)
-	}
-	if info.IsDir() {
-		return Artifact{}, coreerr.E("build.Archive", "source path is a directory, expected file", nil)
 	}
 
 	// Determine archive type based on OS and format.
@@ -161,55 +159,49 @@ func archiveFilename(artifact Artifact, ext string) string {
 	// Go up one level to the output directory (e.g., dist)
 	outputDir := ax.Dir(dir)
 
-	// Get the binary name without extension
-	binaryName := ax.Base(artifact.Path)
-	binaryName = core.TrimSuffix(binaryName, ".exe")
+	// Get the binary or bundle name without packaging extensions.
+	binaryName := archiveBaseName(artifact.Path)
+	if !archiveBaseNameHasPlatformSuffix(binaryName, artifact.OS, artifact.Arch) {
+		binaryName = core.Sprintf("%s_%s_%s", binaryName, artifact.OS, artifact.Arch)
+	}
 
 	// Construct archive name: myapp_linux_amd64.tar.gz
-	archiveName := core.Sprintf("%s_%s_%s%s", binaryName, artifact.OS, artifact.Arch, ext)
+	archiveName := core.Concat(binaryName, ext)
 
 	return ax.Join(outputDir, archiveName)
 }
 
-// createTarXzArchive creates a tar.xz archive containing a single file.
-// Uses Borg's compress package for xz compression.
+func archiveBaseName(path string) string {
+	name := ax.Base(path)
+	name = core.TrimSuffix(name, ".exe")
+	name = core.TrimSuffix(name, ".app")
+	return name
+}
+
+func archiveBaseNameHasPlatformSuffix(name, os, arch string) bool {
+	if name == "" || os == "" || arch == "" {
+		return false
+	}
+
+	platform := core.Sprintf("_%s_%s", os, arch)
+	return core.HasSuffix(name, platform) || core.Contains(name, platform+"_")
+}
+
+// createTarXzArchive creates a tar.xz archive containing a file or directory tree.
+// TODO(AX-6): Replace Borg compression with dappco.re/go/crypt once API parity exists.
 func createTarXzArchive(fs io_interface.Medium, src, dst string) error {
-	// Open the source file
-	srcFile, err := fs.Open(src)
-	if err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to open source file", err)
-	}
-	defer func() { _ = srcFile.Close() }()
-
-	srcInfo, err := srcFile.Stat()
-	if err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to stat source file", err)
-	}
-
 	// Create tar archive in memory
 	var tarBuf bytes.Buffer
 	tarWriter := tar.NewWriter(&tarBuf)
-
-	// Create tar header
-	header, err := tar.FileInfoHeader(srcInfo, "")
-	if err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to create tar header", err)
-	}
-	header.Name = ax.Base(src)
-
-	if err := tarWriter.WriteHeader(header); err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to write tar header", err)
-	}
-
-	if _, err := io.Copy(tarWriter, srcFile); err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to write file content to tar", err)
+	if err := writeTarTree(fs, tarWriter, src, src); err != nil {
+		return err
 	}
 
 	if err := tarWriter.Close(); err != nil {
 		return coreerr.E("build.createTarXzArchive", "failed to close tar writer", err)
 	}
 
-	// Compress with xz using Borg
+	// Compress with xz using the deferred Borg API.
 	xzData, err := compress.Compress(tarBuf.Bytes(), "xz")
 	if err != nil {
 		return coreerr.E("build.createTarXzArchive", "failed to compress with xz", err)
@@ -229,20 +221,8 @@ func createTarXzArchive(fs io_interface.Medium, src, dst string) error {
 	return nil
 }
 
-// createTarGzArchive creates a tar.gz archive containing a single file.
+// createTarGzArchive creates a tar.gz archive containing a file or directory tree.
 func createTarGzArchive(fs io_interface.Medium, src, dst string) error {
-	// Open the source file
-	srcFile, err := fs.Open(src)
-	if err != nil {
-		return coreerr.E("build.createTarGzArchive", "failed to open source file", err)
-	}
-	defer func() { _ = srcFile.Close() }()
-
-	srcInfo, err := srcFile.Stat()
-	if err != nil {
-		return coreerr.E("build.createTarGzArchive", "failed to stat source file", err)
-	}
-
 	// Create the destination file
 	dstFile, err := fs.Create(dst)
 	if err != nil {
@@ -258,41 +238,11 @@ func createTarGzArchive(fs io_interface.Medium, src, dst string) error {
 	tarWriter := tar.NewWriter(gzWriter)
 	defer func() { _ = tarWriter.Close() }()
 
-	// Create tar header
-	header, err := tar.FileInfoHeader(srcInfo, "")
-	if err != nil {
-		return coreerr.E("build.createTarGzArchive", "failed to create tar header", err)
-	}
-	// Use just the filename, not the full path
-	header.Name = ax.Base(src)
-
-	// Write header
-	if err := tarWriter.WriteHeader(header); err != nil {
-		return coreerr.E("build.createTarGzArchive", "failed to write tar header", err)
-	}
-
-	// Write file content
-	if _, err := io.Copy(tarWriter, srcFile); err != nil {
-		return coreerr.E("build.createTarGzArchive", "failed to write file content to tar", err)
-	}
-
-	return nil
+	return writeTarTree(fs, tarWriter, src, src)
 }
 
-// createZipArchive creates a zip archive containing a single file.
+// createZipArchive creates a zip archive containing a file or directory tree.
 func createZipArchive(fs io_interface.Medium, src, dst string) error {
-	// Open the source file
-	srcFile, err := fs.Open(src)
-	if err != nil {
-		return coreerr.E("build.createZipArchive", "failed to open source file", err)
-	}
-	defer func() { _ = srcFile.Close() }()
-
-	srcInfo, err := srcFile.Stat()
-	if err != nil {
-		return coreerr.E("build.createZipArchive", "failed to stat source file", err)
-	}
-
 	// Create the destination file
 	dstFile, err := fs.Create(dst)
 	if err != nil {
@@ -304,25 +254,127 @@ func createZipArchive(fs io_interface.Medium, src, dst string) error {
 	zipWriter := zip.NewWriter(dstFile)
 	defer func() { _ = zipWriter.Close() }()
 
-	// Create zip header
-	header, err := zip.FileInfoHeader(srcInfo)
-	if err != nil {
-		return coreerr.E("build.createZipArchive", "failed to create zip header", err)
-	}
-	// Use just the filename, not the full path
-	header.Name = ax.Base(src)
-	header.Method = zip.Deflate
+	return writeZipTree(fs, zipWriter, src, src)
+}
 
-	// Create file in archive
-	writer, err := zipWriter.CreateHeader(header)
+func writeTarTree(fs io_interface.Medium, writer *tar.Writer, rootPath, currentPath string) error {
+	info, err := fs.Stat(currentPath)
 	if err != nil {
-		return coreerr.E("build.createZipArchive", "failed to create zip entry", err)
+		return coreerr.E("build.writeTarTree", "failed to stat archive entry", err)
 	}
 
-	// Write file content
-	if _, err := io.Copy(writer, srcFile); err != nil {
-		return coreerr.E("build.createZipArchive", "failed to write file content to zip", err)
+	header, err := tar.FileInfoHeader(info, "")
+	if err != nil {
+		return coreerr.E("build.writeTarTree", "failed to create tar header", err)
+	}
+	header.Name = archiveEntryName(rootPath, currentPath)
+	if info.IsDir() {
+		header.Name += "/"
+	}
+
+	if err := writer.WriteHeader(header); err != nil {
+		return coreerr.E("build.writeTarTree", "failed to write tar header", err)
+	}
+
+	if info.IsDir() {
+		entries, err := fs.List(currentPath)
+		if err != nil {
+			return coreerr.E("build.writeTarTree", "failed to list archive directory", err)
+		}
+		sortDirEntries(entries)
+		for _, entry := range entries {
+			if err := writeTarTree(fs, writer, rootPath, ax.Join(currentPath, entry.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	source, err := fs.Open(currentPath)
+	if err != nil {
+		return coreerr.E("build.writeTarTree", "failed to open archive entry", err)
+	}
+	defer func() { _ = source.Close() }()
+
+	if _, err := stdio.Copy(writer, source); err != nil {
+		return coreerr.E("build.writeTarTree", "failed to write file content to tar", err)
 	}
 
 	return nil
+}
+
+func writeZipTree(fs io_interface.Medium, writer *zip.Writer, rootPath, currentPath string) error {
+	info, err := fs.Stat(currentPath)
+	if err != nil {
+		return coreerr.E("build.writeZipTree", "failed to stat archive entry", err)
+	}
+
+	header, err := zip.FileInfoHeader(info)
+	if err != nil {
+		return coreerr.E("build.writeZipTree", "failed to create zip header", err)
+	}
+	header.Name = archiveEntryName(rootPath, currentPath)
+
+	if info.IsDir() {
+		header.Name += "/"
+		if _, err := writer.CreateHeader(header); err != nil {
+			return coreerr.E("build.writeZipTree", "failed to create zip directory entry", err)
+		}
+
+		entries, err := fs.List(currentPath)
+		if err != nil {
+			return coreerr.E("build.writeZipTree", "failed to list archive directory", err)
+		}
+		sortDirEntries(entries)
+		for _, entry := range entries {
+			if err := writeZipTree(fs, writer, rootPath, ax.Join(currentPath, entry.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	header.Method = zip.Deflate
+	zipEntry, err := writer.CreateHeader(header)
+	if err != nil {
+		return coreerr.E("build.writeZipTree", "failed to create zip entry", err)
+	}
+
+	source, err := fs.Open(currentPath)
+	if err != nil {
+		return coreerr.E("build.writeZipTree", "failed to open archive entry", err)
+	}
+	defer func() { _ = source.Close() }()
+
+	if _, err := stdio.Copy(zipEntry, source); err != nil {
+		return coreerr.E("build.writeZipTree", "failed to write file content to zip", err)
+	}
+
+	return nil
+}
+
+func archiveEntryName(rootPath, currentPath string) string {
+	rootName := ax.Base(rootPath)
+	if currentPath == rootPath {
+		return rootName
+	}
+
+	relPath, err := ax.Rel(rootPath, currentPath)
+	if err != nil || relPath == "" || relPath == "." {
+		return rootName
+	}
+
+	return core.Replace(ax.Join(rootName, relPath), ax.DS(), "/")
+}
+
+func sortDirEntries(entries []stdfs.DirEntry) {
+	slices.SortFunc(entries, func(a, b stdfs.DirEntry) int {
+		if a.Name() < b.Name() {
+			return -1
+		}
+		if a.Name() > b.Name() {
+			return 1
+		}
+		return 0
+	})
 }

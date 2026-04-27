@@ -1,18 +1,21 @@
 package build
 
 import (
+	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/io"
-	"strings"
+	"dappco.re/go/io"
 )
 
 // Marker files for project type detection.
 const (
+	markerBuildConfig        = ".core/build.yaml"
 	markerGoMod              = "go.mod"
 	markerGoWork             = "go.work"
+	markerMainGo             = "main.go"
 	markerWails              = "wails.json"
 	markerNodePackage        = "package.json"
+	markerDenoJSON           = "deno.json"
+	markerDenoJSONC          = "deno.jsonc"
 	markerComposer           = "composer.json"
 	markerMkDocs             = "mkdocs.yml"
 	markerMkDocsYAML         = "mkdocs.yaml"
@@ -36,27 +39,37 @@ const (
 	markerLinuxKitNestedYAML = ".core/linuxkit/*.yaml"
 )
 
-// projectMarker maps a marker file to its project type.
-type projectMarker struct {
-	file        string
+type discoveryRule struct {
 	projectType ProjectType
+	matches     func(io.Medium, string) bool
 }
 
-// markers defines the detection order. More specific types come first.
-// Wails projects have both wails.json and go.mod, so wails is checked first.
-var markers = []projectMarker{
-	{markerWails, ProjectTypeWails},
-	{markerGoMod, ProjectTypeGo},
-	{markerGoWork, ProjectTypeGo},
-	{markerNodePackage, ProjectTypeNode},
-	{markerComposer, ProjectTypePHP},
-	{markerMkDocs, ProjectTypeDocs},
-	{markerMkDocsYAML, ProjectTypeDocs},
-	{markerDocsMkDocs, ProjectTypeDocs},
-	{markerDocsMkDocsYAML, ProjectTypeDocs},
-	{markerPyProject, ProjectTypePython},
-	{markerRequirements, ProjectTypePython},
-	{markerCargo, ProjectTypeRust},
+var discoveryRules = []discoveryRule{
+	{projectType: ProjectTypeWails, matches: IsWailsProject},
+	{projectType: ProjectTypeGo, matches: func(fs io.Medium, dir string) bool {
+		return fileExists(fs, ax.Join(dir, markerGoMod)) || fileExists(fs, ax.Join(dir, markerGoWork))
+	}},
+	{projectType: ProjectTypeNode, matches: IsNodeProject},
+	{projectType: ProjectTypePHP, matches: IsPHPProject},
+	{projectType: ProjectTypePython, matches: IsPythonProject},
+	{projectType: ProjectTypeRust, matches: IsRustProject},
+	{projectType: ProjectTypeCPP, matches: IsCPPProject},
+	{projectType: ProjectTypeDocker, matches: IsDockerProject},
+	{projectType: ProjectTypeLinuxKit, matches: IsLinuxKitProject},
+	{projectType: ProjectTypeTaskfile, matches: IsTaskfileProject},
+	{projectType: ProjectTypeDocs, matches: IsDocsProject},
+}
+
+var discoveryMarkerPaths = []string{
+	markerBuildConfig,
+	markerGoMod, markerGoWork, markerMainGo, markerWails, markerNodePackage, markerDenoJSON, markerDenoJSONC, markerComposer,
+	markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
+	markerPyProject, markerRequirements, markerCargo,
+	"CMakeLists.txt", markerDockerfile, "Containerfile", "dockerfile", "containerfile",
+	markerFrontendPackage, markerFrontendDenoJSON, markerFrontendDenoJSONC,
+	markerLinuxKitYAML, markerLinuxKitYAMLAlt,
+	markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,
+	markerTaskfileLowerYML, markerTaskfileLowerYAML,
 }
 
 // Discover detects project types in the given directory by checking for marker files.
@@ -67,31 +80,19 @@ var markers = []projectMarker{
 func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 	var detected []ProjectType
 
-	for _, m := range markers {
-		path := ax.Join(dir, m.file)
-		if fileExists(fs, path) {
-			// Avoid duplicates (shouldn't happen with current markers, but defensive)
-			if !core.NewArray(detected...).Contains(m.projectType) {
-				detected = append(detected, m.projectType)
-			}
-		}
+	if configuredType, ok := configuredProjectType(fs, dir); ok {
+		return []ProjectType{configuredType}, nil
 	}
 
-	additionalTypes := []struct {
-		projectType ProjectType
-		detected    bool
-	}{
-		{ProjectTypeNode, IsNodeProject(fs, dir) || HasSubtreeNpm(fs, dir)},
-		{ProjectTypeDocs, IsMkDocsProject(fs, dir)},
-		{ProjectTypeDocker, IsDockerProject(fs, dir)},
-		{ProjectTypeLinuxKit, IsLinuxKitProject(fs, dir)},
-		{ProjectTypeCPP, IsCPPProject(fs, dir)},
-		{ProjectTypeTaskfile, IsTaskfileProject(fs, dir)},
-	}
-	for _, candidate := range additionalTypes {
-		if candidate.detected && !core.NewArray(detected...).Contains(candidate.projectType) {
-			detected = append(detected, candidate.projectType)
+	appendType := func(projectType ProjectType, ok bool) {
+		if !ok || core.NewArray(detected...).Contains(projectType) {
+			return
 		}
+		detected = append(detected, projectType)
+	}
+
+	for _, rule := range discoveryRules {
+		appendType(rule.projectType, rule.matches(fs, dir))
 	}
 
 	return detected, nil
@@ -125,14 +126,27 @@ func IsGoProject(fs io.Medium, dir string) bool {
 //
 // if build.IsWailsProject(io.Local, ".") { ... }
 func IsWailsProject(fs io.Medium, dir string) bool {
-	return fileExists(fs, ax.Join(dir, markerWails))
+	if fileExists(fs, ax.Join(dir, markerWails)) {
+		return true
+	}
+
+	if !hasGoRootMarker(fs, dir) {
+		return false
+	}
+
+	return hasFrontendManifest(fs, dir) ||
+		hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
+		hasSubtreeFrontendManifest(fs, dir)
 }
 
-// IsNodeProject checks if the directory contains a Node.js project.
+// IsNodeProject checks if the directory contains a Node.js or Deno frontend
+// project at the root, under frontend/, or in a visible nested subtree.
 //
 // if build.IsNodeProject(io.Local, ".") { ... }
 func IsNodeProject(fs io.Medium, dir string) bool {
-	return fileExists(fs, ax.Join(dir, markerNodePackage))
+	return hasFrontendManifest(fs, dir) ||
+		hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
+		hasSubtreeFrontendManifest(fs, dir)
 }
 
 // IsPHPProject checks if the directory contains a PHP project.
@@ -156,6 +170,13 @@ func IsMkDocsProject(fs io.Medium, dir string) bool {
 	return ResolveMkDocsConfigPath(fs, dir) != ""
 }
 
+// IsDocsProject is the predictable alias for IsMkDocsProject.
+//
+//	ok := build.IsDocsProject(io.Local, ".")
+func IsDocsProject(fs io.Medium, dir string) bool {
+	return IsMkDocsProject(fs, dir)
+}
+
 // ResolveMkDocsConfigPath returns the first MkDocs config path that exists.
 //
 //	configPath := build.ResolveMkDocsConfigPath(io.Local, ".")
@@ -170,11 +191,17 @@ func ResolveMkDocsConfigPath(fs io.Medium, dir string) string {
 			return path
 		}
 	}
+
+	if path := findMkDocsConfigInSubtree(fs, dir, 0); path != "" {
+		return path
+	}
+
 	return ""
 }
 
 // HasSubtreeNpm checks for package.json within depth 2 subdirectories.
-// Ignores root package.json and node_modules directories.
+// Ignores root package.json, the conventional frontend/ directory, hidden
+// directories, and node_modules directories.
 // Returns true when a monorepo-style nested package.json is found.
 //
 //	ok := build.HasSubtreeNpm(io.Local, ".") // true if apps/web/package.json exists
@@ -190,7 +217,7 @@ func HasSubtreeNpm(fs io.Medium, dir string) bool {
 			continue
 		}
 		name := entry.Name()
-		if name == "node_modules" {
+		if shouldSkipSubtreeDir(name) || name == "frontend" {
 			continue
 		}
 
@@ -210,7 +237,7 @@ func HasSubtreeNpm(fs io.Medium, dir string) bool {
 			if !subEntry.IsDir() {
 				continue
 			}
-			if subEntry.Name() == "node_modules" {
+			if shouldSkipSubtreeDir(subEntry.Name()) {
 				continue
 			}
 			nested := ax.Join(subdir, subEntry.Name())
@@ -245,18 +272,87 @@ func IsRustProject(fs io.Medium, dir string) bool {
 type DiscoveryResult struct {
 	// Types lists all detected project types in priority order.
 	Types []ProjectType
+	// ConfiguredType is the explicit build.type override from .core/build.yaml when present.
+	ConfiguredType string
+	// ConfiguredBuildType mirrors the workflow-facing discovery output name.
+	ConfiguredBuildType string
+	// OS is the current host operating system for the discovery run.
+	OS string
+	// Arch is the current host architecture for the discovery run.
+	Arch string
 	// PrimaryStack is the best stack suggestion based on detected types.
 	PrimaryStack string
+	// SuggestedStack is the richer action-oriented stack hint derived from markers.
+	// This preserves the v3 action naming where Wails projects map to "wails2".
+	SuggestedStack string
 	// HasFrontend is true when a root or frontend/ package.json/deno manifest is found,
 	// or when a nested frontend tree is detected.
 	HasFrontend bool
+	// HasRootPackageJSON reports whether package.json exists at the project root.
+	HasRootPackageJSON bool
+	// HasFrontendPackageJSON reports whether frontend/package.json exists.
+	HasFrontendPackageJSON bool
+	// HasRootComposerJSON reports whether composer.json exists at the project root.
+	HasRootComposerJSON bool
+	// HasRootCargoToml reports whether Cargo.toml exists at the project root.
+	HasRootCargoToml bool
+	// HasRootGoMod reports whether go.mod exists at the project root.
+	HasRootGoMod bool
+	// HasRootGoWork reports whether go.work exists at the project root.
+	HasRootGoWork bool
+	// HasRootMainGo reports whether main.go exists at the project root.
+	HasRootMainGo bool
+	// HasRootCMakeLists reports whether CMakeLists.txt exists at the project root.
+	HasRootCMakeLists bool
+	// HasRootWailsJSON reports whether wails.json exists at the project root.
+	HasRootWailsJSON bool
+	// HasPackageJSON reports whether package.json exists at the root, in frontend/,
+	// or in a supported nested subtree.
+	HasPackageJSON bool
+	// HasDenoManifest reports whether deno.json or deno.jsonc exists at the root,
+	// in frontend/, or in a supported nested subtree.
+	HasDenoManifest bool
+	// HasTaskfile reports whether any supported Taskfile name exists at the project root.
+	HasTaskfile bool
 	// HasSubtreeNpm is true when a nested package.json exists within depth 2.
 	HasSubtreeNpm bool
+	// HasSubtreePackageJSON mirrors the workflow-facing discovery output name.
+	HasSubtreePackageJSON bool
+	// HasSubtreeDenoManifest is true when a nested Deno manifest exists within depth 2.
+	HasSubtreeDenoManifest bool
+	// HasDocsConfig reports whether MkDocs config exists at the root or under docs/.
+	HasDocsConfig bool
+	// HasGoToolchain reports whether Go markers exist at the root or in a visible
+	// nested subtree, mirroring the action discovery contract used for setup.
+	HasGoToolchain bool
+	// PrimaryStackSuggestion mirrors the richer action output name and marker-based
+	// precedence used by the generated workflow discovery step.
+	PrimaryStackSuggestion string
+	// LinuxPackages lists distro-aware system dependencies needed by the detected stack.
+	LinuxPackages []string
+	// WebKitPackage is the Ubuntu-aware WebKit dependency selected for Wails builds.
+	WebKitPackage string
 	// Markers records the presence of each raw marker file checked.
 	Markers map[string]bool
 	// Distro holds the detected Linux distribution version (e.g., "24.04").
 	// Used by ComputeOptions to inject webkit2_41 tag on Ubuntu 24.04+.
 	Distro string
+	// Ref is the Git ref when discovery runs under GitHub metadata.
+	Ref string
+	// Branch is the branch name when available from GitHub metadata.
+	Branch string
+	// Tag is the tag name when available from GitHub metadata.
+	Tag string
+	// IsTag reports whether Ref points at a tag.
+	IsTag bool
+	// SHA is the current GitHub commit SHA when available.
+	SHA string
+	// ShortSHA is the short GitHub commit SHA when available.
+	ShortSHA string
+	// Repo is the GitHub owner/repo string when available.
+	Repo string
+	// Owner is the GitHub repository owner when available.
+	Owner string
 }
 
 // DiscoverFull returns a rich discovery result with all markers and metadata.
@@ -271,23 +367,29 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	result := &DiscoveryResult{
 		Types:   types,
+		OS:      discoverHostOS(),
+		Arch:    discoverHostArch(),
 		Markers: make(map[string]bool),
 	}
 
 	// Record raw marker presence
-	allMarkers := []string{
-		markerGoMod, markerGoWork, markerWails, markerNodePackage, markerComposer,
-		markerMkDocs, markerMkDocsYAML, markerDocsMkDocs, markerDocsMkDocsYAML,
-		markerPyProject, markerRequirements, markerCargo,
-		"CMakeLists.txt", markerDockerfile, "Containerfile", "dockerfile", "containerfile",
-		markerFrontendPackage, markerFrontendDenoJSON, markerFrontendDenoJSONC,
-		markerLinuxKitYAML, markerLinuxKitYAMLAlt,
-		markerTaskfileYML, markerTaskfileYAML, markerTaskfileBare,
-		markerTaskfileLowerYML, markerTaskfileLowerYAML,
-	}
-	for _, m := range allMarkers {
-		result.Markers[m] = fileExists(fs, ax.Join(dir, m))
-	}
+	result.Markers = collectMarkerPresence(fs, dir, discoveryMarkerPaths)
+
+	result.HasRootPackageJSON = result.Markers[markerNodePackage]
+	result.HasFrontendPackageJSON = result.Markers[markerFrontendPackage]
+	result.HasRootComposerJSON = result.Markers[markerComposer]
+	result.HasRootCargoToml = result.Markers[markerCargo]
+	result.HasRootGoMod = result.Markers[markerGoMod]
+	result.HasRootGoWork = result.Markers[markerGoWork]
+	result.HasRootMainGo = result.Markers[markerMainGo]
+	result.HasRootCMakeLists = result.Markers["CMakeLists.txt"]
+	result.HasRootWailsJSON = result.Markers[markerWails]
+	result.HasTaskfile = result.Markers[markerTaskfileYML] ||
+		result.Markers[markerTaskfileYAML] ||
+		result.Markers[markerTaskfileBare] ||
+		result.Markers[markerTaskfileLowerYML] ||
+		result.Markers[markerTaskfileLowerYAML]
+	result.HasDocsConfig = IsMkDocsProject(fs, dir)
 
 	// Pattern-based marker: LinuxKit configs may live in .core/linuxkit/*.yml or *.yaml.
 	result.Markers[markerLinuxKitNestedYML] = hasYAMLInDir(fs, ax.Join(dir, ".core", "linuxkit"))
@@ -295,24 +397,191 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 
 	// Subtree npm detection
 	result.HasSubtreeNpm = HasSubtreeNpm(fs, dir)
+	result.HasSubtreePackageJSON = result.HasSubtreeNpm
+	result.HasSubtreeDenoManifest = hasSubtreeDenoManifest(fs, dir)
+	result.HasPackageJSON = result.HasRootPackageJSON || result.HasFrontendPackageJSON || result.HasSubtreeNpm
+	result.HasDenoManifest = result.Markers[markerDenoJSON] ||
+		result.Markers[markerDenoJSONC] ||
+		result.Markers[markerFrontendDenoJSON] ||
+		result.Markers[markerFrontendDenoJSONC] ||
+		result.HasSubtreeDenoManifest
 
 	// Frontend detection: root manifests, frontend/ manifests, or nested frontend trees.
-	result.HasFrontend = hasFrontendManifest(fs, dir) ||
-		hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
-		hasSubtreeFrontendManifest(fs, dir) ||
-		result.HasSubtreeNpm
+	result.HasFrontend = result.HasPackageJSON || result.HasDenoManifest
+	result.HasGoToolchain = result.HasRootGoMod || result.HasRootGoWork || hasNestedGoToolchain(fs, dir, 0)
 
 	result.Types = types
+	if configuredType, ok := configuredProjectType(fs, dir); ok {
+		result.ConfiguredType = string(configuredType)
+		result.ConfiguredBuildType = result.ConfiguredType
+	}
 
 	// Linux distro detection: used for distro-sensitive build flags.
 	result.Distro = detectDistroVersion(fs)
+	result.LinuxPackages = ResolveLinuxPackages(result.Types, result.Distro)
+	result.WebKitPackage = firstString(result.LinuxPackages)
+	if git := DetectGitHubMetadata(); git != nil {
+		result.Ref = git.Ref
+		result.Branch = git.Branch
+		result.Tag = git.Tag
+		result.IsTag = git.IsTag
+		result.SHA = git.SHA
+		result.ShortSHA = git.ShortSHA
+		result.Repo = git.Repo
+		result.Owner = git.Owner
+	} else if git := detectLocalGitMetadata(dir); git != nil {
+		result.Ref = git.Ref
+		result.Branch = git.Branch
+		result.Tag = git.Tag
+		result.IsTag = git.IsTag
+		result.SHA = git.SHA
+		result.ShortSHA = git.ShortSHA
+		result.Repo = git.Repo
+		result.Owner = git.Owner
+	}
 
 	// Primary stack: first detected type as string, or empty
 	if len(types) > 0 {
 		result.PrimaryStack = string(types[0])
 	}
+	result.SuggestedStack = SuggestStack(types)
+	result.PrimaryStackSuggestion = resolvePrimaryStackSuggestion(result)
 
 	return result, nil
+}
+
+func discoverHostOS() string {
+	if goos := core.Env("GOOS"); goos != "" {
+		return goos
+	}
+
+	if hosttype := core.Env("HOSTTYPE"); hosttype != "" {
+		return hosttype
+	}
+
+	if ostype := core.Env("OSTYPE"); ostype != "" {
+		return ostype
+	}
+
+	return "linux"
+}
+
+func discoverHostArch() string {
+	if goarch := core.Env("GOARCH"); goarch != "" {
+		return goarch
+	}
+
+	if hosttype := core.Env("HOSTTYPE"); hosttype != "" {
+		switch hosttype {
+		case "x86_64", "amd64":
+			return "amd64"
+		case "x86", "i386", "i686":
+			return "386"
+		case "aarch64", "arm64":
+			return "arm64"
+		case "arm", "armv7l", "armv6l":
+			return "arm"
+		case "riscv64":
+			return "riscv64"
+		}
+
+		return hosttype
+	}
+
+	return "amd64"
+}
+
+// SuggestStack returns the action-oriented stack suggestion for the detected
+// project markers. This keeps discovery compatible with the v3 action naming,
+// where Wails-backed projects use the "wails2" stack identifier.
+//
+//	stack := build.SuggestStack([]build.ProjectType{build.ProjectTypeWails}) // "wails2"
+func SuggestStack(types []ProjectType) string {
+	if len(types) == 0 {
+		return "unknown"
+	}
+
+	switch types[0] {
+	case ProjectTypeWails:
+		return "wails2"
+	case ProjectTypeCPP:
+		return "cpp"
+	case ProjectTypeDocs:
+		return "docs"
+	case ProjectTypeNode:
+		return "node"
+	default:
+		return string(types[0])
+	}
+}
+
+func configuredProjectType(fs io.Medium, dir string) (ProjectType, bool) {
+	if fs == nil || !ConfigExists(fs, dir) {
+		return "", false
+	}
+
+	cfg, err := LoadConfig(fs, dir)
+	if err != nil || cfg == nil {
+		return "", false
+	}
+
+	projectType, ok := parseProjectType(cfg.Build.Type)
+	if !ok {
+		return "", false
+	}
+
+	return projectType, true
+}
+
+func parseProjectType(value string) (ProjectType, bool) {
+	projectType := ProjectType(core.Lower(core.Trim(value)))
+
+	switch projectType {
+	case ProjectTypeGo,
+		ProjectTypeWails,
+		ProjectTypeNode,
+		ProjectTypePHP,
+		ProjectTypeCPP,
+		ProjectTypeDocker,
+		ProjectTypeLinuxKit,
+		ProjectTypeTaskfile,
+		ProjectTypeDocs,
+		ProjectTypePython,
+		ProjectTypeRust:
+		return projectType, true
+	default:
+		return "", false
+	}
+}
+
+// ResolveLinuxPackages returns distro-aware system dependencies for the detected stack.
+//
+//	packages := build.ResolveLinuxPackages([]build.ProjectType{build.ProjectTypeWails}, "24.04")
+//	// []string{"libwebkit2gtk-4.1-dev"}
+func ResolveLinuxPackages(types []ProjectType, distro string) []string {
+	if len(types) == 0 || distro == "" {
+		return nil
+	}
+
+	var packages []string
+	if containsProjectType(types, ProjectTypeWails) {
+		if isUbuntu2404OrNewer(distro) {
+			packages = append(packages, "libwebkit2gtk-4.1-dev")
+		} else {
+			packages = append(packages, "libwebkit2gtk-4.0-dev")
+		}
+	}
+
+	return deduplicateStrings(packages)
+}
+
+func containsProjectType(types []ProjectType, projectType ProjectType) bool {
+	for _, candidate := range types {
+		if candidate == projectType {
+			return true
+		}
+	}
+	return false
 }
 
 // hasFrontendManifest reports whether a frontend directory contains a supported manifest.
@@ -334,7 +603,7 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 			continue
 		}
 		name := entry.Name()
-		if name == "node_modules" || strings.HasPrefix(name, ".") {
+		if shouldSkipSubtreeDir(name) || name == "frontend" {
 			continue
 		}
 
@@ -351,7 +620,7 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 			if !subEntry.IsDir() {
 				continue
 			}
-			if subEntry.Name() == "node_modules" || strings.HasPrefix(subEntry.Name(), ".") {
+			if shouldSkipSubtreeDir(subEntry.Name()) {
 				continue
 			}
 			nested := ax.Join(subdir, subEntry.Name())
@@ -364,9 +633,148 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 	return false
 }
 
+func hasSubtreeDenoManifest(fs io.Medium, dir string) bool {
+	return hasSubtreeManifest(fs, dir, 0, func(fs io.Medium, candidate string) bool {
+		return fs.IsFile(ax.Join(candidate, markerDenoJSON)) || fs.IsFile(ax.Join(candidate, markerDenoJSONC))
+	})
+}
+
+func findMkDocsConfigInSubtree(fs io.Medium, dir string, depth int) string {
+	if depth >= 2 {
+		return ""
+	}
+
+	entries, err := fs.List(dir)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if shouldSkipSubtreeDir(name) {
+			continue
+		}
+
+		candidateDir := ax.Join(dir, name)
+		for _, marker := range []string{markerMkDocs, markerMkDocsYAML} {
+			if fileExists(fs, ax.Join(candidateDir, marker)) {
+				return ax.Join(candidateDir, marker)
+			}
+		}
+
+		if nested := findMkDocsConfigInSubtree(fs, candidateDir, depth+1); nested != "" {
+			return nested
+		}
+	}
+
+	return ""
+}
+
+func hasNestedGoToolchain(fs io.Medium, dir string, depth int) bool {
+	return hasSubtreeManifest(fs, dir, depth, func(fs io.Medium, candidate string) bool {
+		return fs.IsFile(ax.Join(candidate, markerGoMod)) || fs.IsFile(ax.Join(candidate, markerGoWork))
+	}, 4)
+}
+
+func hasSubtreeManifest(fs io.Medium, dir string, depth int, match func(io.Medium, string) bool, maxDepth ...int) bool {
+	limit := 2
+	if len(maxDepth) > 0 {
+		limit = maxDepth[0]
+	}
+	if depth >= limit {
+		return false
+	}
+
+	entries, err := fs.List(dir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if shouldSkipSubtreeDir(name) || name == "frontend" {
+			continue
+		}
+
+		candidateDir := ax.Join(dir, name)
+		if match(fs, candidateDir) {
+			return true
+		}
+
+		if hasSubtreeManifest(fs, candidateDir, depth+1, match, limit) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func resolvePrimaryStackSuggestion(result *DiscoveryResult) string {
+	if result == nil {
+		return "unknown"
+	}
+	if result.ConfiguredType != "" {
+		return SuggestStack([]ProjectType{ProjectType(result.ConfiguredType)})
+	}
+
+	switch {
+	case result.HasRootWailsJSON:
+		return "wails2"
+	case (result.HasRootGoMod || result.HasRootGoWork) && result.HasFrontend:
+		return "wails2"
+	case result.HasRootCMakeLists:
+		return "cpp"
+	case result.HasDocsConfig && !result.HasGoToolchain:
+		return "docs"
+	case result.HasFrontend && !result.HasGoToolchain:
+		return "node"
+	case result.HasGoToolchain:
+		return "go"
+	case result.HasDocsConfig:
+		return "docs"
+	case result.HasFrontend:
+		return "node"
+	default:
+		return "unknown"
+	}
+}
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+// hasGoRootMarker reports whether the project root contains a Go module or workspace marker.
+func hasGoRootMarker(fs io.Medium, dir string) bool {
+	return fileExists(fs, ax.Join(dir, markerGoMod)) ||
+		fileExists(fs, ax.Join(dir, markerGoWork))
+}
+
 // fileExists checks if a file exists and is not a directory.
 func fileExists(fs io.Medium, path string) bool {
 	return fs.IsFile(path)
+}
+
+func collectMarkerPresence(fs io.Medium, dir string, paths []string) map[string]bool {
+	markers := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		markers[path] = fileExists(fs, ax.Join(dir, path))
+	}
+	return markers
+}
+
+func shouldSkipSubtreeDir(name string) bool {
+	return name == "node_modules" || core.HasPrefix(name, ".")
 }
 
 // ResolveDockerfilePath returns the first Docker manifest path that exists.
@@ -437,8 +845,8 @@ func hasYAMLInDir(fs io.Medium, dir string) bool {
 		if entry.IsDir() {
 			continue
 		}
-		name := strings.ToLower(entry.Name())
-		if strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml") {
+		name := core.Lower(entry.Name())
+		if core.HasSuffix(name, ".yml") || core.HasSuffix(name, ".yaml") {
 			return true
 		}
 	}
@@ -472,19 +880,23 @@ func parseOSReleaseDistro(content string) string {
 	var idLike string
 	var version string
 
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
+	for _, line := range core.Split(content, "\n") {
+		line = core.Trim(line)
+		if line == "" || core.HasPrefix(line, "#") {
 			continue
 		}
 
-		key, value, ok := strings.Cut(line, "=")
-		if !ok {
+		parts := core.SplitN(line, "=", 2)
+		if len(parts) != 2 {
 			continue
 		}
 
-		key = strings.TrimSpace(key)
-		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		key := core.Trim(parts[0])
+		value := core.Trim(parts[1])
+		value = core.TrimPrefix(value, `"`)
+		value = core.TrimSuffix(value, `"`)
+		value = core.TrimPrefix(value, `'`)
+		value = core.TrimSuffix(value, `'`)
 
 		switch key {
 		case "ID":
@@ -500,7 +912,7 @@ func parseOSReleaseDistro(content string) string {
 		return ""
 	}
 
-	if id == "ubuntu" || strings.Contains(" "+idLike+" ", " ubuntu ") {
+	if id == "ubuntu" || core.Contains(" "+idLike+" ", " ubuntu ") {
 		return version
 	}
 

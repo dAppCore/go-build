@@ -2,16 +2,17 @@ package generators
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"errors"
+	"os"
 )
 
-// dockerAvailable checks if docker is available for fallback generation.
+// dockerAvailable checks whether Docker can run fallback generation.
 func dockerAvailable() bool {
 	return ax.Exec(context.Background(), "docker", "info") == nil
 }
@@ -58,11 +59,15 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 if [ -n "$output_dir" ]; then
-  mkdir -p "$output_dir"
+  mkdir -p "$output_dir/core"
+  printf 'export * from "./core/client";\n' > "$output_dir/index.ts"
+  printf 'export const client = true;\n' > "$output_dir/core/client.ts"
 fi
 `
+	if err := ax.WriteFile(commandPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	require.NoError(t, ax.WriteFile(commandPath, []byte(script), 0o755))
 	return commandPath
 }
 
@@ -88,12 +93,20 @@ func TestTypeScript_TypeScriptGeneratorNpxAvailabilityUsesProbeTimeout_Bad(t *te
 
 	npxDir := t.TempDir()
 	npxPath := ax.Join(npxDir, "npx")
-	require.NoError(t, ax.WriteFile(npxPath, []byte("#!/bin/sh\nwhile :; do :; done\n"), 0o755))
+	if err := ax.WriteFile(npxPath, []byte("#!/bin/sh\nwhile :; do :; done\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", npxDir)
 
 	started := time.Now()
-	assert.False(t, NewTypeScriptGenerator().npxAvailable())
-	assert.Less(t, time.Since(started), 500*time.Millisecond)
+	if NewTypeScriptGenerator().npxAvailable() {
+		t.Fatal("expected false")
+	}
+	if time.Since(started) >= 500*time.Millisecond {
+		t.Fatalf("expected %v to be less than %v", time.Since(started), 500*time.Millisecond)
+	}
+
 }
 
 func TestTypeScript_TypeScriptGeneratorGenerate_Good(t *testing.T) {
@@ -102,9 +115,12 @@ func TestTypeScript_TypeScriptGeneratorGenerate_Good(t *testing.T) {
 	t.Setenv("PATH", commandDir+core.Env("PS")+core.Env("PATH"))
 
 	g := NewTypeScriptGenerator()
-	require.True(t, g.Available())
+	if !(g.Available()) {
+		t.Fatal("expected true")
 
-	// Create temp directories
+		// Create temp directories
+	}
+
 	tmpDir := t.TempDir()
 	specPath := createTestSpec(t, tmpDir)
 	outputDir := ax.Join(tmpDir, "output")
@@ -128,6 +144,129 @@ func TestTypeScript_TypeScriptGeneratorGenerate_Good(t *testing.T) {
 	if !ax.Exists(outputDir) {
 		t.Error("output directory was not created")
 	}
+	if _, err := os.Stat(ax.Join(outputDir, "src", "index.ts")); err != nil {
+		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "src", "index.ts"))
+	}
+	if _, err := os.Stat(ax.Join(outputDir, "src", "core", "client.ts")); err != nil {
+		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "src", "core", "client.ts"))
+	}
+	if _, err := os.Stat(ax.Join(outputDir, "index.ts")); err == nil {
+		t.Fatalf("expected file not to exist: %v", ax.Join(outputDir, "index.ts"))
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+
+	content, err := ax.ReadFile(ax.Join(outputDir, "package.json"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	manifest := map[string]any{}
+	if err := json.Unmarshal(content, &manifest); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("testclient", manifest["name"]) {
+		t.Fatalf("want %v, got %v", "testclient", manifest["name"])
+	}
+	if !stdlibAssertEqual("1.0.0", manifest["version"]) {
+		t.Fatalf("want %v, got %v", "1.0.0", manifest["version"])
+	}
+	if !stdlibAssertEqual([]any{"src"}, manifest["files"]) {
+		t.Fatalf("want %v, got %v", []any{"src"}, manifest["files"])
+	}
+	if !stdlibAssertEqual("./src/index.ts", manifest["types"]) {
+		t.Fatalf("want %v, got %v", "./src/index.ts", manifest["types"])
+	}
+
+}
+
+func TestTypeScript_finalizeTypeScriptOutputNormalizesRootLayout_Good(t *testing.T) {
+	stagingDir := t.TempDir()
+	if err := ax.MkdirAll(ax.Join(stagingDir, "apis"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.MkdirAll(ax.Join(stagingDir, "models"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(stagingDir, "index.ts"), []byte("export * from './apis';\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(stagingDir, "runtime.ts"), []byte("export const runtime = true;\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(stagingDir, "apis", "default.ts"), []byte("export const api = true;\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(stagingDir, "models", "widget.ts"), []byte("export type Widget = {};\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(stagingDir, "README.md"), []byte("# SDK\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(stagingDir, "package.json"), []byte("{\"scripts\":{\"build\":\"tsc\"}}\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	outputDir := ax.Join(t.TempDir(), "typescript")
+	if err := finalizeTypeScriptOutput(stagingDir, Options{OutputDir: outputDir, PackageName: "@example/sdk", Version: "2.3.4"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(ax.Join(outputDir, "src", "index.ts")); err != nil {
+		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "src", "index.ts"))
+	}
+	if _, err := os.Stat(ax.Join(outputDir, "src", "runtime.ts")); err != nil {
+		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "src", "runtime.ts"))
+	}
+	if _, err := os.Stat(ax.Join(outputDir, "src", "apis", "default.ts")); err != nil {
+		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "src", "apis", "default.ts"))
+	}
+	if _, err := os.Stat(ax.Join(outputDir, "src", "models", "widget.ts")); err != nil {
+		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "src", "models", "widget.ts"))
+	}
+	if _, err := os.Stat(ax.Join(outputDir, "README.md")); err != nil {
+		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "README.md"))
+	}
+	if _, err := os.Stat(ax.Join(outputDir, "index.ts")); err == nil {
+		t.Fatalf("expected file not to exist: %v", ax.Join(outputDir, "index.ts"))
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(ax.Join(outputDir, "runtime.ts")); err == nil {
+		t.Fatalf("expected file not to exist: %v", ax.Join(outputDir, "runtime.ts"))
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+
+	content, err := ax.ReadFile(ax.Join(outputDir, "package.json"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	manifest := map[string]any{}
+	if err := json.Unmarshal(content, &manifest); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("@example/sdk", manifest["name"]) {
+		t.Fatalf("want %v, got %v", "@example/sdk", manifest["name"])
+	}
+	if !stdlibAssertEqual("2.3.4", manifest["version"]) {
+		t.Fatalf("want %v, got %v", "2.3.4", manifest["version"])
+	}
+	if !stdlibAssertEqual("module", manifest["type"]) {
+		t.Fatalf("want %v, got %v", "module", manifest["type"])
+	}
+	if !stdlibAssertEqual("./src/index.ts", manifest["types"]) {
+		t.Fatalf("want %v, got %v", "./src/index.ts", manifest["types"])
+	}
+
+	scripts, ok := manifest["scripts"].(map[string]any)
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("tsc", scripts["build"]) {
+		t.Fatalf("want %v, got %v", "tsc", scripts["build"])
+	}
+
 }
 
 func TestTypeScript_TypeScriptGeneratorGenerate_Bad(t *testing.T) {
@@ -136,7 +275,10 @@ func TestTypeScript_TypeScriptGeneratorGenerate_Bad(t *testing.T) {
 
 	dockerDir := t.TempDir()
 	dockerPath := ax.Join(dockerDir, "docker")
-	require.NoError(t, ax.WriteFile(dockerPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	if err := ax.WriteFile(dockerPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	t.Setenv("PATH", dockerDir)
 
 	tmpDir := t.TempDir()
@@ -152,7 +294,11 @@ func TestTypeScript_TypeScriptGeneratorGenerate_Bad(t *testing.T) {
 		PackageName: "testclient",
 		Version:     "1.0.0",
 	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "context canceled") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "context canceled")
+	}
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "context canceled")
 }

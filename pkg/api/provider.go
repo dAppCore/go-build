@@ -6,19 +6,21 @@
 package api
 
 import (
-	"errors"
-	stdio "io"
-	"io/fs"
-	"net/http"
+	"cmp"
+	"context"
+	"slices"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/projectdetect"
+	"dappco.re/go/build/internal/sdkcfg"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/build/pkg/build/builders"
+	"dappco.re/go/build/pkg/build/signing"
+	"dappco.re/go/build/pkg/release"
+	"dappco.re/go/build/pkg/sdk"
+	"dappco.re/go/core"
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/internal/projectdetect"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/build/pkg/build/builders"
-	"dappco.re/go/core/build/pkg/release"
-	"dappco.re/go/core/build/pkg/sdk"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"dappco.re/go/core/ws"
@@ -35,6 +37,30 @@ type BuildProvider struct {
 	projectDir string
 	medium     io.Medium
 }
+
+type buildRequest struct {
+	Archive  *bool `json:"archive,omitempty"`
+	Checksum *bool `json:"checksum,omitempty"`
+	Package  *bool `json:"package,omitempty"`
+}
+
+const (
+	statusOK                  = 200
+	statusBadRequest          = 400
+	statusInternalServerError = 500
+	statusServiceUnavailable  = 503
+)
+
+var (
+	providerResolveProjectType = resolveProjectType
+	providerGetBuilder         = getBuilder
+	providerDetermineVersion   = release.DetermineVersionWithContext
+	providerLoadReleaseConfig  = release.LoadConfig
+	providerRunRelease         = release.Run
+	providerSignBinaries       = signing.SignBinaries
+	providerNotarizeBinaries   = signing.NotarizeBinaries
+	providerSignChecksums      = signing.SignChecksums
+)
 
 // compile-time interface checks
 var (
@@ -102,8 +128,10 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	// Build
 	rg.GET("/config", p.getConfig)
 	rg.GET("/discover", p.discoverProject)
+	rg.POST("", p.triggerBuild)
 	rg.POST("/build", p.triggerBuild)
 	rg.GET("/artifacts", p.listArtifacts)
+	rg.GET("/events", p.streamEvents)
 
 	// Release
 	rg.GET("/release/version", p.getVersion)
@@ -113,6 +141,7 @@ func (p *BuildProvider) RegisterRoutes(rg *gin.RouterGroup) {
 
 	// SDK
 	rg.GET("/sdk/diff", p.getSdkDiff)
+	rg.POST("/sdk", p.generateSdk)
 	rg.POST("/sdk/generate", p.generateSdk)
 }
 
@@ -132,12 +161,12 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Method:      "GET",
 			Path:        "/discover",
 			Summary:     "Detect project type",
-			Description: "Scans the project directory for marker files and returns detected project types plus frontend and distro metadata.",
+			Description: "Scans the project directory for marker files and returns detected project types plus frontend, setup-plan, and distro metadata.",
 			Tags:        []string{"build", "discovery"},
 		},
 		{
 			Method:      "POST",
-			Path:        "/build",
+			Path:        "/",
 			Summary:     "Trigger a build",
 			Description: "Runs the full build pipeline for the project, producing artifacts in dist/.",
 			Tags:        []string{"build"},
@@ -148,6 +177,13 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Summary:     "List build artifacts",
 			Description: "Returns the contents of the dist/ directory with file sizes.",
 			Tags:        []string{"build", "artifacts"},
+		},
+		{
+			Method:      "GET",
+			Path:        "/events",
+			Summary:     "Subscribe to build events",
+			Description: "Upgrades to a WebSocket connection and streams build, release, workflow, and SDK events emitted by this provider.",
+			Tags:        []string{"build", "events"},
 		},
 		{
 			Method:      "GET",
@@ -167,7 +203,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			Method:      "POST",
 			Path:        "/release",
 			Summary:     "Trigger release pipeline",
-			Description: "Publishes pre-built artifacts from dist/ to configured targets.",
+			Description: "Runs the full release pipeline: build, sign, archive, checksum, and publish.",
 			Tags:        []string{"release"},
 		},
 		{
@@ -250,7 +286,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 		},
 		{
 			Method:      "POST",
-			Path:        "/sdk/generate",
+			Path:        "/sdk",
 			Summary:     "Generate SDK",
 			Description: "Generates SDK client libraries for configured languages from the OpenAPI spec.",
 			Tags:        []string{"sdk"},
@@ -274,19 +310,19 @@ func (p *BuildProvider) resolveDir() (string, error) {
 func (p *BuildProvider) getConfig(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	cfg, err := build.LoadConfig(p.medium, dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
 	}
 
 	hasConfig := build.ConfigExists(p.medium, dir)
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"config":     cfg,
 		"has_config": hasConfig,
 		"path":       build.ConfigPath(dir),
@@ -296,13 +332,25 @@ func (p *BuildProvider) getConfig(c *gin.Context) {
 func (p *BuildProvider) discoverProject(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		return
+	}
+
+	cfg, err := build.LoadConfig(p.medium, dir)
+	if err != nil {
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
 	}
 
 	discovery, err := build.DiscoverFull(p.medium, dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("discover_failed", err.Error()))
+		return
+	}
+	options := build.ComputeOptions(cfg, discovery)
+	setupPlan, err := build.ComputeSetupPlan(p.medium, dir, cfg, discovery)
+	if err != nil {
+		c.JSON(statusInternalServerError, api.Fail("setup_plan_failed", err.Error()))
 		return
 	}
 
@@ -317,119 +365,275 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		primary = string(discovery.Types[0])
 	}
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
-		"types":           typeStrings,
-		"primary":         primary,
-		"primary_stack":   discovery.PrimaryStack,
-		"dir":             dir,
-		"has_frontend":    discovery.HasFrontend,
-		"has_subtree_npm": discovery.HasSubtreeNpm,
-		"markers":         discovery.Markers,
-		"distro":          discovery.Distro,
+	c.JSON(statusOK, api.OK(map[string]any{
+		"types":                     typeStrings,
+		"configured_type":           discovery.ConfiguredType,
+		"configured_build_type":     discovery.ConfiguredBuildType,
+		"os":                        discovery.OS,
+		"arch":                      discovery.Arch,
+		"primary":                   primary,
+		"primary_stack":             discovery.PrimaryStack,
+		"suggested_stack":           discovery.SuggestedStack,
+		"primary_stack_suggestion":  discovery.PrimaryStackSuggestion,
+		"dir":                       dir,
+		"has_frontend":              discovery.HasFrontend,
+		"has_root_package_json":     discovery.HasRootPackageJSON,
+		"has_frontend_package_json": discovery.HasFrontendPackageJSON,
+		"has_root_composer_json":    discovery.HasRootComposerJSON,
+		"has_root_cargo_toml":       discovery.HasRootCargoToml,
+		"has_package_json":          discovery.HasPackageJSON,
+		"has_deno_manifest":         discovery.HasDenoManifest,
+		"has_root_go_mod":           discovery.HasRootGoMod,
+		"has_root_go_work":          discovery.HasRootGoWork,
+		"has_root_main_go":          discovery.HasRootMainGo,
+		"has_root_cmakelists":       discovery.HasRootCMakeLists,
+		"has_root_wails_json":       discovery.HasRootWailsJSON,
+		"has_taskfile":              discovery.HasTaskfile,
+		"has_subtree_npm":           discovery.HasSubtreeNpm,
+		"has_subtree_package_json":  discovery.HasSubtreePackageJSON,
+		"has_subtree_deno_manifest": discovery.HasSubtreeDenoManifest,
+		"has_docs_config":           discovery.HasDocsConfig,
+		"has_go_toolchain":          discovery.HasGoToolchain,
+		"deno_requested":            build.DenoRequested(cfg.Build.DenoBuild),
+		"npm_requested":             build.NpmRequested(cfg.Build.NpmBuild),
+		"linux_packages":            discovery.LinuxPackages,
+		"webkit_package":            discovery.WebKitPackage,
+		"ref":                       discovery.Ref,
+		"branch":                    discovery.Branch,
+		"tag":                       discovery.Tag,
+		"is_tag":                    discovery.IsTag,
+		"sha":                       discovery.SHA,
+		"short_sha":                 discovery.ShortSHA,
+		"repo":                      discovery.Repo,
+		"owner":                     discovery.Owner,
+		"build_options":             options.String(),
+		"options": map[string]any{
+			"obfuscate": options.Obfuscate,
+			"tags":      options.Tags,
+			"nsis":      options.NSIS,
+			"webview2":  options.WebView2,
+			"ldflags":   options.LDFlags,
+		},
+		"setup_plan": map[string]any{
+			"project_dir":              setupPlan.ProjectDir,
+			"primary_stack":            setupPlan.PrimaryStack,
+			"primary_stack_suggestion": setupPlan.PrimaryStackSuggestion,
+			"frontend_dirs":            setupPlan.FrontendDirs,
+			"linux_packages":           setupPlan.LinuxPackages,
+			"steps":                    setupPlan.Steps,
+		},
+		"markers": discovery.Markers,
+		"distro":  discovery.Distro,
 	}))
 }
 
 func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
-	// Load build config
-	cfg, err := build.LoadConfig(p.medium, dir)
+	request, err := decodeBuildRequest(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
 		return
 	}
+	archiveOutput, checksumOutput := resolveBuildOutputs(request)
 
-	discovery, err := build.DiscoverFull(p.medium, dir)
+	hasBuildConfig := build.ConfigExists(p.medium, dir)
+	var cfg *build.BuildConfig
+	if hasBuildConfig {
+		cfg, err = build.LoadConfig(p.medium, dir)
+		if err != nil {
+			c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
+			return
+		}
+	}
+
+	projectTypes, err := build.Discover(p.medium, dir)
+	if err != nil || len(projectTypes) == 0 {
+		c.JSON(statusBadRequest, api.Fail("no_project", "no buildable project detected"))
+		return
+	}
+	for _, projectType := range projectTypes {
+		if _, err := providerGetBuilder(projectType); err != nil {
+			c.JSON(statusBadRequest, api.Fail("unsupported_type", err.Error()))
+			return
+		}
+	}
+
+	pipeline := &build.Pipeline{
+		FS: p.medium,
+		ResolveBuilder: func(projectType build.ProjectType) (build.Builder, error) {
+			return providerGetBuilder(projectType)
+		},
+		ResolveVersion: func(ctx context.Context, projectDir string) (string, error) {
+			version, err := providerDetermineVersion(ctx, projectDir)
+			if err != nil {
+				return "dev", nil
+			}
+			return version, nil
+		},
+	}
+	plan, err := pipeline.Plan(c.Request.Context(), build.PipelineRequest{
+		ProjectDir:  dir,
+		BuildConfig: cfg,
+	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("discover_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("build_prepare_failed", err.Error()))
 		return
 	}
 
-	// Detect project type, honouring an explicit build.type override.
-	projectType, err := resolveProjectType(p.medium, dir, cfg.Build.Type)
-	if err != nil || projectType == "" {
-		c.JSON(http.StatusBadRequest, api.Fail("no_project", "no buildable project detected"))
-		return
+	projectTypeNames := make([]string, 0, len(plan.ProjectTypes))
+	for _, projectType := range plan.ProjectTypes {
+		projectTypeNames = append(projectTypeNames, string(projectType))
 	}
-
-	// Get builder
-	builder, err := getBuilder(projectType)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.Fail("unsupported_type", err.Error()))
-		return
-	}
-
-	// Determine version
-	version, verr := release.DetermineVersionWithContext(c.Request.Context(), dir)
-	if verr != nil {
-		version = "dev"
-	}
-
-	// Build name
-	binaryName := cfg.Project.Binary
-	if binaryName == "" {
-		binaryName = cfg.Project.Name
-	}
-	if binaryName == "" {
-		binaryName = ax.Base(dir)
-	}
-
-	outputDir := ax.Join(dir, "dist")
-
-	buildConfig := &build.Config{
-		FS:         p.medium,
-		ProjectDir: dir,
-		OutputDir:  outputDir,
-		Name:       binaryName,
-		Version:    version,
-		LDFlags:    cfg.Build.LDFlags,
-		CGO:        cfg.Build.CGO,
-	}
-	build.ApplyOptions(buildConfig, build.ComputeOptions(cfg, discovery))
-
-	targets := cfg.ToTargets()
 
 	p.emitEvent("build.started", map[string]any{
-		"project_type": string(projectType),
-		"targets":      targets,
-		"version":      version,
+		"project_type":  string(plan.ProjectType),
+		"project_types": projectTypeNames,
+		"targets":       plan.Targets,
+		"version":       plan.Version,
 	})
 
-	artifacts, err := builder.Build(c.Request.Context(), buildConfig, targets)
+	result, err := pipeline.Run(c.Request.Context(), plan)
 	if err != nil {
 		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, api.Fail("build_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("build_failed", err.Error()))
 		return
 	}
+	artifacts := result.Artifacts
 
-	// Archive and checksum
-	archived, err := build.ArchiveAll(p.medium, artifacts)
-	if err != nil {
-		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, api.Fail("archive_failed", err.Error()))
-		return
+	signCfg := plan.BuildConfig.Sign
+	goos := currentGOOS()
+	if signCfg.Enabled && (goos == "darwin" || goos == "windows") {
+		signingArtifacts := make([]signing.Artifact, len(artifacts))
+		for i, artifact := range artifacts {
+			signingArtifacts[i] = signing.Artifact{
+				Path: artifact.Path,
+				OS:   artifact.OS,
+				Arch: artifact.Arch,
+			}
+		}
+
+		if err := providerSignBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts); err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(statusInternalServerError, api.Fail("sign_failed", err.Error()))
+			return
+		}
+
+		if goos == "darwin" && signCfg.MacOS.Notarize {
+			if err := providerNotarizeBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts); err != nil {
+				p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+				c.JSON(statusInternalServerError, api.Fail("notarize_failed", err.Error()))
+				return
+			}
+		}
 	}
 
-	checksummed, err := build.ChecksumAll(p.medium, archived)
-	if err != nil {
-		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, api.Fail("checksum_failed", err.Error()))
-		return
+	finalArtifacts := append([]build.Artifact(nil), artifacts...)
+	response := map[string]any{
+		"artifacts":     finalArtifacts,
+		"project_type":  string(plan.ProjectType),
+		"project_types": projectTypeNames,
+		"version":       plan.Version,
+	}
+
+	if archiveOutput {
+		archiveFormat, err := build.ParseArchiveFormat(plan.BuildConfig.Build.ArchiveFormat)
+		if err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(statusBadRequest, api.Fail("archive_format_invalid", err.Error()))
+			return
+		}
+
+		finalArtifacts, err = build.ArchiveAllWithFormat(p.medium, finalArtifacts, archiveFormat)
+		if err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(statusInternalServerError, api.Fail("archive_failed", err.Error()))
+			return
+		}
+
+		response["archive_format"] = string(archiveFormat)
+	}
+
+	if checksumOutput {
+		checksummed, err := build.ChecksumAll(p.medium, finalArtifacts)
+		if err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(statusInternalServerError, api.Fail("checksum_failed", err.Error()))
+			return
+		}
+
+		checksumPath := ax.Join(plan.OutputDir, "CHECKSUMS.txt")
+		if err := build.WriteChecksumFile(p.medium, checksummed, checksumPath); err != nil {
+			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+			c.JSON(statusInternalServerError, api.Fail("checksum_write_failed", err.Error()))
+			return
+		}
+
+		if signCfg.Enabled {
+			if err := providerSignChecksums(c.Request.Context(), p.medium, signCfg, checksumPath); err != nil {
+				p.emitEvent("build.failed", map[string]any{"error": err.Error()})
+				c.JSON(statusInternalServerError, api.Fail("checksum_sign_failed", err.Error()))
+				return
+			}
+		}
+
+		finalArtifacts = checksummed
+		response["checksum_file"] = checksumPath
 	}
 
 	p.emitEvent("build.complete", map[string]any{
-		"artifact_count": len(checksummed),
-		"version":        version,
+		"artifact_count": len(finalArtifacts),
+		"project_types":  projectTypeNames,
+		"version":        plan.Version,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
-		"artifacts": checksummed,
-		"version":   version,
-	}))
+	response["artifacts"] = finalArtifacts
+	c.JSON(statusOK, api.OK(response))
+}
+
+func decodeBuildRequest(c *gin.Context) (buildRequest, error) {
+	var request buildRequest
+	if c == nil || c.Request == nil || c.Request.Body == nil || c.Request.ContentLength == 0 {
+		return request, nil
+	}
+	body, err := c.GetRawData()
+	if err != nil {
+		return buildRequest{}, err
+	}
+	if err := decodeJSONBody(body, &request); err != nil {
+		return buildRequest{}, err
+	}
+	return request, nil
+}
+
+func resolveBuildOutputs(request buildRequest) (bool, bool) {
+	archiveOutput := false
+	checksumOutput := false
+
+	archiveSet := request.Archive != nil
+	if archiveSet {
+		archiveOutput = *request.Archive
+	}
+
+	checksumSet := request.Checksum != nil
+	if checksumSet {
+		checksumOutput = *request.Checksum
+	}
+
+	if request.Package != nil {
+		if !archiveSet {
+			archiveOutput = *request.Package
+		}
+		if !checksumSet {
+			checksumOutput = *request.Package
+		}
+	}
+
+	return archiveOutput, checksumOutput
 }
 
 // resolveProjectType returns the configured build type when present, otherwise it falls back to detection.
@@ -451,49 +655,75 @@ type artifactInfo struct {
 func (p *BuildProvider) listArtifacts(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	distDir := ax.Join(dir, "dist")
 	if !p.medium.IsDir(distDir) {
-		c.JSON(http.StatusOK, api.OK(map[string]any{
+		c.JSON(statusOK, api.OK(map[string]any{
 			"artifacts": []artifactInfo{},
 			"exists":    false,
 		}))
 		return
 	}
 
-	entries, err := p.medium.List(distDir)
+	artifacts, err := p.collectArtifacts(distDir, distDir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("list_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("list_failed", err.Error()))
 		return
 	}
 
-	var artifacts []artifactInfo
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-		artifacts = append(artifacts, artifactInfo{
-			Name: entry.Name(),
-			Path: ax.Join(distDir, entry.Name()),
-			Size: info.Size(),
-		})
-	}
+	slices.SortFunc(artifacts, func(a, b artifactInfo) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 
 	if artifacts == nil {
 		artifacts = []artifactInfo{}
 	}
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"artifacts": artifacts,
 		"exists":    true,
 	}))
+}
+
+func (p *BuildProvider) collectArtifacts(distDir, currentDir string) ([]artifactInfo, error) {
+	entries, err := p.medium.List(currentDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var artifacts []artifactInfo
+	for _, entry := range entries {
+		path := ax.Join(currentDir, entry.Name())
+		if entry.IsDir() {
+			nested, err := p.collectArtifacts(distDir, path)
+			if err != nil {
+				return nil, err
+			}
+			artifacts = append(artifacts, nested...)
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		name, err := ax.Rel(distDir, path)
+		if err != nil {
+			name = entry.Name()
+		}
+
+		artifacts = append(artifacts, artifactInfo{
+			Name: name,
+			Path: path,
+			Size: info.Size(),
+		})
+	}
+
+	return artifacts, nil
 }
 
 // -- Release Handlers ---------------------------------------------------------
@@ -501,17 +731,17 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 func (p *BuildProvider) getVersion(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	version, err := release.DetermineVersionWithContext(c.Request.Context(), dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("version_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("version_failed", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"version": version,
 	}))
 }
@@ -519,7 +749,7 @@ func (p *BuildProvider) getVersion(c *gin.Context) {
 func (p *BuildProvider) getChangelog(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
@@ -529,11 +759,11 @@ func (p *BuildProvider) getChangelog(c *gin.Context) {
 
 	changelog, err := release.GenerateWithContext(c.Request.Context(), dir, fromRef, toRef)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("changelog_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("changelog_failed", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"changelog": changelog,
 	}))
 }
@@ -541,13 +771,13 @@ func (p *BuildProvider) getChangelog(c *gin.Context) {
 func (p *BuildProvider) triggerRelease(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
-	cfg, err := release.LoadConfig(dir)
+	cfg, err := providerLoadReleaseConfig(dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
 	}
 
@@ -558,9 +788,9 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 		"dry_run": dryRun,
 	})
 
-	rel, err := release.Publish(c.Request.Context(), cfg, dryRun)
+	rel, err := providerRunRelease(c.Request.Context(), cfg, dryRun)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("release_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("release_failed", err.Error()))
 		return
 	}
 
@@ -570,7 +800,7 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 		"dry_run":        dryRun,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"version":   rel.Version,
 		"artifacts": rel.Artifacts,
 		"changelog": rel.Changelog,
@@ -664,27 +894,29 @@ func (r ReleaseWorkflowRequest) resolveOutputPath(dir string, medium io.Medium) 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
 	var request ReleaseWorkflowRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		// Empty bodies are valid; malformed JSON is not.
-		if !errors.Is(err, stdio.EOF) {
-			c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
-			return
-		}
+	body, err := c.GetRawData()
+	if err != nil {
+		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
+		return
+	}
+	if err := decodeJSONBody(body, &request); err != nil {
+		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
+		return
 	}
 
 	workflowPath, err := request.resolveWorkflowTargetPath(dir, p.medium)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, api.Fail("invalid_request", err.Error()))
+		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
 		return
 	}
 
 	if err := build.WriteReleaseWorkflow(p.medium, workflowPath); err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
 		return
 	}
 
@@ -693,7 +925,7 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		"generated": true,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"generated": true,
 		"path":      workflowPath,
 	}))
@@ -706,17 +938,17 @@ func (p *BuildProvider) getSdkDiff(c *gin.Context) {
 	revisionPath := c.Query("revision")
 
 	if basePath == "" || revisionPath == "" {
-		c.JSON(http.StatusBadRequest, api.Fail("missing_params", "base and revision query parameters are required"))
+		c.JSON(statusBadRequest, api.Fail("missing_params", "base and revision query parameters are required"))
 		return
 	}
 
 	result, err := sdk.Diff(basePath, revisionPath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("diff_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("diff_failed", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, api.OK(result))
+	c.JSON(statusOK, api.OK(result))
 }
 
 type sdkGenerateRequest struct {
@@ -726,7 +958,7 @@ type sdkGenerateRequest struct {
 func (p *BuildProvider) generateSdk(c *gin.Context) {
 	dir, err := p.resolveDir()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("resolve_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
 		return
 	}
 
@@ -736,32 +968,10 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 		req.Language = ""
 	}
 
-	// Load SDK config from release config
-	relCfg, err := release.LoadConfig(dir)
+	sdkCfg, err := sdkcfg.LoadProjectConfig(p.medium, dir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
 		return
-	}
-
-	var sdkCfg *sdk.Config
-	if relCfg.SDK != nil {
-		sdkCfg = &sdk.Config{
-			Spec:      relCfg.SDK.Spec,
-			Languages: relCfg.SDK.Languages,
-			Output:    relCfg.SDK.Output,
-			Package: sdk.PackageConfig{
-				Name:    relCfg.SDK.Package.Name,
-				Version: relCfg.SDK.Package.Version,
-			},
-			Diff: sdk.DiffConfig{
-				Enabled:        relCfg.SDK.Diff.Enabled,
-				FailOnBreaking: relCfg.SDK.Diff.FailOnBreaking,
-			},
-			Publish: sdk.PublishConfig{
-				Repo: relCfg.SDK.Publish.Repo,
-				Path: relCfg.SDK.Publish.Path,
-			},
-		}
 	}
 
 	s := sdk.New(dir, sdkCfg)
@@ -774,7 +984,7 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("sdk_generate_failed", err.Error()))
+		c.JSON(statusInternalServerError, api.Fail("sdk_generate_failed", err.Error()))
 		return
 	}
 
@@ -782,42 +992,52 @@ func (p *BuildProvider) generateSdk(c *gin.Context) {
 		"language": req.Language,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(statusOK, api.OK(map[string]any{
 		"generated": true,
 		"language":  req.Language,
 	}))
+}
+
+func (p *BuildProvider) streamEvents(c *gin.Context) {
+	if p.hub == nil {
+		c.JSON(statusServiceUnavailable, api.Fail("event_hub_unavailable", "build event stream is unavailable"))
+		return
+	}
+
+	p.hub.HandleWebSocket(c.Writer, c.Request)
 }
 
 // -- Internal Helpers ---------------------------------------------------------
 
 // getBuilder returns the appropriate builder for the project type.
 func getBuilder(projectType build.ProjectType) (build.Builder, error) {
-	switch projectType {
-	case build.ProjectTypeWails:
-		return builders.NewWailsBuilder(), nil
-	case build.ProjectTypeGo:
-		return builders.NewGoBuilder(), nil
-	case build.ProjectTypeNode:
-		return builders.NewNodeBuilder(), nil
-	case build.ProjectTypePHP:
-		return builders.NewPHPBuilder(), nil
-	case build.ProjectTypePython:
-		return builders.NewPythonBuilder(), nil
-	case build.ProjectTypeRust:
-		return builders.NewRustBuilder(), nil
-	case build.ProjectTypeDocs:
-		return builders.NewDocsBuilder(), nil
-	case build.ProjectTypeCPP:
-		return builders.NewCPPBuilder(), nil
-	case build.ProjectTypeDocker:
-		return builders.NewDockerBuilder(), nil
-	case build.ProjectTypeLinuxKit:
-		return builders.NewLinuxKitBuilder(), nil
-	case build.ProjectTypeTaskfile:
-		return builders.NewTaskfileBuilder(), nil
-	default:
-		return nil, fs.ErrNotExist
+	builder, err := builders.ResolveBuilder(projectType)
+	if err != nil {
+		return nil, err
 	}
+	return builder, nil
+}
+
+func currentGOOS() string {
+	if goos := core.Env("GOOS"); goos != "" {
+		return goos
+	}
+	return core.Env("OS")
+}
+
+func decodeJSONBody(body []byte, target any) error {
+	if core.Trim(string(body)) == "" {
+		return nil
+	}
+
+	result := core.JSONUnmarshalString(string(body), target)
+	if result.OK {
+		return nil
+	}
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return coreerr.E("api.decodeJSONBody", "invalid JSON", nil)
 }
 
 // emitEvent sends a WS event if the hub is available.

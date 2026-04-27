@@ -8,11 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/io"
 )
 
 func setupFakePHPToolchain(t *testing.T, binDir string) {
@@ -42,8 +40,10 @@ if [ "${1:-}" = "run-script" ] && [ "${2:-}" = "build" ]; then
 	chmod +x "$artifact"
 fi
 `
+	if err := ax.WriteFile(ax.Join(binDir, "composer"), []byte(script), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	require.NoError(t, ax.WriteFile(ax.Join(binDir, "composer"), []byte(script), 0o755))
 }
 
 func setupPHPTestProject(t *testing.T, withBuildScript bool) string {
@@ -55,11 +55,18 @@ func setupPHPTestProject(t *testing.T, withBuildScript bool) string {
 	if withBuildScript {
 		composerJSON = `{"name":"test/php-app","scripts":{"build":"php build.php"}}`
 	}
+	if err := ax.WriteFile(ax.Join(dir, "composer.json"), []byte(composerJSON), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(dir, "index.php"), []byte("<?php echo 'hello';"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	require.NoError(t, ax.WriteFile(ax.Join(dir, "composer.json"), []byte(composerJSON), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(dir, "index.php"), []byte("<?php echo 'hello';"), 0o644))
 	if withBuildScript {
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "build.php"), []byte("<?php echo 'build';"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "build.php"), []byte("<?php echo 'build';"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 	}
 
 	return dir
@@ -67,7 +74,10 @@ func setupPHPTestProject(t *testing.T, withBuildScript bool) string {
 
 func TestPHP_PHPBuilderName_Good(t *testing.T) {
 	builder := NewPHPBuilder()
-	assert.Equal(t, "php", builder.Name())
+	if !stdlibAssertEqual("php", builder.Name()) {
+		t.Fatalf("want %v, got %v", "php", builder.Name())
+	}
+
 }
 
 func TestPHP_PHPBuilderDetect_Good(t *testing.T) {
@@ -75,19 +85,31 @@ func TestPHP_PHPBuilderDetect_Good(t *testing.T) {
 
 	t.Run("detects composer.json projects", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "composer.json"), []byte("{}"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "composer.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewPHPBuilder()
 		detected, err := builder.Detect(fs, dir)
-		assert.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("returns false for empty directory", func(t *testing.T) {
 		builder := NewPHPBuilder()
 		detected, err := builder.Detect(fs, t.TempDir())
-		assert.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 }
 
@@ -119,24 +141,53 @@ func TestPHP_PHPBuilderBuild_Good(t *testing.T) {
 	targets := []build.Target{{OS: "linux", Arch: "amd64"}}
 
 	artifacts, err := builder.Build(context.Background(), cfg, targets)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-	assert.FileExists(t, artifacts[0].Path)
-	assert.Equal(t, "linux", artifacts[0].OS)
-	assert.Equal(t, "amd64", artifacts[0].Arch)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if _, err := os.Stat(artifacts[0].Path); err != nil {
+		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+	}
+	if !stdlibAssertEqual("linux", artifacts[0].OS) {
+		t.Fatalf("want %v, got %v", "linux", artifacts[0].OS)
+	}
+	if !stdlibAssertEqual("amd64", artifacts[0].Arch) {
+		t.Fatalf("want %v, got %v", "amd64", artifacts[0].Arch)
+	}
 
 	content, err := ax.ReadFile(logPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	require.GreaterOrEqual(t, len(lines), 6)
-	assert.Equal(t, "composer", lines[0])
-	assert.Equal(t, "install", lines[1])
-	assert.Contains(t, lines, "GOOS=linux")
-	assert.Contains(t, lines, "GOARCH=amd64")
-	assert.Contains(t, lines, "OUTPUT_DIR="+outputDir)
-	assert.Contains(t, lines, "TARGET_DIR="+ax.Join(outputDir, "linux_amd64"))
-	assert.Contains(t, string(content), "FOO=bar")
+	if len(lines) < 6 {
+		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 6)
+	}
+	if !stdlibAssertEqual("composer", lines[0]) {
+		t.Fatalf("want %v, got %v", "composer", lines[0])
+	}
+	if !stdlibAssertEqual("install", lines[1]) {
+		t.Fatalf("want %v, got %v", "install", lines[1])
+	}
+	if !stdlibAssertContains(lines, "GOOS=linux") {
+		t.Fatalf("expected %v to contain %v", lines, "GOOS=linux")
+	}
+	if !stdlibAssertContains(lines, "GOARCH=amd64") {
+		t.Fatalf("expected %v to contain %v", lines, "GOARCH=amd64")
+	}
+	if !stdlibAssertContains(lines, "OUTPUT_DIR="+outputDir) {
+		t.Fatalf("expected %v to contain %v", lines, "OUTPUT_DIR="+outputDir)
+	}
+	if !stdlibAssertContains(lines, "TARGET_DIR="+ax.Join(outputDir, "linux_amd64")) {
+		t.Fatalf("expected %v to contain %v", lines, "TARGET_DIR="+ax.Join(outputDir, "linux_amd64"))
+	}
+	if !stdlibAssertContains(string(content), "FOO=bar") {
+		t.Fatalf("expected %v to contain %v", string(content), "FOO=bar")
+	}
+
 }
 
 func TestPHP_PHPBuilderBuildFallbackBundle_Good(t *testing.T) {
@@ -161,24 +212,41 @@ func TestPHP_PHPBuilderBuildFallbackBundle_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-	assert.FileExists(t, artifacts[0].Path)
-	assert.Equal(t, ".zip", ax.Ext(artifacts[0].Path))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if _, err := os.Stat(artifacts[0].Path); err != nil {
+		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
+	}
+	if !stdlibAssertEqual(".zip", ax.Ext(artifacts[0].Path)) {
+		t.Fatalf("want %v, got %v", ".zip", ax.Ext(artifacts[0].Path))
+	}
 
 	reader, err := zip.OpenReader(artifacts[0].Path)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = reader.Close() }()
 
 	var foundComposer bool
 	for _, file := range reader.File {
-		assert.True(t, file.Modified.Equal(deterministicZipTime))
+		if !(file.Modified.Equal(deterministicZipTime)) {
+			t.Fatal("expected true")
+		}
+
 		if file.Name == "composer.json" {
 			foundComposer = true
 			break
 		}
 	}
-	assert.True(t, foundComposer)
+	if !(foundComposer) {
+		t.Fatal("expected true")
+	}
+
 }
 
 func TestPHP_PHPBuilderBuildDefaults_Good(t *testing.T) {
@@ -202,10 +270,19 @@ func TestPHP_PHPBuilderBuildDefaults_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, nil)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-	assert.Equal(t, runtime.GOOS, artifacts[0].OS)
-	assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if !stdlibAssertEqual(runtime.GOOS, artifacts[0].OS) {
+		t.Fatalf("want %v, got %v", runtime.GOOS, artifacts[0].OS)
+	}
+	if !stdlibAssertEqual(runtime.GOARCH, artifacts[0].Arch) {
+		t.Fatalf("want %v, got %v", runtime.GOARCH, artifacts[0].Arch)
+	}
+
 }
 
 func TestPHP_PHPBuilderInterface_Good(t *testing.T) {

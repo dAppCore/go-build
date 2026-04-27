@@ -1,13 +1,13 @@
 $ErrorActionPreference = 'Stop'
 $toolsDir = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$url64 = 'https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-windows-amd64.zip'
+$url64 = {{ psQuote (printf "https://github.com/%s/releases/download/v%s/%s" .Repository .Version .Checksums.WindowsAmd64File) }}
 
 $packageArgs = @{
-  packageName    = '{{.PackageName}}'
+  packageName    = {{ psQuote .PackageName }}
   unzipLocation  = $toolsDir
   url64bit       = $url64
-  checksum64     = '{{.Checksums.WindowsAmd64}}'
-  checksumType64 = 'sha256'
+  checksum64     = {{ psQuote .Checksums.WindowsAmd64 }}
+  checksumType64 = {{ psQuote "sha256" }}
 }
 
 Install-ChocolateyZipPackage @packageArgs

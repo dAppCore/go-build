@@ -8,10 +8,9 @@ import (
 	"text/template"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 //go:embed templates/scoop/*.tmpl
@@ -46,10 +45,34 @@ func (p *ScoopPublisher) Name() string {
 	return "scoop"
 }
 
+// Validate checks the Scoop publisher configuration before publishing.
+func (p *ScoopPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	cfg := p.parseConfig(pubCfg, relCfg)
+	if cfg.Bucket == "" && (cfg.Official == nil || !cfg.Official.Enabled) {
+		return coreerr.E("scoop.Validate", "bucket is required (set publish.scoop.bucket in config)", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *ScoopPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to Scoop.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *ScoopPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	cfg := p.parseConfig(pubCfg, relCfg)
 
 	if cfg.Bucket == "" && (cfg.Official == nil || !cfg.Official.Enabled) {
@@ -78,7 +101,7 @@ func (p *ScoopPublisher) Publish(ctx context.Context, release *Release, pubCfg P
 	}
 
 	version := core.TrimPrefix(release.Version, "v")
-	checksums := buildChecksumMap(release.Artifacts)
+	checksums := buildChecksumMapFromRelease(release)
 
 	data := scoopTemplateData{
 		PackageName: projectName,
@@ -148,10 +171,10 @@ func (p *ScoopPublisher) dryRunPublish(m coreio.Medium, data scoopTemplateData, 
 	publisherPrintln("---")
 	publisherPrintln()
 
-	if cfg.Bucket != "" {
+	if cfg.Bucket != "" && !scoopOfficialMode(cfg) {
 		publisherPrint("Would commit to bucket: %s", cfg.Bucket)
 	}
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if scoopOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = "dist/scoop"
@@ -171,7 +194,7 @@ func (p *ScoopPublisher) executePublish(ctx context.Context, projectDir string, 
 	}
 
 	// If official config is enabled, write to output directory
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if scoopOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = ax.Join(projectDir, "dist", "scoop")
@@ -190,14 +213,18 @@ func (p *ScoopPublisher) executePublish(ctx context.Context, projectDir string, 
 		publisherPrint("Wrote Scoop manifest for official PR: %s", manifestPath)
 	}
 
-	// If bucket is configured, commit to it
-	if cfg.Bucket != "" {
+	// Official repo mode generates PR-ready files and does not publish directly.
+	if cfg.Bucket != "" && !scoopOfficialMode(cfg) {
 		if err := p.commitToBucket(ctx, cfg.Bucket, data, manifest); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func scoopOfficialMode(cfg ScoopConfig) bool {
+	return cfg.Official != nil && cfg.Official.Enabled
 }
 
 func (p *ScoopPublisher) commitToBucket(ctx context.Context, bucket string, data scoopTemplateData, manifest string) error {
@@ -263,7 +290,7 @@ func (p *ScoopPublisher) renderTemplate(m coreio.Medium, name string, data scoop
 		}
 	}
 
-	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("scoop.renderTemplate", "failed to parse template "+name, err)
 	}
@@ -275,6 +302,3 @@ func (p *ScoopPublisher) renderTemplate(m coreio.Medium, name string, data scoop
 
 	return buf.String(), nil
 }
-
-// Ensure build package is used
-var _ = build.Artifact{}

@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	coreerr "dappco.re/go/log"
 )
 
 // commonSpecPaths are checked in order when no spec is configured.
@@ -16,6 +16,9 @@ var commonSpecPaths = []string{
 	"openapi.yaml",
 	"openapi.yml",
 	"openapi.json",
+	"docs/openapi.yaml",
+	"docs/openapi.yml",
+	"docs/openapi.json",
 	"docs/api.yaml",
 	"docs/api.yml",
 	"docs/api.json",

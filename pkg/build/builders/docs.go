@@ -2,18 +2,14 @@
 package builders
 
 import (
-	"archive/zip"
 	"context"
-	stdio "io"
 	"runtime"
-	"sort"
-	"strings"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // DocsBuilder builds MkDocs projects.
@@ -39,7 +35,7 @@ func (b *DocsBuilder) Name() string {
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *DocsBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return build.IsMkDocsProject(fs, dir), nil
+	return build.IsDocsProject(fs, dir), nil
 }
 
 // Build runs mkdocs build and packages the generated site into a zip archive.
@@ -49,17 +45,16 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	if cfg == nil {
 		return nil, coreerr.E("DocsBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
-	}
+	targets = defaultRuntimeTargets(targets, runtime.GOOS, runtime.GOARCH)
 
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+		outputDir = defaultOutputDir(cfg)
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("DocsBuilder.Build", "failed to create output directory", err)
+	if err := ensureOutputDir(filesystem, outputDir, "DocsBuilder.Build"); err != nil {
+		return nil, err
 	}
 
 	configPath := b.resolveMkDocsConfigPath(cfg.FS, cfg.ProjectDir)
@@ -74,30 +69,17 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 
 	var artifacts []build.Artifact
 	for _, target := range targets {
-		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := cfg.FS.EnsureDir(platformDir); err != nil {
-			return artifacts, coreerr.E("DocsBuilder.Build", "failed to create platform directory", err)
+		platformDir, err := ensurePlatformDir(filesystem, outputDir, target, "DocsBuilder.Build")
+		if err != nil {
+			return artifacts, err
 		}
 
 		siteDir := ax.Join(platformDir, "site")
-		if err := cfg.FS.EnsureDir(siteDir); err != nil {
+		if err := filesystem.EnsureDir(siteDir); err != nil {
 			return artifacts, coreerr.E("DocsBuilder.Build", "failed to create site directory", err)
 		}
 
-		env := appendConfiguredEnv(cfg.Env,
-			core.Sprintf("GOOS=%s", target.OS),
-			core.Sprintf("GOARCH=%s", target.Arch),
-			core.Sprintf("TARGET_OS=%s", target.OS),
-			core.Sprintf("TARGET_ARCH=%s", target.Arch),
-			core.Sprintf("OUTPUT_DIR=%s", outputDir),
-			core.Sprintf("TARGET_DIR=%s", platformDir),
-		)
-		if cfg.Name != "" {
-			env = append(env, core.Sprintf("NAME=%s", cfg.Name))
-		}
-		if cfg.Version != "" {
-			env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
-		}
+		env := configuredTargetEnv(cfg, target, standardTargetValues(outputDir, platformDir, target)...)
 
 		args := []string{"build", "--clean", "--site-dir", siteDir, "--config-file", configPath}
 		output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, mkdocsCommand, args...)
@@ -106,7 +88,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		}
 
 		bundlePath := ax.Join(platformDir, b.bundleName(cfg)+".zip")
-		if err := b.bundleSite(cfg.FS, siteDir, bundlePath); err != nil {
+		if err := b.bundleSite(filesystem, siteDir, bundlePath); err != nil {
 			return artifacts, err
 		}
 
@@ -155,81 +137,7 @@ func (b *DocsBuilder) bundleName(cfg *build.Config) string {
 
 // bundleSite creates a zip bundle containing the generated MkDocs site.
 func (b *DocsBuilder) bundleSite(fs io.Medium, siteDir, bundlePath string) error {
-	if err := fs.EnsureDir(ax.Dir(bundlePath)); err != nil {
-		return coreerr.E("DocsBuilder.bundleSite", "failed to create bundle directory", err)
-	}
-
-	file, err := fs.Create(bundlePath)
-	if err != nil {
-		return coreerr.E("DocsBuilder.bundleSite", "failed to create bundle file", err)
-	}
-	defer func() { _ = file.Close() }()
-
-	writer := zip.NewWriter(file)
-	defer func() { _ = writer.Close() }()
-
-	return b.writeZipTree(fs, writer, siteDir, siteDir)
-}
-
-// writeZipTree walks a directory and writes files into the zip bundle.
-func (b *DocsBuilder) writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, currentDir string) error {
-	entries, err := fs.List(currentDir)
-	if err != nil {
-		return coreerr.E("DocsBuilder.writeZipTree", "failed to list directory", err)
-	}
-
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
-	})
-
-	for _, entry := range entries {
-		entryPath := ax.Join(currentDir, entry.Name())
-
-		if entry.IsDir() {
-			if err := b.writeZipTree(fs, writer, rootDir, entryPath); err != nil {
-				return err
-			}
-			continue
-		}
-
-		relPath, err := ax.Rel(rootDir, entryPath)
-		if err != nil {
-			return coreerr.E("DocsBuilder.writeZipTree", "failed to relativise bundle path", err)
-		}
-
-		info, err := fs.Stat(entryPath)
-		if err != nil {
-			return coreerr.E("DocsBuilder.writeZipTree", "failed to stat bundle entry", err)
-		}
-
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return coreerr.E("DocsBuilder.writeZipTree", "failed to create zip header", err)
-		}
-		header.Name = strings.ReplaceAll(relPath, ax.DS(), "/")
-		header.Method = zip.Deflate
-		header.SetModTime(deterministicZipTime)
-
-		zipEntry, err := writer.CreateHeader(header)
-		if err != nil {
-			return coreerr.E("DocsBuilder.writeZipTree", "failed to create zip entry", err)
-		}
-
-		source, err := fs.Open(entryPath)
-		if err != nil {
-			return coreerr.E("DocsBuilder.writeZipTree", "failed to open bundle entry", err)
-		}
-
-		if _, err := stdio.Copy(zipEntry, source); err != nil {
-			_ = source.Close()
-			return coreerr.E("DocsBuilder.writeZipTree", "failed to write bundle entry", err)
-		}
-		if err := source.Close(); err != nil {
-			return coreerr.E("DocsBuilder.writeZipTree", "failed to close bundle entry", err)
-		}
-	}
-
-	return nil
+	return bundleZipTree(fs, siteDir, bundlePath, "DocsBuilder.bundleSite", nil)
 }
 
 // Ensure DocsBuilder implements the Builder interface.

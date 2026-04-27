@@ -2,18 +2,14 @@
 package builders
 
 import (
-	"archive/zip"
 	"context"
-	stdio "io"
 	"runtime"
-	"sort"
-	"strings"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // PHPBuilder builds PHP projects with composer.json manifests.
@@ -50,17 +46,16 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 	if cfg == nil {
 		return nil, coreerr.E("PHPBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
-	}
+	targets = defaultRuntimeTargets(targets, runtime.GOOS, runtime.GOARCH)
 
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+		outputDir = defaultOutputDir(cfg)
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("PHPBuilder.Build", "failed to create output directory", err)
+	if err := ensureOutputDir(filesystem, outputDir, "PHPBuilder.Build"); err != nil {
+		return nil, err
 	}
 
 	composerCommand, err := b.resolveComposerCli()
@@ -79,25 +74,12 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 
 	var artifacts []build.Artifact
 	for _, target := range targets {
-		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := cfg.FS.EnsureDir(platformDir); err != nil {
-			return artifacts, coreerr.E("PHPBuilder.Build", "failed to create platform directory", err)
+		platformDir, err := ensurePlatformDir(filesystem, outputDir, target, "PHPBuilder.Build")
+		if err != nil {
+			return artifacts, err
 		}
 
-		env := appendConfiguredEnv(cfg.Env,
-			core.Sprintf("GOOS=%s", target.OS),
-			core.Sprintf("GOARCH=%s", target.Arch),
-			core.Sprintf("TARGET_OS=%s", target.OS),
-			core.Sprintf("TARGET_ARCH=%s", target.Arch),
-			core.Sprintf("OUTPUT_DIR=%s", outputDir),
-			core.Sprintf("TARGET_DIR=%s", platformDir),
-		)
-		if cfg.Name != "" {
-			env = append(env, core.Sprintf("NAME=%s", cfg.Name))
-		}
-		if cfg.Version != "" {
-			env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
-		}
+		env := configuredTargetEnv(cfg, target, standardTargetValues(outputDir, platformDir, target)...)
 
 		if hasBuildScript {
 			output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, composerCommand, "run-script", "build")
@@ -106,10 +88,10 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 			}
 		}
 
-		found := (&NodeBuilder{}).findArtifactsForTarget(cfg.FS, outputDir, target)
+		found := (&NodeBuilder{}).findArtifactsForTarget(filesystem, outputDir, target)
 		if len(found) == 0 {
 			bundlePath := ax.Join(platformDir, b.bundleName(cfg)+".zip")
-			if err := b.bundleProject(cfg.FS, cfg.ProjectDir, outputDir, bundlePath); err != nil {
+			if err := b.bundleProject(filesystem, cfg.ProjectDir, outputDir, bundlePath); err != nil {
 				return artifacts, err
 			}
 
@@ -129,7 +111,7 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 // installDependencies runs composer install once before the per-target build.
 func (b *PHPBuilder) installDependencies(ctx context.Context, cfg *build.Config, composerCommand string) error {
 	args := []string{"install", "--no-interaction", "--no-dev", "--prefer-dist", "--optimize-autoloader"}
-	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, cfg.Env, composerCommand, args...)
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), composerCommand, args...)
 	if err != nil {
 		return coreerr.E("PHPBuilder.installDependencies", "composer install failed: "+output, err)
 	}
@@ -167,84 +149,10 @@ func (b *PHPBuilder) bundleName(cfg *build.Config) string {
 
 // bundleProject creates a zip bundle containing the project tree.
 func (b *PHPBuilder) bundleProject(fs io.Medium, projectDir, outputDir, bundlePath string) error {
-	if err := fs.EnsureDir(ax.Dir(bundlePath)); err != nil {
-		return coreerr.E("PHPBuilder.bundleProject", "failed to create bundle directory", err)
+	exclude := func(path string) bool {
+		return b.isExcludedPath(path, outputDir, bundlePath)
 	}
-
-	file, err := fs.Create(bundlePath)
-	if err != nil {
-		return coreerr.E("PHPBuilder.bundleProject", "failed to create bundle file", err)
-	}
-	defer func() { _ = file.Close() }()
-
-	writer := zip.NewWriter(file)
-	defer func() { _ = writer.Close() }()
-
-	return b.writeZipTree(fs, writer, projectDir, projectDir, outputDir, bundlePath)
-}
-
-// writeZipTree walks the project directory and writes files into the zip bundle.
-func (b *PHPBuilder) writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, currentDir, outputDir, bundlePath string) error {
-	entries, err := fs.List(currentDir)
-	if err != nil {
-		return coreerr.E("PHPBuilder.writeZipTree", "failed to list directory", err)
-	}
-
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
-	})
-
-	for _, entry := range entries {
-		entryPath := ax.Join(currentDir, entry.Name())
-		if b.isExcludedPath(entryPath, outputDir, bundlePath) {
-			continue
-		}
-
-		if entry.IsDir() {
-			if err := b.writeZipTree(fs, writer, rootDir, entryPath, outputDir, bundlePath); err != nil {
-				return err
-			}
-			continue
-		}
-
-		relPath, err := ax.Rel(rootDir, entryPath)
-		if err != nil {
-			return coreerr.E("PHPBuilder.writeZipTree", "failed to relativise bundle path", err)
-		}
-
-		info, err := fs.Stat(entryPath)
-		if err != nil {
-			return coreerr.E("PHPBuilder.writeZipTree", "failed to stat bundle entry", err)
-		}
-
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return coreerr.E("PHPBuilder.writeZipTree", "failed to create zip header", err)
-		}
-		header.Name = strings.ReplaceAll(relPath, ax.DS(), "/")
-		header.Method = zip.Deflate
-		header.SetModTime(deterministicZipTime)
-
-		zipEntry, err := writer.CreateHeader(header)
-		if err != nil {
-			return coreerr.E("PHPBuilder.writeZipTree", "failed to create zip entry", err)
-		}
-
-		source, err := fs.Open(entryPath)
-		if err != nil {
-			return coreerr.E("PHPBuilder.writeZipTree", "failed to open bundle entry", err)
-		}
-
-		if _, err := stdio.Copy(zipEntry, source); err != nil {
-			_ = source.Close()
-			return coreerr.E("PHPBuilder.writeZipTree", "failed to write bundle entry", err)
-		}
-		if err := source.Close(); err != nil {
-			return coreerr.E("PHPBuilder.writeZipTree", "failed to close bundle entry", err)
-		}
-	}
-
-	return nil
+	return bundleZipTree(fs, projectDir, bundlePath, "PHPBuilder.bundleProject", exclude)
 }
 
 // isExcludedPath reports whether a path should be omitted from the bundle.
@@ -253,7 +161,7 @@ func (b *PHPBuilder) isExcludedPath(path, outputDir, bundlePath string) bool {
 	cleanOutputDir := ax.Clean(outputDir)
 	cleanBundlePath := ax.Clean(bundlePath)
 
-	if cleanPath == cleanOutputDir || strings.HasPrefix(cleanPath, cleanOutputDir+ax.DS()) {
+	if cleanPath == cleanOutputDir || core.HasPrefix(cleanPath, cleanOutputDir+ax.DS()) {
 		return true
 	}
 	if cleanPath == cleanBundlePath {

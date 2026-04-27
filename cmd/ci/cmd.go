@@ -4,18 +4,12 @@
 package ci
 
 import (
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/core"
 )
-
-func init() {
-	cli.RegisterCommands(AddCICommands)
-}
 
 // AddCICommands registers the 'ci' command and all subcommands.
 //
 // ci.AddCICommands(root)
-func AddCICommands(root *cli.Command) {
-	setCII18n()
-	initCIFlags()
-	root.AddCommand(ciCmd)
+func AddCICommands(c *core.Core) {
+	registerCICommands(c)
 }

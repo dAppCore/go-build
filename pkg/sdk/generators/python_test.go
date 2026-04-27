@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 )
 
 func TestPython_PythonGeneratorAvailable_Good(t *testing.T) {
@@ -27,7 +27,7 @@ func TestPython_PythonGeneratorAvailable_Good(t *testing.T) {
 
 func TestPython_PythonGeneratorGenerate_Good(t *testing.T) {
 	g := NewPythonGenerator()
-	if !g.Available() && !dockerAvailable() {
+	if _, err := g.resolveNativeCli(); err != nil && !dockerAvailable() {
 		t.Skip("no Python generator available (neither native nor docker)")
 	}
 

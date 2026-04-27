@@ -6,7 +6,7 @@ package build
 import (
 	"context"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // ProjectType represents a detected project type.
@@ -71,6 +71,8 @@ type Artifact struct {
 type Config struct {
 	// FS is the medium used for file operations.
 	FS io.Medium
+	// OutputMedium is the medium used for build artifact output.
+	OutputMedium io.Medium
 	// Project holds build-time project metadata.
 	Project Project
 	// ProjectDir is the root directory of the project.
@@ -95,6 +97,10 @@ type Config struct {
 	CGO bool
 	// Obfuscate uses garble instead of go build for binary obfuscation.
 	Obfuscate bool
+	// DenoBuild overrides the default `deno task build` invocation for Deno-backed builds.
+	DenoBuild string
+	// NpmBuild overrides the default `npm run build` invocation for npm-backed builds.
+	NpmBuild string
 	// NSIS enables Windows NSIS installer generation (Wails projects only).
 	NSIS bool
 	// WebView2 sets the WebView2 delivery method: download|embed|browser|error.
@@ -112,6 +118,7 @@ type Config struct {
 	// LinuxKit-specific config
 	LinuxKitConfig string   // Path to LinuxKit YAML config, relative to ProjectDir or absolute.
 	Formats        []string // Output formats (iso, qcow2, raw, vmdk)
+	LinuxKit       LinuxKitConfig
 }
 
 // Builder defines the interface for project-specific build implementations.

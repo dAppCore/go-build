@@ -1,11 +1,9 @@
 package builders
 
 import (
-	"encoding/json"
-	"strings"
-
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/io"
+	"dappco.re/go/core"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/io"
 )
 
 type packageJSONManifest struct {
@@ -22,7 +20,7 @@ func detectDeclaredPackageManager(fs io.Medium, dir string) string {
 	}
 
 	var manifest packageJSONManifest
-	if err := json.Unmarshal([]byte(content), &manifest); err != nil {
+	if err := ax.JSONUnmarshal([]byte(content), &manifest); err != nil {
 		return ""
 	}
 
@@ -33,15 +31,13 @@ func detectDeclaredPackageManager(fs io.Medium, dir string) string {
 //
 // manager := normalisePackageManager("pnpm@9.12.0")
 func normalisePackageManager(value string) string {
-	value = strings.TrimSpace(value)
+	value = core.Trim(value)
 	if value == "" {
 		return ""
 	}
 
-	manager, _, found := strings.Cut(value, "@")
-	if !found {
-		manager = value
-	}
+	parts := core.SplitN(value, "@", 2)
+	manager := parts[0]
 
 	switch manager {
 	case "bun", "pnpm", "yarn", "npm":

@@ -3,9 +3,12 @@ package publishers
 
 import (
 	"context"
+	"reflect"
 
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
+	"dappco.re/go/core"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // Release represents a release to be published.
@@ -20,8 +23,10 @@ type Release struct {
 	Changelog string
 	// ProjectDir is the root directory of the project.
 	ProjectDir string
-	// FS is the medium for file operations.
+	// FS is the project filesystem used for local project file access.
 	FS io.Medium
+	// ArtifactFS is the medium backing the release artifact paths.
+	ArtifactFS io.Medium
 }
 
 // PublisherConfig holds configuration for a publisher.
@@ -52,9 +57,13 @@ type ReleaseConfig interface {
 type Publisher interface {
 	// Name returns the publisher's identifier.
 	Name() string
+	// Validate checks the runtime release and publisher configuration before publish.
+	Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error
 	// Publish publishes the release to the target.
 	// If dryRun is true, it prints what would be done without executing.
 	Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error
+	// Supports reports whether the publisher handles the named target.
+	Supports(target string) bool
 }
 
 // NewRelease creates a Release from the release package's Release type.
@@ -62,12 +71,24 @@ type Publisher interface {
 //
 // rel := publishers.NewRelease("v1.2.3", artifacts, changelog, ".", io.Local)
 func NewRelease(version string, artifacts []build.Artifact, changelog, projectDir string, fs io.Medium) *Release {
+	return NewReleaseWithArtifactFS(version, artifacts, changelog, projectDir, fs, fs)
+}
+
+// NewReleaseWithArtifactFS creates a Release with explicit project and artifact media.
+//
+// rel := publishers.NewReleaseWithArtifactFS("v1.2.3", artifacts, changelog, ".", io.Local, io.NewMemoryMedium())
+func NewReleaseWithArtifactFS(version string, artifacts []build.Artifact, changelog, projectDir string, fs io.Medium, artifactFS io.Medium) *Release {
+	if artifactFS == nil {
+		artifactFS = fs
+	}
+
 	return &Release{
 		Version:    version,
 		Artifacts:  artifacts,
 		Changelog:  changelog,
 		ProjectDir: projectDir,
 		FS:         fs,
+		ArtifactFS: artifactFS,
 	}
 }
 
@@ -81,4 +102,45 @@ func NewPublisherConfig(pubType string, prerelease, draft bool, extended any) Pu
 		Draft:      draft,
 		Extended:   extended,
 	}
+}
+
+func validatePublisherRelease(name string, release *Release) error {
+	if release == nil {
+		return coreerr.E(name+".Validate", "release is nil", nil)
+	}
+	if release.FS == nil {
+		return coreerr.E(name+".Validate", "release filesystem (FS) is nil", nil)
+	}
+	if err := build.ValidateVersionIdentifier(release.Version); err != nil {
+		return coreerr.E(name+".Validate", "release version contains unsupported characters", err)
+	}
+	return nil
+}
+
+func releaseArtifactFS(release *Release) io.Medium {
+	if release == nil {
+		return nil
+	}
+	if release.ArtifactFS != nil {
+		return release.ArtifactFS
+	}
+	return release.FS
+}
+
+func mediumEquals(left, right io.Medium) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
+	leftType := reflect.TypeOf(left)
+	rightType := reflect.TypeOf(right)
+	if leftType != rightType || !leftType.Comparable() {
+		return false
+	}
+
+	return reflect.ValueOf(left).Interface() == reflect.ValueOf(right).Interface()
+}
+
+func supportsPublisherTarget(name, target string) bool {
+	return core.Lower(core.Trim(target)) == core.Lower(name)
 }

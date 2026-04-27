@@ -2,8 +2,6 @@ package build
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 // --- ComputeOptions ---
@@ -26,15 +24,31 @@ func TestOptions_ComputeOptions_Good(t *testing.T) {
 		}
 
 		opts := ComputeOptions(cfg, discovery)
+		if stdlibAssertNil(opts) {
+			t.Fatal("expected non-nil")
+		}
+		if !(opts.Obfuscate) {
+			t.Fatal("expected true")
+		}
+		if !(opts.NSIS) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertEqual("embed", opts.WebView2) {
+			t.Fatalf("want %v, got %v", "embed", opts.WebView2)
+		}
+		if !stdlibAssertEqual([]string{
 
-		assert.NotNil(t, opts)
-		assert.True(t, opts.Obfuscate)
-		assert.True(t, opts.NSIS)
-		assert.Equal(t, "embed", opts.WebView2)
-		assert.Equal(t, []string{"-s", "-w"}, opts.LDFlags)
-		assert.Equal(t, []string{"webkit2_41", "integration"}, opts.Tags)
-		// webkit2_41 injected for 24.04
-		assert.Contains(t, opts.Tags, "webkit2_41")
+			// webkit2_41 injected for 24.04
+			"-s", "-w"}, opts.LDFlags) {
+			t.Fatalf("want %v, got %v", []string{"-s", "-w"}, opts.LDFlags)
+		}
+		if !stdlibAssertEqual([]string{"webkit2_41", "integration"}, opts.Tags) {
+			t.Fatalf("want %v, got %v", []string{"webkit2_41", "integration"}, opts.Tags)
+		}
+		if !stdlibAssertContains(opts.Tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", opts.Tags, "webkit2_41")
+		}
+
 	})
 
 	t.Run("discovery with non-Ubuntu distro leaves tags empty", func(t *testing.T) {
@@ -44,34 +58,116 @@ func TestOptions_ComputeOptions_Good(t *testing.T) {
 			},
 		}
 		discovery := &DiscoveryResult{
-			Distro: "22.04",
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "22.04",
 		}
 
 		opts := ComputeOptions(cfg, discovery)
+		if stdlibAssertNil(opts) {
+			t.Fatal("expected non-nil")
+		}
+		if !stdlibAssertEmpty(opts.Tags) {
+			t.Fatalf("expected empty, got %v", opts.Tags)
+		}
 
-		assert.NotNil(t, opts)
-		assert.Empty(t, opts.Tags)
 	})
 
 	t.Run("discovery with 25.10 distro injects webkit tag", func(t *testing.T) {
-		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{Distro: "25.10"})
-		assert.Contains(t, opts.Tags, "webkit2_41")
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "25.10",
+		})
+		if !stdlibAssertContains(opts.Tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", opts.Tags, "webkit2_41")
+		}
+
+	})
+
+	t.Run("non-Wails stacks do not inject webkit tag", func(t *testing.T) {
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeGo},
+			PrimaryStack: "go",
+			Distro:       "24.04",
+		})
+		if stdlibAssertContains(opts.Tags, "webkit2_41") {
+			t.Fatalf("expected %v not to contain %v", opts.Tags, "webkit2_41")
+		}
+
+	})
+
+	t.Run("configured wails type injects webkit tag even when discovery markers differ", func(t *testing.T) {
+		opts := ComputeOptions(&BuildConfig{
+			Build: Build{
+				Type: "WaIlS",
+			},
+		}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeGo},
+			PrimaryStack: "go",
+			Distro:       "24.04",
+		})
+		if !stdlibAssertContains(opts.Tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", opts.Tags, "webkit2_41")
+		}
+
+	})
+
+	t.Run("configured discovery type injects webkit tag even without build config type", func(t *testing.T) {
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			ConfiguredType: string(ProjectTypeWails),
+			Distro:         "24.04",
+		})
+		if !stdlibAssertContains(opts.Tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", opts.Tags, "webkit2_41")
+		}
+
+	})
+
+	t.Run("discovery types alone can trigger webkit injection", func(t *testing.T) {
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails, ProjectTypeGo},
+			PrimaryStack: "go",
+			Distro:       "24.04",
+		})
+		if !stdlibAssertContains(opts.Tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", opts.Tags, "webkit2_41")
+		}
+
 	})
 }
 
 func TestOptions_ComputeOptions_Bad(t *testing.T) {
 	t.Run("nil config returns safe defaults", func(t *testing.T) {
-		discovery := &DiscoveryResult{Distro: "24.04"}
+		discovery := &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "24.04",
+		}
 
 		opts := ComputeOptions(nil, discovery)
+		if stdlibAssertNil(opts) {
+			t.Fatal("expected non-nil")
+		}
+		if opts.Obfuscate {
+			t.Fatal("expected false")
+		}
+		if opts.NSIS {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertEmpty(opts.
 
-		assert.NotNil(t, opts)
-		assert.False(t, opts.Obfuscate)
-		assert.False(t, opts.NSIS)
-		assert.Empty(t, opts.WebView2)
-		assert.Empty(t, opts.LDFlags)
-		// webkit2_41 still injected from discovery
-		assert.Contains(t, opts.Tags, "webkit2_41")
+			// webkit2_41 still injected for Wails discovery
+			WebView2) {
+			t.Fatalf("expected empty, got %v", opts.WebView2)
+		}
+		if !stdlibAssertEmpty(opts.LDFlags) {
+			t.Fatalf("expected empty, got %v", opts.LDFlags)
+		}
+		if !stdlibAssertContains(opts.Tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", opts.Tags, "webkit2_41")
+		}
+
 	})
 
 	t.Run("nil discovery skips webkit injection", func(t *testing.T) {
@@ -83,32 +179,53 @@ func TestOptions_ComputeOptions_Bad(t *testing.T) {
 		}
 
 		opts := ComputeOptions(cfg, nil)
+		if stdlibAssertNil(opts) {
+			t.Fatal("expected non-nil")
+		}
+		if !(opts.Obfuscate) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertEqual([]string{"existing"}, opts.Tags) {
+			t.Fatalf("want %v, got %v", []string{"existing"}, opts.Tags)
+		}
 
-		assert.NotNil(t, opts)
-		assert.True(t, opts.Obfuscate)
-		assert.Equal(t, []string{"existing"}, opts.Tags)
 	})
 
 	t.Run("both nil returns empty options", func(t *testing.T) {
 		opts := ComputeOptions(nil, nil)
+		if stdlibAssertNil(opts) {
+			t.Fatal("expected non-nil")
+		}
+		if opts.Obfuscate {
+			t.Fatal("expected false")
+		}
+		if opts.NSIS {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertEmpty(opts.Tags) {
+			t.Fatalf("expected empty, got %v", opts.Tags)
+		}
+		if !stdlibAssertEmpty(opts.LDFlags) {
+			t.Fatalf("expected empty, got %v",
 
-		assert.NotNil(t, opts)
-		assert.False(t, opts.Obfuscate)
-		assert.False(t, opts.NSIS)
-		assert.Empty(t, opts.Tags)
-		assert.Empty(t, opts.LDFlags)
+				// Seed webkit2_41 before discovery also injects it
+				opts.LDFlags)
+		}
+
 	})
 }
 
 func TestOptions_ComputeOptions_Ugly(t *testing.T) {
 	t.Run("duplicate tags from deduplication", func(t *testing.T) {
-		// Seed webkit2_41 before discovery also injects it
+
 		cfg := &BuildConfig{
 			Build: Build{
 				BuildTags: []string{"integration", "integration", "ui"},
 			},
 		}
 		discovery := &DiscoveryResult{Distro: "24.04"}
+		discovery.Types = []ProjectType{ProjectTypeWails}
+		discovery.PrimaryStack = "wails"
 
 		opts := ComputeOptions(cfg, discovery)
 
@@ -119,13 +236,25 @@ func TestOptions_ComputeOptions_Ugly(t *testing.T) {
 				count++
 			}
 		}
-		assert.Equal(t, 1, count, "webkit2_41 must appear exactly once")
-		assert.Equal(t, []string{"webkit2_41", "integration", "ui"}, opts.Tags)
+		if !stdlibAssertEqual(1, count) {
+			t.Fatal("webkit2_41 must appear exactly once")
+		}
+		if !stdlibAssertEqual([]string{"webkit2_41", "integration", "ui"}, opts.Tags) {
+			t.Fatalf("want %v, got %v", []string{"webkit2_41", "integration", "ui"}, opts.Tags)
+		}
+
 	})
 
 	t.Run("empty distro in discovery produces no webkit tag", func(t *testing.T) {
-		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{Distro: ""})
-		assert.Empty(t, opts.Tags)
+		opts := ComputeOptions(&BuildConfig{}, &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "",
+		})
+		if !stdlibAssertEmpty(opts.Tags) {
+			t.Fatalf("expected empty, got %v", opts.Tags)
+		}
+
 	})
 
 	t.Run("all flags set simultaneously do not conflict", func(t *testing.T) {
@@ -137,56 +266,99 @@ func TestOptions_ComputeOptions_Ugly(t *testing.T) {
 				LDFlags:   []string{"-s", "-w", "-X main.version=v1.0.0"},
 			},
 		}
-		discovery := &DiscoveryResult{Distro: "24.04"}
+		discovery := &DiscoveryResult{
+			Types:        []ProjectType{ProjectTypeWails},
+			PrimaryStack: "wails",
+			Distro:       "24.04",
+		}
 
 		opts := ComputeOptions(cfg, discovery)
+		if !(opts.Obfuscate) {
+			t.Fatal("expected true")
+		}
+		if !(opts.NSIS) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertEqual("download", opts.WebView2) {
+			t.Fatalf("want %v, got %v", "download", opts.WebView2)
+		}
+		if !stdlibAssertEqual([]string{"-s", "-w", "-X main.version=v1.0.0"},
 
-		assert.True(t, opts.Obfuscate)
-		assert.True(t, opts.NSIS)
-		assert.Equal(t, "download", opts.WebView2)
-		assert.Equal(t, []string{"-s", "-w", "-X main.version=v1.0.0"}, opts.LDFlags)
-		assert.Contains(t, opts.Tags, "webkit2_41")
+			// --- InjectWebKitTag ---
+			opts.LDFlags) {
+			t.Fatalf("want %v, got %v", []string{"-s", "-w", "-X main.version=v1.0.0"}, opts.LDFlags)
+		}
+		if !stdlibAssertContains(opts.
+
+			// InjectWebKitTag(tags, "24.04") → ["webkit2_41"]
+			Tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", opts.Tags, "webkit2_41")
+		}
+
 	})
 }
 
-// --- InjectWebKitTag ---
-
 func TestOptions_InjectWebKitTag_Good(t *testing.T) {
 	t.Run("24.04 adds webkit2_41", func(t *testing.T) {
-		// InjectWebKitTag(tags, "24.04") → ["webkit2_41"]
+
 		tags := InjectWebKitTag(nil, "24.04")
-		assert.Equal(t, []string{"webkit2_41"}, tags)
+		if !stdlibAssertEqual([]string{"webkit2_41"}, tags) {
+			t.Fatalf("want %v, got %v", []string{"webkit2_41"}, tags)
+		}
+
 	})
 
 	t.Run("24.10 adds webkit2_41", func(t *testing.T) {
 		tags := InjectWebKitTag([]string{}, "24.10")
-		assert.Contains(t, tags, "webkit2_41")
+		if !stdlibAssertContains(tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", tags, "webkit2_41")
+		}
+
 	})
 
 	t.Run("25.04 adds webkit2_41", func(t *testing.T) {
 		tags := InjectWebKitTag(nil, "25.04")
-		assert.Contains(t, tags, "webkit2_41")
+		if !stdlibAssertContains(tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", tags, "webkit2_41")
+		}
+
 	})
 
 	t.Run("existing tags are preserved before webkit2_41", func(t *testing.T) {
 		existing := []string{"foo", "bar"}
 		tags := InjectWebKitTag(existing, "24.04")
-		assert.Contains(t, tags, "webkit2_41")
-		assert.Contains(t, tags, "foo")
-		assert.Contains(t, tags, "bar")
+		if !stdlibAssertContains(tags, "webkit2_41") {
+			t.Fatalf("expected %v to contain %v", tags, "webkit2_41")
+		}
+		if !stdlibAssertContains(tags, "foo") {
+			t.Fatalf("expected %v to contain %v", tags, "foo")
+		}
+		if !stdlibAssertContains(tags, "bar") {
+			t.Fatalf(
+
+				// InjectWebKitTag(nil, "22.04") → unchanged (nil)
+				"expected %v to contain %v", tags, "bar")
+		}
+
 	})
 }
 
 func TestOptions_InjectWebKitTag_Bad(t *testing.T) {
 	t.Run("22.04 does not add tag", func(t *testing.T) {
-		// InjectWebKitTag(nil, "22.04") → unchanged (nil)
+
 		tags := InjectWebKitTag(nil, "22.04")
-		assert.Empty(t, tags)
+		if !stdlibAssertEmpty(tags) {
+			t.Fatalf("expected empty, got %v", tags)
+		}
+
 	})
 
 	t.Run("23.10 does not add tag", func(t *testing.T) {
 		tags := InjectWebKitTag([]string{"existing"}, "23.10")
-		assert.NotContains(t, tags, "webkit2_41")
+		if stdlibAssertContains(tags, "webkit2_41") {
+			t.Fatalf("expected %v not to contain %v", tags, "webkit2_41")
+		}
+
 	})
 }
 
@@ -200,33 +372,49 @@ func TestOptions_InjectWebKitTag_Ugly(t *testing.T) {
 				count++
 			}
 		}
-		assert.Equal(t, 1, count)
+		if !stdlibAssertEqual(1, count) {
+			t.Fatalf("want %v, got %v", 1, count)
+		}
+
 	})
 
 	t.Run("empty distro returns tags unchanged", func(t *testing.T) {
 		input := []string{"foo"}
 		tags := InjectWebKitTag(input, "")
-		assert.Equal(t, input, tags)
+		if !stdlibAssertEqual(input, tags) {
+			t.Fatalf("want %v, got %v", input, tags)
+		}
+
 	})
 
 	t.Run("malformed version — no dot — returns tags unchanged", func(t *testing.T) {
 		// isUbuntu2404OrNewer("2404") → false (no dot)
 		tags := InjectWebKitTag(nil, "2404")
-		assert.Empty(t, tags)
+		if !stdlibAssertEmpty(tags) {
+			t.Fatalf("expected empty, got %v", tags)
+		}
+
 	})
 
 	t.Run("malformed version — non-numeric major — returns unchanged", func(t *testing.T) {
 		tags := InjectWebKitTag(nil, "ubuntu.04")
-		assert.Empty(t, tags)
+		if !stdlibAssertEmpty(tags) {
+			t.Fatalf("expected empty, got %v", tags)
+		}
+
 	})
 
 	t.Run("malformed version — non-numeric minor — returns unchanged", func(t *testing.T) {
 		tags := InjectWebKitTag(nil, "24.lts")
-		assert.Empty(t, tags)
+		if !stdlibAssertEmpty(tags) {
+			t.Fatalf(
+
+				// --- ApplyOptions ---
+				"expected empty, got %v", tags)
+		}
+
 	})
 }
-
-// --- ApplyOptions ---
 
 func TestOptions_ApplyOptions_Good(t *testing.T) {
 	t.Run("copies computed options onto runtime config", func(t *testing.T) {
@@ -243,30 +431,56 @@ func TestOptions_ApplyOptions_Good(t *testing.T) {
 		}
 
 		ApplyOptions(cfg, options)
+		if !(cfg.Obfuscate) {
+			t.Fatal("expected true")
+		}
+		if !(cfg.NSIS) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertEqual("embed", cfg.WebView2) {
+			t.Fatalf("want %v, got %v", "embed", cfg.WebView2)
+		}
+		if !stdlibAssertEqual([]string{"-trimpath", "-w"}, cfg.LDFlags) {
+			t.Fatalf("want %v, got %v", []string{"-trimpath", "-w"}, cfg.LDFlags)
+		}
+		if !stdlibAssertEqual([]string{"existing", "webkit2_41", "integration"}, cfg.BuildTags) {
+			t.Fatalf("want %v, got %v", []string{"existing", "webkit2_41", "integration"}, cfg.BuildTags)
+		}
 
-		assert.True(t, cfg.Obfuscate)
-		assert.True(t, cfg.NSIS)
-		assert.Equal(t, "embed", cfg.WebView2)
-		assert.Equal(t, []string{"-trimpath", "-w"}, cfg.LDFlags)
-		assert.Equal(t, []string{"existing", "webkit2_41", "integration"}, cfg.BuildTags)
 	})
 }
 
 func TestOptions_ApplyOptions_Bad(t *testing.T) {
 	t.Run("nil config is ignored", func(t *testing.T) {
-		assert.NotPanics(t, func() {
-			ApplyOptions(nil, &BuildOptions{Obfuscate: true})
-		})
+		func() {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Fatalf("expected no panic, got %v", recovered)
+				}
+			}()
+			(func() {
+				ApplyOptions(nil, &BuildOptions{Obfuscate: true})
+			})()
+		}()
+
 	})
 
 	t.Run("nil options are ignored", func(t *testing.T) {
 		cfg := &Config{BuildTags: []string{"existing"}}
+		func() {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Fatalf("expected no panic, got %v", recovered)
+				}
+			}()
+			(func() {
+				ApplyOptions(cfg, nil)
+			})()
+		}()
+		if !stdlibAssertEqual([]string{"existing"}, cfg.BuildTags) {
+			t.Fatalf("want %v, got %v", []string{"existing"}, cfg.BuildTags)
+		}
 
-		assert.NotPanics(t, func() {
-			ApplyOptions(cfg, nil)
-		})
-
-		assert.Equal(t, []string{"existing"}, cfg.BuildTags)
 	})
 }
 
@@ -281,27 +495,47 @@ func TestOptions_ApplyOptions_Ugly(t *testing.T) {
 		}
 
 		ApplyOptions(cfg, &BuildOptions{})
+		if !(cfg.Obfuscate) {
+			t.Fatal("expected true")
+		}
+		if !(cfg.NSIS) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertEqual("browser", cfg.WebView2) {
+			t.Fatalf("want %v, got %v", "browser", cfg.WebView2)
+		}
+		if !stdlibAssertEqual([]string{"-s"},
 
-		assert.True(t, cfg.Obfuscate)
-		assert.True(t, cfg.NSIS)
-		assert.Equal(t, "browser", cfg.WebView2)
-		assert.Equal(t, []string{"-s"}, cfg.LDFlags)
-		assert.Equal(t, []string{"existing"}, cfg.BuildTags)
+			// --- String ---
+			cfg.LDFlags) {
+			t.Fatalf("want %v, got %v", []string{"-s"}, cfg.LDFlags)
+		}
+		if !stdlibAssertEqual([]string{"existing"}, cfg.BuildTags) {
+			t.Fatalf(
+
+				// opts.String() // "-tags webkit2_41"
+				"want %v, got %v", []string{"existing"}, cfg.BuildTags)
+		}
+
 	})
 }
 
-// --- String ---
-
 func TestOptions_String_Good(t *testing.T) {
 	t.Run("tags only produces correct string", func(t *testing.T) {
-		// opts.String() // "-tags webkit2_41"
+
 		opts := &BuildOptions{Tags: []string{"webkit2_41"}}
-		assert.Equal(t, "-tags webkit2_41", opts.String())
+		if !stdlibAssertEqual("-tags webkit2_41", opts.String()) {
+			t.Fatalf("want %v, got %v", "-tags webkit2_41", opts.String())
+		}
+
 	})
 
 	t.Run("ldflags only produces correct string", func(t *testing.T) {
 		opts := &BuildOptions{LDFlags: []string{"-s", "-w"}}
-		assert.Equal(t, "-ldflags '-s -w'", opts.String())
+		if !stdlibAssertEqual("-ldflags '-s -w'", opts.String()) {
+			t.Fatalf("want %v, got %v", "-ldflags '-s -w'", opts.String())
+		}
+
 	})
 
 	t.Run("tags and ldflags are space-separated", func(t *testing.T) {
@@ -310,13 +544,21 @@ func TestOptions_String_Good(t *testing.T) {
 			LDFlags: []string{"-s", "-w"},
 		}
 		s := opts.String()
-		assert.Contains(t, s, "-tags webkit2_41")
-		assert.Contains(t, s, "-ldflags '-s -w'")
+		if !stdlibAssertContains(s, "-tags webkit2_41") {
+			t.Fatalf("expected %v to contain %v", s, "-tags webkit2_41")
+		}
+		if !stdlibAssertContains(s, "-ldflags '-s -w'") {
+			t.Fatalf("expected %v to contain %v", s, "-ldflags '-s -w'")
+		}
+
 	})
 
 	t.Run("empty options returns empty string", func(t *testing.T) {
 		opts := &BuildOptions{}
-		assert.Equal(t, "", opts.String())
+		if !stdlibAssertEqual("", opts.String()) {
+			t.Fatalf("want %v, got %v", "", opts.String())
+		}
+
 	})
 }
 
@@ -324,7 +566,10 @@ func TestOptions_String_Bad(t *testing.T) {
 	t.Run("nil receiver returns empty string", func(t *testing.T) {
 		// var opts *BuildOptions; opts.String() → ""
 		var opts *BuildOptions
-		assert.Equal(t, "", opts.String())
+		if !stdlibAssertEqual("", opts.String()) {
+			t.Fatalf("want %v, got %v", "", opts.String())
+		}
+
 	})
 }
 
@@ -339,20 +584,37 @@ func TestOptions_String_Ugly(t *testing.T) {
 			LDFlags:   []string{"-s", "-w"},
 		}
 		s := opts.String()
-		assert.Contains(t, s, "-obfuscated")
-		assert.Contains(t, s, "-tags webkit2_41")
-		assert.Contains(t, s, "-nsis")
-		assert.Contains(t, s, "-webview2 embed")
-		assert.Contains(t, s, "-ldflags '-s -w'")
+		if !stdlibAssertContains(s, "-obfuscated") {
+			t.Fatalf("expected %v to contain %v", s, "-obfuscated")
+		}
+		if !stdlibAssertContains(s, "-tags webkit2_41") {
+			t.Fatalf("expected %v to contain %v", s, "-tags webkit2_41")
+		}
+		if !stdlibAssertContains(s, "-nsis") {
+			t.Fatalf("expected %v to contain %v", s, "-nsis")
+		}
+		if !stdlibAssertContains(s, "-webview2 embed") {
+			t.Fatalf("expected %v to contain %v", s, "-webview2 embed")
+		}
+		if !stdlibAssertContains(s, "-ldflags '-s -w'") {
+			t.Fatalf("expected %v to contain %v", s, "-ldflags '-s -w'")
+		}
+
 	})
 
 	t.Run("multiple tags joined with comma", func(t *testing.T) {
 		opts := &BuildOptions{Tags: []string{"webkit2_41", "integration"}}
-		assert.Equal(t, "-tags webkit2_41,integration", opts.String())
+		if !stdlibAssertEqual("-tags webkit2_41,integration", opts.String()) {
+			t.Fatalf("want %v, got %v", "-tags webkit2_41,integration", opts.String())
+		}
+
 	})
 
 	t.Run("webview2 without other flags is isolated", func(t *testing.T) {
 		opts := &BuildOptions{WebView2: "browser"}
-		assert.Equal(t, "-webview2 browser", opts.String())
+		if !stdlibAssertEqual("-webview2 browser", opts.String()) {
+			t.Fatalf("want %v, got %v", "-webview2 browser", opts.String())
+		}
+
 	})
 }

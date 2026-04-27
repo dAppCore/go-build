@@ -4,11 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/build/internal/ax"
 )
 
 func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	require.NoError(t, ax.ExecDir(context.Background(), dir, "git", args...))
+	if err := ax.ExecDir(context.Background(), dir, "git", args); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 }

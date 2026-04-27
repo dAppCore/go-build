@@ -3,18 +3,18 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const J = globalThis, re = J.ShadowRoot && (J.ShadyCSS === void 0 || J.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, oe = Symbol(), de = /* @__PURE__ */ new WeakMap();
-let we = class {
-  constructor(e, t, r) {
-    if (this._$cssResult$ = !0, r !== oe) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
-    this.cssText = e, this.t = t;
+const X = globalThis, ne = X.ShadowRoot && (X.ShadyCSS === void 0 || X.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, oe = Symbol(), ce = /* @__PURE__ */ new WeakMap();
+let _e = class {
+  constructor(e, s, a) {
+    if (this._$cssResult$ = !0, a !== oe) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+    this.cssText = e, this.t = s;
   }
   get styleSheet() {
     let e = this.o;
-    const t = this.t;
-    if (re && e === void 0) {
-      const r = t !== void 0 && t.length === 1;
-      r && (e = de.get(t)), e === void 0 && ((this.o = e = new CSSStyleSheet()).replaceSync(this.cssText), r && de.set(t, e));
+    const s = this.t;
+    if (ne && e === void 0) {
+      const a = s !== void 0 && s.length === 1;
+      a && (e = ce.get(s)), e === void 0 && ((this.o = e = new CSSStyleSheet()).replaceSync(this.cssText), a && ce.set(s, e));
     }
     return e;
   }
@@ -22,200 +22,200 @@ let we = class {
     return this.cssText;
   }
 };
-const Se = (s) => new we(typeof s == "string" ? s : s + "", void 0, oe), F = (s, ...e) => {
-  const t = s.length === 1 ? s[0] : e.reduce((r, i, o) => r + ((a) => {
-    if (a._$cssResult$ === !0) return a.cssText;
-    if (typeof a == "number") return a;
-    throw Error("Value passed to 'css' function must be a 'css' function result: " + a + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-  })(i) + s[o + 1], s[0]);
-  return new we(t, s, oe);
-}, Pe = (s, e) => {
-  if (re) s.adoptedStyleSheets = e.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
-  else for (const t of e) {
-    const r = document.createElement("style"), i = J.litNonce;
-    i !== void 0 && r.setAttribute("nonce", i), r.textContent = t.cssText, s.appendChild(r);
+const Ee = (t) => new _e(typeof t == "string" ? t : t + "", void 0, oe), K = (t, ...e) => {
+  const s = t.length === 1 ? t[0] : e.reduce((a, i, r) => a + ((n) => {
+    if (n._$cssResult$ === !0) return n.cssText;
+    if (typeof n == "number") return n;
+    throw Error("Value passed to 'css' function must be a 'css' function result: " + n + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
+  })(i) + t[r + 1], t[0]);
+  return new _e(s, t, oe);
+}, Oe = (t, e) => {
+  if (ne) t.adoptedStyleSheets = e.map((s) => s instanceof CSSStyleSheet ? s : s.styleSheet);
+  else for (const s of e) {
+    const a = document.createElement("style"), i = X.litNonce;
+    i !== void 0 && a.setAttribute("nonce", i), a.textContent = s.cssText, t.appendChild(a);
   }
-}, ce = re ? (s) => s : (s) => s instanceof CSSStyleSheet ? ((e) => {
-  let t = "";
-  for (const r of e.cssRules) t += r.cssText;
-  return Se(t);
-})(s) : s;
+}, pe = ne ? (t) => t : (t) => t instanceof CSSStyleSheet ? ((e) => {
+  let s = "";
+  for (const a of e.cssRules) s += a.cssText;
+  return Ee(s);
+})(t) : t;
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: Ee, defineProperty: Ce, getOwnPropertyDescriptor: Oe, getOwnPropertyNames: Re, getOwnPropertySymbols: Ue, getPrototypeOf: ze } = Object, S = globalThis, fe = S.trustedTypes, De = fe ? fe.emptyScript : "", ee = S.reactiveElementPolyfillSupport, W = (s, e) => s, Z = { toAttribute(s, e) {
+const { is: De, defineProperty: Re, getOwnPropertyDescriptor: Ue, getOwnPropertyNames: Te, getOwnPropertySymbols: ze, getPrototypeOf: je } = Object, C = globalThis, fe = C.trustedTypes, Be = fe ? fe.emptyScript : "", se = C.reactiveElementPolyfillSupport, q = (t, e) => t, Q = { toAttribute(t, e) {
   switch (e) {
     case Boolean:
-      s = s ? De : null;
+      t = t ? Be : null;
       break;
     case Object:
     case Array:
-      s = s == null ? s : JSON.stringify(s);
+      t = t == null ? t : JSON.stringify(t);
   }
-  return s;
-}, fromAttribute(s, e) {
-  let t = s;
+  return t;
+}, fromAttribute(t, e) {
+  let s = t;
   switch (e) {
     case Boolean:
-      t = s !== null;
+      s = t !== null;
       break;
     case Number:
-      t = s === null ? null : Number(s);
+      s = t === null ? null : Number(t);
       break;
     case Object:
     case Array:
       try {
-        t = JSON.parse(s);
+        s = JSON.parse(t);
       } catch {
-        t = null;
+        s = null;
       }
   }
-  return t;
-} }, ae = (s, e) => !Ee(s, e), he = { attribute: !0, type: String, converter: Z, reflect: !1, useDefault: !1, hasChanged: ae };
-Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), S.litPropertyMetadata ?? (S.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
-let T = class extends HTMLElement {
+  return s;
+} }, le = (t, e) => !De(t, e), he = { attribute: !0, type: String, converter: Q, reflect: !1, useDefault: !1, hasChanged: le };
+Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), C.litPropertyMetadata ?? (C.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
+let j = class extends HTMLElement {
   static addInitializer(e) {
     this._$Ei(), (this.l ?? (this.l = [])).push(e);
   }
   static get observedAttributes() {
     return this.finalize(), this._$Eh && [...this._$Eh.keys()];
   }
-  static createProperty(e, t = he) {
-    if (t.state && (t.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(e) && ((t = Object.create(t)).wrapped = !0), this.elementProperties.set(e, t), !t.noAccessor) {
-      const r = Symbol(), i = this.getPropertyDescriptor(e, r, t);
-      i !== void 0 && Ce(this.prototype, e, i);
+  static createProperty(e, s = he) {
+    if (s.state && (s.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(e) && ((s = Object.create(s)).wrapped = !0), this.elementProperties.set(e, s), !s.noAccessor) {
+      const a = Symbol(), i = this.getPropertyDescriptor(e, a, s);
+      i !== void 0 && Re(this.prototype, e, i);
     }
   }
-  static getPropertyDescriptor(e, t, r) {
-    const { get: i, set: o } = Oe(this.prototype, e) ?? { get() {
-      return this[t];
-    }, set(a) {
-      this[t] = a;
+  static getPropertyDescriptor(e, s, a) {
+    const { get: i, set: r } = Ue(this.prototype, e) ?? { get() {
+      return this[s];
+    }, set(n) {
+      this[s] = n;
     } };
-    return { get: i, set(a) {
-      const d = i == null ? void 0 : i.call(this);
-      o == null || o.call(this, a), this.requestUpdate(e, d, r);
+    return { get: i, set(n) {
+      const c = i == null ? void 0 : i.call(this);
+      r == null || r.call(this, n), this.requestUpdate(e, c, a);
     }, configurable: !0, enumerable: !0 };
   }
   static getPropertyOptions(e) {
     return this.elementProperties.get(e) ?? he;
   }
   static _$Ei() {
-    if (this.hasOwnProperty(W("elementProperties"))) return;
-    const e = ze(this);
+    if (this.hasOwnProperty(q("elementProperties"))) return;
+    const e = je(this);
     e.finalize(), e.l !== void 0 && (this.l = [...e.l]), this.elementProperties = new Map(e.elementProperties);
   }
   static finalize() {
-    if (this.hasOwnProperty(W("finalized"))) return;
-    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(W("properties"))) {
-      const t = this.properties, r = [...Re(t), ...Ue(t)];
-      for (const i of r) this.createProperty(i, t[i]);
+    if (this.hasOwnProperty(q("finalized"))) return;
+    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(q("properties"))) {
+      const s = this.properties, a = [...Te(s), ...ze(s)];
+      for (const i of a) this.createProperty(i, s[i]);
     }
     const e = this[Symbol.metadata];
     if (e !== null) {
-      const t = litPropertyMetadata.get(e);
-      if (t !== void 0) for (const [r, i] of t) this.elementProperties.set(r, i);
+      const s = litPropertyMetadata.get(e);
+      if (s !== void 0) for (const [a, i] of s) this.elementProperties.set(a, i);
     }
     this._$Eh = /* @__PURE__ */ new Map();
-    for (const [t, r] of this.elementProperties) {
-      const i = this._$Eu(t, r);
-      i !== void 0 && this._$Eh.set(i, t);
+    for (const [s, a] of this.elementProperties) {
+      const i = this._$Eu(s, a);
+      i !== void 0 && this._$Eh.set(i, s);
     }
     this.elementStyles = this.finalizeStyles(this.styles);
   }
   static finalizeStyles(e) {
-    const t = [];
+    const s = [];
     if (Array.isArray(e)) {
-      const r = new Set(e.flat(1 / 0).reverse());
-      for (const i of r) t.unshift(ce(i));
-    } else e !== void 0 && t.push(ce(e));
-    return t;
+      const a = new Set(e.flat(1 / 0).reverse());
+      for (const i of a) s.unshift(pe(i));
+    } else e !== void 0 && s.push(pe(e));
+    return s;
   }
-  static _$Eu(e, t) {
-    const r = t.attribute;
-    return r === !1 ? void 0 : typeof r == "string" ? r : typeof e == "string" ? e.toLowerCase() : void 0;
+  static _$Eu(e, s) {
+    const a = s.attribute;
+    return a === !1 ? void 0 : typeof a == "string" ? a : typeof e == "string" ? e.toLowerCase() : void 0;
   }
   constructor() {
     super(), this._$Ep = void 0, this.isUpdatePending = !1, this.hasUpdated = !1, this._$Em = null, this._$Ev();
   }
   _$Ev() {
     var e;
-    this._$ES = new Promise((t) => this.enableUpdating = t), this._$AL = /* @__PURE__ */ new Map(), this._$E_(), this.requestUpdate(), (e = this.constructor.l) == null || e.forEach((t) => t(this));
+    this._$ES = new Promise((s) => this.enableUpdating = s), this._$AL = /* @__PURE__ */ new Map(), this._$E_(), this.requestUpdate(), (e = this.constructor.l) == null || e.forEach((s) => s(this));
   }
   addController(e) {
-    var t;
-    (this._$EO ?? (this._$EO = /* @__PURE__ */ new Set())).add(e), this.renderRoot !== void 0 && this.isConnected && ((t = e.hostConnected) == null || t.call(e));
+    var s;
+    (this._$EO ?? (this._$EO = /* @__PURE__ */ new Set())).add(e), this.renderRoot !== void 0 && this.isConnected && ((s = e.hostConnected) == null || s.call(e));
   }
   removeController(e) {
-    var t;
-    (t = this._$EO) == null || t.delete(e);
+    var s;
+    (s = this._$EO) == null || s.delete(e);
   }
   _$E_() {
-    const e = /* @__PURE__ */ new Map(), t = this.constructor.elementProperties;
-    for (const r of t.keys()) this.hasOwnProperty(r) && (e.set(r, this[r]), delete this[r]);
+    const e = /* @__PURE__ */ new Map(), s = this.constructor.elementProperties;
+    for (const a of s.keys()) this.hasOwnProperty(a) && (e.set(a, this[a]), delete this[a]);
     e.size > 0 && (this._$Ep = e);
   }
   createRenderRoot() {
     const e = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return Pe(e, this.constructor.elementStyles), e;
+    return Oe(e, this.constructor.elementStyles), e;
   }
   connectedCallback() {
     var e;
-    this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this.enableUpdating(!0), (e = this._$EO) == null || e.forEach((t) => {
-      var r;
-      return (r = t.hostConnected) == null ? void 0 : r.call(t);
+    this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this.enableUpdating(!0), (e = this._$EO) == null || e.forEach((s) => {
+      var a;
+      return (a = s.hostConnected) == null ? void 0 : a.call(s);
     });
   }
   enableUpdating(e) {
   }
   disconnectedCallback() {
     var e;
-    (e = this._$EO) == null || e.forEach((t) => {
-      var r;
-      return (r = t.hostDisconnected) == null ? void 0 : r.call(t);
+    (e = this._$EO) == null || e.forEach((s) => {
+      var a;
+      return (a = s.hostDisconnected) == null ? void 0 : a.call(s);
     });
   }
-  attributeChangedCallback(e, t, r) {
-    this._$AK(e, r);
+  attributeChangedCallback(e, s, a) {
+    this._$AK(e, a);
   }
-  _$ET(e, t) {
-    var o;
-    const r = this.constructor.elementProperties.get(e), i = this.constructor._$Eu(e, r);
-    if (i !== void 0 && r.reflect === !0) {
-      const a = (((o = r.converter) == null ? void 0 : o.toAttribute) !== void 0 ? r.converter : Z).toAttribute(t, r.type);
-      this._$Em = e, a == null ? this.removeAttribute(i) : this.setAttribute(i, a), this._$Em = null;
+  _$ET(e, s) {
+    var r;
+    const a = this.constructor.elementProperties.get(e), i = this.constructor._$Eu(e, a);
+    if (i !== void 0 && a.reflect === !0) {
+      const n = (((r = a.converter) == null ? void 0 : r.toAttribute) !== void 0 ? a.converter : Q).toAttribute(s, a.type);
+      this._$Em = e, n == null ? this.removeAttribute(i) : this.setAttribute(i, n), this._$Em = null;
     }
   }
-  _$AK(e, t) {
-    var o, a;
-    const r = this.constructor, i = r._$Eh.get(e);
+  _$AK(e, s) {
+    var r, n;
+    const a = this.constructor, i = a._$Eh.get(e);
     if (i !== void 0 && this._$Em !== i) {
-      const d = r.getPropertyOptions(i), n = typeof d.converter == "function" ? { fromAttribute: d.converter } : ((o = d.converter) == null ? void 0 : o.fromAttribute) !== void 0 ? d.converter : Z;
+      const c = a.getPropertyOptions(i), d = typeof c.converter == "function" ? { fromAttribute: c.converter } : ((r = c.converter) == null ? void 0 : r.fromAttribute) !== void 0 ? c.converter : Q;
       this._$Em = i;
-      const u = n.fromAttribute(t, d.type);
-      this[i] = u ?? ((a = this._$Ej) == null ? void 0 : a.get(i)) ?? u, this._$Em = null;
+      const h = d.fromAttribute(s, c.type);
+      this[i] = h ?? ((n = this._$Ej) == null ? void 0 : n.get(i)) ?? h, this._$Em = null;
     }
   }
-  requestUpdate(e, t, r, i = !1, o) {
-    var a;
+  requestUpdate(e, s, a, i = !1, r) {
+    var n;
     if (e !== void 0) {
-      const d = this.constructor;
-      if (i === !1 && (o = this[e]), r ?? (r = d.getPropertyOptions(e)), !((r.hasChanged ?? ae)(o, t) || r.useDefault && r.reflect && o === ((a = this._$Ej) == null ? void 0 : a.get(e)) && !this.hasAttribute(d._$Eu(e, r)))) return;
-      this.C(e, t, r);
+      const c = this.constructor;
+      if (i === !1 && (r = this[e]), a ?? (a = c.getPropertyOptions(e)), !((a.hasChanged ?? le)(r, s) || a.useDefault && a.reflect && r === ((n = this._$Ej) == null ? void 0 : n.get(e)) && !this.hasAttribute(c._$Eu(e, a)))) return;
+      this.C(e, s, a);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
   }
-  C(e, t, { useDefault: r, reflect: i, wrapped: o }, a) {
-    r && !(this._$Ej ?? (this._$Ej = /* @__PURE__ */ new Map())).has(e) && (this._$Ej.set(e, a ?? t ?? this[e]), o !== !0 || a !== void 0) || (this._$AL.has(e) || (this.hasUpdated || r || (t = void 0), this._$AL.set(e, t)), i === !0 && this._$Em !== e && (this._$Eq ?? (this._$Eq = /* @__PURE__ */ new Set())).add(e));
+  C(e, s, { useDefault: a, reflect: i, wrapped: r }, n) {
+    a && !(this._$Ej ?? (this._$Ej = /* @__PURE__ */ new Map())).has(e) && (this._$Ej.set(e, n ?? s ?? this[e]), r !== !0 || n !== void 0) || (this._$AL.has(e) || (this.hasUpdated || a || (s = void 0), this._$AL.set(e, s)), i === !0 && this._$Em !== e && (this._$Eq ?? (this._$Eq = /* @__PURE__ */ new Set())).add(e));
   }
   async _$EP() {
     this.isUpdatePending = !0;
     try {
       await this._$ES;
-    } catch (t) {
-      Promise.reject(t);
+    } catch (s) {
+      Promise.reject(s);
     }
     const e = this.scheduleUpdate();
     return e != null && await e, !this.isUpdatePending;
@@ -224,38 +224,38 @@ let T = class extends HTMLElement {
     return this.performUpdate();
   }
   performUpdate() {
-    var r;
+    var a;
     if (!this.isUpdatePending) return;
     if (!this.hasUpdated) {
       if (this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this._$Ep) {
-        for (const [o, a] of this._$Ep) this[o] = a;
+        for (const [r, n] of this._$Ep) this[r] = n;
         this._$Ep = void 0;
       }
       const i = this.constructor.elementProperties;
-      if (i.size > 0) for (const [o, a] of i) {
-        const { wrapped: d } = a, n = this[o];
-        d !== !0 || this._$AL.has(o) || n === void 0 || this.C(o, void 0, a, n);
+      if (i.size > 0) for (const [r, n] of i) {
+        const { wrapped: c } = n, d = this[r];
+        c !== !0 || this._$AL.has(r) || d === void 0 || this.C(r, void 0, n, d);
       }
     }
     let e = !1;
-    const t = this._$AL;
+    const s = this._$AL;
     try {
-      e = this.shouldUpdate(t), e ? (this.willUpdate(t), (r = this._$EO) == null || r.forEach((i) => {
-        var o;
-        return (o = i.hostUpdate) == null ? void 0 : o.call(i);
-      }), this.update(t)) : this._$EM();
+      e = this.shouldUpdate(s), e ? (this.willUpdate(s), (a = this._$EO) == null || a.forEach((i) => {
+        var r;
+        return (r = i.hostUpdate) == null ? void 0 : r.call(i);
+      }), this.update(s)) : this._$EM();
     } catch (i) {
       throw e = !1, this._$EM(), i;
     }
-    e && this._$AE(t);
+    e && this._$AE(s);
   }
   willUpdate(e) {
   }
   _$AE(e) {
-    var t;
-    (t = this._$EO) == null || t.forEach((r) => {
+    var s;
+    (s = this._$EO) == null || s.forEach((a) => {
       var i;
-      return (i = r.hostUpdated) == null ? void 0 : i.call(r);
+      return (i = a.hostUpdated) == null ? void 0 : i.call(a);
     }), this.hasUpdated || (this.hasUpdated = !0, this.firstUpdated(e)), this.updated(e);
   }
   _$EM() {
@@ -271,85 +271,85 @@ let T = class extends HTMLElement {
     return !0;
   }
   update(e) {
-    this._$Eq && (this._$Eq = this._$Eq.forEach((t) => this._$ET(t, this[t]))), this._$EM();
+    this._$Eq && (this._$Eq = this._$Eq.forEach((s) => this._$ET(s, this[s]))), this._$EM();
   }
   updated(e) {
   }
   firstUpdated(e) {
   }
 };
-T.elementStyles = [], T.shadowRootOptions = { mode: "open" }, T[W("elementProperties")] = /* @__PURE__ */ new Map(), T[W("finalized")] = /* @__PURE__ */ new Map(), ee == null || ee({ ReactiveElement: T }), (S.reactiveElementVersions ?? (S.reactiveElementVersions = [])).push("2.1.2");
+j.elementStyles = [], j.shadowRootOptions = { mode: "open" }, j[q("elementProperties")] = /* @__PURE__ */ new Map(), j[q("finalized")] = /* @__PURE__ */ new Map(), se == null || se({ ReactiveElement: j }), (C.reactiveElementVersions ?? (C.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const L = globalThis, ue = (s) => s, Q = L.trustedTypes, pe = Q ? Q.createPolicy("lit-html", { createHTML: (s) => s }) : void 0, _e = "$lit$", A = `lit$${Math.random().toFixed(9).slice(2)}$`, ke = "?" + A, Te = `<${ke}>`, z = document, q = () => z.createComment(""), I = (s) => s === null || typeof s != "object" && typeof s != "function", ne = Array.isArray, je = (s) => ne(s) || typeof (s == null ? void 0 : s[Symbol.iterator]) == "function", te = `[ 	
-\f\r]`, M = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, ge = /-->/g, me = />/g, O = RegExp(`>|${te}(?:([^\\s"'>=/]+)(${te}*=${te}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), be = /'/g, ve = /"/g, xe = /^(?:script|style|textarea|title)$/i, Be = (s) => (e, ...t) => ({ _$litType$: s, strings: e, values: t }), l = Be(1), j = Symbol.for("lit-noChange"), c = Symbol.for("lit-nothing"), $e = /* @__PURE__ */ new WeakMap(), R = z.createTreeWalker(z, 129);
-function Ae(s, e) {
-  if (!ne(s) || !s.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return pe !== void 0 ? pe.createHTML(e) : e;
+const I = globalThis, ue = (t) => t, Y = I.trustedTypes, ge = Y ? Y.createPolicy("lit-html", { createHTML: (t) => t }) : void 0, ke = "$lit$", P = `lit$${Math.random().toFixed(9).slice(2)}$`, xe = "?" + P, Ne = `<${xe}>`, T = document, F = () => T.createComment(""), G = (t) => t === null || typeof t != "object" && typeof t != "function", de = Array.isArray, Me = (t) => de(t) || typeof (t == null ? void 0 : t[Symbol.iterator]) == "function", ie = `[ 	
+\f\r]`, L = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, be = /-->/g, me = />/g, D = RegExp(`>|${ie}(?:([^\\s"'>=/]+)(${ie}*=${ie}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), ve = /'/g, $e = /"/g, Ae = /^(?:script|style|textarea|title)$/i, He = (t) => (e, ...s) => ({ _$litType$: t, strings: e, values: s }), o = He(1), B = Symbol.for("lit-noChange"), l = Symbol.for("lit-nothing"), ye = /* @__PURE__ */ new WeakMap(), R = T.createTreeWalker(T, 129);
+function Se(t, e) {
+  if (!de(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
+  return ge !== void 0 ? ge.createHTML(e) : e;
 }
-const Ne = (s, e) => {
-  const t = s.length - 1, r = [];
-  let i, o = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", a = M;
-  for (let d = 0; d < t; d++) {
-    const n = s[d];
-    let u, p, h = -1, m = 0;
-    for (; m < n.length && (a.lastIndex = m, p = a.exec(n), p !== null); ) m = a.lastIndex, a === M ? p[1] === "!--" ? a = ge : p[1] !== void 0 ? a = me : p[2] !== void 0 ? (xe.test(p[2]) && (i = RegExp("</" + p[2], "g")), a = O) : p[3] !== void 0 && (a = O) : a === O ? p[0] === ">" ? (a = i ?? M, h = -1) : p[1] === void 0 ? h = -2 : (h = a.lastIndex - p[2].length, u = p[1], a = p[3] === void 0 ? O : p[3] === '"' ? ve : be) : a === ve || a === be ? a = O : a === ge || a === me ? a = M : (a = O, i = void 0);
-    const $ = a === O && s[d + 1].startsWith("/>") ? " " : "";
-    o += a === M ? n + Te : h >= 0 ? (r.push(u), n.slice(0, h) + _e + n.slice(h) + A + $) : n + A + (h === -2 ? d : $);
+const We = (t, e) => {
+  const s = t.length - 1, a = [];
+  let i, r = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", n = L;
+  for (let c = 0; c < s; c++) {
+    const d = t[c];
+    let h, u, f = -1, b = 0;
+    for (; b < d.length && (n.lastIndex = b, u = n.exec(d), u !== null); ) b = n.lastIndex, n === L ? u[1] === "!--" ? n = be : u[1] !== void 0 ? n = me : u[2] !== void 0 ? (Ae.test(u[2]) && (i = RegExp("</" + u[2], "g")), n = D) : u[3] !== void 0 && (n = D) : n === D ? u[0] === ">" ? (n = i ?? L, f = -1) : u[1] === void 0 ? f = -2 : (f = n.lastIndex - u[2].length, h = u[1], n = u[3] === void 0 ? D : u[3] === '"' ? $e : ve) : n === $e || n === ve ? n = D : n === be || n === me ? n = L : (n = D, i = void 0);
+    const v = n === D && t[c + 1].startsWith("/>") ? " " : "";
+    r += n === L ? d + Ne : f >= 0 ? (a.push(h), d.slice(0, f) + ke + d.slice(f) + P + v) : d + P + (f === -2 ? c : v);
   }
-  return [Ae(s, o + (s[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), r];
+  return [Se(t, r + (t[s] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), a];
 };
-class G {
-  constructor({ strings: e, _$litType$: t }, r) {
+class V {
+  constructor({ strings: e, _$litType$: s }, a) {
     let i;
     this.parts = [];
-    let o = 0, a = 0;
-    const d = e.length - 1, n = this.parts, [u, p] = Ne(e, t);
-    if (this.el = G.createElement(u, r), R.currentNode = this.el.content, t === 2 || t === 3) {
-      const h = this.el.content.firstChild;
-      h.replaceWith(...h.childNodes);
+    let r = 0, n = 0;
+    const c = e.length - 1, d = this.parts, [h, u] = We(e, s);
+    if (this.el = V.createElement(h, a), R.currentNode = this.el.content, s === 2 || s === 3) {
+      const f = this.el.content.firstChild;
+      f.replaceWith(...f.childNodes);
     }
-    for (; (i = R.nextNode()) !== null && n.length < d; ) {
+    for (; (i = R.nextNode()) !== null && d.length < c; ) {
       if (i.nodeType === 1) {
-        if (i.hasAttributes()) for (const h of i.getAttributeNames()) if (h.endsWith(_e)) {
-          const m = p[a++], $ = i.getAttribute(h).split(A), _ = /([.?@])?(.*)/.exec(m);
-          n.push({ type: 1, index: o, name: _[2], strings: $, ctor: _[1] === "." ? Me : _[1] === "?" ? We : _[1] === "@" ? Le : X }), i.removeAttribute(h);
-        } else h.startsWith(A) && (n.push({ type: 6, index: o }), i.removeAttribute(h));
-        if (xe.test(i.tagName)) {
-          const h = i.textContent.split(A), m = h.length - 1;
-          if (m > 0) {
-            i.textContent = Q ? Q.emptyScript : "";
-            for (let $ = 0; $ < m; $++) i.append(h[$], q()), R.nextNode(), n.push({ type: 2, index: ++o });
-            i.append(h[m], q());
+        if (i.hasAttributes()) for (const f of i.getAttributeNames()) if (f.endsWith(ke)) {
+          const b = u[n++], v = i.getAttribute(f).split(P), w = /([.?@])?(.*)/.exec(b);
+          d.push({ type: 1, index: r, name: w[2], strings: v, ctor: w[1] === "." ? qe : w[1] === "?" ? Ie : w[1] === "@" ? Fe : ee }), i.removeAttribute(f);
+        } else f.startsWith(P) && (d.push({ type: 6, index: r }), i.removeAttribute(f));
+        if (Ae.test(i.tagName)) {
+          const f = i.textContent.split(P), b = f.length - 1;
+          if (b > 0) {
+            i.textContent = Y ? Y.emptyScript : "";
+            for (let v = 0; v < b; v++) i.append(f[v], F()), R.nextNode(), d.push({ type: 2, index: ++r });
+            i.append(f[b], F());
           }
         }
-      } else if (i.nodeType === 8) if (i.data === ke) n.push({ type: 2, index: o });
+      } else if (i.nodeType === 8) if (i.data === xe) d.push({ type: 2, index: r });
       else {
-        let h = -1;
-        for (; (h = i.data.indexOf(A, h + 1)) !== -1; ) n.push({ type: 7, index: o }), h += A.length - 1;
+        let f = -1;
+        for (; (f = i.data.indexOf(P, f + 1)) !== -1; ) d.push({ type: 7, index: r }), f += P.length - 1;
       }
-      o++;
+      r++;
     }
   }
-  static createElement(e, t) {
-    const r = z.createElement("template");
-    return r.innerHTML = e, r;
+  static createElement(e, s) {
+    const a = T.createElement("template");
+    return a.innerHTML = e, a;
   }
 }
-function B(s, e, t = s, r) {
-  var a, d;
-  if (e === j) return e;
-  let i = r !== void 0 ? (a = t._$Co) == null ? void 0 : a[r] : t._$Cl;
-  const o = I(e) ? void 0 : e._$litDirective$;
-  return (i == null ? void 0 : i.constructor) !== o && ((d = i == null ? void 0 : i._$AO) == null || d.call(i, !1), o === void 0 ? i = void 0 : (i = new o(s), i._$AT(s, t, r)), r !== void 0 ? (t._$Co ?? (t._$Co = []))[r] = i : t._$Cl = i), i !== void 0 && (e = B(s, i._$AS(s, e.values), i, r)), e;
+function N(t, e, s = t, a) {
+  var n, c;
+  if (e === B) return e;
+  let i = a !== void 0 ? (n = s._$Co) == null ? void 0 : n[a] : s._$Cl;
+  const r = G(e) ? void 0 : e._$litDirective$;
+  return (i == null ? void 0 : i.constructor) !== r && ((c = i == null ? void 0 : i._$AO) == null || c.call(i, !1), r === void 0 ? i = void 0 : (i = new r(t), i._$AT(t, s, a)), a !== void 0 ? (s._$Co ?? (s._$Co = []))[a] = i : s._$Cl = i), i !== void 0 && (e = N(t, i._$AS(t, e.values), i, a)), e;
 }
-class He {
-  constructor(e, t) {
-    this._$AV = [], this._$AN = void 0, this._$AD = e, this._$AM = t;
+class Le {
+  constructor(e, s) {
+    this._$AV = [], this._$AN = void 0, this._$AD = e, this._$AM = s;
   }
   get parentNode() {
     return this._$AM.parentNode;
@@ -358,35 +358,35 @@ class He {
     return this._$AM._$AU;
   }
   u(e) {
-    const { el: { content: t }, parts: r } = this._$AD, i = ((e == null ? void 0 : e.creationScope) ?? z).importNode(t, !0);
+    const { el: { content: s }, parts: a } = this._$AD, i = ((e == null ? void 0 : e.creationScope) ?? T).importNode(s, !0);
     R.currentNode = i;
-    let o = R.nextNode(), a = 0, d = 0, n = r[0];
-    for (; n !== void 0; ) {
-      if (a === n.index) {
-        let u;
-        n.type === 2 ? u = new V(o, o.nextSibling, this, e) : n.type === 1 ? u = new n.ctor(o, n.name, n.strings, this, e) : n.type === 6 && (u = new qe(o, this, e)), this._$AV.push(u), n = r[++d];
+    let r = R.nextNode(), n = 0, c = 0, d = a[0];
+    for (; d !== void 0; ) {
+      if (n === d.index) {
+        let h;
+        d.type === 2 ? h = new J(r, r.nextSibling, this, e) : d.type === 1 ? h = new d.ctor(r, d.name, d.strings, this, e) : d.type === 6 && (h = new Ge(r, this, e)), this._$AV.push(h), d = a[++c];
       }
-      a !== (n == null ? void 0 : n.index) && (o = R.nextNode(), a++);
+      n !== (d == null ? void 0 : d.index) && (r = R.nextNode(), n++);
     }
-    return R.currentNode = z, i;
+    return R.currentNode = T, i;
   }
   p(e) {
-    let t = 0;
-    for (const r of this._$AV) r !== void 0 && (r.strings !== void 0 ? (r._$AI(e, r, t), t += r.strings.length - 2) : r._$AI(e[t])), t++;
+    let s = 0;
+    for (const a of this._$AV) a !== void 0 && (a.strings !== void 0 ? (a._$AI(e, a, s), s += a.strings.length - 2) : a._$AI(e[s])), s++;
   }
 }
-class V {
+class J {
   get _$AU() {
     var e;
     return ((e = this._$AM) == null ? void 0 : e._$AU) ?? this._$Cv;
   }
-  constructor(e, t, r, i) {
-    this.type = 2, this._$AH = c, this._$AN = void 0, this._$AA = e, this._$AB = t, this._$AM = r, this.options = i, this._$Cv = (i == null ? void 0 : i.isConnected) ?? !0;
+  constructor(e, s, a, i) {
+    this.type = 2, this._$AH = l, this._$AN = void 0, this._$AA = e, this._$AB = s, this._$AM = a, this.options = i, this._$Cv = (i == null ? void 0 : i.isConnected) ?? !0;
   }
   get parentNode() {
     let e = this._$AA.parentNode;
-    const t = this._$AM;
-    return t !== void 0 && (e == null ? void 0 : e.nodeType) === 11 && (e = t.parentNode), e;
+    const s = this._$AM;
+    return s !== void 0 && (e == null ? void 0 : e.nodeType) === 11 && (e = s.parentNode), e;
   }
   get startNode() {
     return this._$AA;
@@ -394,8 +394,8 @@ class V {
   get endNode() {
     return this._$AB;
   }
-  _$AI(e, t = this) {
-    e = B(this, e, t), I(e) ? e === c || e == null || e === "" ? (this._$AH !== c && this._$AR(), this._$AH = c) : e !== this._$AH && e !== j && this._(e) : e._$litType$ !== void 0 ? this.$(e) : e.nodeType !== void 0 ? this.T(e) : je(e) ? this.k(e) : this._(e);
+  _$AI(e, s = this) {
+    e = N(this, e, s), G(e) ? e === l || e == null || e === "" ? (this._$AH !== l && this._$AR(), this._$AH = l) : e !== this._$AH && e !== B && this._(e) : e._$litType$ !== void 0 ? this.$(e) : e.nodeType !== void 0 ? this.T(e) : Me(e) ? this.k(e) : this._(e);
   }
   O(e) {
     return this._$AA.parentNode.insertBefore(e, this._$AB);
@@ -404,116 +404,116 @@ class V {
     this._$AH !== e && (this._$AR(), this._$AH = this.O(e));
   }
   _(e) {
-    this._$AH !== c && I(this._$AH) ? this._$AA.nextSibling.data = e : this.T(z.createTextNode(e)), this._$AH = e;
+    this._$AH !== l && G(this._$AH) ? this._$AA.nextSibling.data = e : this.T(T.createTextNode(e)), this._$AH = e;
   }
   $(e) {
-    var o;
-    const { values: t, _$litType$: r } = e, i = typeof r == "number" ? this._$AC(e) : (r.el === void 0 && (r.el = G.createElement(Ae(r.h, r.h[0]), this.options)), r);
-    if (((o = this._$AH) == null ? void 0 : o._$AD) === i) this._$AH.p(t);
+    var r;
+    const { values: s, _$litType$: a } = e, i = typeof a == "number" ? this._$AC(e) : (a.el === void 0 && (a.el = V.createElement(Se(a.h, a.h[0]), this.options)), a);
+    if (((r = this._$AH) == null ? void 0 : r._$AD) === i) this._$AH.p(s);
     else {
-      const a = new He(i, this), d = a.u(this.options);
-      a.p(t), this.T(d), this._$AH = a;
+      const n = new Le(i, this), c = n.u(this.options);
+      n.p(s), this.T(c), this._$AH = n;
     }
   }
   _$AC(e) {
-    let t = $e.get(e.strings);
-    return t === void 0 && $e.set(e.strings, t = new G(e)), t;
+    let s = ye.get(e.strings);
+    return s === void 0 && ye.set(e.strings, s = new V(e)), s;
   }
   k(e) {
-    ne(this._$AH) || (this._$AH = [], this._$AR());
-    const t = this._$AH;
-    let r, i = 0;
-    for (const o of e) i === t.length ? t.push(r = new V(this.O(q()), this.O(q()), this, this.options)) : r = t[i], r._$AI(o), i++;
-    i < t.length && (this._$AR(r && r._$AB.nextSibling, i), t.length = i);
+    de(this._$AH) || (this._$AH = [], this._$AR());
+    const s = this._$AH;
+    let a, i = 0;
+    for (const r of e) i === s.length ? s.push(a = new J(this.O(F()), this.O(F()), this, this.options)) : a = s[i], a._$AI(r), i++;
+    i < s.length && (this._$AR(a && a._$AB.nextSibling, i), s.length = i);
   }
-  _$AR(e = this._$AA.nextSibling, t) {
-    var r;
-    for ((r = this._$AP) == null ? void 0 : r.call(this, !1, !0, t); e !== this._$AB; ) {
+  _$AR(e = this._$AA.nextSibling, s) {
+    var a;
+    for ((a = this._$AP) == null ? void 0 : a.call(this, !1, !0, s); e !== this._$AB; ) {
       const i = ue(e).nextSibling;
       ue(e).remove(), e = i;
     }
   }
   setConnected(e) {
-    var t;
-    this._$AM === void 0 && (this._$Cv = e, (t = this._$AP) == null || t.call(this, e));
+    var s;
+    this._$AM === void 0 && (this._$Cv = e, (s = this._$AP) == null || s.call(this, e));
   }
 }
-class X {
+class ee {
   get tagName() {
     return this.element.tagName;
   }
   get _$AU() {
     return this._$AM._$AU;
   }
-  constructor(e, t, r, i, o) {
-    this.type = 1, this._$AH = c, this._$AN = void 0, this.element = e, this.name = t, this._$AM = i, this.options = o, r.length > 2 || r[0] !== "" || r[1] !== "" ? (this._$AH = Array(r.length - 1).fill(new String()), this.strings = r) : this._$AH = c;
+  constructor(e, s, a, i, r) {
+    this.type = 1, this._$AH = l, this._$AN = void 0, this.element = e, this.name = s, this._$AM = i, this.options = r, a.length > 2 || a[0] !== "" || a[1] !== "" ? (this._$AH = Array(a.length - 1).fill(new String()), this.strings = a) : this._$AH = l;
   }
-  _$AI(e, t = this, r, i) {
-    const o = this.strings;
-    let a = !1;
-    if (o === void 0) e = B(this, e, t, 0), a = !I(e) || e !== this._$AH && e !== j, a && (this._$AH = e);
+  _$AI(e, s = this, a, i) {
+    const r = this.strings;
+    let n = !1;
+    if (r === void 0) e = N(this, e, s, 0), n = !G(e) || e !== this._$AH && e !== B, n && (this._$AH = e);
     else {
-      const d = e;
-      let n, u;
-      for (e = o[0], n = 0; n < o.length - 1; n++) u = B(this, d[r + n], t, n), u === j && (u = this._$AH[n]), a || (a = !I(u) || u !== this._$AH[n]), u === c ? e = c : e !== c && (e += (u ?? "") + o[n + 1]), this._$AH[n] = u;
+      const c = e;
+      let d, h;
+      for (e = r[0], d = 0; d < r.length - 1; d++) h = N(this, c[a + d], s, d), h === B && (h = this._$AH[d]), n || (n = !G(h) || h !== this._$AH[d]), h === l ? e = l : e !== l && (e += (h ?? "") + r[d + 1]), this._$AH[d] = h;
     }
-    a && !i && this.j(e);
+    n && !i && this.j(e);
   }
   j(e) {
-    e === c ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, e ?? "");
+    e === l ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, e ?? "");
   }
 }
-class Me extends X {
+class qe extends ee {
   constructor() {
     super(...arguments), this.type = 3;
   }
   j(e) {
-    this.element[this.name] = e === c ? void 0 : e;
+    this.element[this.name] = e === l ? void 0 : e;
   }
 }
-class We extends X {
+class Ie extends ee {
   constructor() {
     super(...arguments), this.type = 4;
   }
   j(e) {
-    this.element.toggleAttribute(this.name, !!e && e !== c);
+    this.element.toggleAttribute(this.name, !!e && e !== l);
   }
 }
-class Le extends X {
-  constructor(e, t, r, i, o) {
-    super(e, t, r, i, o), this.type = 5;
+class Fe extends ee {
+  constructor(e, s, a, i, r) {
+    super(e, s, a, i, r), this.type = 5;
   }
-  _$AI(e, t = this) {
-    if ((e = B(this, e, t, 0) ?? c) === j) return;
-    const r = this._$AH, i = e === c && r !== c || e.capture !== r.capture || e.once !== r.once || e.passive !== r.passive, o = e !== c && (r === c || i);
-    i && this.element.removeEventListener(this.name, this, r), o && this.element.addEventListener(this.name, this, e), this._$AH = e;
+  _$AI(e, s = this) {
+    if ((e = N(this, e, s, 0) ?? l) === B) return;
+    const a = this._$AH, i = e === l && a !== l || e.capture !== a.capture || e.once !== a.once || e.passive !== a.passive, r = e !== l && (a === l || i);
+    i && this.element.removeEventListener(this.name, this, a), r && this.element.addEventListener(this.name, this, e), this._$AH = e;
   }
   handleEvent(e) {
-    var t;
-    typeof this._$AH == "function" ? this._$AH.call(((t = this.options) == null ? void 0 : t.host) ?? this.element, e) : this._$AH.handleEvent(e);
+    var s;
+    typeof this._$AH == "function" ? this._$AH.call(((s = this.options) == null ? void 0 : s.host) ?? this.element, e) : this._$AH.handleEvent(e);
   }
 }
-class qe {
-  constructor(e, t, r) {
-    this.element = e, this.type = 6, this._$AN = void 0, this._$AM = t, this.options = r;
+class Ge {
+  constructor(e, s, a) {
+    this.element = e, this.type = 6, this._$AN = void 0, this._$AM = s, this.options = a;
   }
   get _$AU() {
     return this._$AM._$AU;
   }
   _$AI(e) {
-    B(this, e);
+    N(this, e);
   }
 }
-const se = L.litHtmlPolyfillSupport;
-se == null || se(G, V), (L.litHtmlVersions ?? (L.litHtmlVersions = [])).push("3.3.2");
-const Ie = (s, e, t) => {
-  const r = (t == null ? void 0 : t.renderBefore) ?? e;
-  let i = r._$litPart$;
+const ae = I.litHtmlPolyfillSupport;
+ae == null || ae(V, J), (I.litHtmlVersions ?? (I.litHtmlVersions = [])).push("3.3.2");
+const Ve = (t, e, s) => {
+  const a = (s == null ? void 0 : s.renderBefore) ?? e;
+  let i = a._$litPart$;
   if (i === void 0) {
-    const o = (t == null ? void 0 : t.renderBefore) ?? null;
-    r._$litPart$ = i = new V(e.insertBefore(q(), o), o, void 0, t ?? {});
+    const r = (s == null ? void 0 : s.renderBefore) ?? null;
+    a._$litPart$ = i = new J(e.insertBefore(F(), r), r, void 0, s ?? {});
   }
-  return i._$AI(s), i;
+  return i._$AI(t), i;
 };
 /**
  * @license
@@ -521,18 +521,18 @@ const Ie = (s, e, t) => {
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const U = globalThis;
-class k extends T {
+class A extends j {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
   createRenderRoot() {
-    var t;
+    var s;
     const e = super.createRenderRoot();
-    return (t = this.renderOptions).renderBefore ?? (t.renderBefore = e.firstChild), e;
+    return (s = this.renderOptions).renderBefore ?? (s.renderBefore = e.firstChild), e;
   }
   update(e) {
-    const t = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(e), this._$Do = Ie(t, this.renderRoot, this.renderOptions);
+    const s = this.render();
+    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(e), this._$Do = Ve(s, this.renderRoot, this.renderOptions);
   }
   connectedCallback() {
     var e;
@@ -543,87 +543,87 @@ class k extends T {
     super.disconnectedCallback(), (e = this._$Do) == null || e.setConnected(!1);
   }
   render() {
-    return j;
+    return B;
   }
 }
-var ye;
-k._$litElement$ = !0, k.finalized = !0, (ye = U.litElementHydrateSupport) == null || ye.call(U, { LitElement: k });
-const ie = U.litElementPolyfillSupport;
-ie == null || ie({ LitElement: k });
+var we;
+A._$litElement$ = !0, A.finalized = !0, (we = U.litElementHydrateSupport) == null || we.call(U, { LitElement: A });
+const re = U.litElementPolyfillSupport;
+re == null || re({ LitElement: A });
 (U.litElementVersions ?? (U.litElementVersions = [])).push("4.2.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const K = (s) => (e, t) => {
-  t !== void 0 ? t.addInitializer(() => {
-    customElements.define(s, e);
-  }) : customElements.define(s, e);
+const Z = (t) => (e, s) => {
+  s !== void 0 ? s.addInitializer(() => {
+    customElements.define(t, e);
+  }) : customElements.define(t, e);
 };
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Ge = { attribute: !0, type: String, converter: Z, reflect: !1, hasChanged: ae }, Fe = (s = Ge, e, t) => {
-  const { kind: r, metadata: i } = t;
-  let o = globalThis.litPropertyMetadata.get(i);
-  if (o === void 0 && globalThis.litPropertyMetadata.set(i, o = /* @__PURE__ */ new Map()), r === "setter" && ((s = Object.create(s)).wrapped = !0), o.set(t.name, s), r === "accessor") {
-    const { name: a } = t;
-    return { set(d) {
-      const n = e.get.call(this);
-      e.set.call(this, d), this.requestUpdate(a, n, s, !0, d);
-    }, init(d) {
-      return d !== void 0 && this.C(a, void 0, s, d), d;
+const Ke = { attribute: !0, type: String, converter: Q, reflect: !1, hasChanged: le }, Je = (t = Ke, e, s) => {
+  const { kind: a, metadata: i } = s;
+  let r = globalThis.litPropertyMetadata.get(i);
+  if (r === void 0 && globalThis.litPropertyMetadata.set(i, r = /* @__PURE__ */ new Map()), a === "setter" && ((t = Object.create(t)).wrapped = !0), r.set(s.name, t), a === "accessor") {
+    const { name: n } = s;
+    return { set(c) {
+      const d = e.get.call(this);
+      e.set.call(this, c), this.requestUpdate(n, d, t, !0, c);
+    }, init(c) {
+      return c !== void 0 && this.C(n, void 0, t, c), c;
     } };
   }
-  if (r === "setter") {
-    const { name: a } = t;
-    return function(d) {
-      const n = this[a];
-      e.call(this, d), this.requestUpdate(a, n, s, !0, d);
+  if (a === "setter") {
+    const { name: n } = s;
+    return function(c) {
+      const d = this[n];
+      e.call(this, c), this.requestUpdate(n, d, t, !0, c);
     };
   }
-  throw Error("Unsupported decorator location: " + r);
+  throw Error("Unsupported decorator location: " + a);
 };
-function D(s) {
-  return (e, t) => typeof t == "object" ? Fe(s, e, t) : ((r, i, o) => {
-    const a = i.hasOwnProperty(o);
-    return i.constructor.createProperty(o, r), a ? Object.getOwnPropertyDescriptor(i, o) : void 0;
-  })(s, e, t);
+function z(t) {
+  return (e, s) => typeof s == "object" ? Je(t, e, s) : ((a, i, r) => {
+    const n = i.hasOwnProperty(r);
+    return i.constructor.createProperty(r, a), n ? Object.getOwnPropertyDescriptor(i, r) : void 0;
+  })(t, e, s);
 }
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-function f(s) {
-  return D({ ...s, state: !0, attribute: !1 });
+function p(t) {
+  return z({ ...t, state: !0, attribute: !1 });
 }
-function Ve(s, e) {
-  const t = new WebSocket(s);
-  return t.onmessage = (r) => {
-    var i, o, a, d, n, u, p, h, m, $, _, le;
+function Ze(t, e) {
+  const s = new WebSocket(t);
+  return s.onmessage = (a) => {
+    var i, r, n, c, d, h, u, f, b, v, w, W;
     try {
-      const C = JSON.parse(r.data);
-      ((o = (i = C.type) == null ? void 0 : i.startsWith) != null && o.call(i, "build.") || (d = (a = C.type) == null ? void 0 : a.startsWith) != null && d.call(a, "release.") || (u = (n = C.type) == null ? void 0 : n.startsWith) != null && u.call(n, "sdk.") || (h = (p = C.channel) == null ? void 0 : p.startsWith) != null && h.call(p, "build.") || ($ = (m = C.channel) == null ? void 0 : m.startsWith) != null && $.call(m, "release.") || (le = (_ = C.channel) == null ? void 0 : _.startsWith) != null && le.call(_, "sdk.")) && e(C);
+      const x = JSON.parse(a.data);
+      ((r = (i = x.type) == null ? void 0 : i.startsWith) != null && r.call(i, "build.") || (c = (n = x.type) == null ? void 0 : n.startsWith) != null && c.call(n, "release.") || (h = (d = x.type) == null ? void 0 : d.startsWith) != null && h.call(d, "sdk.") || (f = (u = x.channel) == null ? void 0 : u.startsWith) != null && f.call(u, "build.") || (v = (b = x.channel) == null ? void 0 : b.startsWith) != null && v.call(b, "release.") || (W = (w = x.channel) == null ? void 0 : w.startsWith) != null && W.call(w, "sdk.")) && e(x);
     } catch {
     }
-  }, t;
+  }, s;
 }
-class Y {
+class te {
   constructor(e = "") {
     this.baseUrl = e;
   }
   get base() {
     return `${this.baseUrl}/api/v1/build`;
   }
-  async request(e, t) {
-    var o;
-    const i = await (await fetch(`${this.base}${e}`, t)).json();
+  async request(e, s) {
+    var r;
+    const i = await (await fetch(`${this.base}${e}`, s)).json();
     if (!i.success)
-      throw new Error(((o = i.error) == null ? void 0 : o.message) ?? "Request failed");
+      throw new Error(((r = i.error) == null ? void 0 : r.message) ?? "Request failed");
     return i.data;
   }
   // -- Build ------------------------------------------------------------------
@@ -643,15 +643,15 @@ class Y {
   version() {
     return this.request("/release/version");
   }
-  changelog(e, t) {
-    const r = new URLSearchParams();
-    e && r.set("from", e), t && r.set("to", t);
-    const i = r.toString();
+  changelog(e, s) {
+    const a = new URLSearchParams();
+    e && a.set("from", e), s && a.set("to", s);
+    const i = a.toString();
     return this.request(`/release/changelog${i ? `?${i}` : ""}`);
   }
   release(e = !1) {
-    const t = e ? "?dry_run=true" : "";
-    return this.request(`/release${t}`, { method: "POST" });
+    const s = e ? "?dry_run=true" : "";
+    return this.request(`/release${s}`, { method: "POST" });
   }
   releaseWorkflow(e = {}) {
     return this.request("/release/workflow", {
@@ -661,54 +661,78 @@ class Y {
     });
   }
   // -- SDK --------------------------------------------------------------------
-  sdkDiff(e, t) {
-    const r = new URLSearchParams({ base: e, revision: t });
-    return this.request(`/sdk/diff?${r.toString()}`);
+  sdkDiff(e, s) {
+    const a = new URLSearchParams({ base: e, revision: s });
+    return this.request(`/sdk/diff?${a.toString()}`);
   }
   sdkGenerate(e) {
-    const t = e ? JSON.stringify({ language: e }) : void 0;
+    const s = e ? JSON.stringify({ language: e }) : void 0;
     return this.request("/sdk/generate", {
       method: "POST",
-      headers: t ? { "Content-Type": "application/json" } : void 0,
-      body: t
+      headers: s ? { "Content-Type": "application/json" } : void 0,
+      body: s
     });
   }
 }
-var Ke = Object.defineProperty, Je = Object.getOwnPropertyDescriptor, N = (s, e, t, r) => {
-  for (var i = r > 1 ? void 0 : r ? Je(e, t) : e, o = s.length - 1, a; o >= 0; o--)
-    (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
-  return r && i && Ke(e, t, i), i;
+var Xe = Object.defineProperty, Qe = Object.getOwnPropertyDescriptor, M = (t, e, s, a) => {
+  for (var i = a > 1 ? void 0 : a ? Qe(e, s) : e, r = t.length - 1, n; r >= 0; r--)
+    (n = t[r]) && (i = (a ? n(e, s, i) : n(i)) || i);
+  return a && i && Xe(e, s, i), i;
 };
-let P = class extends k {
+let E = class extends A {
   constructor() {
     super(...arguments), this.apiUrl = "", this.configData = null, this.discoverData = null, this.loading = !0, this.error = "";
   }
   connectedCallback() {
-    super.connectedCallback(), this.api = new Y(this.apiUrl), this.reload();
+    super.connectedCallback(), this.api = new te(this.apiUrl), this.reload();
   }
   async reload() {
     this.loading = !0, this.error = "";
     try {
-      const [s, e] = await Promise.all([
+      const [t, e] = await Promise.all([
         this.api.config(),
         this.api.discover()
       ]);
-      this.configData = s, this.discoverData = e;
-    } catch (s) {
-      this.error = s.message ?? "Failed to load configuration";
+      this.configData = t, this.discoverData = e;
+    } catch (t) {
+      this.error = t.message ?? "Failed to load configuration";
     } finally {
       this.loading = !1;
     }
   }
+  hasAppleConfig(t) {
+    return t ? Object.entries(t).some(([, e]) => e == null ? !1 : Array.isArray(e) ? e.length > 0 : typeof e == "object" ? Object.keys(e).length > 0 : typeof e == "string" ? e.length > 0 : !0) : !1;
+  }
+  renderToggle(t, e, s = "Enabled", a = "Disabled") {
+    return e == null ? l : o`
+      <div class="field">
+        <span class="field-label">${t}</span>
+        <span class="badge ${e ? "present" : "absent"}">
+          ${e ? s : a}
+        </span>
+      </div>
+    `;
+  }
+  renderFlags(t, e) {
+    return !e || e.length === 0 ? l : o`
+      <div class="field">
+        <span class="field-label">${t}</span>
+        <div class="flags">
+          ${e.map((s) => o`<span class="flag">${s}</span>`)}
+        </div>
+      </div>
+    `;
+  }
   render() {
+    var a, i, r, n, c, d, h, u, f, b, v, w, W, x;
     if (this.loading)
-      return l`<div class="loading">Loading configuration\u2026</div>`;
+      return o`<div class="loading">Loading configuration\u2026</div>`;
     if (this.error)
-      return l`<div class="error">${this.error}</div>`;
+      return o`<div class="error">${this.error}</div>`;
     if (!this.configData)
-      return l`<div class="empty">No configuration available.</div>`;
-    const s = this.configData.config, e = this.discoverData;
-    return l`
+      return o`<div class="empty">No configuration available.</div>`;
+    const t = this.configData.config, e = this.discoverData, s = e ? e.has_subtree_package_json ?? e.has_subtree_npm ?? !1 : !1;
+    return o`
       <!-- Discovery -->
       <div class="section">
         <div class="section-title">Project Detection</div>
@@ -718,89 +742,351 @@ let P = class extends k {
             ${this.configData.has_config ? "Present" : "Using defaults"}
           </span>
         </div>
-        ${e ? l`
+        ${e ? o`
               <div class="field">
                 <span class="field-label">Primary type</span>
                 <span class="badge type-${e.primary || "unknown"}">${e.primary || "none"}</span>
               </div>
-              ${e.types.length > 1 ? l`
+              <div class="field">
+                <span class="field-label">Suggested stack</span>
+                <span class="field-value">${e.suggested_stack || e.primary_stack || e.primary || "none"}</span>
+              </div>
+              ${e.types.length > 1 ? o`
                     <div class="field">
                       <span class="field-label">Detected types</span>
                       <span class="field-value">${e.types.join(", ")}</span>
                     </div>
-                  ` : c}
+                  ` : l}
+              <div class="field">
+                <span class="field-label">Frontend</span>
+                <span class="badge ${e.has_frontend ? "present" : "absent"}">
+                  ${e.has_frontend ? "Detected" : "None"}
+                </span>
+              </div>
+              <div class="field">
+                <span class="field-label">Nested frontend</span>
+                <span class="badge ${s ? "present" : "absent"}">
+                  ${s ? "Depth 2" : "None"}
+                </span>
+              </div>
+              ${e.distro ? o`
+                    <div class="field">
+                      <span class="field-label">Distro</span>
+                      <span class="field-value">${e.distro}</span>
+                    </div>
+                  ` : l}
+              ${e.linux_packages && e.linux_packages.length > 0 ? o`
+                    <div class="field">
+                      <span class="field-label">Linux packages</span>
+                      <div class="flags">
+                        ${e.linux_packages.map((g) => o`<span class="flag">${g}</span>`)}
+                      </div>
+                    </div>
+                  ` : l}
+              ${e.build_options ? o`
+                    <div class="field">
+                      <span class="field-label">Computed options</span>
+                      <span class="field-value">${e.build_options}</span>
+                    </div>
+                  ` : l}
+              ${this.renderToggle("Computed obfuscation", (a = e.options) == null ? void 0 : a.obfuscate)}
+              ${this.renderToggle("Computed NSIS", (i = e.options) == null ? void 0 : i.nsis)}
+              ${(r = e.options) != null && r.webview2 ? o`
+                    <div class="field">
+                      <span class="field-label">Computed WebView2</span>
+                      <span class="field-value">${e.options.webview2}</span>
+                    </div>
+                  ` : l}
+              ${this.renderFlags("Computed tags", (n = e.options) == null ? void 0 : n.tags)}
+              ${this.renderFlags("Computed LD flags", (c = e.options) == null ? void 0 : c.ldflags)}
+              ${e.ref ? o`
+                    <div class="field">
+                      <span class="field-label">Git ref</span>
+                      <span class="field-value">${e.ref}</span>
+                    </div>
+                  ` : l}
+              ${e.branch ? o`
+                    <div class="field">
+                      <span class="field-label">Branch</span>
+                      <span class="field-value">${e.branch}</span>
+                    </div>
+                  ` : l}
+              ${e.tag ? o`
+                    <div class="field">
+                      <span class="field-label">Tag</span>
+                      <span class="field-value">${e.tag}</span>
+                    </div>
+                  ` : l}
+              ${e.short_sha ? o`
+                    <div class="field">
+                      <span class="field-label">Short SHA</span>
+                      <span class="field-value">${e.short_sha}</span>
+                    </div>
+                  ` : l}
               <div class="field">
                 <span class="field-label">Directory</span>
                 <span class="field-value">${e.dir}</span>
               </div>
-            ` : c}
+            ` : l}
       </div>
+
+      ${e != null && e.setup_plan ? o`
+            <div class="section">
+              <div class="section-title">Setup Plan</div>
+              ${this.renderFlags(
+      "Toolchains",
+      (d = e.setup_plan.steps) == null ? void 0 : d.map((g) => g.tool)
+    )}
+              ${this.renderFlags("Frontend dirs", e.setup_plan.frontend_dirs)}
+              ${e.setup_plan.linux_packages && e.setup_plan.linux_packages.length > 0 ? o`
+                    <div class="field">
+                      <span class="field-label">System packages</span>
+                      <div class="flags">
+                        ${e.setup_plan.linux_packages.map((g) => o`<span class="flag">${g}</span>`)}
+                      </div>
+                    </div>
+                  ` : l}
+              ${e.setup_plan.steps && e.setup_plan.steps.length > 0 ? e.setup_plan.steps.map(
+      (g) => o`
+                      <div class="field">
+                        <span class="field-label">${g.tool}</span>
+                        <span class="field-value">${g.reason}</span>
+                      </div>
+                    `
+    ) : o`
+                    <div class="field">
+                      <span class="field-label">Steps</span>
+                      <span class="field-value">No setup required</span>
+                    </div>
+                  `}
+            </div>
+          ` : l}
 
       <!-- Project -->
       <div class="section">
         <div class="section-title">Project</div>
-        ${s.project.name ? l`
+        ${t.project.name ? o`
               <div class="field">
                 <span class="field-label">Name</span>
-                <span class="field-value">${s.project.name}</span>
+                <span class="field-value">${t.project.name}</span>
               </div>
-            ` : c}
-        ${s.project.binary ? l`
+            ` : l}
+        ${t.project.description ? o`
+              <div class="field">
+                <span class="field-label">Description</span>
+                <span class="field-value">${t.project.description}</span>
+              </div>
+            ` : l}
+        ${t.project.binary ? o`
               <div class="field">
                 <span class="field-label">Binary</span>
-                <span class="field-value">${s.project.binary}</span>
+                <span class="field-value">${t.project.binary}</span>
               </div>
-            ` : c}
+            ` : l}
         <div class="field">
           <span class="field-label">Main</span>
-          <span class="field-value">${s.project.main}</span>
+          <span class="field-value">${t.project.main}</span>
         </div>
       </div>
 
       <!-- Build Settings -->
       <div class="section">
         <div class="section-title">Build Settings</div>
-        ${s.build.type ? l`
+        ${t.build.type ? o`
               <div class="field">
                 <span class="field-label">Type override</span>
-                <span class="field-value">${s.build.type}</span>
+                <span class="field-value">${t.build.type}</span>
               </div>
-            ` : c}
+            ` : l}
         <div class="field">
           <span class="field-label">CGO</span>
-          <span class="field-value">${s.build.cgo ? "Enabled" : "Disabled"}</span>
+          <span class="field-value">${t.build.cgo ? "Enabled" : "Disabled"}</span>
         </div>
-        ${s.build.flags && s.build.flags.length > 0 ? l`
+        ${this.renderToggle("Obfuscation", t.build.obfuscate)}
+        ${this.renderToggle("NSIS packaging", t.build.nsis)}
+        ${t.build.webview2 ? o`
+              <div class="field">
+                <span class="field-label">WebView2 mode</span>
+                <span class="field-value">${t.build.webview2}</span>
+              </div>
+            ` : l}
+        ${t.build.deno_build ? o`
+              <div class="field">
+                <span class="field-label">Deno build</span>
+                <span class="field-value">${t.build.deno_build}</span>
+              </div>
+            ` : l}
+        ${t.build.archive_format ? o`
+              <div class="field">
+                <span class="field-label">Archive format</span>
+                <span class="field-value">${t.build.archive_format}</span>
+              </div>
+            ` : l}
+        ${this.renderFlags("Build tags", t.build.build_tags)}
+        ${t.build.flags && t.build.flags.length > 0 ? o`
               <div class="field">
                 <span class="field-label">Flags</span>
                 <div class="flags">
-                  ${s.build.flags.map((t) => l`<span class="flag">${t}</span>`)}
+                  ${t.build.flags.map((g) => o`<span class="flag">${g}</span>`)}
                 </div>
               </div>
-            ` : c}
-        ${s.build.ldflags && s.build.ldflags.length > 0 ? l`
+            ` : l}
+        ${t.build.ldflags && t.build.ldflags.length > 0 ? o`
               <div class="field">
                 <span class="field-label">LD flags</span>
                 <div class="flags">
-                  ${s.build.ldflags.map((t) => l`<span class="flag">${t}</span>`)}
+                  ${t.build.ldflags.map((g) => o`<span class="flag">${g}</span>`)}
                 </div>
               </div>
-            ` : c}
+            ` : l}
+        ${this.renderFlags("Environment", t.build.env)}
+        ${(h = t.build.cache) != null && h.enabled || (u = t.build.cache) != null && u.path || (f = t.build.cache) != null && f.paths && t.build.cache.paths.length > 0 ? o`
+              ${this.renderToggle("Build cache", (b = t.build.cache) == null ? void 0 : b.enabled)}
+              ${(v = t.build.cache) != null && v.path ? o`
+                    <div class="field">
+                      <span class="field-label">Cache path</span>
+                      <span class="field-value">${t.build.cache.path}</span>
+                    </div>
+                  ` : l}
+              ${this.renderFlags("Cache paths", (w = t.build.cache) == null ? void 0 : w.paths)}
+            ` : l}
+        ${t.build.dockerfile ? o`
+              <div class="field">
+                <span class="field-label">Dockerfile</span>
+                <span class="field-value">${t.build.dockerfile}</span>
+              </div>
+            ` : l}
+        ${t.build.image ? o`
+              <div class="field">
+                <span class="field-label">Image</span>
+                <span class="field-value">${t.build.image}</span>
+              </div>
+            ` : l}
+        ${t.build.registry ? o`
+              <div class="field">
+                <span class="field-label">Registry</span>
+                <span class="field-value">${t.build.registry}</span>
+              </div>
+            ` : l}
+        ${this.renderFlags("Image tags", t.build.tags)}
+        ${this.renderToggle("Push image", t.build.push)}
+        ${this.renderToggle("Load image", t.build.load)}
+        ${t.build.linuxkit_config ? o`
+              <div class="field">
+                <span class="field-label">LinuxKit config</span>
+                <span class="field-value">${t.build.linuxkit_config}</span>
+              </div>
+            ` : l}
+        ${this.renderFlags("LinuxKit formats", t.build.formats)}
       </div>
 
       <!-- Targets -->
       <div class="section">
         <div class="section-title">Targets</div>
         <div class="targets">
-          ${s.targets.map(
-      (t) => l`<span class="target-badge">${t.os}/${t.arch}</span>`
+          ${t.targets.map(
+      (g) => o`<span class="target-badge">${g.os}/${g.arch}</span>`
     )}
         </div>
       </div>
+
+      ${t.apple && this.hasAppleConfig(t.apple) ? o`
+            <div class="section">
+              <div class="section-title">Apple Pipeline</div>
+              ${t.apple.bundle_id ? o`
+                    <div class="field">
+                      <span class="field-label">Bundle ID</span>
+                      <span class="field-value">${t.apple.bundle_id}</span>
+                    </div>
+                  ` : l}
+              ${t.apple.team_id ? o`
+                    <div class="field">
+                      <span class="field-label">Team ID</span>
+                      <span class="field-value">${t.apple.team_id}</span>
+                    </div>
+                  ` : l}
+              ${t.apple.arch ? o`
+                    <div class="field">
+                      <span class="field-label">Architecture</span>
+                      <span class="field-value">${t.apple.arch}</span>
+                    </div>
+                  ` : l}
+              ${t.apple.bundle_display_name ? o`
+                    <div class="field">
+                      <span class="field-label">Display name</span>
+                      <span class="field-value">${t.apple.bundle_display_name}</span>
+                    </div>
+                  ` : l}
+              ${t.apple.min_system_version ? o`
+                    <div class="field">
+                      <span class="field-label">Minimum macOS</span>
+                      <span class="field-value">${t.apple.min_system_version}</span>
+                    </div>
+                  ` : l}
+              ${t.apple.category ? o`
+                    <div class="field">
+                      <span class="field-label">Category</span>
+                      <span class="field-value">${t.apple.category}</span>
+                    </div>
+                  ` : l}
+              ${this.renderToggle("Sign", t.apple.sign)}
+              ${this.renderToggle("Notarise", t.apple.notarise)}
+              ${this.renderToggle("DMG", t.apple.dmg)}
+              ${this.renderToggle("TestFlight", t.apple.testflight)}
+              ${this.renderToggle("App Store", t.apple.appstore)}
+              ${t.apple.metadata_path ? o`
+                    <div class="field">
+                      <span class="field-label">Metadata path</span>
+                      <span class="field-value">${t.apple.metadata_path}</span>
+                    </div>
+                  ` : l}
+              ${t.apple.privacy_policy_url ? o`
+                    <div class="field">
+                      <span class="field-label">Privacy policy</span>
+                      <span class="field-value">${t.apple.privacy_policy_url}</span>
+                    </div>
+                  ` : l}
+              ${t.apple.dmg_volume_name ? o`
+                    <div class="field">
+                      <span class="field-label">DMG volume</span>
+                      <span class="field-value">${t.apple.dmg_volume_name}</span>
+                    </div>
+                  ` : l}
+              ${t.apple.dmg_background ? o`
+                    <div class="field">
+                      <span class="field-label">DMG background</span>
+                      <span class="field-value">${t.apple.dmg_background}</span>
+                    </div>
+                  ` : l}
+              ${t.apple.entitlements_path ? o`
+                    <div class="field">
+                      <span class="field-label">Entitlements</span>
+                      <span class="field-value">${t.apple.entitlements_path}</span>
+                    </div>
+                  ` : l}
+              ${(W = t.apple.xcode_cloud) != null && W.workflow ? o`
+                    <div class="field">
+                      <span class="field-label">Xcode Cloud workflow</span>
+                      <span class="field-value">${t.apple.xcode_cloud.workflow}</span>
+                    </div>
+                  ` : l}
+              ${(x = t.apple.xcode_cloud) != null && x.triggers && t.apple.xcode_cloud.triggers.length > 0 ? o`
+                    <div class="field">
+                      <span class="field-label">Xcode Cloud triggers</span>
+                      <div class="flags">
+                        ${t.apple.xcode_cloud.triggers.map((g) => {
+      const Pe = g.branch ? `branch:${g.branch}` : g.tag ? `tag:${g.tag}` : "manual", Ce = g.action ?? "archive";
+      return o`<span class="flag">${Pe} → ${Ce}</span>`;
+    })}
+                      </div>
+                    </div>
+                  ` : l}
+            </div>
+          ` : l}
     `;
   }
 };
-P.styles = F`
+E.styles = K`
     :host {
       display: block;
       font-family: system-ui, -apple-system, sans-serif;
@@ -817,7 +1103,7 @@ P.styles = F`
     .section-title {
       font-size: 0.75rem;
       font-weight: 700;
-      colour: #6b7280;
+      color: #6b7280;
       text-transform: uppercase;
       letter-spacing: 0.025em;
       margin-bottom: 0.75rem;
@@ -838,13 +1124,16 @@ P.styles = F`
     .field-label {
       font-size: 0.8125rem;
       font-weight: 500;
-      colour: #374151;
+      color: #374151;
     }
 
     .field-value {
       font-size: 0.8125rem;
       font-family: monospace;
-      colour: #6b7280;
+      color: #6b7280;
+      max-width: 36rem;
+      text-align: right;
+      word-break: break-word;
     }
 
     .badge {
@@ -857,37 +1146,37 @@ P.styles = F`
 
     .badge.present {
       background: #dcfce7;
-      colour: #166534;
+      color: #166534;
     }
 
     .badge.absent {
       background: #fef3c7;
-      colour: #92400e;
+      color: #92400e;
     }
 
     .badge.type-go {
       background: #dbeafe;
-      colour: #1e40af;
+      color: #1e40af;
     }
 
     .badge.type-wails {
       background: #f3e8ff;
-      colour: #6b21a8;
+      color: #6b21a8;
     }
 
     .badge.type-node {
       background: #dcfce7;
-      colour: #166534;
+      color: #166534;
     }
 
     .badge.type-php {
       background: #fef3c7;
-      colour: #92400e;
+      color: #92400e;
     }
 
     .badge.type-docker {
       background: #e0e7ff;
-      colour: #3730a3;
+      color: #3730a3;
     }
 
     .targets {
@@ -903,7 +1192,7 @@ P.styles = F`
       background: #f3f4f6;
       border-radius: 0.25rem;
       font-family: monospace;
-      colour: #374151;
+      color: #374151;
     }
 
     .flags {
@@ -919,67 +1208,67 @@ P.styles = F`
       border: 1px solid #e5e7eb;
       border-radius: 0.25rem;
       font-family: monospace;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     .empty {
       text-align: center;
       padding: 2rem;
-      colour: #9ca3af;
+      color: #9ca3af;
       font-size: 0.875rem;
     }
 
     .loading {
       text-align: center;
       padding: 2rem;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     .error {
-      colour: #dc2626;
+      color: #dc2626;
       padding: 0.75rem;
       background: #fef2f2;
       border-radius: 0.375rem;
       font-size: 0.875rem;
     }
   `;
-N([
-  D({ attribute: "api-url" })
-], P.prototype, "apiUrl", 2);
-N([
-  f()
-], P.prototype, "configData", 2);
-N([
-  f()
-], P.prototype, "discoverData", 2);
-N([
-  f()
-], P.prototype, "loading", 2);
-N([
-  f()
-], P.prototype, "error", 2);
-P = N([
-  K("core-build-config")
-], P);
-var Ze = Object.defineProperty, Qe = Object.getOwnPropertyDescriptor, x = (s, e, t, r) => {
-  for (var i = r > 1 ? void 0 : r ? Qe(e, t) : e, o = s.length - 1, a; o >= 0; o--)
-    (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
-  return r && i && Ze(e, t, i), i;
+M([
+  z({ attribute: "api-url" })
+], E.prototype, "apiUrl", 2);
+M([
+  p()
+], E.prototype, "configData", 2);
+M([
+  p()
+], E.prototype, "discoverData", 2);
+M([
+  p()
+], E.prototype, "loading", 2);
+M([
+  p()
+], E.prototype, "error", 2);
+E = M([
+  Z("core-build-config")
+], E);
+var Ye = Object.defineProperty, et = Object.getOwnPropertyDescriptor, S = (t, e, s, a) => {
+  for (var i = a > 1 ? void 0 : a ? et(e, s) : e, r = t.length - 1, n; r >= 0; r--)
+    (n = t[r]) && (i = (a ? n(e, s, i) : n(i)) || i);
+  return a && i && Ye(e, s, i), i;
 };
-let y = class extends k {
+let _ = class extends A {
   constructor() {
     super(...arguments), this.apiUrl = "", this.artifacts = [], this.distExists = !1, this.loading = !0, this.error = "", this.building = !1, this.confirmBuild = !1, this.buildSuccess = "";
   }
   connectedCallback() {
-    super.connectedCallback(), this.api = new Y(this.apiUrl), this.reload();
+    super.connectedCallback(), this.api = new te(this.apiUrl), this.reload();
   }
   async reload() {
     this.loading = !0, this.error = "";
     try {
-      const s = await this.api.artifacts();
-      this.artifacts = s.artifacts ?? [], this.distExists = s.exists ?? !1;
-    } catch (s) {
-      this.error = s.message ?? "Failed to load artifacts";
+      const t = await this.api.artifacts();
+      this.artifacts = t.artifacts ?? [], this.distExists = t.exists ?? !1;
+    } catch (t) {
+      this.error = t.message ?? "Failed to load artifacts";
     } finally {
       this.loading = !1;
     }
@@ -991,22 +1280,22 @@ let y = class extends k {
     this.confirmBuild = !1;
   }
   async handleConfirmBuild() {
-    var s;
+    var t;
     this.confirmBuild = !1, this.building = !0, this.error = "", this.buildSuccess = "";
     try {
       const e = await this.api.build();
-      this.buildSuccess = `Build complete — ${((s = e.artifacts) == null ? void 0 : s.length) ?? 0} artifact(s) produced (${e.version})`, await this.reload();
+      this.buildSuccess = `Build complete — ${((t = e.artifacts) == null ? void 0 : t.length) ?? 0} artifact(s) produced (${e.version})`, await this.reload();
     } catch (e) {
       this.error = e.message ?? "Build failed";
     } finally {
       this.building = !1;
     }
   }
-  formatSize(s) {
-    return s < 1024 ? `${s} B` : s < 1024 * 1024 ? `${(s / 1024).toFixed(1)} KB` : `${(s / (1024 * 1024)).toFixed(1)} MB`;
+  formatSize(t) {
+    return t < 1024 ? `${t} B` : t < 1024 * 1024 ? `${(t / 1024).toFixed(1)} KB` : `${(t / (1024 * 1024)).toFixed(1)} MB`;
   }
   render() {
-    return this.loading ? l`<div class="loading">Loading artifacts\u2026</div>` : l`
+    return this.loading ? o`<div class="loading">Loading artifacts\u2026</div>` : o`
       <div class="toolbar">
         <span class="toolbar-info">
           ${this.distExists ? `${this.artifacts.length} file(s) in dist/` : "No dist/ directory"}
@@ -1020,24 +1309,24 @@ let y = class extends k {
         </button>
       </div>
 
-      ${this.confirmBuild ? l`
+      ${this.confirmBuild ? o`
             <div class="confirm">
               <span class="confirm-text">This will run a full build and overwrite dist/. Continue?</span>
               <button class="confirm-yes" @click=${this.handleConfirmBuild}>Build</button>
               <button class="confirm-no" @click=${this.handleCancelBuild}>Cancel</button>
             </div>
-          ` : c}
+          ` : l}
 
-      ${this.error ? l`<div class="error">${this.error}</div>` : c}
-      ${this.buildSuccess ? l`<div class="success">${this.buildSuccess}</div>` : c}
+      ${this.error ? o`<div class="error">${this.error}</div>` : l}
+      ${this.buildSuccess ? o`<div class="success">${this.buildSuccess}</div>` : l}
 
-      ${this.artifacts.length === 0 ? l`<div class="empty">${this.distExists ? "dist/ is empty." : "Run a build to create artifacts."}</div>` : l`
+      ${this.artifacts.length === 0 ? o`<div class="empty">${this.distExists ? "dist/ is empty." : "Run a build to create artifacts."}</div>` : o`
             <div class="list">
               ${this.artifacts.map(
-      (s) => l`
+      (t) => o`
                   <div class="artifact">
-                    <span class="artifact-name">${s.name}</span>
-                    <span class="artifact-size">${this.formatSize(s.size)}</span>
+                    <span class="artifact-name">${t.name}</span>
+                    <span class="artifact-size">${this.formatSize(t.size)}</span>
                   </div>
                 `
     )}
@@ -1046,7 +1335,7 @@ let y = class extends k {
     `;
   }
 };
-y.styles = F`
+_.styles = K`
     :host {
       display: block;
       font-family: system-ui, -apple-system, sans-serif;
@@ -1061,13 +1350,13 @@ y.styles = F`
 
     .toolbar-info {
       font-size: 0.8125rem;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     button.build {
       padding: 0.5rem 1.25rem;
       background: #6366f1;
-      colour: #fff;
+      color: #fff;
       border: none;
       border-radius: 0.375rem;
       font-size: 0.875rem;
@@ -1099,13 +1388,13 @@ y.styles = F`
 
     .confirm-text {
       flex: 1;
-      colour: #92400e;
+      color: #92400e;
     }
 
     button.confirm-yes {
       padding: 0.375rem 1rem;
       background: #dc2626;
-      colour: #fff;
+      color: #fff;
       border: none;
       border-radius: 0.375rem;
       font-size: 0.8125rem;
@@ -1145,29 +1434,29 @@ y.styles = F`
       font-size: 0.875rem;
       font-family: monospace;
       font-weight: 500;
-      colour: #111827;
+      color: #111827;
     }
 
     .artifact-size {
       font-size: 0.75rem;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     .empty {
       text-align: center;
       padding: 2rem;
-      colour: #9ca3af;
+      color: #9ca3af;
       font-size: 0.875rem;
     }
 
     .loading {
       text-align: center;
       padding: 2rem;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     .error {
-      colour: #dc2626;
+      color: #dc2626;
       padding: 0.75rem;
       background: #fef2f2;
       border-radius: 0.375rem;
@@ -1181,59 +1470,59 @@ y.styles = F`
       border: 1px solid #bbf7d0;
       border-radius: 0.375rem;
       font-size: 0.875rem;
-      colour: #166534;
+      color: #166534;
       margin-bottom: 1rem;
     }
   `;
-x([
-  D({ attribute: "api-url" })
-], y.prototype, "apiUrl", 2);
-x([
-  f()
-], y.prototype, "artifacts", 2);
-x([
-  f()
-], y.prototype, "distExists", 2);
-x([
-  f()
-], y.prototype, "loading", 2);
-x([
-  f()
-], y.prototype, "error", 2);
-x([
-  f()
-], y.prototype, "building", 2);
-x([
-  f()
-], y.prototype, "confirmBuild", 2);
-x([
-  f()
-], y.prototype, "buildSuccess", 2);
-y = x([
-  K("core-build-artifacts")
-], y);
-var Xe = Object.defineProperty, Ye = Object.getOwnPropertyDescriptor, v = (s, e, t, r) => {
-  for (var i = r > 1 ? void 0 : r ? Ye(e, t) : e, o = s.length - 1, a; o >= 0; o--)
-    (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
-  return r && i && Xe(e, t, i), i;
+S([
+  z({ attribute: "api-url" })
+], _.prototype, "apiUrl", 2);
+S([
+  p()
+], _.prototype, "artifacts", 2);
+S([
+  p()
+], _.prototype, "distExists", 2);
+S([
+  p()
+], _.prototype, "loading", 2);
+S([
+  p()
+], _.prototype, "error", 2);
+S([
+  p()
+], _.prototype, "building", 2);
+S([
+  p()
+], _.prototype, "confirmBuild", 2);
+S([
+  p()
+], _.prototype, "buildSuccess", 2);
+_ = S([
+  Z("core-build-artifacts")
+], _);
+var tt = Object.defineProperty, st = Object.getOwnPropertyDescriptor, y = (t, e, s, a) => {
+  for (var i = a > 1 ? void 0 : a ? st(e, s) : e, r = t.length - 1, n; r >= 0; r--)
+    (n = t[r]) && (i = (a ? n(e, s, i) : n(i)) || i);
+  return a && i && tt(e, s, i), i;
 };
-let g = class extends k {
+let m = class extends A {
   constructor() {
     super(...arguments), this.apiUrl = "", this.version = "", this.changelog = "", this.loading = !0, this.error = "", this.releasing = !1, this.confirmRelease = !1, this.releaseSuccess = "", this.workflowPath = ".github/workflows/release.yml", this.workflowOutputPath = "", this.generatingWorkflow = !1, this.workflowSuccess = "";
   }
   connectedCallback() {
-    super.connectedCallback(), this.api = new Y(this.apiUrl), this.reload();
+    super.connectedCallback(), this.api = new te(this.apiUrl), this.reload();
   }
   async reload() {
     this.loading = !0, this.error = "";
     try {
-      const [s, e] = await Promise.all([
+      const [t, e] = await Promise.all([
         this.api.version(),
         this.api.changelog()
       ]);
-      this.version = s.version ?? "", this.changelog = e.changelog ?? "";
-    } catch (s) {
-      this.error = s.message ?? "Failed to load release information";
+      this.version = t.version ?? "", this.changelog = e.changelog ?? "";
+    } catch (t) {
+      this.error = t.message ?? "Failed to load release information";
     } finally {
       this.loading = !1;
     }
@@ -1241,23 +1530,23 @@ let g = class extends k {
   handleReleaseClick() {
     this.confirmRelease = !0, this.releaseSuccess = "";
   }
-  handleWorkflowPathInput(s) {
-    const e = s.target;
+  handleWorkflowPathInput(t) {
+    const e = t.target;
     this.workflowPath = (e == null ? void 0 : e.value) ?? "";
   }
-  handleWorkflowOutputPathInput(s) {
-    const e = s.target;
+  handleWorkflowOutputPathInput(t) {
+    const e = t.target;
     this.workflowOutputPath = (e == null ? void 0 : e.value) ?? "";
   }
   async handleGenerateWorkflow() {
     this.generatingWorkflow = !0, this.error = "", this.workflowSuccess = "";
     try {
-      const s = {}, e = this.workflowPath.trim(), t = this.workflowOutputPath.trim();
-      e && (s.path = e), e && (s.workflowPath = e, s.workflow_path = e, s["workflow-path"] = e), t && (s.outputPath = t), t && (s["output-path"] = t, s.output_path = t, s.output = t, s.workflowOutputPath = t, s.workflow_output = t, s["workflow-output"] = t, s.workflow_output_path = t, s["workflow-output-path"] = t);
-      const i = (await this.api.releaseWorkflow(s)).path ?? t ?? e ?? ".github/workflows/release.yml";
+      const t = {}, e = this.workflowPath.trim(), s = this.workflowOutputPath.trim();
+      e && (t.path = e), e && (t.workflowPath = e, t.workflow_path = e, t["workflow-path"] = e), s && (t.outputPath = s), s && (t["output-path"] = s, t.output_path = s, t.output = s, t.workflowOutputPath = s, t.workflow_output = s, t["workflow-output"] = s, t.workflow_output_path = s, t["workflow-output-path"] = s);
+      const i = (await this.api.releaseWorkflow(t)).path ?? s ?? e ?? ".github/workflows/release.yml";
       this.workflowSuccess = `Workflow generated at ${i}`;
-    } catch (s) {
-      this.error = s.message ?? "Failed to generate release workflow";
+    } catch (t) {
+      this.error = t.message ?? "Failed to generate release workflow";
     } finally {
       this.generatingWorkflow = !1;
     }
@@ -1271,23 +1560,23 @@ let g = class extends k {
   async handleDryRun() {
     await this.doRelease(!0);
   }
-  async doRelease(s) {
+  async doRelease(t) {
     var e;
     this.releasing = !0, this.error = "", this.releaseSuccess = "";
     try {
-      const t = await this.api.release(s), r = s ? "Dry run complete" : "Release published";
-      this.releaseSuccess = `${r} — ${t.version} (${((e = t.artifacts) == null ? void 0 : e.length) ?? 0} artifact(s))`, await this.reload();
-    } catch (t) {
-      this.error = t.message ?? "Release failed";
+      const s = await this.api.release(t), a = t ? "Dry run complete" : "Release published";
+      this.releaseSuccess = `${a} — ${s.version} (${((e = s.artifacts) == null ? void 0 : e.length) ?? 0} artifact(s))`, await this.reload();
+    } catch (s) {
+      this.error = s.message ?? "Release failed";
     } finally {
       this.releasing = !1;
     }
   }
   render() {
-    return this.loading ? l`<div class="loading">Loading release information\u2026</div>` : l`
-      ${this.error ? l`<div class="error">${this.error}</div>` : c}
-      ${this.releaseSuccess ? l`<div class="success">${this.releaseSuccess}</div>` : c}
-      ${this.workflowSuccess ? l`<div class="success">${this.workflowSuccess}</div>` : c}
+    return this.loading ? o`<div class="loading">Loading release information\u2026</div>` : o`
+      ${this.error ? o`<div class="error">${this.error}</div>` : l}
+      ${this.releaseSuccess ? o`<div class="success">${this.releaseSuccess}</div>` : l}
+      ${this.workflowSuccess ? o`<div class="success">${this.workflowSuccess}</div>` : l}
 
       <div class="version-bar">
         <div>
@@ -1349,24 +1638,24 @@ let g = class extends k {
         </div>
       </div>
 
-      ${this.confirmRelease ? l`
+      ${this.confirmRelease ? o`
             <div class="confirm">
               <span class="confirm-text">This will publish ${this.version} to all configured targets. This action cannot be undone. Continue?</span>
               <button class="confirm-yes" @click=${this.handleConfirmRelease}>Publish</button>
               <button class="confirm-no" @click=${this.handleCancelRelease}>Cancel</button>
             </div>
-          ` : c}
+          ` : l}
 
-      ${this.changelog ? l`
+      ${this.changelog ? o`
             <div class="changelog-section">
               <div class="changelog-header">Changelog</div>
               <div class="changelog-content">${this.changelog}</div>
             </div>
-          ` : l`<div class="empty">No changelog available.</div>`}
+          ` : o`<div class="empty">No changelog available.</div>`}
     `;
   }
 };
-g.styles = F`
+m.styles = K`
     :host {
       display: block;
       font-family: system-ui, -apple-system, sans-serif;
@@ -1613,56 +1902,56 @@ g.styles = F`
       margin-bottom: 1rem;
     }
   `;
-v([
-  D({ attribute: "api-url" })
-], g.prototype, "apiUrl", 2);
-v([
-  f()
-], g.prototype, "version", 2);
-v([
-  f()
-], g.prototype, "changelog", 2);
-v([
-  f()
-], g.prototype, "loading", 2);
-v([
-  f()
-], g.prototype, "error", 2);
-v([
-  f()
-], g.prototype, "releasing", 2);
-v([
-  f()
-], g.prototype, "confirmRelease", 2);
-v([
-  f()
-], g.prototype, "releaseSuccess", 2);
-v([
-  f()
-], g.prototype, "workflowPath", 2);
-v([
-  f()
-], g.prototype, "workflowOutputPath", 2);
-v([
-  f()
-], g.prototype, "generatingWorkflow", 2);
-v([
-  f()
-], g.prototype, "workflowSuccess", 2);
-g = v([
-  K("core-build-release")
-], g);
-var et = Object.defineProperty, tt = Object.getOwnPropertyDescriptor, w = (s, e, t, r) => {
-  for (var i = r > 1 ? void 0 : r ? tt(e, t) : e, o = s.length - 1, a; o >= 0; o--)
-    (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
-  return r && i && et(e, t, i), i;
+y([
+  z({ attribute: "api-url" })
+], m.prototype, "apiUrl", 2);
+y([
+  p()
+], m.prototype, "version", 2);
+y([
+  p()
+], m.prototype, "changelog", 2);
+y([
+  p()
+], m.prototype, "loading", 2);
+y([
+  p()
+], m.prototype, "error", 2);
+y([
+  p()
+], m.prototype, "releasing", 2);
+y([
+  p()
+], m.prototype, "confirmRelease", 2);
+y([
+  p()
+], m.prototype, "releaseSuccess", 2);
+y([
+  p()
+], m.prototype, "workflowPath", 2);
+y([
+  p()
+], m.prototype, "workflowOutputPath", 2);
+y([
+  p()
+], m.prototype, "generatingWorkflow", 2);
+y([
+  p()
+], m.prototype, "workflowSuccess", 2);
+m = y([
+  Z("core-build-release")
+], m);
+var it = Object.defineProperty, at = Object.getOwnPropertyDescriptor, k = (t, e, s, a) => {
+  for (var i = a > 1 ? void 0 : a ? at(e, s) : e, r = t.length - 1, n; r >= 0; r--)
+    (n = t[r]) && (i = (a ? n(e, s, i) : n(i)) || i);
+  return a && i && it(e, s, i), i;
 };
-let b = class extends k {
+let $ = class extends A {
   constructor() {
     super(...arguments), this.apiUrl = "", this.basePath = "", this.revisionPath = "", this.diffResult = null, this.diffing = !1, this.diffError = "", this.selectedLanguage = "", this.generating = !1, this.generateError = "", this.generateSuccess = "";
   }
   connectedCallback() {
-    super.connectedCallback(), this.api = new Y(this.apiUrl);
+    super.connectedCallback(), this.api = new te(this.apiUrl);
   }
   async reload() {
     this.diffResult = null, this.diffError = "", this.generateError = "", this.generateSuccess = "";
@@ -1675,8 +1964,8 @@ let b = class extends k {
     this.diffing = !0, this.diffError = "", this.diffResult = null;
     try {
       this.diffResult = await this.api.sdkDiff(this.basePath.trim(), this.revisionPath.trim());
-    } catch (s) {
-      this.diffError = s.message ?? "Diff failed";
+    } catch (t) {
+      this.diffError = t.message ?? "Diff failed";
     } finally {
       this.diffing = !1;
     }
@@ -1686,14 +1975,14 @@ let b = class extends k {
     try {
       const e = (await this.api.sdkGenerate(this.selectedLanguage || void 0)).language || "all languages";
       this.generateSuccess = `SDK generated successfully for ${e}.`;
-    } catch (s) {
-      this.generateError = s.message ?? "Generation failed";
+    } catch (t) {
+      this.generateError = t.message ?? "Generation failed";
     } finally {
       this.generating = !1;
     }
   }
   render() {
-    return l`
+    return o`
       <!-- OpenAPI Diff -->
       <div class="section">
         <div class="section-title">OpenAPI Diff</div>
@@ -1704,7 +1993,7 @@ let b = class extends k {
               type="text"
               placeholder="path/to/base.yaml"
               .value=${this.basePath}
-              @input=${(s) => this.basePath = s.target.value}
+              @input=${(t) => this.basePath = t.target.value}
             />
           </div>
           <div class="diff-field">
@@ -1713,7 +2002,7 @@ let b = class extends k {
               type="text"
               placeholder="path/to/revision.yaml"
               .value=${this.revisionPath}
-              @input=${(s) => this.revisionPath = s.target.value}
+              @input=${(t) => this.revisionPath = t.target.value}
             />
           </div>
           <button
@@ -1725,33 +2014,33 @@ let b = class extends k {
           </button>
         </div>
 
-        ${this.diffError ? l`<div class="error">${this.diffError}</div>` : c}
+        ${this.diffError ? o`<div class="error">${this.diffError}</div>` : l}
 
-        ${this.diffResult ? l`
+        ${this.diffResult ? o`
               <div class="diff-result ${this.diffResult.Breaking ? "breaking" : "safe"}">
                 <div class="diff-summary">${this.diffResult.Summary}</div>
-                ${this.diffResult.Changes && this.diffResult.Changes.length > 0 ? l`
+                ${this.diffResult.Changes && this.diffResult.Changes.length > 0 ? o`
                       <ul class="diff-changes">
                         ${this.diffResult.Changes.map(
-      (s) => l`<li>${s}</li>`
+      (t) => o`<li>${t}</li>`
     )}
                       </ul>
-                    ` : c}
+                    ` : l}
               </div>
-            ` : c}
+            ` : l}
       </div>
 
       <!-- SDK Generation -->
       <div class="section">
         <div class="section-title">SDK Generation</div>
 
-        ${this.generateError ? l`<div class="error">${this.generateError}</div>` : c}
-        ${this.generateSuccess ? l`<div class="success">${this.generateSuccess}</div>` : c}
+        ${this.generateError ? o`<div class="error">${this.generateError}</div>` : l}
+        ${this.generateSuccess ? o`<div class="success">${this.generateSuccess}</div>` : l}
 
         <div class="generate-form">
           <select
             .value=${this.selectedLanguage}
-            @change=${(s) => this.selectedLanguage = s.target.value}
+            @change=${(t) => this.selectedLanguage = t.target.value}
           >
             <option value="">All languages</option>
             <option value="typescript">TypeScript</option>
@@ -1771,7 +2060,7 @@ let b = class extends k {
     `;
   }
 };
-b.styles = F`
+$.styles = K`
     :host {
       display: block;
       font-family: system-ui, -apple-system, sans-serif;
@@ -1788,7 +2077,7 @@ b.styles = F`
     .section-title {
       font-size: 0.75rem;
       font-weight: 700;
-      colour: #6b7280;
+      color: #6b7280;
       text-transform: uppercase;
       letter-spacing: 0.025em;
       margin-bottom: 0.75rem;
@@ -1811,7 +2100,7 @@ b.styles = F`
     .diff-field label {
       font-size: 0.75rem;
       font-weight: 500;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     .diff-field input {
@@ -1824,7 +2113,7 @@ b.styles = F`
 
     .diff-field input:focus {
       outline: none;
-      border-colour: #6366f1;
+      border-color: #6366f1;
       box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
     }
 
@@ -1838,7 +2127,7 @@ b.styles = F`
 
     button.primary {
       background: #6366f1;
-      colour: #fff;
+      color: #fff;
       border: none;
     }
 
@@ -1853,7 +2142,7 @@ b.styles = F`
 
     button.secondary {
       background: #fff;
-      colour: #374151;
+      color: #374151;
       border: 1px solid #d1d5db;
     }
 
@@ -1871,13 +2160,13 @@ b.styles = F`
     .diff-result.breaking {
       background: #fef2f2;
       border: 1px solid #fecaca;
-      colour: #991b1b;
+      color: #991b1b;
     }
 
     .diff-result.safe {
       background: #f0fdf4;
       border: 1px solid #bbf7d0;
-      colour: #166534;
+      color: #166534;
     }
 
     .diff-summary {
@@ -1914,12 +2203,12 @@ b.styles = F`
     .empty {
       text-align: center;
       padding: 2rem;
-      colour: #9ca3af;
+      color: #9ca3af;
       font-size: 0.875rem;
     }
 
     .error {
-      colour: #dc2626;
+      color: #dc2626;
       padding: 0.75rem;
       background: #fef2f2;
       border-radius: 0.375rem;
@@ -1933,56 +2222,56 @@ b.styles = F`
       border: 1px solid #bbf7d0;
       border-radius: 0.375rem;
       font-size: 0.875rem;
-      colour: #166534;
+      color: #166534;
       margin-bottom: 1rem;
     }
 
     .loading {
       text-align: center;
       padding: 1rem;
-      colour: #6b7280;
+      color: #6b7280;
       font-size: 0.875rem;
     }
   `;
-w([
-  D({ attribute: "api-url" })
-], b.prototype, "apiUrl", 2);
-w([
-  f()
-], b.prototype, "basePath", 2);
-w([
-  f()
-], b.prototype, "revisionPath", 2);
-w([
-  f()
-], b.prototype, "diffResult", 2);
-w([
-  f()
-], b.prototype, "diffing", 2);
-w([
-  f()
-], b.prototype, "diffError", 2);
-w([
-  f()
-], b.prototype, "selectedLanguage", 2);
-w([
-  f()
-], b.prototype, "generating", 2);
-w([
-  f()
-], b.prototype, "generateError", 2);
-w([
-  f()
-], b.prototype, "generateSuccess", 2);
-b = w([
-  K("core-build-sdk")
-], b);
-var st = Object.defineProperty, it = Object.getOwnPropertyDescriptor, H = (s, e, t, r) => {
-  for (var i = r > 1 ? void 0 : r ? it(e, t) : e, o = s.length - 1, a; o >= 0; o--)
-    (a = s[o]) && (i = (r ? a(e, t, i) : a(i)) || i);
-  return r && i && st(e, t, i), i;
+k([
+  z({ attribute: "api-url" })
+], $.prototype, "apiUrl", 2);
+k([
+  p()
+], $.prototype, "basePath", 2);
+k([
+  p()
+], $.prototype, "revisionPath", 2);
+k([
+  p()
+], $.prototype, "diffResult", 2);
+k([
+  p()
+], $.prototype, "diffing", 2);
+k([
+  p()
+], $.prototype, "diffError", 2);
+k([
+  p()
+], $.prototype, "selectedLanguage", 2);
+k([
+  p()
+], $.prototype, "generating", 2);
+k([
+  p()
+], $.prototype, "generateError", 2);
+k([
+  p()
+], $.prototype, "generateSuccess", 2);
+$ = k([
+  Z("core-build-sdk")
+], $);
+var rt = Object.defineProperty, nt = Object.getOwnPropertyDescriptor, H = (t, e, s, a) => {
+  for (var i = a > 1 ? void 0 : a ? nt(e, s) : e, r = t.length - 1, n; r >= 0; r--)
+    (n = t[r]) && (i = (a ? n(e, s, i) : n(i)) || i);
+  return a && i && rt(e, s, i), i;
 };
-let E = class extends k {
+let O = class extends A {
   constructor() {
     super(...arguments), this.apiUrl = "", this.wsUrl = "", this.activeTab = "config", this.wsConnected = !1, this.lastEvent = "", this.ws = null, this.tabs = [
       { id: "config", label: "Config" },
@@ -1998,42 +2287,42 @@ let E = class extends k {
     super.disconnectedCallback(), this.ws && (this.ws.close(), this.ws = null);
   }
   connectWs() {
-    this.ws = Ve(this.wsUrl, (s) => {
-      this.lastEvent = s.channel ?? s.type ?? "", this.requestUpdate();
+    this.ws = Ze(this.wsUrl, (t) => {
+      this.lastEvent = t.channel ?? t.type ?? "", this.requestUpdate();
     }), this.ws.onopen = () => {
       this.wsConnected = !0;
     }, this.ws.onclose = () => {
       this.wsConnected = !1;
     };
   }
-  handleTabClick(s) {
-    this.activeTab = s;
+  handleTabClick(t) {
+    this.activeTab = t;
   }
   handleRefresh() {
     var e;
-    const s = (e = this.shadowRoot) == null ? void 0 : e.querySelector(".content");
-    if (s) {
-      const t = s.firstElementChild;
-      t && "reload" in t && t.reload();
+    const t = (e = this.shadowRoot) == null ? void 0 : e.querySelector(".content");
+    if (t) {
+      const s = t.firstElementChild;
+      s && "reload" in s && s.reload();
     }
   }
   renderContent() {
     switch (this.activeTab) {
       case "config":
-        return l`<core-build-config api-url=${this.apiUrl}></core-build-config>`;
+        return o`<core-build-config api-url=${this.apiUrl}></core-build-config>`;
       case "build":
-        return l`<core-build-artifacts api-url=${this.apiUrl}></core-build-artifacts>`;
+        return o`<core-build-artifacts api-url=${this.apiUrl}></core-build-artifacts>`;
       case "release":
-        return l`<core-build-release api-url=${this.apiUrl}></core-build-release>`;
+        return o`<core-build-release api-url=${this.apiUrl}></core-build-release>`;
       case "sdk":
-        return l`<core-build-sdk api-url=${this.apiUrl}></core-build-sdk>`;
+        return o`<core-build-sdk api-url=${this.apiUrl}></core-build-sdk>`;
       default:
-        return c;
+        return l;
     }
   }
   render() {
-    const s = this.wsUrl ? this.wsConnected ? "connected" : "disconnected" : "idle";
-    return l`
+    const t = this.wsUrl ? this.wsConnected ? "connected" : "disconnected" : "idle";
+    return o`
       <div class="header">
         <span class="title">Build</span>
         <button class="refresh-btn" @click=${this.handleRefresh}>Refresh</button>
@@ -2041,7 +2330,7 @@ let E = class extends k {
 
       <div class="tabs">
         ${this.tabs.map(
-      (e) => l`
+      (e) => o`
             <button
               class="tab ${this.activeTab === e.id ? "active" : ""}"
               @click=${() => this.handleTabClick(e.id)}
@@ -2056,15 +2345,15 @@ let E = class extends k {
 
       <div class="footer">
         <div class="ws-status">
-          <span class="ws-dot ${s}"></span>
-          <span>${s === "connected" ? "Connected" : s === "disconnected" ? "Disconnected" : "No WebSocket"}</span>
+          <span class="ws-dot ${t}"></span>
+          <span>${t === "connected" ? "Connected" : t === "disconnected" ? "Disconnected" : "No WebSocket"}</span>
         </div>
-        ${this.lastEvent ? l`<span>Last: ${this.lastEvent}</span>` : c}
+        ${this.lastEvent ? o`<span>Last: ${this.lastEvent}</span>` : l}
       </div>
     `;
   }
 };
-E.styles = F`
+O.styles = K`
     :host {
       display: flex;
       flex-direction: column;
@@ -2086,7 +2375,7 @@ E.styles = F`
     .title {
       font-weight: 700;
       font-size: 1rem;
-      colour: #111827;
+      color: #111827;
     }
 
     .refresh-btn {
@@ -2116,7 +2405,7 @@ E.styles = F`
       padding: 0.625rem 1rem;
       font-size: 0.8125rem;
       font-weight: 500;
-      colour: #6b7280;
+      color: #6b7280;
       cursor: pointer;
       border-bottom: 2px solid transparent;
       transition: all 0.15s;
@@ -2127,12 +2416,12 @@ E.styles = F`
     }
 
     .tab:hover {
-      colour: #374151;
+      color: #374151;
     }
 
     .tab.active {
-      colour: #6366f1;
-      border-bottom-colour: #6366f1;
+      color: #6366f1;
+      border-bottom-color: #6366f1;
     }
 
     /* C — Content */
@@ -2151,7 +2440,7 @@ E.styles = F`
       background: #fff;
       border-top: 1px solid #e5e7eb;
       font-size: 0.75rem;
-      colour: #9ca3af;
+      color: #9ca3af;
     }
 
     .ws-status {
@@ -2179,29 +2468,29 @@ E.styles = F`
     }
   `;
 H([
-  D({ attribute: "api-url" })
-], E.prototype, "apiUrl", 2);
+  z({ attribute: "api-url" })
+], O.prototype, "apiUrl", 2);
 H([
-  D({ attribute: "ws-url" })
-], E.prototype, "wsUrl", 2);
+  z({ attribute: "ws-url" })
+], O.prototype, "wsUrl", 2);
 H([
-  f()
-], E.prototype, "activeTab", 2);
+  p()
+], O.prototype, "activeTab", 2);
 H([
-  f()
-], E.prototype, "wsConnected", 2);
+  p()
+], O.prototype, "wsConnected", 2);
 H([
-  f()
-], E.prototype, "lastEvent", 2);
-E = H([
-  K("core-build-panel")
-], E);
+  p()
+], O.prototype, "lastEvent", 2);
+O = H([
+  Z("core-build-panel")
+], O);
 export {
-  Y as BuildApi,
-  y as BuildArtifacts,
-  P as BuildConfig,
-  E as BuildPanel,
-  g as BuildRelease,
-  b as BuildSdk,
-  Ve as connectBuildEvents
+  te as BuildApi,
+  _ as BuildArtifacts,
+  E as BuildConfig,
+  O as BuildPanel,
+  m as BuildRelease,
+  $ as BuildSdk,
+  Ze as connectBuildEvents
 };

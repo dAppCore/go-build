@@ -4,10 +4,12 @@ package release
 import (
 	"iter"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
-	"gopkg.in/yaml.v3"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+	"gopkg.in/yaml.v3" // Note: AX-6 — no core YAMLUnmarshal yet.
 )
 
 // ConfigFileName is the name of the release configuration file.
@@ -36,10 +38,14 @@ type Config struct {
 	Changelog ChangelogConfig `yaml:"changelog"`
 	// SDK configures SDK generation.
 	SDK *SDKConfig `yaml:"sdk,omitempty"`
+	// Checksum configures checksum generation for release artifacts.
+	Checksum ChecksumConfig `yaml:"checksum,omitempty"`
 
 	// Internal fields (not serialized)
 	projectDir string // Set by LoadConfig
 	version    string // Set by CLI flag
+	output     coreio.Medium
+	outputDir  string
 }
 
 // ProjectConfig holds project metadata for releases.
@@ -61,6 +67,14 @@ type BuildConfig struct {
 	// ArchiveFormat selects the archive compression format for build outputs.
 	// Supported values are "gz", "xz", and "zip"; empty uses gzip.
 	ArchiveFormat string `yaml:"archive_format,omitempty"`
+}
+
+// ChecksumConfig controls release checksum generation.
+type ChecksumConfig struct {
+	// Algorithm selects the checksum algorithm. Currently sha256 is supported.
+	Algorithm string `yaml:"algorithm,omitempty"`
+	// File is the checksum file path relative to dist/ unless absolute.
+	File string `yaml:"file,omitempty"`
 }
 
 // TargetConfig defines a build target.
@@ -146,49 +160,29 @@ type OfficialConfig struct {
 // SDKConfig holds SDK generation configuration.
 //
 // cfg.SDK = &release.SDKConfig{Spec: "docs/openapi.yaml", Languages: []string{"typescript", "go"}}
-type SDKConfig struct {
-	// Spec is the path to the OpenAPI spec file.
-	Spec string `yaml:"spec,omitempty"`
-	// Languages to generate.
-	Languages []string `yaml:"languages,omitempty"`
-	// Output directory (default: sdk/).
-	Output string `yaml:"output,omitempty"`
-	// Package naming.
-	Package SDKPackageConfig `yaml:"package,omitempty"`
-	// Diff configuration.
-	Diff SDKDiffConfig `yaml:"diff,omitempty"`
-	// Publish configuration.
-	Publish SDKPublishConfig `yaml:"publish,omitempty"`
-}
+type SDKConfig = sdk.Config
 
 // SDKPackageConfig holds package naming configuration.
 //
 // cfg.SDK.Package = release.SDKPackageConfig{Name: "@host-uk/api-client", Version: "1.0.0"}
-type SDKPackageConfig struct {
-	Name    string `yaml:"name,omitempty"`
-	Version string `yaml:"version,omitempty"`
-}
+type SDKPackageConfig = sdk.PackageConfig
 
 // SDKDiffConfig holds diff configuration.
 //
 // cfg.SDK.Diff = release.SDKDiffConfig{Enabled: true, FailOnBreaking: true}
-type SDKDiffConfig struct {
-	Enabled        bool `yaml:"enabled,omitempty"`
-	FailOnBreaking bool `yaml:"fail_on_breaking,omitempty"`
-}
+type SDKDiffConfig = sdk.DiffConfig
 
 // SDKPublishConfig holds monorepo publish configuration.
 //
 // cfg.SDK.Publish = release.SDKPublishConfig{Repo: "host-uk/ts", Path: "packages/api-client"}
-type SDKPublishConfig struct {
-	Repo string `yaml:"repo,omitempty"`
-	Path string `yaml:"path,omitempty"`
-}
+type SDKPublishConfig = sdk.PublishConfig
 
 // ChangelogConfig holds changelog generation settings.
 //
 // cfg.Changelog = release.ChangelogConfig{Include: []string{"feat", "fix"}, Exclude: []string{"chore"}}
 type ChangelogConfig struct {
+	// Use selects the changelog strategy. Conventional commits are the default.
+	Use string `yaml:"use,omitempty"`
 	// Include specifies commit types to include in the changelog.
 	Include []string `yaml:"include"`
 	// Exclude specifies commit types to exclude from the changelog.
@@ -200,6 +194,9 @@ type ChangelogConfig struct {
 // for p := range cfg.PublishersIter() { fmt.Println(p.Type) }
 func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 	return func(yield func(PublisherConfig) bool) {
+		if c == nil {
+			return
+		}
 		for _, p := range c.Publishers {
 			if !yield(p) {
 				return
@@ -214,33 +211,53 @@ func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 //
 // cfg, err := release.LoadConfig(".")
 func LoadConfig(dir string) (*Config, error) {
-	configPath := ax.Join(dir, ConfigDir, ConfigFileName)
+	return LoadConfigWithMedium(coreio.Local, dir)
+}
 
-	// Resolve path with AX-aware helpers.
-	absPath, err := ax.Abs(configPath)
+// LoadConfigWithMedium loads release configuration from the provided medium.
+// This mirrors build config loading so callers that virtualise project files
+// via io.Medium can still resolve release settings consistently.
+//
+// cfg, err := release.LoadConfigWithMedium(io.NewMemoryMedium(), "project")
+func LoadConfigWithMedium(filesystem coreio.Medium, dir string) (*Config, error) {
+	cfg, err := LoadConfigAtPath(filesystem, ConfigPath(dir))
 	if err != nil {
-		return nil, coreerr.E("release.LoadConfig", "failed to resolve path", err)
+		return nil, err
 	}
 
-	content, err := ax.ReadFile(absPath)
+	cfg.projectDir = dir
+	return cfg, nil
+}
+
+// LoadConfigAtPath loads release configuration from an explicit path in the
+// provided medium. If the path does not point to a file, it returns
+// DefaultConfig().
+//
+// cfg, err := release.LoadConfigAtPath(io.Local, "/tmp/project/.core/release.yaml")
+func LoadConfigAtPath(filesystem coreio.Medium, configPath string) (*Config, error) {
+	if filesystem == nil {
+		filesystem = coreio.Local
+	}
+
+	content, err := filesystem.Read(configPath)
 	if err != nil {
-		if !ax.IsFile(absPath) {
-			cfg := DefaultConfig()
-			cfg.projectDir = dir
-			return cfg, nil
+		if !filesystem.IsFile(configPath) {
+			return DefaultConfig(), nil
 		}
-		return nil, coreerr.E("release.LoadConfig", "failed to read config file", err)
+		return nil, coreerr.E("release.LoadConfigAtPath", "failed to read config file", err)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal([]byte(content), &cfg); err != nil {
-		return nil, coreerr.E("release.LoadConfig", "failed to parse config file", err)
+		return nil, coreerr.E("release.LoadConfigAtPath", "failed to parse config file", err)
 	}
 
-	// Apply defaults for any missing fields
+	// Apply defaults for any missing fields.
 	applyDefaults(&cfg)
 	cfg.ExpandEnv()
-	cfg.projectDir = dir
+	if cfg.SDK != nil {
+		cfg.SDK.ApplyDefaults()
+	}
 
 	return &cfg, nil
 }
@@ -256,12 +273,7 @@ func DefaultConfig() *Config {
 			Repository: "",
 		},
 		Build: BuildConfig{
-			Targets: []TargetConfig{
-				{OS: "linux", Arch: "amd64"},
-				{OS: "linux", Arch: "arm64"},
-				{OS: "darwin", Arch: "arm64"},
-				{OS: "windows", Arch: "amd64"},
-			},
+			Targets: defaultTargetConfigs(),
 		},
 		Publishers: []PublisherConfig{
 			{
@@ -271,8 +283,13 @@ func DefaultConfig() *Config {
 			},
 		},
 		Changelog: ChangelogConfig{
+			Use:     "conventional",
 			Include: []string{"feat", "fix", "perf", "refactor"},
 			Exclude: []string{"chore", "docs", "style", "test", "ci"},
+		},
+		Checksum: ChecksumConfig{
+			Algorithm: "sha256",
+			File:      defaultChecksumFileName,
 		},
 	}
 }
@@ -302,17 +319,24 @@ func applyDefaults(cfg *Config) {
 		cfg.Version = defaults.Version
 	}
 
-	if len(cfg.Build.Targets) == 0 {
-		cfg.Build.Targets = defaults.Build.Targets
-	}
-
 	if len(cfg.Publishers) == 0 {
 		cfg.Publishers = defaults.Publishers
+	}
+
+	if cfg.Changelog.Use == "" {
+		cfg.Changelog.Use = defaults.Changelog.Use
 	}
 
 	if len(cfg.Changelog.Include) == 0 && len(cfg.Changelog.Exclude) == 0 {
 		cfg.Changelog.Include = defaults.Changelog.Include
 		cfg.Changelog.Exclude = defaults.Changelog.Exclude
+	}
+
+	if cfg.Checksum.Algorithm == "" {
+		cfg.Checksum.Algorithm = defaults.Checksum.Algorithm
+	}
+	if cfg.Checksum.File == "" {
+		cfg.Checksum.File = defaults.Checksum.File
 	}
 }
 
@@ -332,11 +356,15 @@ func (c *Config) ExpandEnv() {
 
 	c.Publishers = expandPublisherConfigs(c.Publishers)
 
+	c.Changelog.Use = expandEnv(c.Changelog.Use)
 	c.Changelog.Include = expandEnvSlice(c.Changelog.Include)
 	c.Changelog.Exclude = expandEnvSlice(c.Changelog.Exclude)
+	c.Checksum.Algorithm = expandEnv(c.Checksum.Algorithm)
+	c.Checksum.File = expandEnv(c.Checksum.File)
 
 	if c.SDK != nil {
 		c.SDK.Spec = expandEnv(c.SDK.Spec)
+		c.SDK.Languages = expandEnvSlice(c.SDK.Languages)
 		c.SDK.Output = expandEnv(c.SDK.Output)
 		c.SDK.Package.Name = expandEnv(c.SDK.Package.Name)
 		c.SDK.Package.Version = expandEnv(c.SDK.Package.Version)
@@ -345,10 +373,23 @@ func (c *Config) ExpandEnv() {
 	}
 }
 
+func defaultTargetConfigs() []TargetConfig {
+	return []TargetConfig{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "linux", Arch: "arm64"},
+		{OS: "darwin", Arch: "amd64"},
+		{OS: "darwin", Arch: "arm64"},
+		{OS: "windows", Arch: "amd64"},
+	}
+}
+
 // SetProjectDir sets the project directory on the config.
 //
 // cfg.SetProjectDir("/home/user/my-project")
 func (c *Config) SetProjectDir(dir string) {
+	if c == nil {
+		return
+	}
 	c.projectDir = dir
 }
 
@@ -356,7 +397,41 @@ func (c *Config) SetProjectDir(dir string) {
 //
 // cfg.SetVersion("v1.2.3")
 func (c *Config) SetVersion(version string) {
+	if c == nil {
+		return
+	}
 	c.version = version
+}
+
+// SetOutput configures the medium and root used for release artifacts.
+//
+// cfg.SetOutput(io.NewMemoryMedium(), "releases")
+func (c *Config) SetOutput(medium coreio.Medium, dir string) {
+	if c == nil {
+		return
+	}
+	c.output = medium
+	c.outputDir = dir
+}
+
+// SetOutputMedium overrides the medium used for release artifacts.
+//
+// cfg.SetOutputMedium(io.NewMemoryMedium())
+func (c *Config) SetOutputMedium(medium coreio.Medium) {
+	if c == nil {
+		return
+	}
+	c.output = medium
+}
+
+// SetOutputDir overrides the root directory or key prefix used for release artifacts.
+//
+// cfg.SetOutputDir("releases")
+func (c *Config) SetOutputDir(dir string) {
+	if c == nil {
+		return
+	}
+	c.outputDir = dir
 }
 
 func expandPublisherConfigs(publishers []PublisherConfig) []PublisherConfig {
@@ -414,6 +489,9 @@ func ConfigExists(dir string) bool {
 //
 // repo := cfg.GetRepository() // → "host-uk/core-build"
 func (c *Config) GetRepository() string {
+	if c == nil {
+		return ""
+	}
 	return c.Project.Repository
 }
 
@@ -421,6 +499,9 @@ func (c *Config) GetRepository() string {
 //
 // name := cfg.GetProjectName() // → "core-build"
 func (c *Config) GetProjectName() string {
+	if c == nil {
+		return ""
+	}
 	return c.Project.Name
 }
 

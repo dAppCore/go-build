@@ -4,26 +4,82 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/build/internal/ax"
 )
+
+func runReleaseGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	if err := ax.ExecDir(context.Background(), dir, "git", args); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+}
 
 func TestSDK_RunSDKNilConfig_Bad(t *testing.T) {
 	_, err := RunSDK(context.Background(), nil, true)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "config is nil")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(err.Error(), "config is nil") {
+		t.Fatalf("expected %v to contain %v", err.Error(), "config is nil")
+	}
+
 }
 
-func TestSDK_RunSDKNoSDKConfig_Bad(t *testing.T) {
-	cfg := &Config{
-		SDK: nil,
-	}
-	cfg.projectDir = "/tmp"
+func TestSDK_RunSDKNoSDKConfig_FallsBackToDefaults_Good(t *testing.T) {
+	cfg := &Config{}
+	cfg.projectDir = t.TempDir()
+	cfg.version = "v1.0.0"
 
-	_, err := RunSDK(context.Background(), cfg, true)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "sdk not configured")
+	result, err := RunSDK(context.Background(), cfg, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("v1.0.0", result.Version) {
+		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
+	}
+	if !stdlibAssertEqual("sdk", result.Output) {
+		t.Fatalf("want %v, got %v", "sdk", result.Output)
+	}
+	if !stdlibAssertEqual([]string{"typescript", "python", "go", "php"}, result.Languages) {
+		t.Fatalf("want %v, got %v", []string{"typescript", "python", "go", "php"}, result.Languages)
+	}
+
+}
+
+func TestSDK_RunSDKNoSDKConfig_UsesBuildConfig_Good(t *testing.T) {
+	projectDir := t.TempDir()
+	buildConfig := `version: 1
+sdk:
+  spec: api/openapi.yaml
+  languages: [typescript, go]
+  output: generated/sdk
+`
+	if err := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(buildConfig), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := &Config{}
+	cfg.projectDir = projectDir
+	cfg.version = "v2.0.0"
+
+	result, err := RunSDK(context.Background(), cfg, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("v2.0.0", result.Version) {
+		t.Fatalf("want %v, got %v", "v2.0.0", result.Version)
+	}
+	if !stdlibAssertEqual("generated/sdk", result.Output) {
+		t.Fatalf("want %v, got %v", "generated/sdk", result.Output)
+	}
+	if !stdlibAssertEqual([]string{"typescript", "go"}, result.Languages) {
+		t.Fatalf("want %v, got %v", []string{"typescript", "go"}, result.Languages)
+	}
+
 }
 
 func TestSDK_RunSDKDryRun_Good(t *testing.T) {
@@ -37,29 +93,68 @@ func TestSDK_RunSDKDryRun_Good(t *testing.T) {
 	cfg.version = "v1.0.0"
 
 	result, err := RunSDK(context.Background(), cfg, true)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("v1.0.0", result.Version) {
+		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
+	}
+	if len(result.Languages) != 2 {
+		t.Fatalf("want len %v, got %v", 2, len(result.Languages))
+	}
+	if !stdlibAssertContains(result.Languages, "typescript") {
+		t.Fatalf("expected %v to contain %v", result.Languages, "typescript")
+	}
+	if !stdlibAssertContains(result.Languages,
 
-	assert.Equal(t, "v1.0.0", result.Version)
-	assert.Len(t, result.Languages, 2)
-	assert.Contains(t, result.Languages, "typescript")
-	assert.Contains(t, result.Languages, "python")
-	assert.Equal(t, "sdk", result.Output)
+		// Empty output, should default to "sdk"
+		"python") {
+		t.Fatalf("expected %v to contain %v", result.Languages, "python")
+	}
+	if !stdlibAssertEqual("sdk", result.Output) {
+		t.Fatalf("want %v, got %v", "sdk", result.Output)
+	}
+
 }
 
 func TestSDK_RunSDKDryRunDefaultOutput_Good(t *testing.T) {
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"go"},
-			Output:    "", // Empty output, should default to "sdk"
+			Output:    "",
 		},
 	}
 	cfg.projectDir = "/tmp"
 	cfg.version = "v2.0.0"
 
 	result, err := RunSDK(context.Background(), cfg, true)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("sdk", result.Output) {
+		t.Fatalf("want %v, got %v", "sdk", result.Output)
+	}
 
-	assert.Equal(t, "sdk", result.Output)
+}
+
+func TestSDK_RunSDKDryRunDefaultsLanguages_Good(t *testing.T) {
+	cfg := &Config{
+		SDK: &SDKConfig{},
+	}
+	cfg.projectDir = t.TempDir()
+	cfg.version = "v2.0.0"
+
+	result, err := RunSDK(context.Background(), cfg, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("sdk", result.Output) {
+		t.Fatalf("want %v, got %v", "sdk", result.Output)
+	}
+	if !stdlibAssertEqual([]string{"typescript", "python", "go", "php"}, result.Languages) {
+		t.Fatalf("want %v, got %v", []string{"typescript", "python", "go", "php"}, result.Languages)
+	}
+
 }
 
 func TestSDK_RunSDKDryRunDefaultProjectDir_Good(t *testing.T) {
@@ -73,16 +168,22 @@ func TestSDK_RunSDKDryRunDefaultProjectDir_Good(t *testing.T) {
 	cfg.version = "v1.0.0"
 
 	result, err := RunSDK(context.Background(), cfg, true)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("v1.0.0", result.Version) {
+		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
 
-	assert.Equal(t, "v1.0.0", result.Version)
+		// This test verifies that when diff.FailOnBreaking is true and breaking changes
+		// are detected, RunSDK returns an error. However, since we can't easily mock
+		// the diff check, this test verifies the config is correctly processed.
+		// The actual breaking change detection is tested in pkg/sdk/diff_test.go.
+	}
+
 }
 
 func TestSDK_RunSDKBreakingChangesFailOnBreaking_Bad(t *testing.T) {
-	// This test verifies that when diff.FailOnBreaking is true and breaking changes
-	// are detected, RunSDK returns an error. However, since we can't easily mock
-	// the diff check, this test verifies the config is correctly processed.
-	// The actual breaking change detection is tested in pkg/sdk/diff_test.go.
+
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"typescript"},
@@ -99,8 +200,13 @@ func TestSDK_RunSDKBreakingChangesFailOnBreaking_Bad(t *testing.T) {
 	// In dry run mode with no git repo, diff check will fail gracefully
 	// (non-fatal warning), so this should succeed
 	result, err := RunSDK(context.Background(), cfg, true)
-	require.NoError(t, err)
-	assert.Equal(t, "v1.0.0", result.Version)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("v1.0.0", result.Version) {
+		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
+	}
+
 }
 
 func TestSDK_ToSDKConfig_Good(t *testing.T) {
@@ -123,25 +229,48 @@ func TestSDK_ToSDKConfig_Good(t *testing.T) {
 	}
 
 	result := toSDKConfig(sdkCfg)
+	if !stdlibAssertEqual("api/openapi.yaml", result.Spec) {
+		t.Fatalf("want %v, got %v", "api/openapi.yaml", result.Spec)
+	}
+	if !stdlibAssertEqual([]string{"typescript", "go"}, result.Languages) {
+		t.Fatalf("want %v, got %v", []string{"typescript", "go"}, result.Languages)
+	}
+	if !stdlibAssertEqual("sdk", result.Output) {
+		t.Fatalf("want %v, got %v", "sdk", result.Output)
+	}
+	if !stdlibAssertEqual("myapi", result.Package.Name) {
+		t.Fatalf("want %v, got %v", "myapi", result.Package.Name)
+	}
+	if !stdlibAssertEqual("v1.0.0", result.Package.Version) {
+		t.Fatalf("want %v, got %v", "v1.0.0", result.Package.Version)
+	}
+	if !(result.Diff.Enabled) {
+		t.Fatal("expected true")
+	}
+	if !(result.Diff.FailOnBreaking) {
 
-	assert.Equal(t, "api/openapi.yaml", result.Spec)
-	assert.Equal(t, []string{"typescript", "go"}, result.Languages)
-	assert.Equal(t, "sdk", result.Output)
-	assert.Equal(t, "myapi", result.Package.Name)
-	assert.Equal(t, "v1.0.0", result.Package.Version)
-	assert.True(t, result.Diff.Enabled)
-	assert.True(t, result.Diff.FailOnBreaking)
-	assert.Equal(t, "owner/sdk-monorepo", result.Publish.Repo)
-	assert.Equal(t, "packages/api-client", result.Publish.Path)
+		// Tests diff enabled but FailOnBreaking=false (should warn but not fail)
+		t.Fatal("expected true")
+	}
+	if !stdlibAssertEqual("owner/sdk-monorepo", result.Publish.Repo) {
+		t.Fatalf("want %v, got %v", "owner/sdk-monorepo", result.Publish.Repo)
+	}
+	if !stdlibAssertEqual("packages/api-client", result.Publish.Path) {
+		t.Fatalf("want %v, got %v", "packages/api-client", result.Publish.Path)
+	}
+
 }
 
 func TestSDK_ToSDKConfigNilInput_Good(t *testing.T) {
 	result := toSDKConfig(nil)
-	assert.Nil(t, result)
+	if !stdlibAssertNil(result) {
+		t.Fatalf("expected nil, got %v", result)
+	}
+
 }
 
 func TestSDK_RunSDKWithDiffEnabledNoFailOnBreaking_Good(t *testing.T) {
-	// Tests diff enabled but FailOnBreaking=false (should warn but not fail)
+
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"typescript"},
@@ -157,13 +286,23 @@ func TestSDK_RunSDKWithDiffEnabledNoFailOnBreaking_Good(t *testing.T) {
 
 	// Dry run should succeed even without git repo (diff check fails gracefully)
 	result, err := RunSDK(context.Background(), cfg, true)
-	require.NoError(t, err)
-	assert.Equal(t, "v1.0.0", result.Version)
-	assert.Contains(t, result.Languages, "typescript")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("v1.0.0", result.Version) {
+		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
+	}
+	if !stdlibAssertContains(result.Languages,
+
+		// Tests multiple language support
+		"typescript") {
+		t.Fatalf("expected %v to contain %v", result.Languages, "typescript")
+	}
+
 }
 
 func TestSDK_RunSDKMultipleLanguages_Good(t *testing.T) {
-	// Tests multiple language support
+
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"typescript", "python", "go", "java"},
@@ -174,15 +313,26 @@ func TestSDK_RunSDKMultipleLanguages_Good(t *testing.T) {
 	cfg.version = "v3.0.0"
 
 	result, err := RunSDK(context.Background(), cfg, true)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("v3.0.0", result.Version) {
+		t.Fatalf("want %v, got %v", "v3.0.0", result.Version)
+	}
+	if len(result.Languages) != 4 {
+		t.Fatalf("want len %v, got %v", 4, len(result.
 
-	assert.Equal(t, "v3.0.0", result.Version)
-	assert.Len(t, result.Languages, 4)
-	assert.Equal(t, "multi-sdk", result.Output)
+			// Tests that package config is properly handled
+			Languages))
+	}
+	if !stdlibAssertEqual("multi-sdk", result.Output) {
+		t.Fatalf("want %v, got %v", "multi-sdk", result.Output)
+	}
+
 }
 
 func TestSDK_RunSDKWithPackageConfig_Good(t *testing.T) {
-	// Tests that package config is properly handled
+
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Spec:      "openapi.yaml",
@@ -198,12 +348,19 @@ func TestSDK_RunSDKWithPackageConfig_Good(t *testing.T) {
 	cfg.version = "v1.0.0"
 
 	result, err := RunSDK(context.Background(), cfg, true)
-	require.NoError(t, err)
-	assert.Equal(t, "v1.0.0", result.Version)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual("v1.0.0", result.Version) {
+		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
+
+		// Tests conversion with empty package config
+	}
+
 }
 
 func TestSDK_ToSDKConfigEmptyPackageConfig_Good(t *testing.T) {
-	// Tests conversion with empty package config
+
 	sdkCfg := &SDKConfig{
 		Languages: []string{"go"},
 		Output:    "sdk",
@@ -211,15 +368,26 @@ func TestSDK_ToSDKConfigEmptyPackageConfig_Good(t *testing.T) {
 	}
 
 	result := toSDKConfig(sdkCfg)
+	if !stdlibAssertEqual([]string{"go"}, result.Languages) {
+		t.Fatalf("want %v, got %v", []string{"go"}, result.Languages)
+	}
+	if !stdlibAssertEqual("sdk", result.Output) {
+		t.Fatalf("want %v, got %v", "sdk", result.Output)
+	}
+	if !stdlibAssertEmpty(result.Package.
 
-	assert.Equal(t, []string{"go"}, result.Languages)
-	assert.Equal(t, "sdk", result.Output)
-	assert.Empty(t, result.Package.Name)
-	assert.Empty(t, result.Package.Version)
+		// Tests conversion with diff disabled
+		Name) {
+		t.Fatalf("expected empty, got %v", result.Package.Name)
+	}
+	if !stdlibAssertEmpty(result.Package.Version) {
+		t.Fatalf("expected empty, got %v", result.Package.Version)
+	}
+
 }
 
 func TestSDK_ToSDKConfigDiffDisabled_Good(t *testing.T) {
-	// Tests conversion with diff disabled
+
 	sdkCfg := &SDKConfig{
 		Languages: []string{"typescript"},
 		Output:    "sdk",
@@ -230,14 +398,21 @@ func TestSDK_ToSDKConfigDiffDisabled_Good(t *testing.T) {
 	}
 
 	result := toSDKConfig(sdkCfg)
+	if result.Diff.Enabled {
+		t.Fatal("expected false")
+	}
+	if result.Diff.FailOnBreaking {
+		t.Fatal("expected false")
+	}
 
-	assert.False(t, result.Diff.Enabled)
-	assert.False(t, result.Diff.FailOnBreaking)
 }
 
 func TestSDK_ResolveSDKOutputRoot_Good(t *testing.T) {
 	t.Run("uses the default sdk root when no publish path is configured", func(t *testing.T) {
-		assert.Equal(t, "sdk", resolveSDKOutputRoot(&SDKConfig{}))
+		if !stdlibAssertEqual("sdk", resolveSDKOutputRoot(&SDKConfig{})) {
+			t.Fatalf("want %v, got %v", "sdk", resolveSDKOutputRoot(&SDKConfig{}))
+		}
+
 	})
 
 	t.Run("prefixes the configured publish path", func(t *testing.T) {
@@ -247,7 +422,72 @@ func TestSDK_ResolveSDKOutputRoot_Good(t *testing.T) {
 				Path: "packages/api-client",
 			},
 		}
+		if !stdlibAssertEqual(ax.Join("packages/api-client", "generated"), resolveSDKOutputRoot(cfg)) {
+			t.Fatalf("want %v, got %v", ax.Join("packages/api-client", "generated"), resolveSDKOutputRoot(cfg))
+		}
 
-		assert.Equal(t, ax.Join("packages/api-client", "generated"), resolveSDKOutputRoot(cfg))
 	})
+}
+
+func TestSDK_CheckBreakingChanges_UsesPreviousTaggedSpec_Good(t *testing.T) {
+	dir := t.TempDir()
+	runReleaseGit(t, dir, "init")
+	runReleaseGit(t, dir, "config", "user.email", "test@example.com")
+	runReleaseGit(t, dir, "config", "user.name", "Test User")
+
+	baseSpec := `openapi: "3.0.0"
+info:
+  title: Test API
+  version: "1.0.0"
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+  /users:
+    get:
+      operationId: getUsers
+      responses:
+        "200":
+          description: OK
+`
+
+	currentSpec := `openapi: "3.0.0"
+info:
+  title: Test API
+  version: "2.0.0"
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+`
+
+	specPath := ax.Join(dir, "openapi.yaml")
+	if err := ax.WriteFile(specPath, []byte(baseSpec), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	runReleaseGit(t, dir, "add", "openapi.yaml")
+	runReleaseGit(t, dir, "commit", "-m", "feat: add initial spec")
+	runReleaseGit(t, dir, "tag", "v1.0.0")
+	if err := ax.WriteFile(specPath, []byte(currentSpec), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	runReleaseGit(t, dir, "add", "openapi.yaml")
+	runReleaseGit(t, dir, "commit", "-m", "feat: remove users endpoint")
+
+	breaking, err := checkBreakingChanges(context.Background(), dir, &SDKConfig{Spec: "openapi.yaml"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !(breaking) {
+		t.Fatal("expected true")
+	}
+
 }

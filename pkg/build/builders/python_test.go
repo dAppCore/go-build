@@ -6,28 +6,35 @@ import (
 	"runtime"
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/io"
+	"os"
 )
 
 func setupPythonTestProject(t *testing.T) string {
 	t.Helper()
 
 	dir := t.TempDir()
-
-	require.NoError(t, ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("[build-system]\nrequires = []\n"), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(dir, "app.py"), []byte("print('hello')\n"), 0o644))
-	require.NoError(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("demo"), 0o644))
+	if err := ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("[build-system]\nrequires = []\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(dir, "app.py"), []byte("print('hello')\n"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(dir, "README.md"), []byte("demo"), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	return dir
 }
 
 func TestPython_PythonBuilderName_Good(t *testing.T) {
 	builder := NewPythonBuilder()
-	assert.Equal(t, "python", builder.Name())
+	if !stdlibAssertEqual("python", builder.Name()) {
+		t.Fatalf("want %v, got %v", "python", builder.Name())
+	}
+
 }
 
 func TestPython_PythonBuilderDetect_Good(t *testing.T) {
@@ -35,29 +42,48 @@ func TestPython_PythonBuilderDetect_Good(t *testing.T) {
 
 	t.Run("detects pyproject.toml projects", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("{}"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("{}"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewPythonBuilder()
 		detected, err := builder.Detect(fs, dir)
-		require.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("detects requirements.txt projects", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, ax.WriteFile(ax.Join(dir, "requirements.txt"), []byte("requests"), 0o644))
+		if err := ax.WriteFile(ax.Join(dir, "requirements.txt"), []byte("requests"), 0o644); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		builder := NewPythonBuilder()
 		detected, err := builder.Detect(fs, dir)
-		require.NoError(t, err)
-		assert.True(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !(detected) {
+			t.Fatal("expected true")
+		}
+
 	})
 
 	t.Run("returns false for empty directory", func(t *testing.T) {
 		builder := NewPythonBuilder()
 		detected, err := builder.Detect(fs, t.TempDir())
-		require.NoError(t, err)
-		assert.False(t, detected)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detected {
+			t.Fatal("expected false")
+		}
+
 	})
 }
 
@@ -74,16 +100,29 @@ func TestPython_PythonBuilderBuild_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
 
 	artifact := artifacts[0]
-	assert.Equal(t, "linux", artifact.OS)
-	assert.Equal(t, "amd64", artifact.Arch)
-	assert.FileExists(t, artifact.Path)
+	if !stdlibAssertEqual("linux", artifact.OS) {
+		t.Fatalf("want %v, got %v", "linux", artifact.OS)
+	}
+	if !stdlibAssertEqual("amd64", artifact.Arch) {
+		t.Fatalf("want %v, got %v", "amd64", artifact.Arch)
+	}
+	if _, err := os.Stat(artifact.Path); err != nil {
+		t.Fatalf("expected file to exist: %v", artifact.Path)
+	}
 
 	reader, err := zip.OpenReader(artifact.Path)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	defer func() { _ = reader.Close() }()
 
 	var foundPyProject, foundApp bool
@@ -95,9 +134,13 @@ func TestPython_PythonBuilderBuild_Good(t *testing.T) {
 			foundApp = true
 		}
 	}
+	if !(foundPyProject) {
+		t.Fatal("expected true")
+	}
+	if !(foundApp) {
+		t.Fatal("expected true")
+	}
 
-	assert.True(t, foundPyProject)
-	assert.True(t, foundApp)
 }
 
 func TestPython_PythonBuilderBuildDefaults_Good(t *testing.T) {
@@ -112,10 +155,19 @@ func TestPython_PythonBuilderBuildDefaults_Good(t *testing.T) {
 	}
 
 	artifacts, err := builder.Build(context.Background(), cfg, nil)
-	require.NoError(t, err)
-	require.Len(t, artifacts, 1)
-	assert.Equal(t, runtime.GOOS, artifacts[0].OS)
-	assert.Equal(t, runtime.GOARCH, artifacts[0].Arch)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(artifacts))
+	}
+	if !stdlibAssertEqual(runtime.GOOS, artifacts[0].OS) {
+		t.Fatalf("want %v, got %v", runtime.GOOS, artifacts[0].OS)
+	}
+	if !stdlibAssertEqual(runtime.GOARCH, artifacts[0].Arch) {
+		t.Fatalf("want %v, got %v", runtime.GOARCH, artifacts[0].Arch)
+	}
+
 }
 
 func TestPython_PythonBuilderBuildIsDeterministic_Good(t *testing.T) {
@@ -133,18 +185,27 @@ func TestPython_PythonBuilderBuildIsDeterministic_Good(t *testing.T) {
 		}
 
 		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-		require.NoError(t, err)
-		require.Len(t, artifacts, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(artifacts) != 1 {
+			t.Fatalf("want len %v, got %v", 1, len(artifacts))
+		}
 
 		content, err := ax.ReadFile(artifacts[0].Path)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		return content
 	}
 
 	first := buildOnce(t.TempDir())
 	second := buildOnce(t.TempDir())
+	if !stdlibAssertEqual(first, second) {
+		t.Fatalf("want %v, got %v", first, second)
+	}
 
-	assert.Equal(t, first, second)
 }
 
 func TestPython_PythonBuilderInterface_Good(t *testing.T) {

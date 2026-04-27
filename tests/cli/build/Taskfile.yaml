@@ -1,0 +1,174 @@
+version: "3"
+
+tasks:
+  test:
+    desc: Validate AX-10 build CLI binary behaviour.
+    cmds:
+      - |
+          bash <<'EOF'
+          set -euo pipefail
+
+          run_capture_all() {
+            local expected_status="$1"
+            local output_file="$2"
+            shift 2
+
+            set +e
+            "$@" >"$output_file" 2>&1
+            local status=$?
+            set -e
+
+            if [[ "$status" -ne "$expected_status" ]]; then
+              printf 'expected exit %s, got %s\n' "$expected_status" "$status" >&2
+              if [[ -s "$output_file" ]]; then
+                printf 'output:\n' >&2
+                cat "$output_file" >&2
+              fi
+              return 1
+            fi
+          }
+
+          assert_contains() {
+            local needle="$1"
+            local input_file="$2"
+
+            if ! grep -Fq "$needle" "$input_file"; then
+              printf 'expected output to contain %q\n' "$needle" >&2
+              if [[ -s "$input_file" ]]; then
+                printf 'output:\n' >&2
+                cat "$input_file" >&2
+              fi
+              return 1
+            fi
+          }
+
+          repo_root="$(cd ../../.. && pwd)"
+          core_root="$(cd "$repo_root/../go" && pwd)"
+          work="$(mktemp -d)"
+          module_dir="$work/module"
+          cache_dir="$work/cache"
+          cleanup() {
+            chmod -R u+w "$work" 2>/dev/null || true
+            rm -rf "$work"
+          }
+          trap cleanup EXIT
+          mkdir -p "$module_dir" "$cache_dir"
+
+          export GOWORK=off
+          export GOCACHE="$cache_dir/gocache"
+          export GOMODCACHE="$cache_dir/gomodcache"
+          export GOPATH="$cache_dir/gopath"
+          export GONOSUMDB="${GONOSUMDB:-dappco.re/*,forge.lthn.ai/*}"
+          export DIR_HOME="$work/home"
+          export HOME="$work/home"
+          export NO_COLOR=1
+          mkdir -p "$DIR_HOME"
+
+          cat >"$module_dir/go.mod" <<EOM
+          module ax10-build-cli
+
+          go 1.26.0
+
+          require dappco.re/go/build v0.0.0
+
+          replace dappco.re/go/build => $repo_root
+          replace dappco.re/go/core => $core_root
+          EOM
+
+          cat >"$module_dir/main.go" <<'EOGO'
+          package main
+
+          import (
+          	"fmt"
+          	"os"
+
+          	buildcmd "dappco.re/go/build/cmd/build"
+          	"dappco.re/go/core"
+          )
+
+          const version = "0.0.0-test"
+
+          func main() {
+          	c := core.New(core.WithOption("name", "build"))
+          	c.App().Version = version
+          	buildcmd.AddBuildCommands(c)
+          	c.Command("version", core.Command{
+          		Description: "Show version",
+          		Action: func(_ core.Options) core.Result {
+          			fmt.Printf("build %s\n", version)
+          			return core.Result{OK: true}
+          		},
+          	})
+          	c.Cli().SetBanner(func(_ *core.Cli) string {
+          		return "build " + version
+          	})
+
+          	args := os.Args[1:]
+          	if len(args) > 0 {
+          		switch args[0] {
+          		case "--help", "-h":
+          			c.Cli().PrintHelp()
+          			return
+          		case "--version", "-v":
+          			args[0] = "version"
+          		}
+          	}
+
+          	result := c.Cli().Run(args...)
+          	if !result.OK {
+          		if err, ok := result.Value.(error); ok {
+          			fmt.Fprintln(os.Stderr, err.Error())
+          			os.Exit(1)
+          		}
+          	}
+          }
+          EOGO
+
+          go mod tidy -C "$module_dir"
+          go build -C "$module_dir" -trimpath -ldflags="-s -w" -o "$work/build" .
+
+          output="$work/help.out"
+          run_capture_all 0 "$output" "$work/build" --help
+          assert_contains "build commands:" "$output"
+          assert_contains "build/sdk" "$output"
+          assert_contains "build/image" "$output"
+          assert_contains "build/workflow" "$output"
+          assert_contains "release" "$output"
+
+          output="$work/version.out"
+          run_capture_all 0 "$output" "$work/build" --version
+          assert_contains "build 0.0.0-test" "$output"
+
+          output="$work/image.out"
+          run_capture_all 0 "$output" "$work/build" build/image --list
+          assert_contains "Images" "$output"
+          assert_contains "available immutable LinuxKit bases" "$output"
+          assert_contains "core-dev" "$output"
+
+          project="$work/project"
+          mkdir -p "$project"
+          cat >"$project/openapi.yaml" <<'EOSPEC'
+          openapi: "3.0.0"
+          info:
+            title: Test API
+            version: "1.0.0"
+          paths:
+            /health:
+              get:
+                operationId: getHealth
+                responses:
+                  "200":
+                    description: OK
+          EOSPEC
+
+          output="$work/sdk.out"
+          (
+            cd "$project"
+            run_capture_all 0 "$output" "$work/build" build/sdk --dry-run --spec=openapi.yaml --lang=go
+          )
+          assert_contains "SDK" "$output"
+          assert_contains "Dry run" "$output"
+          assert_contains "Spec:" "$output"
+          assert_contains "Language: go" "$output"
+          assert_contains "Would generate SDK" "$output"
+          EOF

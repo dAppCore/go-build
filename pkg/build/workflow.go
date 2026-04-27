@@ -4,11 +4,11 @@ package build
 
 import (
 	"embed"
-	"strings"
 
-	"dappco.re/go/core/build/internal/ax"
-	io_interface "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/core"
+	"dappco.re/go/build/internal/ax"
+	io_interface "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 //go:embed templates/release.yml
@@ -498,7 +498,7 @@ func isWorkflowDirectoryInput(path string) bool {
 	if path == "" || ax.Ext(path) != "" {
 		return false
 	}
-	if !strings.ContainsAny(path, "/\\") {
+	if !core.Contains(path, "/") && !core.Contains(path, "\\") {
 		return true
 	}
 
@@ -506,15 +506,15 @@ func isWorkflowDirectoryInput(path string) bool {
 		return true
 	}
 
-	if strings.HasPrefix(path, "./") || strings.HasPrefix(path, ".\\") {
-		trimmed := strings.TrimPrefix(strings.TrimPrefix(path, "./"), ".\\")
+	if core.HasPrefix(path, "./") || core.HasPrefix(path, ".\\") {
+		trimmed := core.TrimPrefix(core.TrimPrefix(path, "./"), ".\\")
 		if trimmed == "" {
 			return false
 		}
 		if ax.Base(trimmed) == "workflows" {
 			return true
 		}
-		return !strings.ContainsAny(trimmed, "/\\")
+		return !core.Contains(trimmed, "/") && !core.Contains(trimmed, "\\")
 	}
 
 	return false
@@ -522,5 +522,5 @@ func isWorkflowDirectoryInput(path string) bool {
 
 // cleanWorkflowInput trims surrounding whitespace from a workflow path input.
 func cleanWorkflowInput(path string) string {
-	return strings.TrimSpace(path)
+	return core.Trim(path)
 }

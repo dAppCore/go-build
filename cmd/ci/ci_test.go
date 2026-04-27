@@ -3,24 +3,34 @@ package ci
 import (
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/release"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/release"
 )
 
 func TestCI_runCIReleaseInitInDir_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
 	err := runCIReleaseInitInDir(projectDir)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	configPath := release.ConfigPath(projectDir)
 	content, err := ax.ReadFile(configPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertContains(string(content), "sdk:") {
+		t.Fatalf("expected %v to contain %v", string(content), "sdk:")
+	}
+	if !stdlibAssertContains(string(content), "spec: api/openapi.yaml") {
+		t.Fatalf("expected %v to contain %v", string(content), "spec: api/openapi.yaml")
+	}
+	if !stdlibAssertContains(string(content), "languages:") {
+		t.Fatalf("expected %v to contain %v", string(content), "languages:")
+	}
+	if !stdlibAssertContains(string(content), "- typescript") {
+		t.Fatalf("expected %v to contain %v", string(content), "- typescript")
+	}
 
-	assert.Contains(t, string(content), "sdk:")
-	assert.Contains(t, string(content), "spec: api/openapi.yaml")
-	assert.Contains(t, string(content), "languages:")
-	assert.Contains(t, string(content), "- typescript")
 }

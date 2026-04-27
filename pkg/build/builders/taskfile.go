@@ -6,11 +6,11 @@ import (
 	"path"
 	"runtime"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // TaskfileBuilder builds projects using Taskfile (https://taskfile.dev/).
@@ -37,27 +37,18 @@ func (b *TaskfileBuilder) Name() string {
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	// Check for Taskfile.yml, Taskfile.yaml, or Taskfile
-	taskfiles := []string{
-		"Taskfile.yml",
-		"Taskfile.yaml",
-		"Taskfile",
-		"taskfile.yml",
-		"taskfile.yaml",
-	}
-
-	for _, tf := range taskfiles {
-		if fs.IsFile(ax.Join(dir, tf)) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return build.IsTaskfileProject(fs, dir), nil
 }
 
 // Build runs the Taskfile build task for each target platform.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+	if cfg == nil {
+		return nil, coreerr.E("TaskfileBuilder.Build", "config is nil", nil)
+	}
+	filesystem := ensureBuildFilesystem(cfg)
+
 	taskCommand, err := b.resolveTaskCli()
 	if err != nil {
 		return nil, err
@@ -66,19 +57,17 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	// Create output directory
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+		outputDir = defaultOutputDir(cfg)
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("TaskfileBuilder.Build", "failed to create output directory", err)
+	if err := ensureOutputDir(filesystem, outputDir, "TaskfileBuilder.Build"); err != nil {
+		return nil, err
 	}
 
 	var artifacts []build.Artifact
 
 	// If no targets are specified, build the host target so Taskfile builds
 	// still receive the standard GOOS/GOARCH surface.
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
-	}
+	targets = defaultRuntimeTargets(targets, runtime.GOOS, runtime.GOARCH)
 
 	// Run build task for each target
 	for _, target := range targets {
@@ -98,54 +87,28 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand string, outputDir string, target build.Target) error {
 	// Build task command
 	args := []string{"build"}
-	env := append([]string{}, cfg.Env...)
-	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-
-	// Pass variables if targets are specified
-	if target.OS != "" {
-		value := core.Sprintf("GOOS=%s", target.OS)
-		args = append(args, value)
-		env = append(env, value)
-	}
-	if target.Arch != "" {
-		value := core.Sprintf("GOARCH=%s", target.Arch)
-		args = append(args, value)
-		env = append(env, value)
-	}
-	if target.OS != "" {
-		value := core.Sprintf("TARGET_OS=%s", target.OS)
-		args = append(args, value)
-		env = append(env, value)
-	}
-	if target.Arch != "" {
-		value := core.Sprintf("TARGET_ARCH=%s", target.Arch)
-		args = append(args, value)
-		env = append(env, value)
-	}
-	value := core.Sprintf("OUTPUT_DIR=%s", outputDir)
-	args = append(args, value)
-	env = append(env, value)
-	if platformDir != "" {
-		value := core.Sprintf("TARGET_DIR=%s", platformDir)
-		args = append(args, value)
-		env = append(env, value)
-	}
+	env := build.BuildEnvironment(cfg)
+	targetDir := platformDir(outputDir, target)
+	values := standardTargetValues(outputDir, targetDir, target)
 	if cfg.Name != "" {
-		value := core.Sprintf("NAME=%s", cfg.Name)
-		args = append(args, value)
-		env = append(env, value)
+		values = append(values, core.Sprintf("NAME=%s", cfg.Name))
 	}
 	if cfg.Version != "" {
-		value := core.Sprintf("VERSION=%s", cfg.Version)
-		args = append(args, value)
-		env = append(env, value)
+		values = append(values, core.Sprintf("VERSION=%s", cfg.Version))
 	}
-	value = "CGO_ENABLED=0"
-	if cfg.CGO {
-		value = "CGO_ENABLED=1"
+	values = append(values, cgoEnvValue(cfg.CGO))
+	args = append(args, values...)
+	env = append(env, values...)
+
+	cleanup := func() {}
+	if cfg != nil {
+		var err error
+		args, env, cleanup, err = b.applyWailsV3BuildSurface(cfg, target, args, env)
+		if err != nil {
+			return err
+		}
 	}
-	args = append(args, value)
-	env = append(env, value)
+	defer cleanup()
 
 	if target.OS != "" && target.Arch != "" {
 		core.Print(nil, "Running task build for %s/%s", target.OS, target.Arch)
@@ -158,6 +121,48 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 	}
 
 	return nil
+}
+
+func (b *TaskfileBuilder) applyWailsV3BuildSurface(cfg *build.Config, target build.Target, args, env []string) ([]string, []string, func(), error) {
+	if cfg == nil || cfg.ProjectDir == "" {
+		return args, env, func() {}, nil
+	}
+
+	fs := cfg.FS
+	if fs == nil {
+		fs = io.Local
+	}
+
+	wailsBuilder := NewWailsBuilder()
+	if !build.IsWailsProject(fs, cfg.ProjectDir) || !wailsBuilder.isWailsV3(fs, cfg.ProjectDir) {
+		return args, env, func() {}, nil
+	}
+
+	if goflags, err := buildV3GoFlags(cfg); err != nil {
+		return nil, nil, nil, err
+	} else if goflags != "" {
+		env = append(env, "GOFLAGS="+goflags)
+	}
+
+	taskVars, err := buildV3TaskVars(cfg, target)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if len(taskVars) > 0 {
+		args = append(args, taskVars...)
+		env = append(env, taskVars...)
+	}
+
+	if !cfg.Obfuscate {
+		return args, env, func() {}, nil
+	}
+
+	env, cleanup, err := wailsBuilder.prepareV3Obfuscation(env)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return args, env, cleanup, nil
 }
 
 // findArtifacts searches for built artifacts in the output directory.

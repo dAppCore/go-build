@@ -1,0 +1,195 @@
+package buildcmd
+
+import (
+	"context"
+
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cmdutil"
+	"dappco.re/go/build/pkg/build"
+	buildinstallers "dappco.re/go/build/pkg/build/installers"
+	"dappco.re/go/build/pkg/release"
+	"dappco.re/go/build/pkg/release/publishers"
+	"dappco.re/go/core"
+	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+)
+
+var (
+	getInstallersWorkingDir     = ax.Getwd
+	loadInstallersBuildConfig   = build.LoadConfig
+	loadInstallersReleaseConfig = release.LoadConfig
+	resolveInstallersVersion    = resolveBuildVersion
+	detectInstallersRepository  = publishers.DetectGitHubRepository
+)
+
+// BuildInstallersRequest groups the inputs for `core build installers`.
+type BuildInstallersRequest struct {
+	Context    context.Context
+	Variant    string
+	Version    string
+	OutputDir  string
+	Repo       string
+	BinaryName string
+}
+
+// AddInstallersCommand registers the installer generation command.
+func AddInstallersCommand(c *core.Core) {
+	c.Command("build/installers", core.Command{
+		Description: "Generate installer scripts",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runBuildInstallers(BuildInstallersRequest{
+				Context:    cmdutil.ContextOrBackground(),
+				Variant:    cmdutil.OptionString(opts, "variant"),
+				Version:    cmdutil.OptionString(opts, "version"),
+				OutputDir:  cmdutil.OptionString(opts, "output"),
+				Repo:       cmdutil.OptionString(opts, "repo"),
+				BinaryName: cmdutil.OptionString(opts, "name", "binary"),
+			}))
+		},
+	})
+}
+
+func runBuildInstallers(req BuildInstallersRequest) error {
+	ctx := req.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	projectDir, err := getInstallersWorkingDir()
+	if err != nil {
+		return coreerr.E("build.runBuildInstallers", "failed to get working directory", err)
+	}
+
+	return runBuildInstallersInDir(ctx, projectDir, req.Variant, req.Version, req.OutputDir, req.Repo, req.BinaryName)
+}
+
+func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, outputDir, repo, binaryName string) error {
+	filesystem := io.Local
+
+	buildConfig, err := loadInstallersBuildConfig(filesystem, projectDir)
+	if err != nil {
+		return coreerr.E("build.runBuildInstallers", "failed to load build config", err)
+	}
+
+	installerVersion := core.Trim(version)
+	if installerVersion == "" {
+		installerVersion, err = resolveInstallersVersion(ctx, projectDir)
+		if err != nil {
+			return coreerr.E("build.runBuildInstallers", "failed to determine installer version; use --version to override", err)
+		}
+	}
+	if err := build.ValidateVersionIdentifier(installerVersion); err != nil {
+		return coreerr.E("build.runBuildInstallers", "invalid installer version; use a safe release identifier", err)
+	}
+
+	installerRepo := core.Trim(repo)
+	if installerRepo == "" {
+		installerRepo, err = resolveInstallersRepository(ctx, projectDir)
+		if err != nil {
+			return err
+		}
+	}
+
+	if outputDir == "" {
+		outputDir = ax.Join(projectDir, "dist", "installers")
+	} else if !ax.IsAbs(outputDir) {
+		outputDir = ax.Join(projectDir, outputDir)
+	}
+
+	if err := filesystem.EnsureDir(outputDir); err != nil {
+		return coreerr.E("build.runBuildInstallers", "failed to create output directory", err)
+	}
+
+	cfg := buildinstallers.InstallerConfig{
+		Version:    installerVersion,
+		Repo:       installerRepo,
+		BinaryName: build.ResolveBuildName(projectDir, buildConfig, binaryName),
+	}
+
+	normalizedVariant, ok := normalizeInstallersVariant(variant)
+	if !ok {
+		return coreerr.E("build.runBuildInstallers", "unknown installer variant: "+core.Trim(variant), nil)
+	}
+
+	cli.Print("%s %s\n", buildHeaderStyle.Render("Installers"), "generating installer scripts")
+
+	if normalizedVariant != "" {
+		return writeInstallerVariant(filesystem, projectDir, outputDir, normalizedVariant, cfg)
+	}
+
+	for _, candidate := range build.InstallerVariants() {
+		if err := writeInstallerVariant(filesystem, projectDir, outputDir, candidate, cfg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func writeInstallerVariant(filesystem io.Medium, projectDir, outputDir string, variant build.InstallerVariant, cfg buildinstallers.InstallerConfig) error {
+	scriptName := build.InstallerOutputName(variant)
+	if scriptName == "" {
+		return coreerr.E("build.writeInstallerVariant", "unknown installer variant: "+string(variant), nil)
+	}
+
+	script, err := buildinstallers.GenerateInstaller(variant, cfg)
+	if err != nil {
+		return coreerr.E("build.writeInstallerVariant", "failed to generate "+scriptName, err)
+	}
+
+	targetPath := ax.Join(outputDir, scriptName)
+	if err := filesystem.WriteMode(targetPath, script, 0o755); err != nil {
+		return coreerr.E("build.writeInstallerVariant", "failed to write "+scriptName, err)
+	}
+
+	relPath, relErr := ax.Rel(projectDir, targetPath)
+	if relErr != nil {
+		relPath = targetPath
+	}
+	cli.Print("  %s\n", relPath)
+
+	return nil
+}
+
+func resolveInstallersRepository(ctx context.Context, projectDir string) (string, error) {
+	releaseConfig, err := loadInstallersReleaseConfig(projectDir)
+	if err != nil {
+		return "", coreerr.E("build.resolveInstallersRepository", "failed to load release config", err)
+	}
+
+	if releaseConfig != nil {
+		repo := core.Trim(releaseConfig.GetRepository())
+		if repo != "" {
+			return repo, nil
+		}
+	}
+
+	repo, err := detectInstallersRepository(ctx, projectDir)
+	if err != nil {
+		return "", coreerr.E("build.resolveInstallersRepository", "failed to determine repository; use --repo or configure .core/release.yaml project.repository", err)
+	}
+
+	return repo, nil
+}
+
+func normalizeInstallersVariant(value string) (build.InstallerVariant, bool) {
+	switch core.Lower(core.Trim(value)) {
+	case "", "all":
+		return "", true
+	case "full", "setup", "setup.sh":
+		return build.VariantFull, true
+	case "ci", "ci.sh":
+		return build.VariantCI, true
+	case "php", "php.sh":
+		return build.VariantPHP, true
+	case "go", "go.sh":
+		return build.VariantGo, true
+	case "agent", "agentic", "agent.sh":
+		return build.VariantAgent, true
+	case "dev", "dev.sh":
+		return build.VariantDev, true
+	default:
+		return "", false
+	}
+}

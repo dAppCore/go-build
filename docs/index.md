@@ -1,211 +1,100 @@
 ---
 title: go-build
-description: Build system, release pipeline, and SDK generation for the Core ecosystem.
+description: Build, release, Apple packaging, SDK generation, and GitHub workflow tooling for Core projects.
 ---
 
 # go-build
 
-`forge.lthn.ai/core/go-build` is the build, release, and SDK generation toolkit for Core projects. It provides:
+`dappco.re/go/build` is the build system and release engine used by the Core CLI and the public `dAppCore/build@v3` GitHub Action.
 
-- **Auto-detecting builders** for Go, Wails, Node, PHP, Python, Rust, Docs, Docker, LinuxKit, C++, and Taskfile projects
-- **Cross-compilation** with per-target archiving (tar.gz, tar.xz, zip) and SHA-256 checksums
-- **Code signing** -- macOS codesign with notarisation, GPG detached signatures, Windows signtool
-- **Release automation** -- semantic versioning from git tags, conventional-commit changelogs, multi-target publishing
-- **SDK generation** -- OpenAPI spec diffing for breaking-change detection, code generation for TypeScript, Python, Go, and PHP
-- **CLI integration** -- registers `core build`, `core ci`, and `core sdk` commands via the Core CLI framework
+## Highlights
+
+- Auto-detecting builders for Go, Wails, Node, PHP, Python, Rust, Docs, Docker, LinuxKit, C++, and Taskfile projects
+- Action-oriented discovery hints for `wails2`, `cpp`, `docs`, `node`, and `go`
+- Discovery API parity with the generated workflow outputs, including `configured_build_type`, `has_subtree_package_json`, and stack/setup marker aliases
+- Pure Go discovery, option, and setup planning APIs via `DiscoverFull`, `ComputeOptions`, and `ComputeSetupPlan`
+- Generated reusable GitHub release workflow with conditional Go/Node/PHP/Python/Rust/Deno/Task setup, Conan/MkDocs hooks, distro-aware WebKit packages, cache restore/save, and canonical artifact naming
+- macOS Apple pipeline with `core build apple`, DMG packaging, notarisation, Xcode Cloud script generation, TestFlight, and App Store submission
+- Release orchestration with eight publishers
+- OpenAPI SDK generation with breaking-change detection
+
+## Commands
+
+```bash
+core build
+core build apple
+core build workflow
+core release
+core release --apple-testflight
+core sdk
+core build sdk
+core ci
+```
+
+## Build Surfaces
+
+| Surface | Purpose |
+|---|---|
+| `pkg/build/` | Discovery, config, caches, archives, checksums, workflow generation, Apple pipeline |
+| `pkg/build/builders/` | Builder implementations for all supported stacks |
+| `pkg/build/apple/` | RFC-facing Apple wrapper that exposes `core.Result` contracts |
+| `pkg/build/signing/` | GPG, macOS codesign/notarisation, Windows signtool |
+| `pkg/release/` | Versioning, changelog generation, publishing orchestration |
+| `pkg/release/publishers/` | GitHub, Docker, npm, Homebrew, Scoop, AUR, Chocolatey, LinuxKit |
+| `pkg/sdk/` | Spec detection, diffing, and SDK generation |
+| `cmd/build/` | `core build`, `core build apple`, `core build workflow`, `core build sdk`, `core release` |
+| `cmd/ci/` | `core ci` publish/version/changelog commands |
+| `cmd/sdk/` | `core sdk`, `core sdk diff`, and `core sdk validate` |
+
+See also: [RFC](RFC.md), [Architecture](architecture.md), and [Stacks](stacks.md).
+
+## Builder Detection
+
+Discovery checks the project root and selected nested paths:
+
+| Marker | Result |
+|---|---|
+| `.core/build.yaml` | Config-driven override |
+| `wails.json` or `go.mod`/`go.work` plus frontend manifests | Wails |
+| `go.mod` or `go.work` | Go |
+| `package.json`, `deno.json`, `deno.jsonc` | Node/Deno |
+| `mkdocs.yml`, `mkdocs.yaml`, `docs/mkdocs.yml`, `docs/mkdocs.yaml` | Docs |
+| `CMakeLists.txt` | C++ |
+| `Dockerfile`, `Containerfile` variants | Docker |
+| `linuxkit.yml`, `linuxkit.yaml`, `.core/linuxkit/*.yml` | LinuxKit |
+| `Taskfile.yml`, `Taskfile.yaml`, `Taskfile` variants | Taskfile |
+| `composer.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml` | PHP, Python, Rust |
+
+Monorepo frontend discovery scans subtree manifests to depth 2 and ignores `node_modules` and hidden directories.
+
+## GitHub Workflow Generation
+
+`core build workflow` writes a reusable release workflow that:
+
+1. Detects the required toolchains from the repository contents.
+2. Installs Go, Node, PHP/Composer, Python, Rust, Deno, Task, and Wails only when needed, plus frontend package dependencies and optional garble for obfuscated builds.
+3. Restores build caches under `.core/cache` and `cache/`.
+4. Applies Ubuntu 24.04 WebKit 4.1 handling for Wails Linux builds.
+5. Runs `core build --ci --archive --checksum`.
+6. Writes `artifact_meta.json`, uploads artifacts with action-style names, and publishes with `core ci`.
+
+## Apple Pipeline
+
+The Apple surface is available both through `pkg/build/apple/` and `core build apple`. It supports:
+
+- universal, arm64, and amd64 app builds
+- codesign and notarisation
+- DMG creation
+- TestFlight and App Store submission
+- generated `Info.plist` and entitlements
+- Xcode Cloud helper scripts checked into the project
+
+`core release --apple-testflight` and `core release --target apple-testflight` route to the same Apple pipeline with TestFlight upload enabled.
 
 ## Module Path
 
-```
-forge.lthn.ai/core/go-build
-```
-
-Requires **Go 1.26+**.
-
-## Quick Start
-
-### Build a project
-
-From any project directory containing a recognised marker file:
-
-```bash
-core build                          # Auto-detect type, build for configured targets
-core build --targets linux/amd64    # Single target
-core build --ci                     # JSON output for CI pipelines
-core build --verbose                # Detailed step-by-step output
+```go
+import "dappco.re/go/build/pkg/build"
 ```
 
-The builder is chosen by marker-file priority:
-
-| Marker file       | Builder    |
-|-------------------|------------|
-| `wails.json`      | Wails      |
-| `go.mod`          | Go         |
-| `package.json`    | Node       |
-| `composer.json`   | PHP        |
-| `pyproject.toml`  | Python     |
-| `Cargo.toml`      | Rust       |
-| `mkdocs.yml`      | Docs       |
-| `CMakeLists.txt`  | C++        |
-| `Dockerfile`      | Docker     |
-| `linuxkit.yml`    | LinuxKit   |
-| `Taskfile.yml`    | Taskfile   |
-
-### Release artifacts
-
-```bash
-core build release --we-are-go-for-launch   # Build + archive + checksum + publish
-core build release                           # Dry-run (default without the flag)
-core build release --draft --prerelease      # Mark as draft pre-release
-```
-
-### Publish pre-built artifacts
-
-After `core build` has populated `dist/`:
-
-```bash
-core ci                              # Dry-run publish from dist/
-core ci --we-are-go-for-launch       # Actually publish
-core ci --version v1.2.3             # Override version
-```
-
-### Generate changelogs
-
-```bash
-core ci changelog                    # From latest tag to HEAD
-core ci changelog --from v0.1.0 --to v0.2.0
-core ci version                      # Show determined next version
-core ci init                         # Scaffold .core/release.yaml
-```
-
-### SDK operations
-
-```bash
-core build sdk                       # Generate SDKs for all configured languages
-core build sdk --lang typescript     # Single language
-core sdk diff --base v1.0.0 --spec api/openapi.yaml   # Breaking-change check
-core sdk validate                    # Validate OpenAPI spec
-```
-
-## Package Layout
-
-```
-forge.lthn.ai/core/go-build/
-|
-|-- cmd/
-|   |-- build/          CLI commands for `core build` (build, from-path, pwa, sdk, release)
-|   |-- ci/             CLI commands for `core ci` (init, changelog, version, publish)
-|   +-- sdk/            CLI commands for `core sdk` (diff, validate)
-|
-+-- pkg/
-    |-- build/              Core build types, config loading, discovery, archiving, checksums
-|   |-- builders/       Builder implementations (Go, Wails, Node, PHP, Python, Docs, Docker, LinuxKit, C++, Taskfile)
-    |   +-- signing/        Code-signing implementations (macOS codesign, GPG, Windows stub)
-    |
-    |-- release/            Release orchestration, versioning, changelog, config
-    |   +-- publishers/     Publisher implementations (GitHub, Docker, npm, Homebrew, Scoop, AUR, Chocolatey, LinuxKit)
-    |
-    +-- sdk/                OpenAPI SDK generation and breaking-change diffing
-        +-- generators/     Language generators (TypeScript, Python, Go, PHP)
-```
-
-## Configuration Files
-
-Build and release behaviour is driven by two YAML files in the `.core/` directory.
-
-### `.core/build.yaml`
-
-Controls compilation targets, flags, and signing:
-
-```yaml
-version: 1
-project:
-  name: myapp
-  description: My application
-  main: ./cmd/myapp
-  binary: myapp
-build:
-  cgo: false
-  flags: ["-trimpath"]
-  ldflags: ["-s", "-w"]
-  env: []
-targets:
-  - os: linux
-    arch: amd64
-  - os: linux
-    arch: arm64
-  - os: darwin
-    arch: arm64
-  - os: windows
-    arch: amd64
-sign:
-  enabled: true
-  gpg:
-    key: $GPG_KEY_ID
-  macos:
-    identity: $CODESIGN_IDENTITY
-    notarize: false
-    apple_id: $APPLE_ID
-    team_id: $APPLE_TEAM_ID
-    app_password: $APPLE_APP_PASSWORD
-```
-
-When no `.core/build.yaml` exists, sensible defaults apply (CGO off, `-trimpath -s -w`, four standard targets).
-
-### `.core/release.yaml`
-
-Controls versioning, changelog filtering, publishers, and SDK generation:
-
-```yaml
-version: 1
-project:
-  name: myapp
-  repository: owner/repo
-build:
-  targets:
-    - os: linux
-      arch: amd64
-    - os: darwin
-      arch: arm64
-publishers:
-  - type: github
-    draft: false
-    prerelease: false
-  - type: homebrew
-    tap: owner/homebrew-tap
-  - type: docker
-    registry: ghcr.io
-    image: owner/myapp
-    tags: ["latest", "{{.Version}}"]
-changelog:
-  include: [feat, fix, perf, refactor]
-  exclude: [chore, docs, style, test, ci]
-sdk:
-  spec: api/openapi.yaml
-  languages: [typescript, python, go, php]
-  output: sdk
-  diff:
-    enabled: true
-    fail_on_breaking: false
-```
-
-## Dependencies
-
-| Dependency | Purpose |
-|---|---|
-| `forge.lthn.ai/core/cli` | CLI command registration and TUI styling |
-| `forge.lthn.ai/core/go-io` | Filesystem abstraction (`io.Medium`, `io.Local`) |
-| `forge.lthn.ai/core/go-i18n` | Internationalised CLI labels |
-| `forge.lthn.ai/core/go-log` | Structured error logging |
-| `github.com/Snider/Borg` | XZ compression for tar.xz archives |
-| `github.com/getkin/kin-openapi` | OpenAPI spec loading and validation |
-| `github.com/oasdiff/oasdiff` | OpenAPI diff and breaking-change detection |
-| `gopkg.in/yaml.v3` | YAML config parsing |
-| `github.com/leaanthony/debme` | Embedded filesystem anchoring (PWA templates) |
-| `github.com/leaanthony/gosod` | Template extraction for PWA builds |
-| `golang.org/x/net` | HTML parsing for PWA manifest detection |
-| `golang.org/x/text` | Changelog section title casing |
-
-## Licence
-
-EUPL-1.2
+Requires Go 1.26+.

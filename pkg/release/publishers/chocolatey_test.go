@@ -4,17 +4,17 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/io"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/io"
 )
 
 func TestChocolatey_ChocolateyPublisherName_Good(t *testing.T) {
 	t.Run("returns chocolatey", func(t *testing.T) {
 		p := NewChocolateyPublisher()
-		assert.Equal(t, "chocolatey", p.Name())
+		if !stdlibAssertEqual("chocolatey", p.Name()) {
+			t.Fatalf("want %v, got %v", "chocolatey", p.Name())
+		}
+
 	})
 }
 
@@ -25,10 +25,16 @@ func TestChocolatey_ChocolateyPublisherParseConfig_Good(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "chocolatey"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Package) {
+			t.Fatalf("expected empty, got %v", cfg.Package)
+		}
+		if cfg.Push {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Package)
-		assert.False(t, cfg.Push)
-		assert.Nil(t, cfg.Official)
 	})
 
 	t.Run("parses package and push from extended config", func(t *testing.T) {
@@ -41,9 +47,13 @@ func TestChocolatey_ChocolateyPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEqual("mypackage", cfg.Package) {
+			t.Fatalf("want %v, got %v", "mypackage", cfg.Package)
+		}
+		if !(cfg.Push) {
+			t.Fatal("expected true")
+		}
 
-		assert.Equal(t, "mypackage", cfg.Package)
-		assert.True(t, cfg.Push)
 	})
 
 	t.Run("parses official config", func(t *testing.T) {
@@ -58,10 +68,16 @@ func TestChocolatey_ChocolateyPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if stdlibAssertNil(cfg.Official) {
+			t.Fatal("expected non-nil")
+		}
+		if !(cfg.Official.Enabled) {
+			t.Fatal("expected true")
+		}
+		if !stdlibAssertEqual("dist/choco", cfg.Official.Output) {
+			t.Fatalf("want %v, got %v", "dist/choco", cfg.Official.Output)
+		}
 
-		require.NotNil(t, cfg.Official)
-		assert.True(t, cfg.Official.Enabled)
-		assert.Equal(t, "dist/choco", cfg.Official.Output)
 	})
 
 	t.Run("handles missing official fields", func(t *testing.T) {
@@ -73,10 +89,16 @@ func TestChocolatey_ChocolateyPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if stdlibAssertNil(cfg.Official) {
+			t.Fatal("expected non-nil")
+		}
+		if cfg.Official.Enabled {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertEmpty(cfg.Official.Output) {
+			t.Fatalf("expected empty, got %v", cfg.Official.Output)
+		}
 
-		require.NotNil(t, cfg.Official)
-		assert.False(t, cfg.Official.Enabled)
-		assert.Empty(t, cfg.Official.Output)
 	})
 
 	t.Run("handles nil extended config", func(t *testing.T) {
@@ -86,10 +108,16 @@ func TestChocolatey_ChocolateyPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Package) {
+			t.Fatalf("expected empty, got %v", cfg.Package)
+		}
+		if cfg.Push {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Package)
-		assert.False(t, cfg.Push)
-		assert.Nil(t, cfg.Official)
 	})
 
 	t.Run("defaults push to false when not specified", func(t *testing.T) {
@@ -101,8 +129,10 @@ func TestChocolatey_ChocolateyPublisherParseConfig_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if cfg.Push {
+			t.Fatal("expected false")
+		}
 
-		assert.False(t, cfg.Push)
 	})
 }
 
@@ -124,16 +154,34 @@ func TestChocolatey_ChocolateyPublisherRenderTemplate_Good(t *testing.T) {
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/chocolatey/package.nuspec.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, `<id>myapp</id>`) {
+			t.Fatalf("expected %v to contain %v", result, `<id>myapp</id>`)
+		}
+		if !stdlibAssertContains(result, `<version>1.2.3</version>`) {
+			t.Fatalf("expected %v to contain %v", result, `<version>1.2.3</version>`)
+		}
+		if !stdlibAssertContains(result, `<title>MyApp CLI</title>`) {
+			t.Fatalf("expected %v to contain %v", result, `<title>MyApp CLI</title>`)
+		}
+		if !stdlibAssertContains(result, `<authors>owner</authors>`) {
+			t.Fatalf("expected %v to contain %v", result, `<authors>owner</authors>`)
+		}
+		if !stdlibAssertContains(result, `<description>My awesome CLI</description>`) {
+			t.Fatalf("expected %v to contain %v", result, `<description>My awesome CLI</description>`)
+		}
+		if !stdlibAssertContains(result, `<tags>cli myapp</tags>`) {
+			t.Fatalf("expected %v to contain %v", result, `<tags>cli myapp</tags>`)
+		}
+		if !stdlibAssertContains(result, "projectUrl>https://github.com/owner/myapp") {
+			t.Fatalf("expected %v to contain %v", result, "projectUrl>https://github.com/owner/myapp")
+		}
+		if !stdlibAssertContains(result, "releaseNotes>https://github.com/owner/myapp/releases/tag/v1.2.3") {
+			t.Fatalf("expected %v to contain %v", result, "releaseNotes>https://github.com/owner/myapp/releases/tag/v1.2.3")
+		}
 
-		assert.Contains(t, result, `<id>myapp</id>`)
-		assert.Contains(t, result, `<version>1.2.3</version>`)
-		assert.Contains(t, result, `<title>MyApp CLI</title>`)
-		assert.Contains(t, result, `<authors>owner</authors>`)
-		assert.Contains(t, result, `<description>My awesome CLI</description>`)
-		assert.Contains(t, result, `<tags>cli myapp</tags>`)
-		assert.Contains(t, result, "projectUrl>https://github.com/owner/myapp")
-		assert.Contains(t, result, "releaseNotes>https://github.com/owner/myapp/releases/tag/v1.2.3")
 	})
 
 	t.Run("renders install script template with data", func(t *testing.T) {
@@ -143,19 +191,34 @@ func TestChocolatey_ChocolateyPublisherRenderTemplate_Good(t *testing.T) {
 			Version:     "1.2.3",
 			BinaryName:  "myapp",
 			Checksums: ChecksumMap{
-				WindowsAmd64: "abc123def456",
+				WindowsAmd64:     "abc123def456",
+				WindowsAmd64File: "myapp_windows_amd64.zip",
 			},
 		}
 
 		result, err := p.renderTemplate(io.Local, "templates/chocolatey/tools/chocolateyinstall.ps1.tmpl", data)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(result, "$ErrorActionPreference = 'Stop'") {
+			t.Fatalf("expected %v to contain %v", result, "$ErrorActionPreference = 'Stop'")
+		}
+		if !stdlibAssertContains(result, "https://github.com/owner/myapp/releases/download/v1.2.3/myapp_windows_amd64.zip") {
+			t.Fatalf("expected %v to contain %v", result, "https://github.com/owner/myapp/releases/download/v1.2.3/myapp_windows_amd64.zip")
+		}
+		if !stdlibAssertContains(result, "packageName    = 'myapp'") {
+			t.Fatalf("expected %v to contain %v", result, "packageName    = 'myapp'")
+		}
+		if !stdlibAssertContains(result, "checksum64     = 'abc123def456'") {
+			t.Fatalf("expected %v to contain %v", result, "checksum64     = 'abc123def456'")
+		}
+		if !stdlibAssertContains(result, "checksumType64 = 'sha256'") {
+			t.Fatalf("expected %v to contain %v", result, "checksumType64 = 'sha256'")
+		}
+		if !stdlibAssertContains(result, "Install-ChocolateyZipPackage") {
+			t.Fatalf("expected %v to contain %v", result, "Install-ChocolateyZipPackage")
+		}
 
-		assert.Contains(t, result, "$ErrorActionPreference = 'Stop'")
-		assert.Contains(t, result, "https://github.com/owner/myapp/releases/download/v1.2.3/myapp-windows-amd64.zip")
-		assert.Contains(t, result, "packageName    = 'myapp'")
-		assert.Contains(t, result, "checksum64     = 'abc123def456'")
-		assert.Contains(t, result, "checksumType64 = 'sha256'")
-		assert.Contains(t, result, "Install-ChocolateyZipPackage")
 	})
 }
 
@@ -165,8 +228,13 @@ func TestChocolatey_ChocolateyPublisherRenderTemplate_Bad(t *testing.T) {
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := chocolateyTemplateData{}
 		_, err := p.renderTemplate(io.Local, "templates/chocolatey/nonexistent.tmpl", data)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to read template")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		}
+
 	})
 }
 
@@ -191,17 +259,37 @@ func TestChocolatey_ChocolateyPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "DRY RUN: Chocolatey Publish") {
+			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Chocolatey Publish")
+		}
+		if !stdlibAssertContains(output, "Package:    myapp") {
+			t.Fatalf("expected %v to contain %v", output, "Package:    myapp")
+		}
+		if !stdlibAssertContains(output, "Version:    1.0.0") {
+			t.Fatalf("expected %v to contain %v", output, "Version:    1.0.0")
+		}
+		if !stdlibAssertContains(output, "Push:       false") {
+			t.Fatalf("expected %v to contain %v", output, "Push:       false")
+		}
+		if !stdlibAssertContains(output, "Repository: owner/repo") {
+			t.Fatalf("expected %v to contain %v", output, "Repository: owner/repo")
+		}
+		if !stdlibAssertContains(output, "Generated package.nuspec:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated package.nuspec:")
+		}
+		if !stdlibAssertContains(output, "Generated chocolateyinstall.ps1:") {
+			t.Fatalf("expected %v to contain %v", output, "Generated chocolateyinstall.ps1:")
+		}
+		if !stdlibAssertContains(output, "Would generate package files only (push=false)") {
+			t.Fatalf("expected %v to contain %v", output, "Would generate package files only (push=false)")
+		}
+		if !stdlibAssertContains(output, "END DRY RUN") {
+			t.Fatalf("expected %v to contain %v", output, "END DRY RUN")
+		}
 
-		assert.Contains(t, output, "DRY RUN: Chocolatey Publish")
-		assert.Contains(t, output, "Package:    myapp")
-		assert.Contains(t, output, "Version:    1.0.0")
-		assert.Contains(t, output, "Push:       false")
-		assert.Contains(t, output, "Repository: owner/repo")
-		assert.Contains(t, output, "Generated package.nuspec:")
-		assert.Contains(t, output, "Generated chocolateyinstall.ps1:")
-		assert.Contains(t, output, "Would generate package files only (push=false)")
-		assert.Contains(t, output, "END DRY RUN")
 	})
 
 	t.Run("shows push message when push is enabled", func(t *testing.T) {
@@ -221,9 +309,16 @@ func TestChocolatey_ChocolateyPublisherDryRunPublish_Good(t *testing.T) {
 		output := capturePublisherOutput(t, func() {
 			err = p.dryRunPublish(io.Local, data, cfg)
 		})
-		require.NoError(t, err)
-		assert.Contains(t, output, "Push:       true")
-		assert.Contains(t, output, "Would push to Chocolatey community repo")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertContains(output, "Push:       true") {
+			t.Fatalf("expected %v to contain %v", output, "Push:       true")
+		}
+		if !stdlibAssertContains(output, "Would push to Chocolatey community repo") {
+			t.Fatalf("expected %v to contain %v", output, "Would push to Chocolatey community repo")
+		}
+
 	})
 }
 
@@ -235,7 +330,9 @@ func TestChocolatey_ChocolateyPublisherExecutePublish_Bad(t *testing.T) {
 
 		// Create a temp directory for the test
 		tmpDir := t.TempDir()
-		require.True(t, ax.IsDir(tmpDir))
+		if !(ax.IsDir(tmpDir)) {
+			t.Fatal("expected true")
+		}
 
 		data := chocolateyTemplateData{
 			PackageName: "testpkg",
@@ -248,8 +345,13 @@ func TestChocolatey_ChocolateyPublisherExecutePublish_Bad(t *testing.T) {
 		}
 
 		err := p.pushToChocolatey(context.TODO(), tmpDir, data)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "CHOCOLATEY_API_KEY environment variable is required")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "CHOCOLATEY_API_KEY environment variable is required") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "CHOCOLATEY_API_KEY environment variable is required")
+		}
+
 	})
 }
 
@@ -260,10 +362,16 @@ func TestChocolatey_ChocolateyConfigDefaults_Good(t *testing.T) {
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 		cfg := p.parseConfig(pubCfg, relCfg)
+		if !stdlibAssertEmpty(cfg.Package) {
+			t.Fatalf("expected empty, got %v", cfg.Package)
+		}
+		if cfg.Push {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertNil(cfg.Official) {
+			t.Fatalf("expected nil, got %v", cfg.Official)
+		}
 
-		assert.Empty(t, cfg.Package)
-		assert.False(t, cfg.Push)
-		assert.Nil(t, cfg.Official)
 	})
 }
 
@@ -283,16 +391,36 @@ func TestChocolatey_ChocolateyTemplateData_Good(t *testing.T) {
 				WindowsAmd64: "hash1",
 			},
 		}
+		if !stdlibAssertEqual("myapp", data.PackageName) {
+			t.Fatalf("want %v, got %v", "myapp", data.PackageName)
+		}
+		if !stdlibAssertEqual("MyApp CLI", data.Title) {
+			t.Fatalf("want %v, got %v", "MyApp CLI", data.Title)
+		}
+		if !stdlibAssertEqual("description", data.Description) {
+			t.Fatalf("want %v, got %v", "description", data.Description)
+		}
+		if !stdlibAssertEqual("org/repo", data.Repository) {
+			t.Fatalf("want %v, got %v", "org/repo", data.Repository)
+		}
+		if !stdlibAssertEqual("1.0.0", data.Version) {
+			t.Fatalf("want %v, got %v", "1.0.0", data.Version)
+		}
+		if !stdlibAssertEqual("MIT", data.License) {
+			t.Fatalf("want %v, got %v", "MIT", data.License)
+		}
+		if !stdlibAssertEqual("myapp", data.BinaryName) {
+			t.Fatalf("want %v, got %v", "myapp", data.BinaryName)
+		}
+		if !stdlibAssertEqual("org", data.Authors) {
+			t.Fatalf("want %v, got %v", "org", data.Authors)
+		}
+		if !stdlibAssertEqual("cli tool", data.Tags) {
+			t.Fatalf("want %v, got %v", "cli tool", data.Tags)
+		}
+		if !stdlibAssertEqual("hash1", data.Checksums.WindowsAmd64) {
+			t.Fatalf("want %v, got %v", "hash1", data.Checksums.WindowsAmd64)
+		}
 
-		assert.Equal(t, "myapp", data.PackageName)
-		assert.Equal(t, "MyApp CLI", data.Title)
-		assert.Equal(t, "description", data.Description)
-		assert.Equal(t, "org/repo", data.Repository)
-		assert.Equal(t, "1.0.0", data.Version)
-		assert.Equal(t, "MIT", data.License)
-		assert.Equal(t, "myapp", data.BinaryName)
-		assert.Equal(t, "org", data.Authors)
-		assert.Equal(t, "cli tool", data.Tags)
-		assert.Equal(t, "hash1", data.Checksums.WindowsAmd64)
 	})
 }

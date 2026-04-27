@@ -45,7 +45,7 @@ export class BuildPanel extends LitElement {
     .title {
       font-weight: 700;
       font-size: 1rem;
-      colour: #111827;
+      color: #111827;
     }
 
     .refresh-btn {
@@ -75,7 +75,7 @@ export class BuildPanel extends LitElement {
       padding: 0.625rem 1rem;
       font-size: 0.8125rem;
       font-weight: 500;
-      colour: #6b7280;
+      color: #6b7280;
       cursor: pointer;
       border-bottom: 2px solid transparent;
       transition: all 0.15s;
@@ -86,12 +86,12 @@ export class BuildPanel extends LitElement {
     }
 
     .tab:hover {
-      colour: #374151;
+      color: #374151;
     }
 
     .tab.active {
-      colour: #6366f1;
-      border-bottom-colour: #6366f1;
+      color: #6366f1;
+      border-bottom-color: #6366f1;
     }
 
     /* C — Content */
@@ -110,7 +110,7 @@ export class BuildPanel extends LitElement {
       background: #fff;
       border-top: 1px solid #e5e7eb;
       font-size: 0.75rem;
-      colour: #9ca3af;
+      color: #9ca3af;
     }
 
     .ws-status {

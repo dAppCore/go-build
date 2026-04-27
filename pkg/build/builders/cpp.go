@@ -6,10 +6,10 @@ import (
 	"runtime"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // CPPBuilder implements the Builder interface for C++ projects using CMake + Conan.
@@ -48,9 +48,33 @@ func (b *CPPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 		return nil, coreerr.E("CPPBuilder.Build", "config is nil", nil)
 	}
 
-	// Validate make is available
-	if err := b.validateMake(); err != nil {
-		return nil, err
+	filesystem := cfg.FS
+	if filesystem == nil {
+		filesystem = io.Local
+		cfg.FS = filesystem
+	}
+	if cfg.OutputDir == "" {
+		cfg.OutputDir = ax.Join(cfg.ProjectDir, "dist")
+	}
+
+	managedMake := b.hasManagedMakefile(filesystem, cfg.ProjectDir)
+	if managedMake {
+		// Managed C++ repos keep the Conan/CMake orchestration in the project Makefile.
+		if err := b.validateMake(); err != nil {
+			return nil, err
+		}
+		if err := b.validateConan(); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := b.validateCMake(); err != nil {
+			return nil, err
+		}
+		if b.usesConan(filesystem, cfg.ProjectDir) {
+			if err := b.validateConan(); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	// For C++ projects, the Makefile handles everything.
@@ -77,6 +101,18 @@ func (b *CPPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 
 // buildTarget compiles for a single target platform.
 func (b *CPPBuilder) buildTarget(ctx context.Context, cfg *build.Config, target build.Target) ([]build.Artifact, error) {
+	if cfg == nil {
+		return nil, coreerr.E("CPPBuilder.buildTarget", "config is nil", nil)
+	}
+	filesystem := cfg.FS
+	if filesystem == nil {
+		filesystem = io.Local
+		cfg.FS = filesystem
+	}
+	if !b.hasManagedMakefile(filesystem, cfg.ProjectDir) {
+		return b.buildWithCMake(ctx, cfg, target)
+	}
+
 	// Determine if this is a cross-compile or host build
 	isHostBuild := target.OS == runtime.GOOS && target.Arch == runtime.GOARCH
 
@@ -129,6 +165,66 @@ func (b *CPPBuilder) buildCross(ctx context.Context, cfg *build.Config, target b
 	return b.findArtifacts(cfg.FS, cfg.ProjectDir, target)
 }
 
+// buildWithCMake runs a generic CMake build for plain CMakeLists.txt projects.
+// Conan is used when the project declares a conanfile; otherwise the builder
+// configures CMake directly.
+func (b *CPPBuilder) buildWithCMake(ctx context.Context, cfg *build.Config, target build.Target) ([]build.Artifact, error) {
+	filesystem := cfg.FS
+	if filesystem == nil {
+		filesystem = io.Local
+		cfg.FS = filesystem
+	}
+
+	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
+	if err := filesystem.EnsureDir(platformDir); err != nil {
+		return nil, coreerr.E("CPPBuilder.buildWithCMake", "failed to create platform output directory", err)
+	}
+
+	buildDir := ax.Join(cfg.ProjectDir, "build", "cmake", core.Sprintf("%s_%s", target.OS, target.Arch))
+	if err := filesystem.EnsureDir(buildDir); err != nil {
+		return nil, coreerr.E("CPPBuilder.buildWithCMake", "failed to create cmake build directory", err)
+	}
+
+	env := appendConfiguredEnv(cfg,
+		core.Sprintf("GOOS=%s", target.OS),
+		core.Sprintf("GOARCH=%s", target.Arch),
+		core.Sprintf("TARGET_OS=%s", target.OS),
+		core.Sprintf("TARGET_ARCH=%s", target.Arch),
+		core.Sprintf("OUTPUT_DIR=%s", cfg.OutputDir),
+		core.Sprintf("TARGET_DIR=%s", platformDir),
+	)
+	if cfg.CGO {
+		env = append(env, "CGO_ENABLED=1")
+	}
+
+	useConan := b.usesConan(filesystem, cfg.ProjectDir)
+	if useConan {
+		if err := b.runConanInstall(ctx, cfg, target, buildDir, env); err != nil {
+			return nil, err
+		}
+	}
+	if err := b.runCMakeConfigure(ctx, cfg, target, buildDir, platformDir, useConan, env); err != nil {
+		return nil, err
+	}
+	if err := b.runCMakeBuild(ctx, cfg, buildDir, env); err != nil {
+		return nil, err
+	}
+
+	artifacts := b.findGeneratedArtifacts(filesystem, platformDir, target)
+	if len(artifacts) > 0 {
+		return artifacts, nil
+	}
+
+	// Some generators ignore the explicit output directory and place binaries in
+	// the build tree. Fall back to scanning the cmake build directory.
+	artifacts = b.findGeneratedArtifacts(filesystem, buildDir, target)
+	if len(artifacts) > 0 {
+		return artifacts, nil
+	}
+
+	return nil, coreerr.E("CPPBuilder.buildWithCMake", "no build output found in "+platformDir+" or "+buildDir, nil)
+}
+
 // runMake executes a make target in the project directory.
 func (b *CPPBuilder) runMake(ctx context.Context, cfg *build.Config, target string) error {
 	makeCommand, err := b.resolveMakeCli()
@@ -136,9 +232,75 @@ func (b *CPPBuilder) runMake(ctx context.Context, cfg *build.Config, target stri
 		return err
 	}
 
-	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, cfg.Env, makeCommand, target); err != nil {
+	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), makeCommand, target); err != nil {
 		return coreerr.E("CPPBuilder.runMake", "make "+target+" failed", err)
 	}
+	return nil
+}
+
+func (b *CPPBuilder) runConanInstall(ctx context.Context, cfg *build.Config, target build.Target, buildDir string, env []string) error {
+	conanCommand, err := b.resolveConanCli()
+	if err != nil {
+		return err
+	}
+
+	args := []string{"install", ".", "--output-folder", buildDir, "--build=missing"}
+	if target.OS != runtime.GOOS || target.Arch != runtime.GOARCH {
+		profile := b.targetToProfile(target)
+		if profile == "" {
+			return coreerr.E("CPPBuilder.runConanInstall", "no Conan profile mapped for target "+target.OS+"/"+target.Arch, nil)
+		}
+		args = append(args, "--profile:host", profile)
+	}
+
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, conanCommand, args...)
+	if err != nil {
+		return coreerr.E("CPPBuilder.runConanInstall", "conan install failed: "+output, err)
+	}
+
+	return nil
+}
+
+func (b *CPPBuilder) runCMakeConfigure(ctx context.Context, cfg *build.Config, target build.Target, buildDir, platformDir string, useConan bool, env []string) error {
+	cmakeCommand, err := b.resolveCMakeCli()
+	if err != nil {
+		return err
+	}
+
+	args := []string{
+		"-S", cfg.ProjectDir,
+		"-B", buildDir,
+		"-DCMAKE_BUILD_TYPE=Release",
+		"-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=" + platformDir,
+		"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=" + platformDir,
+		"-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=" + platformDir,
+	}
+	if useConan {
+		args = append(args, "-DCMAKE_TOOLCHAIN_FILE="+ax.Join(buildDir, "conan_toolchain.cmake"))
+	}
+	if target.OS != runtime.GOOS || target.Arch != runtime.GOARCH {
+		args = append(args, "-DCORE_TARGET="+target.OS+"/"+target.Arch)
+	}
+
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, cmakeCommand, args...)
+	if err != nil {
+		return coreerr.E("CPPBuilder.runCMakeConfigure", "cmake configure failed: "+output, err)
+	}
+
+	return nil
+}
+
+func (b *CPPBuilder) runCMakeBuild(ctx context.Context, cfg *build.Config, buildDir string, env []string) error {
+	cmakeCommand, err := b.resolveCMakeCli()
+	if err != nil {
+		return err
+	}
+
+	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, cmakeCommand, "--build", buildDir, "--config", "Release")
+	if err != nil {
+		return coreerr.E("CPPBuilder.runCMakeBuild", "cmake build failed: "+output, err)
+	}
+
 	return nil
 }
 
@@ -186,25 +348,48 @@ func (b *CPPBuilder) findBinaries(fs io.Medium, projectDir string, target build.
 		return nil, coreerr.E("CPPBuilder.findBinaries", "no build output found in "+binDir, nil)
 	}
 
-	entries, err := fs.List(binDir)
+	return b.findGeneratedArtifacts(fs, binDir, target), nil
+}
+
+func (b *CPPBuilder) findGeneratedArtifacts(fs io.Medium, dir string, target build.Target) []build.Artifact {
+	if !fs.IsDir(dir) {
+		return nil
+	}
+
+	entries, err := fs.List(dir)
 	if err != nil {
-		return nil, coreerr.E("CPPBuilder.findBinaries", "failed to list build directory", err)
+		return nil
 	}
 
 	var artifacts []build.Artifact
 	for _, entry := range entries {
 		if entry.IsDir() {
+			if target.OS == "darwin" && core.HasSuffix(entry.Name(), ".app") {
+				artifacts = append(artifacts, build.Artifact{
+					Path: ax.Join(dir, entry.Name()),
+					OS:   target.OS,
+					Arch: target.Arch,
+				})
+			}
 			continue
 		}
 
 		name := entry.Name()
-		// Skip non-executable files (libraries, cmake files, etc.)
-		if core.HasSuffix(name, ".a") || core.HasSuffix(name, ".o") ||
-			core.HasSuffix(name, ".cmake") || core.HasPrefix(name, ".") {
+		// Skip common build metadata and non-runtime artefacts.
+		if core.HasPrefix(name, ".") ||
+			core.HasPrefix(name, "CMake") ||
+			core.HasPrefix(name, "cmake") ||
+			core.HasPrefix(name, "conan") ||
+			core.HasSuffix(name, ".a") ||
+			core.HasSuffix(name, ".o") ||
+			core.HasSuffix(name, ".cmake") ||
+			core.HasSuffix(name, ".ninja") ||
+			core.HasSuffix(name, ".txt") ||
+			name == "Makefile" {
 			continue
 		}
 
-		fullPath := ax.Join(binDir, name)
+		fullPath := ax.Join(dir, name)
 
 		// On Unix, check if file is executable
 		if target.OS != "windows" {
@@ -224,7 +409,7 @@ func (b *CPPBuilder) findBinaries(fs io.Medium, projectDir string, target build.
 		})
 	}
 
-	return artifacts, nil
+	return artifacts
 }
 
 // targetToProfile maps a build target to a Conan cross-compilation profile name.
@@ -253,6 +438,18 @@ func (b *CPPBuilder) validateMake() error {
 	return err
 }
 
+// validateConan checks if conan is available.
+func (b *CPPBuilder) validateConan() error {
+	_, err := b.resolveConanCli()
+	return err
+}
+
+// validateCMake checks if cmake is available.
+func (b *CPPBuilder) validateCMake() error {
+	_, err := b.resolveCMakeCli()
+	return err
+}
+
 // resolveMakeCli returns the executable path for make or gmake.
 func (b *CPPBuilder) resolveMakeCli(paths ...string) (string, error) {
 	if len(paths) == 0 {
@@ -271,6 +468,67 @@ func (b *CPPBuilder) resolveMakeCli(paths ...string) (string, error) {
 	}
 
 	return command, nil
+}
+
+// resolveConanCli returns the executable path for conan.
+func (b *CPPBuilder) resolveConanCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/local/bin/conan",
+			"/opt/homebrew/bin/conan",
+		}
+
+		if home := core.Env("HOME"); home != "" {
+			paths = append(paths, ax.Join(home, ".local", "bin", "conan"))
+		}
+	}
+
+	command, err := ax.ResolveCommand("conan", paths...)
+	if err != nil {
+		return "", coreerr.E("CPPBuilder.resolveConanCli", "conan not found. Install it with: python -m pip install conan", err)
+	}
+
+	return command, nil
+}
+
+// resolveCMakeCli returns the executable path for cmake.
+func (b *CPPBuilder) resolveCMakeCli(paths ...string) (string, error) {
+	if len(paths) == 0 {
+		paths = []string{
+			"/usr/bin/cmake",
+			"/usr/local/bin/cmake",
+			"/opt/homebrew/bin/cmake",
+		}
+	}
+
+	command, err := ax.ResolveCommand("cmake", paths...)
+	if err != nil {
+		return "", coreerr.E("CPPBuilder.resolveCMakeCli", "cmake not found. Install it with: brew install cmake or apt-get install cmake", err)
+	}
+
+	return command, nil
+}
+
+func (b *CPPBuilder) hasManagedMakefile(fs io.Medium, dir string) bool {
+	if fs == nil {
+		fs = io.Local
+	}
+
+	for _, name := range []string{"Makefile", "GNUmakefile", "makefile"} {
+		if fs.IsFile(ax.Join(dir, name)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (b *CPPBuilder) usesConan(fs io.Medium, dir string) bool {
+	if fs == nil {
+		fs = io.Local
+	}
+
+	return fs.IsFile(ax.Join(dir, "conanfile.py")) || fs.IsFile(ax.Join(dir, "conanfile.txt"))
 }
 
 // Ensure CPPBuilder implements the Builder interface.

@@ -9,9 +9,10 @@ import (
 	stdfs "io/fs"
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 
 	io_interface "dappco.re/go/core/io"
+	// TODO(AX-6): Replace with dappco.re/go/crypt when it exposes Compress/Decompress API parity.
 	"github.com/Snider/Borg/pkg/compress"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,24 @@ func setupArchiveTestFile(t *testing.T, name, os_, arch string) (binaryPath stri
 	require.NoError(t, err)
 
 	return binaryPath, outputDir
+}
+
+// setupArchiveTestDirectory creates a test directory artifact in a temp directory.
+// Returns the path to the directory artifact and the output directory.
+func setupArchiveTestDirectory(t *testing.T, name, os_, arch string) (artifactPath string, outputDir string) {
+	t.Helper()
+
+	outputDir = t.TempDir()
+	platformDir := ax.Join(outputDir, os_+"_"+arch)
+	require.NoError(t, ax.MkdirAll(platformDir, 0o755))
+
+	artifactPath = ax.Join(platformDir, name)
+	require.NoError(t, ax.MkdirAll(ax.Join(artifactPath, "Contents", "MacOS"), 0o755))
+	require.NoError(t, ax.MkdirAll(ax.Join(artifactPath, "Resources"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(artifactPath, "Contents", "MacOS", "core"), []byte("bundle binary"), 0o755))
+	require.NoError(t, ax.WriteFile(ax.Join(artifactPath, "Resources", "config.json"), []byte(`{"ok":true}`), 0o644))
+
+	return artifactPath, outputDir
 }
 
 func TestArchive_Archive_Good(t *testing.T) {
@@ -63,6 +82,23 @@ func TestArchive_Archive_Good(t *testing.T) {
 
 		// Verify archive content
 		verifyTarGzContent(t, result.Path, "myapp")
+	})
+
+	t.Run("keeps CI-stamped binary names without double-appending the platform", func(t *testing.T) {
+		binaryPath, outputDir := setupArchiveTestFile(t, "myapp_linux_amd64_v1.2.3", "linux", "amd64")
+
+		artifact := Artifact{
+			Path: binaryPath,
+			OS:   "linux",
+			Arch: "amd64",
+		}
+
+		result, err := Archive(fs, artifact)
+		require.NoError(t, err)
+
+		expectedPath := ax.Join(outputDir, "myapp_linux_amd64_v1.2.3.tar.gz")
+		assert.Equal(t, expectedPath, result.Path)
+		assert.FileExists(t, result.Path)
 	})
 
 	t.Run("creates tar.gz for darwin", func(t *testing.T) {
@@ -195,6 +231,46 @@ func TestArchive_Archive_Good(t *testing.T) {
 
 		verifyZipContent(t, result.Path, "myapp")
 	})
+
+	t.Run("creates tar.gz for directory artifacts", func(t *testing.T) {
+		artifactPath, outputDir := setupArchiveTestDirectory(t, "Core.app", "darwin", "arm64")
+
+		artifact := Artifact{
+			Path: artifactPath,
+			OS:   "darwin",
+			Arch: "arm64",
+		}
+
+		result, err := Archive(fs, artifact)
+		require.NoError(t, err)
+
+		expectedPath := ax.Join(outputDir, "Core_darwin_arm64.tar.gz")
+		assert.Equal(t, expectedPath, result.Path)
+		assert.FileExists(t, result.Path)
+
+		assert.Equal(t, []byte("bundle binary"), extractTarGzFile(t, result.Path, "Core.app/Contents/MacOS/core"))
+		assert.Equal(t, []byte(`{"ok":true}`), extractTarGzFile(t, result.Path, "Core.app/Resources/config.json"))
+	})
+
+	t.Run("creates zip for directory artifacts", func(t *testing.T) {
+		artifactPath, outputDir := setupArchiveTestDirectory(t, "bundle", "linux", "amd64")
+
+		artifact := Artifact{
+			Path: artifactPath,
+			OS:   "linux",
+			Arch: "amd64",
+		}
+
+		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatZip)
+		require.NoError(t, err)
+
+		expectedPath := ax.Join(outputDir, "bundle_linux_amd64.zip")
+		assert.Equal(t, expectedPath, result.Path)
+		assert.FileExists(t, result.Path)
+
+		assert.Equal(t, []byte("bundle binary"), extractZipFile(t, result.Path, "bundle/Contents/MacOS/core"))
+		assert.Equal(t, []byte(`{"ok":true}`), extractZipFile(t, result.Path, "bundle/Resources/config.json"))
+	})
 }
 
 func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
@@ -262,20 +338,6 @@ func TestArchive_Archive_Bad(t *testing.T) {
 		assert.Empty(t, result.Path)
 	})
 
-	t.Run("returns error for directory path", func(t *testing.T) {
-		dir := t.TempDir()
-
-		artifact := Artifact{
-			Path: dir,
-			OS:   "linux",
-			Arch: "amd64",
-		}
-
-		result, err := Archive(fs, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "source path is a directory")
-		assert.Empty(t, result.Path)
-	})
 }
 
 func TestArchive_ArchiveAll_Good(t *testing.T) {
@@ -391,6 +453,17 @@ func TestArchive_ArchiveFilename_Good(t *testing.T) {
 
 		filename := archiveFilename(artifact, ".tar.gz")
 		assert.Equal(t, "/project/dist/cli_linux_arm64.tar.gz", filename)
+	})
+
+	t.Run("strips app bundle suffix from archive name", func(t *testing.T) {
+		artifact := Artifact{
+			Path: "/output/darwin_arm64/Core.app",
+			OS:   "darwin",
+			Arch: "arm64",
+		}
+
+		filename := archiveFilename(artifact, ".tar.gz")
+		assert.Equal(t, "/output/Core_darwin_arm64.tar.gz", filename)
 	})
 }
 
@@ -686,7 +759,7 @@ func verifyTarXzContent(t *testing.T, archivePath, expectedName string) {
 	xzData, err := ax.ReadFile(archivePath)
 	require.NoError(t, err)
 
-	// Decompress with Borg
+	// Decompress with the deferred Borg API.
 	tarData, err := compress.Decompress(xzData)
 	require.NoError(t, err)
 

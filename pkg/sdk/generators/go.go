@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	coreerr "dappco.re/go/log"
 )
 
 // GoGenerator generates Go SDKs from OpenAPI specs.

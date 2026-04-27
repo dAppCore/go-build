@@ -26,7 +26,7 @@ export class BuildSdk extends LitElement {
     .section-title {
       font-size: 0.75rem;
       font-weight: 700;
-      colour: #6b7280;
+      color: #6b7280;
       text-transform: uppercase;
       letter-spacing: 0.025em;
       margin-bottom: 0.75rem;
@@ -49,7 +49,7 @@ export class BuildSdk extends LitElement {
     .diff-field label {
       font-size: 0.75rem;
       font-weight: 500;
-      colour: #6b7280;
+      color: #6b7280;
     }
 
     .diff-field input {
@@ -62,7 +62,7 @@ export class BuildSdk extends LitElement {
 
     .diff-field input:focus {
       outline: none;
-      border-colour: #6366f1;
+      border-color: #6366f1;
       box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
     }
 
@@ -76,7 +76,7 @@ export class BuildSdk extends LitElement {
 
     button.primary {
       background: #6366f1;
-      colour: #fff;
+      color: #fff;
       border: none;
     }
 
@@ -91,7 +91,7 @@ export class BuildSdk extends LitElement {
 
     button.secondary {
       background: #fff;
-      colour: #374151;
+      color: #374151;
       border: 1px solid #d1d5db;
     }
 
@@ -109,13 +109,13 @@ export class BuildSdk extends LitElement {
     .diff-result.breaking {
       background: #fef2f2;
       border: 1px solid #fecaca;
-      colour: #991b1b;
+      color: #991b1b;
     }
 
     .diff-result.safe {
       background: #f0fdf4;
       border: 1px solid #bbf7d0;
-      colour: #166534;
+      color: #166534;
     }
 
     .diff-summary {
@@ -152,12 +152,12 @@ export class BuildSdk extends LitElement {
     .empty {
       text-align: center;
       padding: 2rem;
-      colour: #9ca3af;
+      color: #9ca3af;
       font-size: 0.875rem;
     }
 
     .error {
-      colour: #dc2626;
+      color: #dc2626;
       padding: 0.75rem;
       background: #fef2f2;
       border-radius: 0.375rem;
@@ -171,14 +171,14 @@ export class BuildSdk extends LitElement {
       border: 1px solid #bbf7d0;
       border-radius: 0.375rem;
       font-size: 0.875rem;
-      colour: #166534;
+      color: #166534;
       margin-bottom: 1rem;
     }
 
     .loading {
       text-align: center;
       padding: 1rem;
-      colour: #6b7280;
+      color: #6b7280;
       font-size: 0.875rem;
     }
   `;

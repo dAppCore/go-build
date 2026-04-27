@@ -5,28 +5,12 @@ package buildcmd
 import (
 	"context"
 
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/i18n"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
-	"forge.lthn.ai/core/cli/pkg/cli"
-)
-
-var (
-	releaseWorkflowPathInput                  string
-	releaseWorkflowPathAliasInput             string
-	releaseWorkflowPathHyphenAliasInput       string
-	releaseWorkflowPathSnakeAliasInput        string
-	releaseWorkflowOutputPathHyphenInput      string
-	releaseWorkflowOutputPathSnakeInput       string
-	releaseWorkflowOutputPathInput            string
-	releaseWorkflowOutputLegacyInput          string
-	releaseWorkflowOutputPathAliasInput       string
-	releaseWorkflowOutputPathHyphenAliasInput string
-	releaseWorkflowOutputPathSnakeAliasInput  string
-	releaseWorkflowOutputHyphenAliasInput     string
-	releaseWorkflowOutputSnakeAliasInput      string
+	"dappco.re/go/core"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cmdutil"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // releaseWorkflowRequestInputs keeps the workflow alias inputs grouped by the
@@ -83,54 +67,28 @@ func (inputs releaseWorkflowRequestInputs) resolveReleaseWorkflowTargetPath(proj
 	return build.ResolveReleaseWorkflowInputPathWithMedium(medium, projectDir, resolvedWorkflowPath, resolvedWorkflowOutputPath)
 }
 
-var releaseWorkflowCmd = &cli.Command{
-	Use: "workflow",
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runReleaseWorkflow(cmd.Context(), releaseWorkflowRequestInputs{
-			pathInput:                     releaseWorkflowPathInput,
-			workflowPathInput:             releaseWorkflowPathAliasInput,
-			workflowPathSnakeInput:        releaseWorkflowPathSnakeAliasInput,
-			workflowPathHyphenInput:       releaseWorkflowPathHyphenAliasInput,
-			outputPathInput:               releaseWorkflowOutputPathInput,
-			outputPathHyphenInput:         releaseWorkflowOutputPathHyphenInput,
-			outputPathSnakeInput:          releaseWorkflowOutputPathSnakeInput,
-			legacyOutputInput:             releaseWorkflowOutputLegacyInput,
-			workflowOutputPathInput:       releaseWorkflowOutputPathAliasInput,
-			workflowOutputSnakeInput:      releaseWorkflowOutputSnakeAliasInput,
-			workflowOutputHyphenInput:     releaseWorkflowOutputHyphenAliasInput,
-			workflowOutputPathHyphenInput: releaseWorkflowOutputPathHyphenAliasInput,
-			workflowOutputPathSnakeInput:  releaseWorkflowOutputPathSnakeAliasInput,
-		})
-	},
-}
-
-func setWorkflowI18n() {
-	releaseWorkflowCmd.Short = i18n.T("cmd.build.workflow.short")
-	releaseWorkflowCmd.Long = i18n.T("cmd.build.workflow.long")
-}
-
-func initWorkflowFlags() {
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathInput, "path", "", i18n.T("cmd.build.workflow.flag.path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathAliasInput, "workflowPath", "", i18n.T("cmd.build.workflow.flag.path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathHyphenAliasInput, "workflow-path", "", i18n.T("cmd.build.workflow.flag.path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowPathSnakeAliasInput, "workflow_path", "", i18n.T("cmd.build.workflow.flag.path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathInput, "outputPath", "", i18n.T("cmd.build.workflow.flag.output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathHyphenInput, "output-path", "", i18n.T("cmd.build.workflow.flag.output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathSnakeInput, "output_path", "", i18n.T("cmd.build.workflow.flag.output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputLegacyInput, "output", "", i18n.T("cmd.build.workflow.flag.output"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathAliasInput, "workflowOutputPath", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathHyphenAliasInput, "workflow-output-path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputPathSnakeAliasInput, "workflow_output_path", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputHyphenAliasInput, "workflow-output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-	releaseWorkflowCmd.Flags().StringVar(&releaseWorkflowOutputSnakeAliasInput, "workflow_output", "", i18n.T("cmd.build.workflow.flag.workflow_output_path"))
-}
-
-// buildCmd := &cli.Command{Use: "build"}
-// buildcmd.AddWorkflowCommand(buildCmd)
-func AddWorkflowCommand(buildCmd *cli.Command) {
-	setWorkflowI18n()
-	initWorkflowFlags()
-	buildCmd.AddCommand(releaseWorkflowCmd)
+// AddWorkflowCommand registers the build/workflow subcommand.
+func AddWorkflowCommand(c *core.Core) {
+	c.Command("build/workflow", core.Command{
+		Description: "cmd.build.workflow.long",
+		Action: func(opts core.Options) core.Result {
+			return cmdutil.ResultFromError(runReleaseWorkflow(cmdutil.ContextOrBackground(), releaseWorkflowRequestInputs{
+				pathInput:                     cmdutil.OptionString(opts, "path"),
+				workflowPathInput:             cmdutil.OptionString(opts, "workflowPath"),
+				workflowPathSnakeInput:        cmdutil.OptionString(opts, "workflow_path"),
+				workflowPathHyphenInput:       cmdutil.OptionString(opts, "workflow-path"),
+				outputPathInput:               cmdutil.OptionString(opts, "outputPath"),
+				outputPathHyphenInput:         cmdutil.OptionString(opts, "output-path"),
+				outputPathSnakeInput:          cmdutil.OptionString(opts, "output_path"),
+				legacyOutputInput:             cmdutil.OptionString(opts, "output"),
+				workflowOutputPathInput:       cmdutil.OptionString(opts, "workflowOutputPath"),
+				workflowOutputSnakeInput:      cmdutil.OptionString(opts, "workflow_output"),
+				workflowOutputHyphenInput:     cmdutil.OptionString(opts, "workflow-output"),
+				workflowOutputPathHyphenInput: cmdutil.OptionString(opts, "workflow-output-path"),
+				workflowOutputPathSnakeInput:  cmdutil.OptionString(opts, "workflow_output_path"),
+			}))
+		},
+	})
 }
 
 // runReleaseWorkflow writes the embedded release workflow into the current

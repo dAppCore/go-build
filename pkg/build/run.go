@@ -1,0 +1,410 @@
+package build
+
+import (
+	"context"
+	"io/fs"
+	"reflect"
+
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/core"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+)
+
+var defaultBuilderResolver BuilderResolver
+
+// RunConfig captures the option-style inputs for the RFC-documented build API.
+type RunConfig struct {
+	Context        context.Context
+	ProjectDir     string
+	ConfigPath     string
+	BuildConfig    *BuildConfig
+	BuildType      string
+	BuildTags      []string
+	Obfuscate      bool
+	ObfuscateSet   bool
+	NSIS           bool
+	NSISSet        bool
+	WebView2       string
+	WebView2Set    bool
+	DenoBuild      string
+	DenoBuildSet   bool
+	NpmBuild       string
+	NpmBuildSet    bool
+	BuildCache     bool
+	BuildCacheSet  bool
+	BuildName      string
+	OutputDir      string
+	Output         coreio.Medium
+	Targets        []Target
+	Version        string
+	ResolveBuilder BuilderResolver
+	ResolveVersion VersionResolver
+}
+
+// RunOption mutates a RunConfig before the pipeline executes.
+type RunOption func(*RunConfig)
+
+// RegisterDefaultBuilderResolver installs the builder resolver used by Run when
+// the caller does not provide one explicitly.
+func RegisterDefaultBuilderResolver(resolver BuilderResolver) {
+	defaultBuilderResolver = resolver
+}
+
+// DefaultBuilderResolver returns the currently registered default builder resolver.
+func DefaultBuilderResolver() BuilderResolver {
+	return defaultBuilderResolver
+}
+
+// DefaultRunConfig returns the default configuration for the option-style Run API.
+func DefaultRunConfig() *RunConfig {
+	return &RunConfig{
+		Context: context.Background(),
+		Output:  coreio.Local,
+	}
+}
+
+// WithContext overrides the context used for discovery, versioning, and builds.
+func WithContext(ctx context.Context) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.Context = ctx
+	}
+}
+
+// WithProjectDir sets the project directory to build.
+func WithProjectDir(dir string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.ProjectDir = dir
+	}
+}
+
+// WithConfigPath points Run at an explicit build config file.
+func WithConfigPath(path string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.ConfigPath = path
+	}
+}
+
+// WithBuildConfig injects a preloaded build config instead of loading .core/build.yaml.
+func WithBuildConfig(buildConfig *BuildConfig) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.BuildConfig = buildConfig
+	}
+}
+
+// WithBuildType forces a specific project type instead of auto-detection.
+func WithBuildType(buildType string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.BuildType = buildType
+	}
+}
+
+// WithBuildTags overrides the Go build tags passed through the pipeline.
+func WithBuildTags(tags ...string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.BuildTags = append([]string(nil), tags...)
+	}
+}
+
+// WithObfuscate enables or disables garble-backed obfuscation for the build.
+func WithObfuscate(enabled bool) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.Obfuscate = enabled
+		cfg.ObfuscateSet = true
+	}
+}
+
+// WithNSIS enables or disables Windows NSIS installer generation for Wails builds.
+func WithNSIS(enabled bool) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.NSIS = enabled
+		cfg.NSISSet = true
+	}
+}
+
+// WithWebView2 sets the Wails WebView2 delivery mode: download, embed, browser, or error.
+func WithWebView2(mode string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.WebView2 = mode
+		cfg.WebView2Set = true
+	}
+}
+
+// WithDenoBuild overrides the default Deno frontend build command.
+func WithDenoBuild(command string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.DenoBuild = command
+		cfg.DenoBuildSet = true
+	}
+}
+
+// WithNpmBuild overrides the default npm frontend build command.
+func WithNpmBuild(command string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.NpmBuild = command
+		cfg.NpmBuildSet = true
+	}
+}
+
+// WithBuildCache enables or disables build cache setup before the pipeline runs.
+func WithBuildCache(enabled bool) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.BuildCache = enabled
+		cfg.BuildCacheSet = true
+	}
+}
+
+// WithBuildName overrides the resolved artifact name.
+func WithBuildName(name string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.BuildName = name
+	}
+}
+
+// WithOutputDir sets the destination directory or key prefix for mirrored artifacts.
+func WithOutputDir(dir string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.OutputDir = dir
+	}
+}
+
+// WithOutput sets the destination medium used for final build artifacts.
+func WithOutput(output coreio.Medium) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.Output = output
+	}
+}
+
+// WithTargets overrides the build matrix targets.
+func WithTargets(targets ...Target) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.Targets = append([]Target(nil), targets...)
+	}
+}
+
+// WithVersion overrides the resolved build version.
+func WithVersion(version string) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.Version = version
+	}
+}
+
+// WithBuilderResolver provides an explicit builder resolver for Run.
+func WithBuilderResolver(resolver BuilderResolver) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.ResolveBuilder = resolver
+	}
+}
+
+// WithVersionResolver provides an explicit version resolver for Run.
+func WithVersionResolver(resolver VersionResolver) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.ResolveVersion = resolver
+	}
+}
+
+// Run executes the build pipeline and mirrors produced artifacts into the
+// configured output medium.
+//
+//	artifacts, err := build.Run(build.WithOutput(io.Local))
+func Run(opts ...RunOption) ([]Artifact, error) {
+	cfg := DefaultRunConfig()
+	for _, opt := range opts {
+		if opt != nil {
+			opt(cfg)
+		}
+	}
+
+	ctx := cfg.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	projectDir := cfg.ProjectDir
+	if projectDir == "" {
+		var err error
+		projectDir, err = ax.Getwd()
+		if err != nil {
+			return nil, coreerr.E("build.Run", "failed to get working directory", err)
+		}
+	}
+	projectDir = ax.Clean(projectDir)
+
+	output := cfg.Output
+	if output == nil {
+		output = coreio.Local
+	}
+
+	destinationRoot := resolveRunOutputRoot(projectDir, cfg.OutputDir, output)
+
+	stageRoot, err := ax.MkdirTemp("core-build-*")
+	if err != nil {
+		return nil, coreerr.E("build.Run", "failed to create build staging directory", err)
+	}
+	defer func() { _ = ax.RemoveAll(stageRoot) }()
+
+	stageOutputDir := ax.Join(stageRoot, "dist")
+
+	resolver := cfg.ResolveBuilder
+	if resolver == nil {
+		resolver = DefaultBuilderResolver()
+	}
+	if resolver == nil {
+		resolver = resolveBuiltinBuilder
+	}
+
+	pipeline := &Pipeline{
+		FS:             coreio.Local,
+		ResolveBuilder: resolver,
+		ResolveVersion: cfg.ResolveVersion,
+	}
+
+	plan, err := pipeline.Plan(ctx, PipelineRequest{
+		ProjectDir:    projectDir,
+		ConfigPath:    cfg.ConfigPath,
+		BuildConfig:   cfg.BuildConfig,
+		BuildType:     cfg.BuildType,
+		BuildTags:     append([]string(nil), cfg.BuildTags...),
+		Obfuscate:     cfg.Obfuscate,
+		ObfuscateSet:  cfg.ObfuscateSet,
+		NSIS:          cfg.NSIS,
+		NSISSet:       cfg.NSISSet,
+		WebView2:      cfg.WebView2,
+		WebView2Set:   cfg.WebView2Set,
+		DenoBuild:     cfg.DenoBuild,
+		DenoBuildSet:  cfg.DenoBuildSet,
+		NpmBuild:      cfg.NpmBuild,
+		NpmBuildSet:   cfg.NpmBuildSet,
+		BuildCache:    cfg.BuildCache,
+		BuildCacheSet: cfg.BuildCacheSet,
+		OutputDir:     stageOutputDir,
+		BuildName:     cfg.BuildName,
+		Targets:       append([]Target(nil), cfg.Targets...),
+		Version:       cfg.Version,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := pipeline.Run(ctx, plan)
+	if err != nil {
+		return nil, err
+	}
+
+	return mirrorArtifacts(coreio.Local, output, stageOutputDir, destinationRoot, result.Artifacts)
+}
+
+func resolveRunOutputRoot(projectDir, outputDir string, output coreio.Medium) string {
+	if outputDir == "" && !mediumEquals(output, coreio.Local) {
+		return ""
+	}
+
+	if outputDir == "" {
+		outputDir = "dist"
+	}
+
+	if !ax.IsAbs(outputDir) && mediumEquals(output, coreio.Local) {
+		return ax.Join(projectDir, outputDir)
+	}
+
+	return outputDir
+}
+
+func mediumEquals(left, right coreio.Medium) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
+	leftType := reflect.TypeOf(left)
+	rightType := reflect.TypeOf(right)
+	if leftType != rightType || !leftType.Comparable() {
+		return false
+	}
+
+	return reflect.ValueOf(left).Interface() == reflect.ValueOf(right).Interface()
+}
+
+func mirrorArtifacts(source, destination coreio.Medium, sourceRoot, destinationRoot string, artifacts []Artifact) ([]Artifact, error) {
+	if source == nil {
+		source = coreio.Local
+	}
+	if destination == nil {
+		destination = coreio.Local
+	}
+
+	mirrored := make([]Artifact, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		relativePath, err := ax.Rel(sourceRoot, artifact.Path)
+		if err != nil || relativePath == "" || core.HasPrefix(relativePath, "..") {
+			relativePath = ax.Base(artifact.Path)
+		}
+
+		destinationPath := joinOutputPath(destinationRoot, relativePath)
+		if err := copyMediumPath(source, artifact.Path, destination, destinationPath); err != nil {
+			return nil, coreerr.E("build.Run", "failed to mirror artifact "+artifact.Path, err)
+		}
+
+		mirroredArtifact := artifact
+		mirroredArtifact.Path = destinationPath
+		mirrored = append(mirrored, mirroredArtifact)
+	}
+
+	return mirrored, nil
+}
+
+func joinOutputPath(root, path string) string {
+	if root == "" || root == "." {
+		return ax.Clean(path)
+	}
+	if path == "" || path == "." {
+		return ax.Clean(root)
+	}
+	return ax.Join(root, path)
+}
+
+func copyMediumPath(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) error {
+	info, err := source.Stat(sourcePath)
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		return copyMediumDir(source, sourcePath, destination, destinationPath)
+	}
+
+	return copyMediumFile(source, sourcePath, destination, destinationPath, info.Mode())
+}
+
+func copyMediumDir(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) error {
+	if err := destination.EnsureDir(destinationPath); err != nil {
+		return err
+	}
+
+	entries, err := source.List(sourcePath)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		childSourcePath := ax.Join(sourcePath, entry.Name())
+		childDestinationPath := ax.Join(destinationPath, entry.Name())
+		if err := copyMediumPath(source, childSourcePath, destination, childDestinationPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func copyMediumFile(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string, mode fs.FileMode) error {
+	if err := destination.EnsureDir(ax.Dir(destinationPath)); err != nil {
+		return err
+	}
+
+	content, err := source.Read(sourcePath)
+	if err != nil {
+		return err
+	}
+
+	return destination.WriteMode(destinationPath, content, mode)
+}

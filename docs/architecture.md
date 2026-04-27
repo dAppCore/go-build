@@ -1,31 +1,165 @@
 ---
 title: Architecture
-description: Internal design of go-build -- types, data flow, and extension points.
+description: Internal design of the build pipeline, public action parity, setup planning, builders, and packaging layers.
 ---
 
 # Architecture
 
-go-build is organised into three independent subsystems that share common types: **build**, **release**, and **sdk**. The CLI layer in `cmd/` wires them together but the library packages under `pkg/` can be used programmatically without the CLI.
+go-build mirrors the modular `dAppCore/build@v3` action architecture in Go rather than reimplementing it as shell-only composites. The pipeline shape stays recognisable, but the implementation lives in typed packages, builders, and planning APIs.
 
-## Build Subsystem
+## Overview
 
-### Project Discovery
+The system has one gateway shape and several specialised layers:
 
-`build.Discover()` scans a directory for marker files and returns detected project types in priority order (most specific first). For example, a Wails project contains both `wails.json` and `go.mod`, so `Discover` returns `[wails, go]`. `PrimaryType()` returns only the first match.
+1. Discovery gathers repository markers, distro hints, and Git metadata.
+2. Orchestration resolves the effective stack and build configuration.
+3. Options computes build flags deterministically.
+4. Setup planning determines which toolchains are required.
+5. Builders execute stack-specific build logic.
+6. Signing and packaging wrap the build outputs.
+7. Release and SDK layers sit alongside the build pipeline and reuse its metadata.
 
-Detection order:
+## Pipeline Pattern
 
-1. `wails.json` -- `ProjectTypeWails`
-2. `go.mod` -- `ProjectTypeGo`
-3. `package.json` -- `ProjectTypeNode`
-4. `composer.json` -- `ProjectTypePHP`
-5. `mkdocs.yml` -- `ProjectTypeDocs`
+The public action and the Go implementation follow the same top-level flow:
 
-Docker (`Dockerfile`), LinuxKit (`linuxkit.yml` or `.core/linuxkit/*.yml`), C++ (`CMakeLists.txt`), and Taskfile (`Taskfile.yml`) are detected by their respective builders' `Detect()` methods rather than the central discovery function.
+```text
+Gateway
+  -> Discovery
+  -> Orchestration
+  -> Options
+  -> Setup
+  -> Build
+  -> Sign
+  -> Package
+```
 
-### Builder Interface
+In the public action this is split across `actions/discovery`, `actions/options`, `actions/setup/*`, `actions/build/*`, `actions/sign`, and `actions/package`.
 
-Every builder implements:
+In go-build the equivalents are:
+
+- `build.Pipeline` for the gateway/orchestration layer
+- `build.Discover()` and `build.DiscoverFull()` for discovery
+- `build.ComputeOptions()` for pure build-option computation
+- `build.ComputeSetupPlan()` for action-style setup planning
+- `pkg/build/builders/` for stack-specific wrappers
+- `pkg/build/signing/` and `pkg/build/apple.go` for signing/notarisation
+- `pkg/build/archive.go`, `pkg/build/checksum.go`, and `pkg/release/` for packaging and publishing
+
+## Public Action Layout
+
+The root action still behaves like a gateway: discovery runs first, the selected stack wrapper owns the middle of the pipeline, and packaging runs last.
+
+```text
+action.yml
+  -> actions/discovery/
+  -> actions/options/
+  -> actions/setup/
+     -> go/
+     -> npm/
+     -> deno/
+     -> conan/
+  -> actions/build/
+     -> wails2/
+  -> actions/sign/
+  -> actions/package/
+```
+
+That layout matters because go-build keeps the same separation of concerns. `build.Pipeline` is the gateway, `DiscoverFull` and `ComputeOptions` are pure upstream context builders, `ComputeSetupPlan` is the setup orchestrator, and each builder owns its stack-specific execution details.
+
+## Data Flow
+
+The action design relies on outputs flowing downstream. The Go implementation keeps the same rule.
+
+```text
+PipelineRequest
+  -> load config
+  -> DiscoverFull()
+  -> ComputeOptions()
+  -> ComputeSetupPlan()
+  -> resolve builder
+  -> build runtime config
+  -> Builder.Build()
+  -> archive/checksum/release
+```
+
+The practical consequence is that discovery becomes shared context for every later phase instead of each phase re-reading the repository independently.
+
+## Discovery
+
+`DiscoverFull()` is the Go equivalent of the public action discovery step. It records:
+
+- detected project types in priority order
+- configured build-type overrides from `.core/build.yaml`
+- host OS and architecture
+- stack suggestions such as `wails2`, `cpp`, `docs`, `node`, and `go`
+- root marker presence for Go, Wails, CMake, Composer, Cargo, Taskfile, and MkDocs
+- frontend manifests at the root, under `frontend/`, and in visible nested trees up to depth 2
+- Deno manifests and Deno-requested state
+- distro-aware Linux package requirements
+- GitHub/Git metadata for refs, branch/tag state, SHA, and owner/repo context
+
+Important behaviours preserved from the action:
+
+- Wails detection accepts direct `wails.json` projects and Go roots that contain frontend manifests.
+- Docs detection treats MkDocs as a first-class stack rather than a generic Node project.
+- Nested frontend discovery ignores `node_modules` and hidden directories.
+- Stack suggestions preserve the action naming contract instead of only returning Go-side project types.
+
+The build API exposes this contract through `GET /api/v1/build/discover`, including workflow-facing aliases such as `configured_build_type`, `has_subtree_package_json`, `has_subtree_deno_manifest`, `has_taskfile`, and a serialized `setup_plan`.
+
+## Options
+
+`ComputeOptions()` is intentionally a pure transformation step:
+
+- config plus discovery in
+- computed flags out
+
+It currently derives:
+
+- Go build tags
+- Ubuntu 24.04+ `webkit2_41` tag injection for Wails
+- obfuscation
+- NSIS
+- WebView2 mode
+- ldflags
+
+That mirrors the action's options phase, where flag computation is kept separate from tool installation and build execution.
+
+## Setup Planning
+
+`ComputeSetupPlan()` is the Go analogue of the action setup orchestrator. It does not install tools itself. It computes which toolchains a runner or caller needs:
+
+- Go
+- garble
+- Task
+- Node/Corepack
+- Wails
+- Python
+- PHP and Composer
+- Rust
+- Conan
+- MkDocs
+- Deno
+
+This keeps setup thin and compositional. A builder can depend on a setup plan without coupling its execution logic to runner bootstrap details.
+
+## Configuration Resolution
+
+The public action resolves configuration once with clear precedence and then passes the resolved values downstream. go-build follows the same rule.
+
+The effective precedence is:
+
+1. CLI or API request overrides such as `--build-tags`, `--build-obfuscate`, `--nsis`, `--deno-build`, `--wails-build-webview2`, and `--build-cache`
+2. persisted `.core/build.yaml`
+3. environment-driven opt-in features such as `DENO_ENABLE` and `DENO_BUILD`
+4. package defaults
+
+`build.Pipeline` applies these overrides before discovery-dependent planning is consumed by builders, so callers do not need to mutate loaded config manually.
+
+## Builder Layer
+
+Every stack builder implements the same interface:
 
 ```go
 type Builder interface {
@@ -35,230 +169,109 @@ type Builder interface {
 }
 ```
 
-The `Config` struct carries runtime parameters (filesystem medium, project directory, output directory, binary name, version, linker flags) plus Docker- and LinuxKit-specific fields.
+Current builder families:
 
-`Build()` returns a slice of `Artifact` values, each recording the output path, target OS, and target architecture:
-
-```go
-type Artifact struct {
-    Path     string
-    OS       string
-    Arch     string
-    Checksum string
-}
-```
-
-### Builder Implementations
-
-| Builder | Detection | Strategy |
-|---|---|---|
-| **GoBuilder** | `go.mod` or `wails.json` | Sets `GOOS`/`GOARCH`/`CGO_ENABLED=0`, runs `go build -trimpath` with ldflags. Output per target: `dist/{os}_{arch}/{binary}`. |
-| **WailsBuilder** | `wails.json` | Checks `go.mod` for Wails v3 vs v2. V3 delegates to TaskfileBuilder; V2 runs `wails build -platform` then copies from `build/bin/` to `dist/`. |
-| **NodeBuilder** | `package.json` | Detects the active package manager from lockfiles, runs the build script once per target, and collects artifacts from `dist/{os}_{arch}/`. |
-| **PHPBuilder** | `composer.json` | Runs `composer install`, then `composer run-script build` when present. Falls back to a deterministic zip bundle in `dist/{os}_{arch}/`. |
-| **PythonBuilder** | `pyproject.toml` or `requirements.txt` | Packages the project tree into a deterministic zip bundle in `dist/{os}_{arch}/`. |
-| **RustBuilder** | `Cargo.toml` | Runs `cargo build --release --target` per platform and collects executables from `target/{triple}/release/`. |
-| **DocsBuilder** | `mkdocs.yml` | Runs `mkdocs build --clean --site-dir` and packages the generated `site/` tree into a zip bundle per target. |
-| **DockerBuilder** | `Dockerfile` | Validates `docker` and `buildx`, builds multi-platform images with `docker buildx build --platform`. Supports `--push` or local load/OCI tarball. |
-| **LinuxKitBuilder** | `linuxkit.yml` or `.core/linuxkit/*.yml` | Validates `linuxkit` CLI, runs `linuxkit build --format --name --dir --arch`. Outputs qcow2, iso, raw, vmdk, vhd, or cloud images. Linux-only targets. |
-| **CPPBuilder** | `CMakeLists.txt` | Validates `make`, runs `make configure` then `make build` then `make package` for host builds. Cross-compilation uses Conan profile targets (e.g. `make gcc-linux-armv8`). Finds artifacts in `build/packages/` or `build/release/src/`. |
-| **TaskfileBuilder** | `Taskfile.yml` / `Taskfile.yaml` / `Taskfile` | Validates `task` CLI, runs `task build` with `GOOS`, `GOARCH`, `OUTPUT_DIR`, `NAME`, `VERSION` as both env vars and task vars. Discovers artifacts by platform subdirectory or filename pattern. |
-
-### Post-Build Pipeline
-
-After building, the CLI orchestrates three optional steps:
-
-1. **Signing** -- `signing.SignBinaries()` codesigns darwin artifacts with hardened runtime. `signing.NotarizeBinaries()` submits to Apple via `xcrun notarytool` and staples. `signing.SignChecksums()` creates GPG detached signatures (`.asc`).
-
-2. **Archiving** -- `build.ArchiveAll()` (or `ArchiveAllXZ()`) wraps each artifact. Linux/macOS get `tar.gz` (or `tar.xz`); Windows gets `zip`. XZ compression uses the Borg library. Archive filenames follow the pattern `{binary}_{os}_{arch}.tar.gz`.
-
-3. **Checksums** -- `build.ChecksumAll()` computes SHA-256 for each archive. `build.WriteChecksumFile()` writes a sorted `CHECKSUMS.txt` in the standard `sha256  filename` format.
-
-### Signing Architecture
-
-The `Signer` interface:
-
-```go
-type Signer interface {
-    Name() string
-    Available() bool
-    Sign(ctx context.Context, fs io.Medium, path string) error
-}
-```
-
-Three implementations:
-
-- **GPGSigner** -- `gpg --detach-sign --armor --local-user {key}`. Produces `.asc` files.
-- **MacOSSigner** -- `codesign --sign {identity} --timestamp --options runtime --force`. Notarisation via `xcrun notarytool submit --wait` then `xcrun stapler staple`.
-- **WindowsSigner** -- Uses `signtool` on Windows when a certificate is configured.
-
-Configuration supports `$ENV` expansion in all credential fields, so secrets can come from environment variables without being written to YAML.
-
-### Configuration Loading
-
-`build.LoadConfig(fs, dir)` reads `.core/build.yaml`. If the file is missing, `DefaultConfig()` provides:
-
-- Version 1 format
-- Main package: `.`
-- Flags: `["-trimpath"]`
-- LDFlags: `["-s", "-w"]`
-- CGO: disabled
-- Targets: `linux/amd64`, `linux/arm64`, `darwin/arm64`, `windows/amd64`
-- Signing: enabled, credentials from environment
-
-Fields present in the YAML override defaults; omitted fields inherit defaults via `applyDefaults()`.
-
-### Filesystem Abstraction
-
-All file operations go through `io.Medium` from `forge.lthn.ai/core/go-io`. Production code uses `io.Local` (real filesystem); tests can inject mock mediums. This makes builders unit-testable without touching the real filesystem for detection and configuration loading.
-
----
-
-## Release Subsystem
-
-### Version Resolution
-
-`release.DetermineVersion(dir)` resolves the release version:
-
-1. If HEAD has an exact git tag, use it.
-2. If there is a previous tag, increment its patch number (e.g. `v1.2.3` becomes `v1.2.4`).
-3. If no tags exist, default to `v0.0.1`.
-
-Helper functions `IncrementMinor()` and `IncrementMajor()` are available for manual version bumps. `ParseVersion()` decomposes a semver string into major, minor, patch, pre-release, and build components. `CompareVersions()` returns -1, 0, or 1.
-
-All versions are normalised to include a `v` prefix.
-
-### Changelog Generation
-
-`release.Generate(dir, fromRef, toRef)` parses git history between two refs and produces grouped Markdown.
-
-Commits are parsed against the conventional-commit regex:
-
-```
-^(\w+)(?:\(([^)]+)\))?(!)?:\s*(.+)$
-```
-
-This matches patterns like `feat: add feature`, `fix(scope): fix bug`, or `feat!: breaking change`.
-
-Parsed commits are grouped by type and rendered in a fixed order: breaking changes first, then features, bug fixes, performance, refactoring, and so on. Each entry includes the optional scope (bolded) and the short commit hash.
-
-`GenerateWithConfig()` adds include/exclude filtering by commit type, driven by the `changelog` section in `.core/release.yaml`.
-
-### Release Orchestration
-
-Two entry points:
-
-- **`release.Run()`** -- Full pipeline: determine version, generate changelog, build artifacts (via the build subsystem), archive, checksum, then publish to all configured targets.
-- **`release.Publish()`** -- Publish-only: expects pre-built artifacts in `dist/`, generates changelog, then publishes. This supports the separated `core build` then `core ci` workflow.
-
-Both accept a `dryRun` parameter. When true, publishers print what would happen without executing.
-
-### Publisher Interface
-
-```go
-type Publisher interface {
-    Name() string
-    Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error
-}
-```
-
-Eight publishers are implemented:
-
-| Publisher | Mechanism |
+| Builder | Notes |
 |---|---|
-| **GitHub** | `gh release create` via the GitHub CLI. Auto-detects repository from git remote. Uploads all artifacts as release assets. |
-| **Docker** | `docker buildx build` with multi-platform support. Pushes to configured registry with version tags. |
-| **npm** | `npm publish` with configurable access level and package name. |
-| **Homebrew** | Generates a Ruby formula file. Optionally targets an official tap repository. |
-| **Scoop** | Generates a JSON manifest for a Scoop bucket. |
-| **AUR** | Generates a PKGBUILD file for the Arch User Repository. |
-| **Chocolatey** | Generates a `.nuspec` and `chocolateyinstall.ps1`. Optionally pushes via `choco push`. |
-| **LinuxKit** | Builds LinuxKit VM images in specified formats and uploads them as release assets. |
+| Go | Cross-compiles binaries and supports garble plus cache wiring |
+| Wails | Handles Wails v2 directly and Wails v3 through Taskfile or CLI fallback |
+| Node | Uses package-manager or Deno-backed frontend builds |
+| Docs | Runs MkDocs and packages the generated site |
+| C++ | Uses CMake and Conan-aware setup |
+| Docker | Uses Buildx-friendly image builds and export modes |
+| LinuxKit | Produces configured LinuxKit artefacts |
+| Taskfile | Delegates to repositories that already define their own build graph |
+| PHP | Composer-backed packaging |
+| Python | Deterministic source bundle packaging |
+| Rust | Cargo release builds |
 
-Publisher-specific configuration (registry, tap, bucket, image, etc.) is carried in `PublisherConfig` fields and mapped to an `Extended` map at runtime.
+The design rule remains the same as the public action: discovery stays generic, setup stays conditional, and each stack wrapper owns its own build details.
 
-### SDK Release Integration
+## Generated Workflow
 
-`release.RunSDK()` handles SDK-specific releases: it runs a breaking-change diff (if enabled), then generates SDKs via the SDK subsystem. This can be wired into a CI pipeline to auto-generate client libraries on each release.
+`core build workflow` writes `.github/workflows/release.yml`. The embedded template mirrors the public action surface instead of acting like a generic CI stub.
 
----
+The generated workflow includes:
 
-## SDK Subsystem
+1. discovery outputs for markers, distro, and Git metadata
+2. conditional Go, Node, Task, Deno, Wails, Python, PHP/Composer, Rust, Conan, and MkDocs setup
+3. Linux distro-aware WebKit dependency selection for Wails
+4. cache restore/save for `.core/cache` and `cache/`
+5. `core build --ci --archive --checksum`
+6. action-style `artifact_meta.json` generation, artifact naming, and upload
+7. tag-gated `core ci` release publishing
 
-### Spec Detection
+The workflow keeps the public action inputs visible at the CLI layer:
 
-`sdk.DetectSpec()` locates the OpenAPI specification:
+- `build`
+- `sign`
+- `package`
+- `build-name`
+- `build-platform`
+- `version`
+- `build-tags`
+- `build-obfuscate`
+- `core-version`
+- `go-version`
+- `node-version`
+- `wails-version`
+- `nsis`
+- `deno-build`
+- `wails-build-webview2`
+- `build-cache`
+- `archive-format`
 
-1. If a path is configured in `.core/release.yaml` under `sdk.spec`, use it.
-2. Check common paths: `api/openapi.yaml`, `api/openapi.json`, `openapi.yaml`, `openapi.json`, `docs/api.yaml`, `docs/api.json`, `swagger.yaml`, `swagger.json`.
-3. Check for Laravel Scramble in `composer.json` (export not yet implemented).
+## Packaging and Release
 
-### Breaking-Change Detection
+Packaging is intentionally separate from the builder layer:
 
-`sdk.Diff(basePath, revisionPath)` loads two OpenAPI specs via `kin-openapi`, computes a structural diff via `oasdiff`, and runs the `oasdiff/checker` backward-compatibility checks at error level. Returns a `DiffResult` with a boolean `Breaking` flag, a list of change descriptions, and a human-readable summary.
+- builders emit artefacts
+- archive helpers compress them
+- checksum helpers produce `CHECKSUMS.txt`
+- CI helpers write `artifact_meta.json`
+- `pkg/release` handles changelog/versioning/publishing
 
-`DiffExitCode()` maps results to CI exit codes: 0 (clean), 1 (breaking changes), 2 (error).
+That separation makes it possible to reuse the same build outputs across local builds, reusable workflows, and release publishing.
 
-### Code Generation
+## Apple, Release, and SDK Layers
 
-The `generators.Generator` interface:
+The build pipeline is only one part of the module. The other major layers are:
 
-```go
-type Generator interface {
-    Language() string
-    Generate(ctx context.Context, opts Options) error
-    Available() bool
-    Install() string
-}
-```
+- `pkg/build/apple.go` for macOS build/sign/notarise/package/distribute flows
+- `pkg/build/apple/` for the RFC-facing wrapper exposing `core.Result`
+- `pkg/release/` for versioning, changelogs, and publisher orchestration
+- `pkg/sdk/` for OpenAPI detection, validation, diffing, and SDK generation
 
-Generators are held in a `Registry` and looked up by language identifier. Each generator tries three strategies in order:
+These layers reuse the same config and build metadata model rather than creating unrelated subsystems.
 
-1. **Native tool** -- e.g. `oapi-codegen` for Go, `openapi-typescript-codegen` for TypeScript.
-2. **npx** -- Falls back to `npx` invocation where applicable (TypeScript).
-3. **Docker** -- Uses the `openapitools/openapi-generator-cli` image as a last resort.
+## Design Principles
 
-| Language | Native Tool | Docker Generator |
-|---|---|---|
-| TypeScript | `openapi-typescript-codegen` or `npx` | `typescript-fetch` |
-| Python | `openapi-python-client` | `python` |
-| Go | `oapi-codegen` | `go` |
-| PHP | `openapi-generator-cli` via Docker | `php` |
+- Modular: discovery, options, setup planning, build, sign, and package remain separate stages.
+- Outputs flow downstream: discovery data becomes the shared context for later phases.
+- Smart defaults: auto-detection and stack suggestion choose the right path unless config overrides them.
+- Thin orchestrators: setup planning and stack routing coordinate specialised implementations instead of containing all logic themselves.
+- Conditional setup: only the required toolchains and CLIs are installed for the selected stack.
+- Stack ownership: each builder owns its own execution details and packaging expectations.
 
-On Unix systems, Docker containers run with `--user {uid}:{gid}` to match host file ownership.
+## Testing Strategy
 
----
+The repo keeps CI gating explicit rather than treating the generated workflow as static prose. Changes to discovery, setup planning, public inputs, or artifact naming are expected to show up in tests immediately.
 
-## Data Flow Summary
+The repo tests the action-parity surfaces directly instead of treating the generated workflow as opaque text:
 
-```
-.core/build.yaml -----> LoadConfig() -----> BuildConfig
-                                                |
-project directory ----> Discover() -----------> ProjectType
-                                                |
-                                          getBuilder()
-                                                |
-                                           Builder.Build()
-                                                |
-                                          []Artifact (raw binaries)
-                                                |
-                         +----------------------+---------------------+
-                         |                      |                     |
-                    SignBinaries()         ArchiveAll()          (optional)
-                         |                      |              NotarizeBinaries()
-                         |               []Artifact (archives)
-                         |                      |
-                         |               ChecksumAll()
-                         |                      |
-                         |            []Artifact (with checksums)
-                         |                      |
-                         |            WriteChecksumFile()
-                         |                      |
-                         +----------+-----------+
-                                    |
-                           SignChecksums() (GPG)
-                                    |
-                             Publisher.Publish()
-                                    |
-                    GitHub / Docker / npm / Homebrew / ...
-```
+- `pkg/build/discovery_test.go` covers marker detection, stack suggestion, distro handling, and nested frontend scanning.
+- `pkg/build/options_test.go` covers deterministic flag computation and Ubuntu WebKit tag injection.
+- `pkg/build/setup_test.go` covers toolchain planning and frontend directory resolution.
+- `pkg/build/workflow_test.go` asserts that the embedded workflow still exposes the expected discovery outputs, setup steps, inputs, and artifact naming.
+- builder tests exercise Wails v2/v3, Deno overrides, Conan-aware C++, MkDocs packaging, garble obfuscation, and WebView2 handling.
+- Apple, release, and SDK packages keep their own dedicated coverage.
+
+## Extending Stacks
+
+Adding a new stack follows the same shape as the public action architecture:
+
+1. Add or refine marker detection in `pkg/build/discovery.go`.
+2. Add setup requirements in `pkg/build/setup.go` when new toolchains are required.
+3. Implement the builder in `pkg/build/builders/`.
+4. Thread any public workflow or CLI inputs through the command layer and the embedded workflow template.
+5. Add fixture coverage and builder/workflow tests so the discovery and setup contract stays stable.

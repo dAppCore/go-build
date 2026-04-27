@@ -2,20 +2,29 @@ package generators
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	stdio "io"
+	"strconv"
 	"sync"
 	"time"
 
-	"dappco.re/go/core/build/internal/ax"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	coreerr "dappco.re/go/log"
 )
 
 var (
 	dockerRuntimeMu      sync.Mutex
 	dockerRuntimeChecked bool
 	dockerRuntimeOK      bool
+	dockerRuntimeCommand string
+	dockerRuntimeState   string
 )
 
 var availabilityProbeTimeout = 2 * time.Second
+
+const dockerRuntimeFingerprintBytes = 4 * 1024
 
 func dockerRuntimeAvailable() bool {
 	ctx, cancel := availabilityProbeContext()
@@ -25,36 +34,41 @@ func dockerRuntimeAvailable() bool {
 }
 
 func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
+	if err := ctx.Err(); err != nil {
+		return false
+	}
+
 	dockerCommand, err := resolveDockerRuntimeCli()
 	if err != nil {
 		return false
 	}
 
-	dockerRuntimeMu.Lock()
-	defer dockerRuntimeMu.Unlock()
-
-	if dockerRuntimeChecked {
-		return dockerRuntimeOK
-	}
-
-	if err := ctx.Err(); err != nil {
+	commandState, err := dockerRuntimeCommandState(dockerCommand)
+	if err != nil {
 		return false
 	}
 
-	err = ax.Exec(ctx, dockerCommand, "info")
+	if cached, ok := cachedDockerRuntimeAvailability(dockerCommand, commandState); ok {
+		return cached
+	}
+
+	err = ax.Exec(ctx, dockerCommand, "--help")
 	if err != nil && ctx.Err() != nil {
 		return false
 	}
+	if ctx.Err() != nil {
+		return false
+	}
 
-	dockerRuntimeChecked = true
-	dockerRuntimeOK = err == nil
-
-	return dockerRuntimeOK
+	available := err == nil
+	storeDockerRuntimeAvailability(dockerCommand, commandState, available)
+	return available
 }
 
 func resolveDockerRuntimeCli(paths ...string) (string, error) {
 	if len(paths) == 0 {
 		paths = []string{
+			"/usr/bin/docker",
 			"/usr/local/bin/docker",
 			"/opt/homebrew/bin/docker",
 			"/Applications/Docker.app/Contents/Resources/bin/docker",
@@ -71,4 +85,61 @@ func resolveDockerRuntimeCli(paths ...string) (string, error) {
 
 func availabilityProbeContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), availabilityProbeTimeout)
+}
+
+func dockerRuntimeCommandState(command string) (string, error) {
+	info, err := ax.Stat(command)
+	if err != nil {
+		return "", err
+	}
+
+	file, err := ax.Open(command)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = file.Close() }()
+
+	hasher := sha256.New()
+	if _, err := stdio.CopyN(hasher, file, dockerRuntimeFingerprintBytes); err != nil && !errors.Is(err, stdio.EOF) {
+		return "", err
+	}
+
+	return command + "|" +
+		strconv.FormatInt(info.Size(), 10) + "|" +
+		strconv.FormatInt(info.ModTime().UnixNano(), 10) + "|" +
+		info.Mode().String() + "|" +
+		hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func cachedDockerRuntimeAvailability(command, state string) (bool, bool) {
+	dockerRuntimeMu.Lock()
+	defer dockerRuntimeMu.Unlock()
+
+	if !dockerRuntimeChecked {
+		return false, false
+	}
+	if dockerRuntimeCommand != command || dockerRuntimeState != state {
+		return false, false
+	}
+	return dockerRuntimeOK, true
+}
+
+func storeDockerRuntimeAvailability(command, state string, available bool) {
+	dockerRuntimeMu.Lock()
+	defer dockerRuntimeMu.Unlock()
+
+	dockerRuntimeCommand = command
+	dockerRuntimeState = state
+	dockerRuntimeOK = available
+	dockerRuntimeChecked = true
+}
+
+func resetDockerRuntimeAvailabilityCache() {
+	dockerRuntimeMu.Lock()
+	defer dockerRuntimeMu.Unlock()
+
+	dockerRuntimeChecked = false
+	dockerRuntimeOK = false
+	dockerRuntimeCommand = ""
+	dockerRuntimeState = ""
 }

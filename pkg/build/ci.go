@@ -3,11 +3,12 @@
 package build
 
 import (
-	"encoding/json"
+	"context"
 
+	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/core"
-	io_interface "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	io_interface "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // CIContext holds environment information detected from a GitHub Actions run.
@@ -64,7 +65,20 @@ type artifactMeta struct {
 //	s := build.FormatGitHubAnnotation("warning", "pkg/build/ci.go", 10, "unused import")
 //	// "::warning file=pkg/build/ci.go,line=10::unused import"
 func FormatGitHubAnnotation(level, file string, line int, message string) string {
-	return core.Sprintf("::%s file=%s,line=%d::%s", level, file, line, message)
+	return core.Sprintf(
+		"::%s file=%s,line=%d::%s",
+		escapeGitHubAnnotationValue(level),
+		escapeGitHubAnnotationValue(file),
+		line,
+		escapeGitHubAnnotationValue(message),
+	)
+}
+
+func escapeGitHubAnnotationValue(value string) string {
+	value = core.Replace(value, "%", "%25")
+	value = core.Replace(value, "\r", "%0D")
+	value = core.Replace(value, "\n", "%0A")
+	return value
 }
 
 // DetectCI reads GitHub Actions environment variables and returns a populated CIContext.
@@ -89,6 +103,33 @@ func DetectCI() *CIContext {
 // shape and should not be coupled to a specific runner environment.
 func DetectGitHubMetadata() *CIContext {
 	return detectGitHubContext(false)
+}
+
+func detectLocalGitMetadata(dir string) *CIContext {
+	dir = core.Trim(dir)
+	if dir == "" {
+		return nil
+	}
+
+	sha, err := runGitMetadataCommand(dir, "rev-parse", "HEAD")
+	if err != nil || sha == "" {
+		return nil
+	}
+
+	ctx := &CIContext{SHA: sha}
+
+	if tag, err := runGitMetadataCommand(dir, "describe", "--tags", "--exact-match", "HEAD"); err == nil && tag != "" {
+		ctx.Ref = "refs/tags/" + tag
+	} else if branch, err := runGitMetadataCommand(dir, "symbolic-ref", "--quiet", "--short", "HEAD"); err == nil && branch != "" {
+		ctx.Ref = "refs/heads/" + branch
+	}
+
+	if remoteURL, err := runGitMetadataCommand(dir, "remote", "get-url", "origin"); err == nil {
+		ctx.Repo, ctx.Owner = parseGitRemote(remoteURL)
+	}
+
+	populateGitHubContext(ctx)
+	return ctx
 }
 
 func detectGitHubContext(requireActions bool) *CIContext {
@@ -147,6 +188,58 @@ func populateGitHubContext(ctx *CIContext) {
 	}
 }
 
+func runGitMetadataCommand(dir string, args ...string) (string, error) {
+	output, err := ax.RunDir(context.Background(), dir, "git", args...)
+	if err != nil {
+		return "", err
+	}
+	return core.Trim(output), nil
+}
+
+func parseGitRemote(raw string) (string, string) {
+	raw = core.Trim(raw)
+	if raw == "" {
+		return "", ""
+	}
+
+	path := remoteRepositoryPath(raw)
+	if path == "" {
+		return "", ""
+	}
+
+	path = core.Replace(path, "\\", "/")
+	parts := core.Split(path, "/")
+	if len(parts) < 2 {
+		return "", ""
+	}
+
+	owner := parts[len(parts)-2]
+	repo := core.TrimSuffix(parts[len(parts)-1], ".git")
+	if owner == "" || repo == "" {
+		return "", ""
+	}
+
+	value := owner + "/" + repo
+	return value, owner
+}
+
+func remoteRepositoryPath(raw string) string {
+	if splitURL := core.SplitN(raw, "://", 2); len(splitURL) == 2 && splitURL[0] != "" {
+		raw = splitURL[1]
+		pathParts := core.SplitN(raw, "/", 2)
+		if len(pathParts) != 2 {
+			return ""
+		}
+		return core.Trim(core.SplitN(pathParts[1], "?", 2)[0], "/")
+	}
+
+	if splitSCM := core.SplitN(raw, ":", 2); len(splitSCM) == 2 && splitSCM[0] != "" && core.Contains(splitSCM[0], "@") {
+		return core.Trim(splitSCM[1], "/")
+	}
+
+	return core.Trim(raw, "/")
+}
+
 // ArtifactName generates a canonical artifact filename from the build name, CI context, and target.
 // Format: {name}_{OS}_{ARCH}_{TAG|SHORT_SHA}
 // When ci is nil or has no tag or SHA, only the name and target are used.
@@ -197,14 +290,80 @@ func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, ta
 		meta.Repo = ci.Repo
 	}
 
-	data, err := json.MarshalIndent(meta, "", "  ")
-	if err != nil {
-		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", err)
+	encodedData := core.JSONMarshal(meta)
+	if !encodedData.OK {
+		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", encodedData.Error())
 	}
 
-	if err := fs.Write(path, string(data)); err != nil {
+	if err := fs.Write(path, string(encodedData.Value.([]byte))); err != nil {
 		return coreerr.E("build.WriteArtifactMeta", "failed to write artifact meta", err)
 	}
 
 	return nil
+}
+
+// CIArtifactPath returns the CI-stamped artifact path for a build output.
+// The filename keeps the original packaging suffix, such as `.tar.gz`, `.zip`,
+// `.exe`, or `.app`.
+//
+//	path := build.CIArtifactPath("core", ci, build.Artifact{
+//	    Path: "/tmp/dist/linux_amd64/core.tar.gz",
+//	    OS: "linux",
+//	    Arch: "amd64",
+//	})
+func CIArtifactPath(buildName string, ci *CIContext, artifact Artifact) string {
+	if ci == nil || artifact.Path == "" || artifact.OS == "" || artifact.Arch == "" {
+		return artifact.Path
+	}
+
+	return replaceArtifactBaseName(artifact.Path, ArtifactName(buildName, ci, Target{
+		OS:   artifact.OS,
+		Arch: artifact.Arch,
+	}))
+}
+
+func replaceArtifactBaseName(artifactPath, replacement string) string {
+	if artifactPath == "" || replacement == "" {
+		return artifactPath
+	}
+
+	baseName := ax.Base(artifactPath)
+	suffix := artifactPathSuffix(baseName)
+	if suffix == "" {
+		return ax.Join(ax.Dir(artifactPath), replacement)
+	}
+
+	return ax.Join(ax.Dir(artifactPath), replacement+suffix)
+}
+
+func artifactPathSuffix(fileName string) string {
+	switch {
+	case core.HasSuffix(fileName, ".tar.gz"):
+		return ".tar.gz"
+	case core.HasSuffix(fileName, ".tar.xz"):
+		return ".tar.xz"
+	case core.HasSuffix(fileName, ".tar.zst"):
+		return ".tar.zst"
+	case core.HasSuffix(fileName, ".tar.bz2"):
+		return ".tar.bz2"
+	case core.HasSuffix(fileName, ".tgz"):
+		return ".tgz"
+	case core.HasSuffix(fileName, ".txz"):
+		return ".txz"
+	case core.HasSuffix(fileName, ".zip"):
+		return ".zip"
+	case core.HasSuffix(fileName, ".exe"):
+		return ".exe"
+	case core.HasSuffix(fileName, ".dmg"):
+		return ".dmg"
+	case core.HasSuffix(fileName, ".app"):
+		return ".app"
+	default:
+		parts := core.Split(fileName, ".")
+		if len(parts) <= 1 || (len(parts) == 2 && parts[0] == "") {
+			return ""
+		}
+
+		return "." + parts[len(parts)-1]
+	}
 }

@@ -5,10 +5,10 @@ import (
 	"context"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // DockerConfig holds configuration for the Docker publisher.
@@ -48,10 +48,37 @@ func (p *DockerPublisher) Name() string {
 	return "docker"
 }
 
+// Validate checks the Docker publisher configuration before publishing.
+func (p *DockerPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	dockerCfg := p.parseConfig(release.FS, pubCfg, relCfg, release.ProjectDir)
+	if !release.FS.Exists(dockerCfg.Dockerfile) {
+		return coreerr.E("docker.Validate", "Dockerfile not found: "+dockerCfg.Dockerfile, nil)
+	}
+	if dockerCfg.Image == "" {
+		return coreerr.E("docker.Validate", "image name is required", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *DockerPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish builds and pushes Docker images.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	// Parse Docker-specific config from publisher config
 	dockerCfg := p.parseConfig(release.FS, pubCfg, relCfg, release.ProjectDir)
 
@@ -201,11 +228,7 @@ func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, 
 func (p *DockerPublisher) resolveTags(tags []string, version string) []string {
 	resolved := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		// Replace {{.Version}} with actual version
-		resolvedTag := core.Replace(tag, "{{.Version}}", version)
-		// Also support simpler {{Version}} syntax
-		resolvedTag = core.Replace(resolvedTag, "{{Version}}", version)
-		resolved = append(resolved, resolvedTag)
+		resolved = append(resolved, build.ExpandVersionTemplate(tag, version))
 	}
 	return resolved
 }
@@ -239,9 +262,7 @@ func (p *DockerPublisher) buildBuildxArgs(cfg DockerConfig, tags []string, versi
 
 	// Build arguments
 	for k, v := range cfg.BuildArgs {
-		// Expand version in build args
-		expandedValue := core.Replace(v, "{{.Version}}", version)
-		expandedValue = core.Replace(expandedValue, "{{Version}}", version)
+		expandedValue := build.ExpandVersionTemplate(v, version)
 		args = append(args, "--build-arg", core.Sprintf("%s=%s", k, expandedValue))
 	}
 

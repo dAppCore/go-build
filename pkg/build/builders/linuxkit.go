@@ -4,11 +4,11 @@ package builders
 import (
 	"context"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // LinuxKitBuilder builds LinuxKit images.
@@ -34,33 +34,19 @@ func (b *LinuxKitBuilder) Name() string {
 //
 // ok, err := b.Detect(io.Local, ".")
 func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	// Check for linuxkit.yml
-	if fs.IsFile(ax.Join(dir, "linuxkit.yml")) || fs.IsFile(ax.Join(dir, "linuxkit.yaml")) {
-		return true, nil
-	}
-	// Check for .core/linuxkit/
-	lkDir := ax.Join(dir, ".core", "linuxkit")
-	if fs.IsDir(lkDir) {
-		entries, err := fs.List(lkDir)
-		if err == nil {
-			for _, entry := range entries {
-				if entry.IsDir() {
-					continue
-				}
-				name := entry.Name()
-				if core.HasSuffix(name, ".yml") || core.HasSuffix(name, ".yaml") {
-					return true, nil
-				}
-			}
-		}
-	}
-	return false, nil
+	return build.IsLinuxKitProject(fs, dir), nil
 }
 
 // Build builds LinuxKit images for the specified targets.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+	if cfg == nil {
+		return nil, coreerr.E("LinuxKitBuilder.Build", "config is nil", nil)
+	}
+	filesystem := ensureBuildFilesystem(cfg)
+	artifactFilesystem := build.ResolveOutputMedium(cfg)
+
 	linuxkitCommand, err := b.resolveLinuxKitCli()
 	if err != nil {
 		return nil, err
@@ -70,15 +56,15 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	configPath := cfg.LinuxKitConfig
 	if configPath == "" {
 		// Auto-detect
-		if cfg.FS.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yml")) {
+		if filesystem.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yml")) {
 			configPath = ax.Join(cfg.ProjectDir, "linuxkit.yml")
-		} else if cfg.FS.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yaml")) {
+		} else if filesystem.IsFile(ax.Join(cfg.ProjectDir, "linuxkit.yaml")) {
 			configPath = ax.Join(cfg.ProjectDir, "linuxkit.yaml")
 		} else {
 			// Look in .core/linuxkit/
 			lkDir := ax.Join(cfg.ProjectDir, ".core", "linuxkit")
-			if cfg.FS.IsDir(lkDir) {
-				entries, err := cfg.FS.List(lkDir)
+			if filesystem.IsDir(lkDir) {
+				entries, err := filesystem.List(lkDir)
 				if err == nil {
 					for _, entry := range entries {
 						if entry.IsDir() {
@@ -102,7 +88,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	}
 
 	// Validate config file exists
-	if !cfg.FS.IsFile(configPath) {
+	if !filesystem.IsFile(configPath) {
 		return nil, coreerr.E("LinuxKitBuilder.Build", "config file not found: "+configPath, nil)
 	}
 
@@ -114,12 +100,18 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 
 	// Create output directory
 	outputDir := cfg.OutputDir
-	if outputDir == "" {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+	if outputDir == "" && build.MediumIsLocal(artifactFilesystem) {
+		outputDir = defaultOutputDir(cfg)
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("LinuxKitBuilder.Build", "failed to create output directory", err)
+	if err := ensureOutputDir(artifactFilesystem, outputDir, "LinuxKitBuilder.Build"); err != nil {
+		return nil, err
 	}
+
+	stage, err := prepareStagedOutput(outputDir, artifactFilesystem, "core-build-linuxkit-*", "LinuxKitBuilder.Build")
+	if err != nil {
+		return nil, err
+	}
+	defer stage.cleanup()
 
 	// Determine base name from config file or project name
 	baseName := cfg.Name
@@ -129,9 +121,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	}
 
 	// If no targets, default to linux/amd64
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: "linux", Arch: "amd64"}}
-	}
+	targets = defaultLinuxTargets(targets)
 
 	var artifacts []build.Artifact
 
@@ -146,27 +136,34 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 		for _, format := range formats {
 			outputName := core.Sprintf("%s-%s", baseName, target.Arch)
 
-			args := b.buildLinuxKitArgs(configPath, format, outputName, outputDir, target.Arch)
+			args := b.buildLinuxKitArgs(configPath, format, outputName, stage.commandOutputDir, target.Arch)
 
 			core.Print(nil, "Building LinuxKit image: %s (%s, %s)", outputName, format, target.Arch)
-			if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, cfg.Env, linuxkitCommand, args...); err != nil {
+			if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), linuxkitCommand, args...); err != nil {
 				return nil, coreerr.E("LinuxKitBuilder.Build", "build failed for "+target.Arch+"/"+format, err)
 			}
 
 			// Determine the actual output file path
-			artifactPath := b.getArtifactPath(outputDir, outputName, format)
+			artifactPath := b.getArtifactPath(stage.commandOutputDir, outputName, format)
 
 			// Verify the artifact was created
-			if !cfg.FS.Exists(artifactPath) {
+			if !stage.commandFS.Exists(artifactPath) {
 				// Try alternate naming conventions
-				artifactPath = b.findArtifact(cfg.FS, outputDir, outputName, format)
+				artifactPath = b.findArtifact(stage.commandFS, stage.commandOutputDir, outputName, format)
 				if artifactPath == "" {
-					return nil, coreerr.E("LinuxKitBuilder.Build", "artifact not found after build: expected "+b.getArtifactPath(outputDir, outputName, format), nil)
+					return nil, coreerr.E("LinuxKitBuilder.Build", "artifact not found after build: expected "+b.getArtifactPath(stage.commandOutputDir, outputName, format), nil)
+				}
+			}
+
+			finalArtifactPath := b.getArtifactPath(outputDir, outputName, format)
+			if artifactPath != finalArtifactPath {
+				if err := build.CopyMediumPath(stage.commandFS, artifactPath, artifactFilesystem, finalArtifactPath); err != nil {
+					return nil, err
 				}
 			}
 
 			artifacts = append(artifacts, build.Artifact{
-				Path: artifactPath,
+				Path: finalArtifactPath,
 				OS:   target.OS,
 				Arch: target.Arch,
 			})
@@ -203,6 +200,9 @@ func (b *LinuxKitBuilder) buildLinuxKitArgs(configPath, format, outputName, outp
 // getArtifactPath returns the expected path of the built artifact.
 func (b *LinuxKitBuilder) getArtifactPath(outputDir, outputName, format string) string {
 	ext := b.getFormatExtension(format)
+	if outputDir == "" {
+		return outputName + ext
+	}
 	return ax.Join(outputDir, outputName+ext)
 }
 
@@ -216,7 +216,10 @@ func (b *LinuxKitBuilder) findArtifact(fs io.Medium, outputDir, outputName, form
 	}
 
 	for _, ext := range extensions {
-		path := ax.Join(outputDir, outputName+ext)
+		path := outputName + ext
+		if outputDir != "" {
+			path = ax.Join(outputDir, outputName+ext)
+		}
 		if fs.Exists(path) {
 			return path
 		}
@@ -227,7 +230,10 @@ func (b *LinuxKitBuilder) findArtifact(fs io.Medium, outputDir, outputName, form
 	if err == nil {
 		for _, entry := range entries {
 			if core.HasPrefix(entry.Name(), outputName) {
-				match := ax.Join(outputDir, entry.Name())
+				match := entry.Name()
+				if outputDir != "" {
+					match = ax.Join(outputDir, entry.Name())
+				}
 				// Return first match that looks like an image
 				if isLinuxKitArtifact(match) {
 					return match

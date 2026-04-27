@@ -4,13 +4,12 @@ package builders
 import (
 	"context"
 	"runtime"
-	"strings"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // DockerBuilder builds Docker images.
@@ -46,6 +45,11 @@ func (b *DockerBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+	if cfg == nil {
+		return nil, coreerr.E("DockerBuilder.Build", "config is nil", nil)
+	}
+	filesystem := ensureBuildFilesystem(cfg)
+
 	dockerCommand, err := b.resolveDockerCli()
 	if err != nil {
 		return nil, err
@@ -59,13 +63,13 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	// Determine Docker manifest path
 	dockerfile := cfg.Dockerfile
 	if dockerfile == "" {
-		dockerfile = build.ResolveDockerfilePath(cfg.FS, cfg.ProjectDir)
+		dockerfile = build.ResolveDockerfilePath(filesystem, cfg.ProjectDir)
 	} else if !ax.IsAbs(dockerfile) {
 		dockerfile = ax.Join(cfg.ProjectDir, dockerfile)
 	}
 
 	// Validate Dockerfile exists
-	if dockerfile == "" || !cfg.FS.IsFile(dockerfile) {
+	if dockerfile == "" || !filesystem.IsFile(dockerfile) {
 		return nil, coreerr.E("DockerBuilder.Build", "Dockerfile or Containerfile not found", nil)
 	}
 
@@ -107,9 +111,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	// Build full image references
 	var imageRefs []string
 	for _, tag := range tags {
-		// Expand version template
-		expandedTag := core.Replace(tag, "{{.Version}}", cfg.Version)
-		expandedTag = core.Replace(expandedTag, "{{Version}}", cfg.Version)
+		expandedTag := build.ExpandVersionTemplate(tag, cfg.Version)
 
 		if registry != "" {
 			imageRefs = append(imageRefs, core.Sprintf("%s/%s:%s", registry, imageName, expandedTag))
@@ -134,8 +136,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Build arguments
 	for k, v := range cfg.BuildArgs {
-		expandedValue := core.Replace(v, "{{.Version}}", cfg.Version)
-		expandedValue = core.Replace(expandedValue, "{{Version}}", cfg.Version)
+		expandedValue := build.ExpandVersionTemplate(v, cfg.Version)
 		args = append(args, "--build-arg", core.Sprintf("%s=%s", k, expandedValue))
 	}
 
@@ -144,7 +145,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 		args = append(args, "--build-arg", core.Sprintf("VERSION=%s", cfg.Version))
 	}
 
-	safeImageName := strings.ReplaceAll(imageName, "/", "_")
+	safeImageName := core.Replace(imageName, "/", "_")
 
 	// Output to local docker images or push.
 	// `--load` only works for a single target, so multi-platform local builds
@@ -164,7 +165,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	args = append(args, cfg.ProjectDir)
 
 	// Create output directory
-	if err := cfg.FS.EnsureDir(cfg.OutputDir); err != nil {
+	if err := filesystem.EnsureDir(cfg.OutputDir); err != nil {
 		return nil, coreerr.E("DockerBuilder.Build", "failed to create output directory", err)
 	}
 
@@ -174,7 +175,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Build once for the full platform set. Docker buildx produces a single
 	// multi-arch image or OCI archive from the combined platform list.
-	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, cfg.Env, dockerCommand, args...); err != nil {
+	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), dockerCommand, args...); err != nil {
 		return nil, coreerr.E("DockerBuilder.Build", "buildx build failed", err)
 	}
 

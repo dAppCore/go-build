@@ -8,10 +8,9 @@ import (
 	"text/template"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 //go:embed templates/aur/*.tmpl
@@ -48,10 +47,34 @@ func (p *AURPublisher) Name() string {
 	return "aur"
 }
 
+// Validate checks the AUR publisher configuration before publishing.
+func (p *AURPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	cfg := p.parseConfig(pubCfg, relCfg)
+	if cfg.Maintainer == "" {
+		return coreerr.E("aur.Validate", "maintainer is required (set publish.aur.maintainer in config)", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *AURPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to AUR.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *AURPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	cfg := p.parseConfig(pubCfg, relCfg)
 
 	if cfg.Maintainer == "" {
@@ -85,7 +108,7 @@ func (p *AURPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 	}
 
 	version := core.TrimPrefix(release.Version, "v")
-	checksums := buildChecksumMap(release.Artifacts)
+	checksums := buildChecksumMapFromRelease(release)
 
 	data := aurTemplateData{
 		PackageName: packageName,
@@ -170,7 +193,15 @@ func (p *AURPublisher) dryRunPublish(m coreio.Medium, data aurTemplateData, cfg 
 	publisherPrintln("---")
 	publisherPrintln()
 
-	publisherPrint("Would push to AUR: ssh://aur@aur.archlinux.org/%s-bin.git", data.PackageName)
+	if aurOfficialMode(cfg) {
+		output := cfg.Official.Output
+		if output == "" {
+			output = "dist/aur"
+		}
+		publisherPrint("Would write files for official PR to: %s", output)
+	} else {
+		publisherPrint("Would push to AUR: ssh://aur@aur.archlinux.org/%s-bin.git", data.PackageName)
+	}
 	publisherPrintln()
 	publisherPrintln("=== END DRY RUN ===")
 
@@ -189,7 +220,7 @@ func (p *AURPublisher) executePublish(ctx context.Context, projectDir string, da
 	}
 
 	// If official config is enabled, write to output directory
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if aurOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = ax.Join(projectDir, "dist", "aur")
@@ -214,13 +245,17 @@ func (p *AURPublisher) executePublish(ctx context.Context, projectDir string, da
 	}
 
 	// Push to AUR if not in official-only mode
-	if cfg.Official == nil || !cfg.Official.Enabled {
+	if !aurOfficialMode(cfg) {
 		if err := p.pushToAUR(ctx, data, pkgbuild, srcinfo); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func aurOfficialMode(cfg AURConfig) bool {
+	return cfg.Official != nil && cfg.Official.Enabled
 }
 
 func (p *AURPublisher) pushToAUR(ctx context.Context, data aurTemplateData, pkgbuild, srcinfo string) error {
@@ -291,7 +326,7 @@ func (p *AURPublisher) renderTemplate(m coreio.Medium, name string, data aurTemp
 		}
 	}
 
-	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("aur.renderTemplate", "failed to parse template "+name, err)
 	}
@@ -303,6 +338,3 @@ func (p *AURPublisher) renderTemplate(m coreio.Medium, name string, data aurTemp
 
 	return buf.String(), nil
 }
-
-// Ensure build package is used
-var _ = build.Artifact{}

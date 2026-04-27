@@ -4,12 +4,13 @@ package build
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"io"
-	"sort"
+	stdio "io"
+	"slices"
 
 	"dappco.re/go/core"
-	io_interface "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	io_interface "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // Checksum computes SHA256 for an artifact and returns the artifact with the Checksum field filled.
@@ -29,7 +30,7 @@ func Checksum(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 
 	// Compute SHA256 hash
 	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
+	if _, err := stdio.Copy(hasher, file); err != nil {
 		return Artifact{}, coreerr.E("build.Checksum", "failed to hash file", err)
 	}
 
@@ -84,12 +85,12 @@ func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string
 		if artifact.Checksum == "" {
 			return coreerr.E("build.WriteChecksumFile", "artifact "+artifact.Path+" has no checksum", nil)
 		}
-		filename := core.PathBase(artifact.Path)
+		filename := checksumFilename(path, artifact.Path)
 		lines = append(lines, core.Sprintf("%s  %s", artifact.Checksum, filename))
 	}
 
 	// Sort lines for consistent output
-	sort.Strings(lines)
+	slices.Sort(lines)
 
 	content := core.Concat(core.Join("\n", lines...), "\n")
 
@@ -99,4 +100,21 @@ func WriteChecksumFile(fs io_interface.Medium, artifacts []Artifact, path string
 	}
 
 	return nil
+}
+
+func checksumFilename(checksumPath, artifactPath string) string {
+	baseDir := ax.Dir(checksumPath)
+	relativePath, err := ax.Rel(baseDir, artifactPath)
+	if err == nil {
+		relativePath = ax.Clean(relativePath)
+		if relativePath != "" &&
+			relativePath != "." &&
+			relativePath != ".." &&
+			!ax.IsAbs(relativePath) &&
+			!core.HasPrefix(relativePath, ".."+ax.DS()) {
+			return core.Replace(relativePath, ax.DS(), "/")
+		}
+	}
+
+	return core.PathBase(artifactPath)
 }

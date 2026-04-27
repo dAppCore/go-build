@@ -2,15 +2,15 @@
 package publishers
 
 import (
-	"bytes"
-	"context"
-	"embed"
-	"text/template"
+	"bytes"         // Note: AX-6 — template rendering writes into an in-memory buffer.
+	"context"       // Note: AX-6 — carries cancellation through publish and npm operations.
+	"embed"         // Note: AX-6 — embeds npm templates for release publishing.
+	"text/template" // Note: AX-6 — renders npm package templates.
 
-	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax" // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
+	"dappco.re/go/core"              // Note: AX-6 — provides approved string and formatting helpers.
+	coreio "dappco.re/go/core/io"    // Note: AX-6 — Core Medium abstraction for release filesystem access.
+	coreerr "dappco.re/go/core/log"  // Note: AX-6 — wraps publisher errors with Core logging semantics.
 )
 
 //go:embed templates/npm/*.tmpl
@@ -45,10 +45,34 @@ func (p *NpmPublisher) Name() string {
 	return "npm"
 }
 
+// Validate checks the npm publisher configuration before publishing.
+func (p *NpmPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	npmCfg := p.parseConfig(pubCfg, relCfg)
+	if npmCfg.Package == "" {
+		return coreerr.E("npm.Validate", "package name is required (set publish.npm.package in config)", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *NpmPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to npm as a binary wrapper package.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	// Parse npm config
 	npmCfg := p.parseConfig(pubCfg, relCfg)
 
@@ -83,6 +107,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 
 	// Strip leading 'v' from version for npm
 	version := core.TrimPrefix(release.Version, "v")
+	checksums := buildChecksumMapFromRelease(release)
 
 	// Template data
 	data := npmTemplateData{
@@ -94,6 +119,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 		BinaryName:  projectName,
 		ProjectName: projectName,
 		Access:      npmCfg.Access,
+		Checksums:   checksums,
 	}
 
 	if dryRun {
@@ -133,6 +159,7 @@ type npmTemplateData struct {
 	BinaryName  string
 	ProjectName string
 	Access      string
+	Checksums   ChecksumMap
 }
 
 // dryRunPublish shows what would be done without actually publishing.
@@ -253,7 +280,7 @@ func (p *NpmPublisher) renderTemplate(m coreio.Medium, name string, data npmTemp
 		}
 	}
 
-	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("npm.renderTemplate", "failed to parse template "+name, err)
 	}

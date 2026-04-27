@@ -1,34 +1,33 @@
-module dappco.re/go/core/build
+module dappco.re/go/build
 
 go 1.26.0
 
 require (
 	dappco.re/go/core v0.8.0-alpha.1
-	dappco.re/go/core/api v0.2.0
-	dappco.re/go/core/i18n v0.2.0
-	dappco.re/go/core/io v0.2.0
-	dappco.re/go/core/log v0.1.0
-	dappco.re/go/core/process v0.3.0
-	dappco.re/go/core/ws v0.3.0
-	dappco.re/go/core/cli v0.3.7
-	github.com/Snider/Borg v0.2.0
+	dappco.re/go/core/api v0.3.0
+	dappco.re/go/core/cli v0.5.2
+	dappco.re/go/core/i18n v0.2.3
+	dappco.re/go/core/io v0.4.1
+	dappco.re/go/core/log v0.1.2
+	dappco.re/go/core/process v0.5.1
+	dappco.re/go/core/ws v0.4.0
+	github.com/Snider/Borg v0.2.0 // Note: AX-6 deferred — awaiting dappco.re/go/crypt API parity
 	github.com/gin-gonic/gin v1.12.0
+	github.com/gorilla/websocket v1.5.3
+	github.com/kardianos/service v1.2.4
 	github.com/leaanthony/debme v1.2.1
 	github.com/leaanthony/gosod v1.0.4
 	github.com/oasdiff/kin-openapi v0.136.1
 	github.com/oasdiff/oasdiff v1.12.3
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/net v0.52.0
-	golang.org/x/text v0.35.0
+	golang.org/x/net v0.53.0
+	golang.org/x/text v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
-	dappco.re/go/core v0.3.2 // indirect
-	dappco.re/go/core/i18n v0.1.7 // indirect
-	dappco.re/go/core/inference v0.1.7 // indirect
-	dappco.re/go/core/log v0.0.4 // indirect
+	dappco.re/go/core/inference v0.3.0 // indirect
 	github.com/99designs/gqlgen v0.17.88 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/TwiN/go-color v1.4.1 // indirect
@@ -92,7 +91,6 @@ require (
 	github.com/gorilla/context v1.1.2 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gorilla/sessions v1.4.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -147,12 +145,12 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.25.0 // indirect
-	golang.org/x/crypto v0.49.0 // indirect
+	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/term v0.41.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/term v0.42.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )

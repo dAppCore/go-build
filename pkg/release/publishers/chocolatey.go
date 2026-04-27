@@ -8,11 +8,10 @@ import (
 	"text/template"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/i18n"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/i18n"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 //go:embed templates/chocolatey/*.tmpl templates/chocolatey/tools/*.tmpl
@@ -49,10 +48,27 @@ func (p *ChocolateyPublisher) Name() string {
 	return "chocolatey"
 }
 
+// Validate checks that the Chocolatey publisher has a release to publish.
+func (p *ChocolateyPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	_ = pubCfg
+	_ = relCfg
+	return validatePublisherRelease(p.Name(), release)
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *ChocolateyPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to Chocolatey.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *ChocolateyPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	cfg := p.parseConfig(pubCfg, relCfg)
 
 	repo := ""
@@ -82,7 +98,7 @@ func (p *ChocolateyPublisher) Publish(ctx context.Context, release *Release, pub
 	}
 
 	version := core.TrimPrefix(release.Version, "v")
-	checksums := buildChecksumMap(release.Artifacts)
+	checksums := buildChecksumMapFromRelease(release)
 
 	// Extract authors from repository
 	authors := core.Split(repo, "/")[0]
@@ -279,7 +295,7 @@ func (p *ChocolateyPublisher) renderTemplate(m io.Medium, name string, data choc
 		}
 	}
 
-	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("chocolatey.renderTemplate", "failed to parse template "+name, err)
 	}
@@ -291,6 +307,3 @@ func (p *ChocolateyPublisher) renderTemplate(m io.Medium, name string, data choc
 
 	return buf.String(), nil
 }
-
-// Ensure build package is used
-var _ = build.Artifact{}

@@ -45,6 +45,29 @@
         "targets": "Comma-separated build targets (os/arch)",
         "type": "Project type override (go, docker, pwa)"
       },
+      "apple": {
+        "short": "Build the macOS Apple target",
+        "long": "Build, sign, notarise, package, and optionally upload the macOS Apple target for the current project.",
+        "completed": "Apple build completed",
+        "flag": {
+          "arch": "Target architecture (arm64, amd64, or universal)",
+          "sign": "Code sign the app bundle",
+          "notarise": "Submit the result for Apple notarisation",
+          "dmg": "Create a DMG for direct distribution",
+          "testflight": "Upload the signed build to TestFlight",
+          "appstore": "Submit the signed build to App Store Connect",
+          "team_id": "Apple Developer Team ID",
+          "bundle_id": "Application bundle identifier",
+          "version": "Version string to embed in the app bundle",
+          "build_number": "Build number to embed in the app bundle"
+        },
+        "label": {
+          "bundle": "Bundle:",
+          "version": "Version:",
+          "build_number": "Build number:",
+          "dmg": "DMG:"
+        }
+      },
       "from_path": {
         "short": "Build a Go binary from a local path",
         "compiling": "Compiling...",
@@ -94,16 +117,18 @@
         "completed": "Release published successfully",
         "dry_run_hint": "Dry run — no artefacts will be published",
         "error": {
-          "no_config": "No build configuration found"
+          "no_config": "No release configuration found"
         },
         "flag": {
+          "apple_testflight": "Build the Apple target and upload it to TestFlight",
           "draft": "Create release as draft",
           "go_for_launch": "Confirm publish (required for non-dry-run)",
           "prerelease": "Mark release as pre-release",
+          "testflight": "Alias for --apple-testflight",
           "version": "Release version (e.g. v1.2.3)"
         },
         "hint": {
-          "create_config": "Create a .core/build.yaml to configure builds"
+          "create_config": "Create a .core/release.yaml to configure releases"
         },
         "label": {
           "artifacts": "Artefacts:",
@@ -136,6 +161,7 @@
         "flag": {
           "dry_run": "Preview without generating files",
           "lang": "Target language (e.g. go, typescript, python)",
+          "skip_unavailable": "Skip SDK generators that are unavailable on this machine",
           "version": "SDK version to generate"
         }
       }
@@ -212,6 +238,28 @@
         "long": "Parse and validate an OpenAPI specification file for correctness.",
         "valid": "Spec is valid",
         "validating": "Validating spec..."
+      }
+    },
+    "service": {
+      "short": "Manage background build daemon services",
+      "long": "Install, start, stop, uninstall, export, or run the background build daemon for the current project.",
+      "install": {
+        "long": "Register the current project as a native OS service using the current executable and project directory."
+      },
+      "start": {
+        "long": "Start the installed background build daemon service."
+      },
+      "stop": {
+        "long": "Stop the installed background build daemon service."
+      },
+      "uninstall": {
+        "long": "Remove the installed background build daemon service from the OS service manager."
+      },
+      "export": {
+        "long": "Generate the native service definition for the current platform, such as a launchd plist or systemd unit."
+      },
+      "run": {
+        "long": "Run the background build daemon in the foreground."
       }
     }
   }

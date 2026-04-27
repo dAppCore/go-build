@@ -4,11 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core/build/internal/ax"
+	"dappco.re/go/build/internal/ax"
 
-	"dappco.re/go/core/build/pkg/sdk/generators"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/build/pkg/sdk/generators"
 )
 
 // --- SDK Generation Orchestration Tests ---
@@ -20,7 +18,9 @@ func TestGeneration_SDKGenerateAllLanguages_Good(t *testing.T) {
 		// Create a minimal OpenAPI spec
 		specPath := ax.Join(tmpDir, "openapi.yaml")
 		err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		cfg := &Config{
 			Spec:      "openapi.yaml",
@@ -36,8 +36,13 @@ func TestGeneration_SDKGenerateAllLanguages_Good(t *testing.T) {
 
 		// Generate should fail on unknown language
 		err = s.Generate(context.Background())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown language")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "unknown language") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "unknown language")
+		}
+
 	})
 }
 
@@ -47,7 +52,9 @@ func TestGeneration_SDKGenerateLanguageOutputDir_Good(t *testing.T) {
 
 		specPath := ax.Join(tmpDir, "openapi.yaml")
 		err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		cfg := &Config{
 			Spec:      "openapi.yaml",
@@ -64,8 +71,13 @@ func TestGeneration_SDKGenerateLanguageOutputDir_Good(t *testing.T) {
 		// This will fail because generators aren't installed, but we can verify
 		// the spec detection works correctly
 		specResult, err := s.DetectSpec()
-		require.NoError(t, err)
-		assert.Equal(t, specPath, specResult)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(specPath, specResult) {
+			t.Fatalf("want %v, got %v", specPath, specResult)
+		}
+
 	})
 }
 
@@ -79,8 +91,13 @@ func TestGeneration_SDKGenerateLanguageNoSpec_Bad(t *testing.T) {
 		})
 
 		err := s.GenerateLanguage(context.Background(), "typescript")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no OpenAPI spec found")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "no OpenAPI spec found") {
+			t.Fatalf("expected %v to contain %v", err.Error(), "no OpenAPI spec found")
+		}
+
 	})
 }
 
@@ -89,16 +106,23 @@ func TestGeneration_SDKGenerateLanguageUnknownLanguage_Bad(t *testing.T) {
 		tmpDir := t.TempDir()
 		specPath := ax.Join(tmpDir, "openapi.yaml")
 		err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		s := New(tmpDir, nil)
 		err = s.GenerateLanguage(context.Background(), "cobol")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown language: cobol")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !stdlibAssertContains(err.Error(), "unknown language: cobol") {
+
+			// --- Generator Registry Tests ---
+			t.Fatalf("expected %v to contain %v", err.Error(), "unknown language: cobol")
+		}
+
 	})
 }
-
-// --- Generator Registry Tests ---
 
 func TestGeneration_RegistryRegisterAndGet_Good(t *testing.T) {
 	t.Run("register and retrieve all generators", func(t *testing.T) {
@@ -106,25 +130,47 @@ func TestGeneration_RegistryRegisterAndGet_Good(t *testing.T) {
 
 		// Verify all languages are registered
 		languages := registry.Languages()
-		assert.Len(t, languages, 4)
-		assert.Contains(t, languages, "typescript")
-		assert.Contains(t, languages, "python")
-		assert.Contains(t, languages, "go")
-		assert.Contains(t, languages, "php")
+		if len(languages) != 4 {
+			t.Fatalf("want len %v, got %v", 4, len(languages))
+		}
+		if !stdlibAssertContains(languages, "typescript") {
+			t.Fatalf("expected %v to contain %v", languages, "typescript")
+		}
+		if !stdlibAssertContains(
 
-		// Verify retrieval
+			// Verify retrieval
+			languages, "python") {
+			t.Fatalf("expected %v to contain %v", languages, "python")
+		}
+		if !stdlibAssertContains(languages, "go") {
+			t.Fatalf("expected %v to contain %v", languages, "go")
+		}
+		if !stdlibAssertContains(languages, "php") {
+			t.Fatalf("expected %v to contain %v", languages, "php")
+		}
+
 		for _, lang := range []string{"typescript", "python", "go", "php"} {
 			gen, ok := registry.Get(lang)
-			assert.True(t, ok, "should find generator for %s", lang)
-			assert.Equal(t, lang, gen.Language())
+			if !(ok) {
+				t.Fatalf("should find generator for %s", lang)
+			}
+			if !stdlibAssertEqual(lang, gen.Language()) {
+				t.Fatalf("want %v, got %v", lang, gen.Language())
+			}
+
 		}
 	})
 
 	t.Run("Get returns false for unregistered language", func(t *testing.T) {
 		registry := generators.NewRegistry()
 		gen, ok := registry.Get("rust")
-		assert.False(t, ok)
-		assert.Nil(t, gen)
+		if ok {
+			t.Fatal("expected false")
+		}
+		if !stdlibAssertNil(gen) {
+			t.Fatalf("expected nil, got %v", gen)
+		}
+
 	})
 }
 
@@ -132,17 +178,31 @@ func TestGeneration_RegistryDefaults_Good(t *testing.T) {
 	registry := generators.NewRegistry()
 
 	languages := registry.Languages()
-	assert.Len(t, languages, 4)
-	assert.Contains(t, languages, "typescript")
-	assert.Contains(t, languages, "python")
-	assert.Contains(t, languages, "go")
-	assert.Contains(t, languages, "php")
+	if len(languages) != 4 {
+		t.Fatalf("want len %v, got %v", 4, len(languages))
+	}
+	if !stdlibAssertContains(languages, "typescript") {
+		t.Fatalf("expected %v to contain %v", languages, "typescript")
+	}
+	if !stdlibAssertContains(languages, "python") {
+		t.Fatalf("expected %v to contain %v", languages, "python")
+	}
+	if !stdlibAssertContains(languages, "go") {
+		t.Fatalf("expected %v to contain %v", languages, "go")
+	}
+	if !stdlibAssertContains(languages, "php") {
+		t.Fatalf(
+
+			// register again
+			"expected %v to contain %v", languages, "php")
+	}
+
 }
 
 func TestGeneration_RegistryOverwritesDuplicateLanguage_Good(t *testing.T) {
 	registry := generators.NewRegistry()
 	registry.Register(generators.NewTypeScriptGenerator())
-	registry.Register(generators.NewTypeScriptGenerator()) // register again
+	registry.Register(generators.NewTypeScriptGenerator())
 
 	languages := registry.Languages()
 	count := 0
@@ -151,10 +211,13 @@ func TestGeneration_RegistryOverwritesDuplicateLanguage_Good(t *testing.T) {
 			count++
 		}
 	}
-	assert.Equal(t, 1, count, "should have exactly one typescript entry")
-}
+	if !stdlibAssertEqual(1, count) {
+		t.Fatal("should have exactly one typescript entry")
 
-// --- Generator Interface Compliance Tests ---
+		// --- Generator Interface Compliance Tests ---
+	}
+
+}
 
 func TestGeneration_GeneratorsLanguageIdentifiers_Good(t *testing.T) {
 	tests := []struct {
@@ -169,7 +232,10 @@ func TestGeneration_GeneratorsLanguageIdentifiers_Good(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.expected, func(t *testing.T) {
-			assert.Equal(t, tc.expected, tc.generator.Language())
+			if !stdlibAssertEqual(tc.expected, tc.generator.Language()) {
+				t.Fatalf("want %v, got %v", tc.expected, tc.generator.Language())
+			}
+
 		})
 	}
 }
@@ -189,14 +255,21 @@ func TestGeneration_GeneratorsInstallInstructions_Good(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.language, func(t *testing.T) {
 			instructions := tc.gen.Install()
-			assert.NotEmpty(t, instructions)
-			assert.Contains(t, instructions, tc.contains)
+			if stdlibAssertEmpty(instructions) {
+				t.Fatal("expected non-empty")
+			}
+			if !stdlibAssertContains(instructions, tc.contains) {
+				t.Fatalf("expected %v to contain %v", instructions, tc.contains)
+
+				// Available() should never panic regardless of system state
+			}
+
 		})
 	}
 }
 
 func TestGeneration_GeneratorsAvailableDoesNotPanic_Good(t *testing.T) {
-	// Available() should never panic regardless of system state
+
 	gens := []generators.Generator{
 		generators.NewTypeScriptGenerator(),
 		generators.NewPythonGenerator(),
@@ -217,22 +290,41 @@ func TestGeneration_GeneratorsAvailableDoesNotPanic_Good(t *testing.T) {
 func TestGeneration_SDKConfigDefaultConfig_Good(t *testing.T) {
 	t.Run("default config has all four languages", func(t *testing.T) {
 		cfg := DefaultConfig()
-		assert.Contains(t, cfg.Languages, "typescript")
-		assert.Contains(t, cfg.Languages, "python")
-		assert.Contains(t, cfg.Languages, "go")
-		assert.Contains(t, cfg.Languages, "php")
-		assert.Len(t, cfg.Languages, 4)
+		if !stdlibAssertContains(cfg.Languages, "typescript") {
+			t.Fatalf("expected %v to contain %v", cfg.Languages, "typescript")
+		}
+		if !stdlibAssertContains(cfg.Languages, "python") {
+			t.Fatalf("expected %v to contain %v", cfg.Languages, "python")
+		}
+		if !stdlibAssertContains(cfg.Languages, "go") {
+			t.Fatalf("expected %v to contain %v", cfg.Languages, "go")
+		}
+		if !stdlibAssertContains(cfg.Languages, "php") {
+			t.Fatalf("expected %v to contain %v", cfg.Languages, "php")
+		}
+		if len(cfg.Languages) != 4 {
+			t.Fatalf("want len %v, got %v", 4, len(cfg.Languages))
+		}
+
 	})
 
 	t.Run("default config enables diff", func(t *testing.T) {
 		cfg := DefaultConfig()
-		assert.True(t, cfg.Diff.Enabled)
-		assert.False(t, cfg.Diff.FailOnBreaking)
+		if !(cfg.Diff.Enabled) {
+			t.Fatal("expected true")
+		}
+		if cfg.Diff.FailOnBreaking {
+			t.Fatal("expected false")
+		}
+
 	})
 
 	t.Run("default config uses sdk/ output", func(t *testing.T) {
 		cfg := DefaultConfig()
-		assert.Equal(t, "sdk", cfg.Output)
+		if !stdlibAssertEqual("sdk", cfg.Output) {
+			t.Fatalf("want %v, got %v", "sdk", cfg.Output)
+		}
+
 	})
 }
 
@@ -245,24 +337,41 @@ func TestGeneration_SDKConfigSetVersion_Good(t *testing.T) {
 			},
 		})
 		s.SetVersion("v3.0.0")
+		if !stdlibAssertEqual("v3.0.0", s.version) {
+			t.Fatalf("want %v, got %v", "v3.0.0", s.version)
+		}
+		if !stdlibAssertEqual("v3.0.0", s.config.Package.Version) {
+			t.Fatalf("want %v, got %v", "v3.0.0", s.
 
-		assert.Equal(t, "v3.0.0", s.version)
-		assert.Equal(t, "v3.0.0", s.config.Package.Version)
+				// Should not panic
+				config.Package.Version)
+		}
+
 	})
 
 	t.Run("SetVersion on nil config is safe", func(t *testing.T) {
 		s := &SDK{}
-		// Should not panic
+
 		s.SetVersion("v1.0.0")
-		assert.Equal(t, "v1.0.0", s.version)
+		if !stdlibAssertEqual("v1.0.0", s.version) {
+			t.Fatalf("want %v, got %v", "v1.0.0", s.version)
+		}
+
 	})
 }
 
 func TestGeneration_SDKConfigNewWithNilConfig_Good(t *testing.T) {
 	s := New("/project", nil)
-	assert.NotNil(t, s.config)
-	assert.Equal(t, "sdk", s.config.Output)
-	assert.True(t, s.config.Diff.Enabled)
+	if stdlibAssertNil(s.config) {
+		t.Fatal("expected non-nil")
+	}
+	if !stdlibAssertEqual("sdk", s.config.Output) {
+		t.Fatalf("want %v, got %v", "sdk", s.config.Output)
+	}
+	if !(s.config.Diff.Enabled) {
+		t.Fatal("expected true")
+	}
+
 }
 
 func TestGeneration_SDKOutputDirWithPublishPath_Good(t *testing.T) {
@@ -272,11 +381,14 @@ func TestGeneration_SDKOutputDirWithPublishPath_Good(t *testing.T) {
 			Path: "packages/api-client",
 		},
 	})
+	if !stdlibAssertEqual(ax.Join("/project", "packages/api-client", "generated", "typescript"), s.outputDir("typescript")) {
+		t.Fatalf(
 
-	assert.Equal(t, ax.Join("/project", "packages/api-client", "generated", "typescript"), s.outputDir("typescript"))
+			// --- Spec Detection Integration Tests ---
+			"want %v, got %v", ax.Join("/project", "packages/api-client", "generated", "typescript"), s.outputDir("typescript"))
+	}
+
 }
-
-// --- Spec Detection Integration Tests ---
 
 func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {
 	t.Run("configured spec takes priority over common paths", func(t *testing.T) {
@@ -285,17 +397,29 @@ func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {
 		// Create both a common path spec and a configured spec
 		commonSpec := ax.Join(tmpDir, "openapi.yaml")
 		err := ax.WriteFile(commonSpec, []byte(minimalSpec), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		configuredSpec := ax.Join(tmpDir, "custom", "api.yaml")
-		require.NoError(t, ax.MkdirAll(ax.Dir(configuredSpec), 0755))
+		if err := ax.MkdirAll(ax.Dir(configuredSpec), 0755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		err = ax.WriteFile(configuredSpec, []byte(minimalSpec), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		s := New(tmpDir, &Config{Spec: "custom/api.yaml"})
 		specPath, err := s.DetectSpec()
-		require.NoError(t, err)
-		assert.Equal(t, configuredSpec, specPath)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(configuredSpec, specPath) {
+			t.Fatalf("want %v, got %v", configuredSpec, specPath)
+		}
+
 	})
 
 	t.Run("common paths checked in order", func(t *testing.T) {
@@ -303,15 +427,25 @@ func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {
 
 		// Create the second common path only (api/openapi.yaml is first)
 		apiDir := ax.Join(tmpDir, "api")
-		require.NoError(t, ax.MkdirAll(apiDir, 0755))
+		if err := ax.MkdirAll(apiDir, 0755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		apiSpec := ax.Join(apiDir, "openapi.json")
 		err := ax.WriteFile(apiSpec, []byte(`{"openapi":"3.0.0"}`), 0644)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
 		s := New(tmpDir, nil)
 		specPath, err := s.DetectSpec()
-		require.NoError(t, err)
-		assert.Equal(t, apiSpec, specPath)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stdlibAssertEqual(apiSpec, specPath) {
+			t.Fatalf("want %v, got %v", apiSpec, specPath)
+		}
+
 	})
 }
 
@@ -321,19 +455,29 @@ func TestGeneration_SpecDetectionAllCommonPaths_Good(t *testing.T) {
 			tmpDir := t.TempDir()
 
 			specPath := ax.Join(tmpDir, commonPath)
-			require.NoError(t, ax.MkdirAll(ax.Dir(specPath), 0755))
+			if err := ax.MkdirAll(ax.Dir(specPath), 0755); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
 			err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
 			s := New(tmpDir, nil)
 			detected, err := s.DetectSpec()
-			require.NoError(t, err)
-			assert.Equal(t, specPath, detected)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !stdlibAssertEqual(specPath, detected) {
+
+				// --- Compile-time interface checks ---
+				t.Fatalf("want %v, got %v", specPath, detected)
+			}
+
 		})
 	}
 }
-
-// --- Compile-time interface checks ---
 
 var _ generators.Generator = (*generators.TypeScriptGenerator)(nil)
 var _ generators.Generator = (*generators.PythonGenerator)(nil)

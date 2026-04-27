@@ -2,16 +2,16 @@
 package publishers
 
 import (
-	"bytes"
-	"context"
-	"embed"
-	"text/template"
+	"bytes"         // Note: AX-6 — template rendering writes into an in-memory buffer.
+	"context"       // Note: AX-6 — carries cancellation through publish and git operations.
+	"embed"         // Note: AX-6 — embeds Homebrew templates for release publishing.
+	"text/template" // Note: AX-6 — renders Homebrew formula templates.
+	"unicode"       // Note: AX-6 — classifies runes while deriving Ruby formula class names.
 
-	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax" // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
+	"dappco.re/go/core"              // Note: AX-6 — provides approved string and formatting helpers.
+	coreio "dappco.re/go/core/io"    // Note: AX-6 — Core Medium abstraction for release filesystem access.
+	coreerr "dappco.re/go/core/log"  // Note: AX-6 — wraps publisher errors with Core logging semantics.
 )
 
 //go:embed templates/homebrew/*.tmpl
@@ -58,10 +58,34 @@ func (p *HomebrewPublisher) Name() string {
 	return "homebrew"
 }
 
+// Validate checks the Homebrew publisher configuration before publishing.
+func (p *HomebrewPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+	_ = ctx
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
+	cfg := p.parseConfig(pubCfg, relCfg)
+	if cfg.Tap == "" && (cfg.Official == nil || !cfg.Official.Enabled) {
+		return coreerr.E("homebrew.Validate", "tap is required (set publish.homebrew.tap in config)", nil)
+	}
+
+	return nil
+}
+
+// Supports reports whether the publisher handles the requested target.
+func (p *HomebrewPublisher) Supports(target string) bool {
+	return supportsPublisherTarget(p.Name(), target)
+}
+
 // Publish publishes the release to Homebrew.
 //
 // err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
 func (p *HomebrewPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
+	if err := validatePublisherRelease(p.Name(), release); err != nil {
+		return err
+	}
+
 	// Parse config
 	cfg := p.parseConfig(pubCfg, relCfg)
 
@@ -101,7 +125,7 @@ func (p *HomebrewPublisher) Publish(ctx context.Context, release *Release, pubCf
 	version := core.TrimPrefix(release.Version, "v")
 
 	// Build checksums map from artifacts
-	checksums := buildChecksumMap(release.Artifacts)
+	checksums := buildChecksumMapFromRelease(release)
 
 	// Template data
 	data := homebrewTemplateData{
@@ -130,18 +154,6 @@ type homebrewTemplateData struct {
 	License      string
 	BinaryName   string
 	Checksums    ChecksumMap
-}
-
-// ChecksumMap holds checksums for different platform/arch combinations.
-//
-// data.Checksums.LinuxAMD64 = "abc123..."
-type ChecksumMap struct {
-	DarwinAmd64  string
-	DarwinArm64  string
-	LinuxAmd64   string
-	LinuxArm64   string
-	WindowsAmd64 string
-	WindowsArm64 string
 }
 
 // parseConfig extracts Homebrew-specific configuration.
@@ -194,10 +206,10 @@ func (p *HomebrewPublisher) dryRunPublish(m coreio.Medium, data homebrewTemplate
 	publisherPrintln("---")
 	publisherPrintln()
 
-	if cfg.Tap != "" {
+	if cfg.Tap != "" && !homebrewOfficialMode(cfg) {
 		publisherPrint("Would commit to tap: %s", cfg.Tap)
 	}
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if homebrewOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = "dist/homebrew"
@@ -219,7 +231,7 @@ func (p *HomebrewPublisher) executePublish(ctx context.Context, projectDir strin
 	}
 
 	// If official config is enabled, write to output directory
-	if cfg.Official != nil && cfg.Official.Enabled {
+	if homebrewOfficialMode(cfg) {
 		output := cfg.Official.Output
 		if output == "" {
 			output = ax.Join(projectDir, "dist", "homebrew")
@@ -238,14 +250,18 @@ func (p *HomebrewPublisher) executePublish(ctx context.Context, projectDir strin
 		publisherPrint("Wrote Homebrew formula for official PR: %s", formulaPath)
 	}
 
-	// If tap is configured, commit to it
-	if cfg.Tap != "" {
+	// Official repo mode generates PR-ready files and does not publish directly.
+	if cfg.Tap != "" && !homebrewOfficialMode(cfg) {
 		if err := p.commitToTap(ctx, cfg.Tap, data, formula); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func homebrewOfficialMode(cfg HomebrewConfig) bool {
+	return cfg.Official != nil && cfg.Official.Enabled
 }
 
 // commitToTap commits the formula to the tap repository.
@@ -316,7 +332,7 @@ func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data ho
 		}
 	}
 
-	tmpl, err := template.New(ax.Base(name)).Parse(string(content))
+	tmpl, err := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
 	if err != nil {
 		return "", coreerr.E("homebrew.renderTemplate", "failed to parse template "+name, err)
 	}
@@ -331,40 +347,43 @@ func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data ho
 
 // toFormulaClass converts a package name to a Ruby class name.
 func toFormulaClass(name string) string {
-	// Convert kebab-case to PascalCase
-	parts := core.Split(name, "-")
-	for i, part := range parts {
-		if len(part) > 0 {
-			parts[i] = core.Upper(part[:1]) + part[1:]
-		}
+	parts := splitFormulaClassParts(name)
+	if len(parts) == 0 {
+		return "Core"
 	}
+
+	for i, part := range parts {
+		if len(part) == 0 {
+			continue
+		}
+		runes := []rune(part)
+		parts[i] = core.Upper(string(runes[0])) + string(runes[1:])
+	}
+
 	return core.Join("", parts...)
 }
 
-// buildChecksumMap extracts checksums from artifacts into a structured map.
-func buildChecksumMap(artifacts []build.Artifact) ChecksumMap {
-	checksums := ChecksumMap{}
+func splitFormulaClassParts(name string) []string {
+	var parts []string
+	start := -1
 
-	for _, a := range artifacts {
-		// Parse artifact name to determine platform
-		name := ax.Base(a.Path)
-		checksum := a.Checksum
+	for i, r := range name {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			if start == -1 {
+				start = i
+			}
+			continue
+		}
 
-		switch {
-		case core.Contains(name, "darwin-amd64"):
-			checksums.DarwinAmd64 = checksum
-		case core.Contains(name, "darwin-arm64"):
-			checksums.DarwinArm64 = checksum
-		case core.Contains(name, "linux-amd64"):
-			checksums.LinuxAmd64 = checksum
-		case core.Contains(name, "linux-arm64"):
-			checksums.LinuxArm64 = checksum
-		case core.Contains(name, "windows-amd64"):
-			checksums.WindowsAmd64 = checksum
-		case core.Contains(name, "windows-arm64"):
-			checksums.WindowsArm64 = checksum
+		if start != -1 {
+			parts = append(parts, name[start:i])
+			start = -1
 		}
 	}
 
-	return checksums
+	if start != -1 {
+		parts = append(parts, name[start:])
+	}
+
+	return parts
 }

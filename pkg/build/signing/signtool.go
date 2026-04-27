@@ -4,9 +4,9 @@ import (
 	"context"
 	"runtime"
 
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // WindowsSigner signs binaries using Windows signtool.
@@ -37,6 +37,9 @@ func (s *WindowsSigner) Name() string {
 //
 // ok := s.Available() // → true if on Windows with certificate configured
 func (s *WindowsSigner) Available() bool {
+	if !s.config.signtoolEnabled() {
+		return false
+	}
 	if runtime.GOOS != "windows" {
 		return false
 	}

@@ -5,11 +5,11 @@ import (
 	"context"
 	"runtime"
 
+	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/core"
-	"dappco.re/go/core/build/internal/ax"
-	"dappco.re/go/core/build/pkg/build"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // RustBuilder implements the Builder interface for Rust projects.
@@ -45,22 +45,21 @@ func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	if cfg == nil {
 		return nil, coreerr.E("RustBuilder.Build", "config is nil", nil)
 	}
+	filesystem := ensureBuildFilesystem(cfg)
 
 	cargoCommand, err := b.resolveCargoCli()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
-	}
+	targets = defaultRuntimeTargets(targets, runtime.GOOS, runtime.GOARCH)
 
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+		outputDir = defaultOutputDir(cfg)
 	}
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("RustBuilder.Build", "failed to create output directory", err)
+	if err := ensureOutputDir(filesystem, outputDir, "RustBuilder.Build"); err != nil {
+		return nil, err
 	}
 
 	var artifacts []build.Artifact
@@ -70,22 +69,16 @@ func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 			return artifacts, err
 		}
 
-		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := cfg.FS.EnsureDir(platformDir); err != nil {
-			return artifacts, coreerr.E("RustBuilder.Build", "failed to create platform directory", err)
+		platformDir, err := ensurePlatformDir(filesystem, outputDir, target, "RustBuilder.Build")
+		if err != nil {
+			return artifacts, err
 		}
 
-		env := appendConfiguredEnv(cfg.Env,
+		env := configuredTargetEnv(cfg, target,
 			core.Sprintf("CARGO_TARGET_DIR=%s", platformDir),
 			core.Sprintf("TARGET_OS=%s", target.OS),
 			core.Sprintf("TARGET_ARCH=%s", target.Arch),
 		)
-		if cfg.Name != "" {
-			env = append(env, core.Sprintf("NAME=%s", cfg.Name))
-		}
-		if cfg.Version != "" {
-			env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
-		}
 
 		args := []string{"build", "--release", "--target", targetTriple}
 		output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, cargoCommand, args...)
@@ -93,7 +86,7 @@ func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 			return artifacts, coreerr.E("RustBuilder.Build", "cargo build failed: "+output, err)
 		}
 
-		found := b.findArtifactsForTarget(cfg.FS, platformDir, targetTriple, target)
+		found := b.findArtifactsForTarget(filesystem, platformDir, targetTriple, target)
 		if len(found) == 0 {
 			return artifacts, coreerr.E("RustBuilder.Build", "no build artifacts found for "+target.String(), nil)
 		}

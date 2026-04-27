@@ -1,29 +1,29 @@
 {
-    "version": "{{.Version}}",
-    "description": "{{.Description}}",
-    "homepage": "https://github.com/{{.Repository}}",
-    "license": "{{.License}}",
+    "version": {{ jsonString .Version }},
+    "description": {{ jsonString .Description }},
+    "homepage": {{ jsonString (printf "https://github.com/%s" .Repository) }},
+    "license": {{ jsonString .License }},
     "architecture": {
         "64bit": {
-            "url": "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-windows-amd64.zip",
-            "hash": "{{.Checksums.WindowsAmd64}}"
+            "url": {{ jsonString (printf "https://github.com/%s/releases/download/v%s/%s" .Repository .Version .Checksums.WindowsAmd64File) }},
+            "hash": {{ jsonString .Checksums.WindowsAmd64 }}
         },
         "arm64": {
-            "url": "https://github.com/{{.Repository}}/releases/download/v{{.Version}}/{{.BinaryName}}-windows-arm64.zip",
-            "hash": "{{.Checksums.WindowsArm64}}"
+            "url": {{ jsonString (printf "https://github.com/%s/releases/download/v%s/%s" .Repository .Version .Checksums.WindowsArm64File) }},
+            "hash": {{ jsonString .Checksums.WindowsArm64 }}
         }
     },
-    "bin": "{{.BinaryName}}.exe",
+    "bin": {{ jsonString (printf "%s.exe" .BinaryName) }},
     "checkver": {
-        "github": "https://github.com/{{.Repository}}"
+        "github": {{ jsonString (printf "https://github.com/%s" .Repository) }}
     },
     "autoupdate": {
         "architecture": {
             "64bit": {
-                "url": "https://github.com/{{.Repository}}/releases/download/v$version/{{.BinaryName}}-windows-amd64.zip"
+                "url": {{ jsonString (printf "https://github.com/%s/releases/download/v$version/%s" .Repository .Checksums.WindowsAmd64File) }}
             },
             "arm64": {
-                "url": "https://github.com/{{.Repository}}/releases/download/v$version/{{.BinaryName}}-windows-arm64.zip"
+                "url": {{ jsonString (printf "https://github.com/%s/releases/download/v$version/%s" .Repository .Checksums.WindowsArm64File) }}
             }
         }
     }
