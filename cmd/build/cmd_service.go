@@ -49,6 +49,10 @@ type serviceProgram struct {
 	mu     sync.Mutex
 }
 
+// Start launches the build-service daemon goroutine and stores its cancel
+// handle so Stop can shut it down cleanly. Implements nativeservice.Service.
+//
+//	_ = p.Start(svc)
 func (p *serviceProgram) Start(nativeservice.Service) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -67,6 +71,10 @@ func (p *serviceProgram) Start(nativeservice.Service) error {
 	return nil
 }
 
+// Stop signals the build-service daemon to exit and waits up to
+// serviceStopTimeout for graceful shutdown. Implements nativeservice.Service.
+//
+//	_ = p.Stop(svc)
 func (p *serviceProgram) Stop(nativeservice.Service) error {
 	p.mu.Lock()
 	cancel := p.cancel
@@ -92,8 +100,17 @@ func (p *serviceProgram) Stop(nativeservice.Service) error {
 
 type controlServiceProgram struct{}
 
+// Start is a no-op for the control program — it exists only to satisfy
+// nativeservice.Service when the binary is invoked for service control
+// rather than running the daemon itself.
+//
+//	_ = controlServiceProgram{}.Start(svc)
 func (controlServiceProgram) Start(nativeservice.Service) error { return nil }
-func (controlServiceProgram) Stop(nativeservice.Service) error  { return nil }
+
+// Stop is a no-op for the control program — see Start.
+//
+//	_ = controlServiceProgram{}.Stop(svc)
+func (controlServiceProgram) Stop(nativeservice.Service) error { return nil }
 
 // AddServiceCommands registers `core service` commands.
 func AddServiceCommands(c *core.Core) {

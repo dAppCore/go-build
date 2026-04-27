@@ -11,6 +11,11 @@ import (
 	coreerr "dappco.re/go/log"
 )
 
+// Request bundles the inputs the `core service install/start/stop/status`
+// commands need: project layout (Name/ProjectDir/Output/Format), networking
+// (APIAddr/HealthAddr/PIDFile), and watcher tuning (WatchPaths/WatchInterval).
+//
+//	req := servicecmd.Request{Name: "myapp", ProjectDir: ".", APIAddr: ":7300"}
 type Request struct {
 	Name             string
 	DisplayName      string
