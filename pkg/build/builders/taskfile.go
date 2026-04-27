@@ -57,19 +57,17 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	// Create output directory
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+		outputDir = defaultOutputDir(cfg)
 	}
-	if err := filesystem.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("TaskfileBuilder.Build", "failed to create output directory", err)
+	if err := ensureOutputDir(filesystem, outputDir, "TaskfileBuilder.Build"); err != nil {
+		return nil, err
 	}
 
 	var artifacts []build.Artifact
 
 	// If no targets are specified, build the host target so Taskfile builds
 	// still receive the standard GOOS/GOARCH surface.
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
-	}
+	targets = defaultRuntimeTargets(targets, runtime.GOOS, runtime.GOARCH)
 
 	// Run build task for each target
 	for _, target := range targets {
@@ -90,53 +88,17 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 	// Build task command
 	args := []string{"build"}
 	env := build.BuildEnvironment(cfg)
-	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-
-	// Pass variables if targets are specified
-	if target.OS != "" {
-		value := core.Sprintf("GOOS=%s", target.OS)
-		args = append(args, value)
-		env = append(env, value)
-	}
-	if target.Arch != "" {
-		value := core.Sprintf("GOARCH=%s", target.Arch)
-		args = append(args, value)
-		env = append(env, value)
-	}
-	if target.OS != "" {
-		value := core.Sprintf("TARGET_OS=%s", target.OS)
-		args = append(args, value)
-		env = append(env, value)
-	}
-	if target.Arch != "" {
-		value := core.Sprintf("TARGET_ARCH=%s", target.Arch)
-		args = append(args, value)
-		env = append(env, value)
-	}
-	value := core.Sprintf("OUTPUT_DIR=%s", outputDir)
-	args = append(args, value)
-	env = append(env, value)
-	if platformDir != "" {
-		value := core.Sprintf("TARGET_DIR=%s", platformDir)
-		args = append(args, value)
-		env = append(env, value)
-	}
+	targetDir := platformDir(outputDir, target)
+	values := standardTargetValues(outputDir, targetDir, target)
 	if cfg.Name != "" {
-		value := core.Sprintf("NAME=%s", cfg.Name)
-		args = append(args, value)
-		env = append(env, value)
+		values = append(values, core.Sprintf("NAME=%s", cfg.Name))
 	}
 	if cfg.Version != "" {
-		value := core.Sprintf("VERSION=%s", cfg.Version)
-		args = append(args, value)
-		env = append(env, value)
+		values = append(values, core.Sprintf("VERSION=%s", cfg.Version))
 	}
-	value = "CGO_ENABLED=0"
-	if cfg.CGO {
-		value = "CGO_ENABLED=1"
-	}
-	args = append(args, value)
-	env = append(env, value)
+	values = append(values, cgoEnvValue(cfg.CGO))
+	args = append(args, values...)
+	env = append(env, values...)
 
 	cleanup := func() {}
 	if cfg != nil {

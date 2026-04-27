@@ -13,6 +13,19 @@ import (
 	"dappco.re/go/io"
 )
 
+func assertFindArtifacts(t *testing.T, distDir string, wantLen int) []build.Artifact {
+	t.Helper()
+
+	artifacts, err := findArtifacts(io.Local, distDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(artifacts) != wantLen {
+		t.Fatalf("want len %v, got %v", wantLen, len(artifacts))
+	}
+	return artifacts
+}
+
 func TestRelease_FindArtifacts_Good(t *testing.T) {
 	t.Run("finds tar.gz artifacts", func(t *testing.T) {
 		dir := t.TempDir()
@@ -30,13 +43,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 2 {
-			t.Fatalf("want len %v, got %v", 2, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 2)
 
 	})
 
@@ -50,13 +57,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 1 {
-			t.Fatalf("want len %v, got %v", 1, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 1)
 		if !stdlibAssertContains(artifacts[0].Path, "app-linux-amd64.tar.xz") {
 			t.Fatalf("expected %v to contain %v", artifacts[0].Path, "app-linux-amd64.tar.xz")
 		}
@@ -73,13 +74,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 1 {
-			t.Fatalf("want len %v, got %v", 1, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 1)
 		if !stdlibAssertContains(artifacts[0].Path, "app-windows-amd64.zip") {
 			t.Fatalf("expected %v to contain %v", artifacts[0].Path, "app-windows-amd64.zip")
 		}
@@ -96,13 +91,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 1 {
-			t.Fatalf("want len %v, got %v", 1, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 1)
 		if !stdlibAssertContains(artifacts[0].Path, "CHECKSUMS.txt") {
 			t.Fatalf("expected %v to contain %v", artifacts[0].Path, "CHECKSUMS.txt")
 		}
@@ -119,10 +108,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := assertFindArtifacts(t, distDir, 0)
 		if !stdlibAssertEmpty(artifacts) {
 			t.Fatalf("expected empty, got %v", artifacts)
 		}
@@ -139,13 +125,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 1 {
-			t.Fatalf("want len %v, got %v", 1, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 1)
 
 	})
 
@@ -159,13 +139,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 1 {
-			t.Fatalf("want len %v, got %v", 1, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 1)
 		if !stdlibAssertContains(artifacts[0].Path, "CHECKSUMS.txt.asc") {
 			t.Fatalf("expected %v to contain %v", artifacts[0].Path, "CHECKSUMS.txt.asc")
 		}
@@ -194,13 +168,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 5 {
-			t.Fatalf("want len %v, got %v", 5, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 5)
 
 	})
 
@@ -223,13 +191,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 2 {
-			t.Fatalf("want len %v, got %v", 2, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 2)
 		if !stdlibAssertElementsMatch([]string{ax.Join(distDir, "app.tar.gz"), ax.Join(distDir, "app.tar.xz")}, []string{artifacts[0].Path, artifacts[1].Path}) {
 			t.Fatalf("expected elements %v, got %v", []string{ax.Join(distDir, "app.tar.gz"), ax.Join(distDir, "app.tar.xz")}, []string{artifacts[0].Path, artifacts[1].Path})
 		}
@@ -252,13 +214,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 2 {
-			t.Fatalf("want len %v, got %v", 2, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 2)
 		if !stdlibAssertElementsMatch([]string{ax.Join(distDir, "app.tar.gz"), ax.Join(distDir, "subdir", "nested.tar.gz")}, []string{artifacts[0].Path, artifacts[1].Path}) {
 			t.Fatalf("expected elements %v, got %v", []string{ax.Join(distDir, "app.tar.gz"), ax.Join(distDir, "subdir", "nested.tar.gz")}, []string{artifacts[0].Path, artifacts[1].Path})
 		}
@@ -284,13 +240,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 2 {
-			t.Fatalf("want len %v, got %v", 2, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 2)
 		if !stdlibAssertEqual(ax.Join(distDir, "linux_amd64", "myapp"), artifacts[0].Path) {
 			t.Fatalf("want %v, got %v", ax.Join(distDir, "linux_amd64", "myapp"), artifacts[0].Path)
 		}
@@ -325,13 +275,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 2 {
-			t.Fatalf("want len %v, got %v", 2, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 2)
 		if !stdlibAssertElementsMatch([]string{ax.Join(distDir, "linux_amd64", "myapp"), ax.Join(distDir, "CHECKSUMS.txt")}, []string{artifacts[0].Path, artifacts[1].Path}) {
 			t.Fatalf("expected elements %v, got %v", []string{ax.Join(distDir, "linux_amd64", "myapp"), ax.Join(distDir, "CHECKSUMS.txt")}, []string{artifacts[0].Path, artifacts[1].Path})
 		}
@@ -349,13 +293,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 1 {
-			t.Fatalf("want len %v, got %v", 1, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 1)
 		if !stdlibAssertEqual(ax.Join(platformDir, "myapp"), artifacts[0].Path) {
 			t.Fatalf("want %v, got %v", ax.Join(platformDir, "myapp"), artifacts[0].Path)
 		}
@@ -382,13 +320,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(artifacts) != 1 {
-			t.Fatalf("want len %v, got %v", 1, len(artifacts))
-		}
+		artifacts := assertFindArtifacts(t, distDir, 1)
 		if !stdlibAssertEqual(ax.Join(platformDir, "TestApp.app"), artifacts[0].Path) {
 			t.Fatalf("want %v, got %v", ax.Join(platformDir, "TestApp.app"), artifacts[0].Path)
 		}
@@ -408,10 +340,7 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		artifacts, err := findArtifacts(io.Local, distDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := assertFindArtifacts(t, distDir, 0)
 		if !stdlibAssertEmpty(artifacts) {
 			t.Fatalf("expected empty, got %v", artifacts)
 		}

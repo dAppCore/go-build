@@ -70,6 +70,25 @@ chmod +x "$platform_dir/${NAME:-nodeapp}"
 
 }
 
+func assertNodeLogPrefix(t *testing.T, logPath string, want ...string) []string {
+	t.Helper()
+
+	content, err := ax.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) < len(want) {
+		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), len(want))
+	}
+	for i, value := range want {
+		if !stdlibAssertEqual(value, lines[i]) {
+			t.Fatalf("want %v, got %v", value, lines[i])
+		}
+	}
+	return lines
+}
+
 func setupNodeTestProject(t *testing.T) string {
 	t.Helper()
 
@@ -286,24 +305,7 @@ func TestNode_NodeBuilderBuild_Good_Deno(t *testing.T) {
 		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 	}
 
-	content, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	if len(lines) < 3 {
-		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 3)
-	}
-	if !stdlibAssertEqual("deno", lines[0]) {
-		t.Fatalf("want %v, got %v", "deno", lines[0])
-	}
-	if !stdlibAssertEqual("task", lines[1]) {
-		t.Fatalf("want %v, got %v", "task", lines[1])
-	}
-	if !stdlibAssertEqual("build", lines[2]) {
-		t.Fatalf("want %v, got %v", "build", lines[2])
-	}
+	assertNodeLogPrefix(t, logPath, "deno", "task", "build")
 
 }
 
@@ -343,24 +345,7 @@ func TestNode_NodeBuilderBuild_Good_DenoOverrideFromConfig(t *testing.T) {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
 
-	content, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	if len(lines) < 3 {
-		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 3)
-	}
-	if !stdlibAssertEqual("deno-build", lines[0]) {
-		t.Fatalf("want %v, got %v", "deno-build", lines[0])
-	}
-	if !stdlibAssertEqual("--target", lines[1]) {
-		t.Fatalf("want %v, got %v", "--target", lines[1])
-	}
-	if !stdlibAssertEqual("release", lines[2]) {
-		t.Fatalf("want %v, got %v", "release", lines[2])
-	}
+	assertNodeLogPrefix(t, logPath, "deno-build", "--target", "release")
 
 }
 
@@ -402,21 +387,7 @@ func TestNode_NodeBuilderBuild_Good_DenoOverrideFromEnvWins(t *testing.T) {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
 
-	content, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	if len(lines) < 2 {
-		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 2)
-	}
-	if !stdlibAssertEqual("env-deno-build", lines[0]) {
-		t.Fatalf("want %v, got %v", "env-deno-build", lines[0])
-	}
-	if !stdlibAssertEqual("--env", lines[1]) {
-		t.Fatalf("want %v, got %v", "--env", lines[1])
-	}
+	assertNodeLogPrefix(t, logPath, "env-deno-build", "--env")
 
 }
 
@@ -456,24 +427,7 @@ func TestNode_NodeBuilderBuild_Good_NpmOverrideFromConfig(t *testing.T) {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
 
-	content, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	if len(lines) < 3 {
-		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 3)
-	}
-	if !stdlibAssertEqual("npm-build", lines[0]) {
-		t.Fatalf("want %v, got %v", "npm-build", lines[0])
-	}
-	if !stdlibAssertEqual("--scope", lines[1]) {
-		t.Fatalf("want %v, got %v", "--scope", lines[1])
-	}
-	if !stdlibAssertEqual("app", lines[2]) {
-		t.Fatalf("want %v, got %v", "app", lines[2])
-	}
+	assertNodeLogPrefix(t, logPath, "npm-build", "--scope", "app")
 
 }
 
@@ -512,24 +466,7 @@ func TestNode_NodeBuilderBuild_Good_DenoEnableWithoutManifest(t *testing.T) {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
 
-	content, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	if len(lines) < 3 {
-		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 3)
-	}
-	if !stdlibAssertEqual("deno", lines[0]) {
-		t.Fatalf("want %v, got %v", "deno", lines[0])
-	}
-	if !stdlibAssertEqual("task", lines[1]) {
-		t.Fatalf("want %v, got %v", "task", lines[1])
-	}
-	if !stdlibAssertEqual("build", lines[2]) {
-		t.Fatalf("want %v, got %v", "build", lines[2])
-	}
+	assertNodeLogPrefix(t, logPath, "deno", "task", "build")
 
 }
 
@@ -569,24 +506,7 @@ func TestNode_NodeBuilderBuild_Good_DenoOverrideWithoutManifest(t *testing.T) {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
 
-	content, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	if len(lines) < 3 {
-		t.Fatalf("expected %v to be greater than or equal to %v", len(lines), 3)
-	}
-	if !stdlibAssertEqual("deno-build", lines[0]) {
-		t.Fatalf("want %v, got %v", "deno-build", lines[0])
-	}
-	if !stdlibAssertEqual("--target", lines[1]) {
-		t.Fatalf("want %v, got %v", "--target", lines[1])
-	}
-	if !stdlibAssertEqual("release", lines[2]) {
-		t.Fatalf("want %v, got %v", "release", lines[2])
-	}
+	assertNodeLogPrefix(t, logPath, "deno-build", "--target", "release")
 
 }
 

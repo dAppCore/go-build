@@ -6,13 +6,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
+	servicecommon "dappco.re/go/build/internal/servicecmd"
 	buildservice "dappco.re/go/build/pkg/service"
 	"dappco.re/go/cli/pkg/cli"
 	"dappco.re/go/core"
@@ -40,22 +40,7 @@ type serviceController interface {
 	Run() error
 }
 
-type serviceRequest struct {
-	Name             string
-	DisplayName      string
-	Description      string
-	ProjectDir       string
-	Output           string
-	Format           string
-	APIAddr          string
-	HealthAddr       string
-	PIDFile          string
-	WatchPaths       string
-	WatchInterval    string
-	ScheduleInterval string
-	AutoRebuild      bool
-	AutoRebuildSet   bool
-}
+type serviceRequest = servicecommon.Request
 
 type serviceProgram struct {
 	cfg    buildservice.Config
@@ -164,22 +149,7 @@ func AddServiceCommands(c *core.Core) {
 }
 
 func serviceRequestFromOptions(opts core.Options) serviceRequest {
-	return serviceRequest{
-		Name:             cmdutil.OptionString(opts, "name"),
-		DisplayName:      cmdutil.OptionString(opts, "display-name", "display_name"),
-		Description:      cmdutil.OptionString(opts, "description"),
-		ProjectDir:       cmdutil.OptionString(opts, "project-dir", "project_dir"),
-		Output:           cmdutil.OptionString(opts, "output"),
-		Format:           cmdutil.OptionString(opts, "format"),
-		APIAddr:          cmdutil.OptionString(opts, "addr", "api-addr", "api_addr"),
-		HealthAddr:       cmdutil.OptionString(opts, "health-addr", "health_addr"),
-		PIDFile:          cmdutil.OptionString(opts, "pid-file", "pid_file"),
-		WatchPaths:       cmdutil.OptionString(opts, "watch-paths", "watch_paths"),
-		WatchInterval:    cmdutil.OptionString(opts, "watch-interval", "watch_interval"),
-		ScheduleInterval: cmdutil.OptionString(opts, "schedule-interval", "schedule_interval"),
-		AutoRebuild:      cmdutil.OptionBoolDefault(opts, true, "auto-rebuild", "auto_rebuild"),
-		AutoRebuildSet:   cmdutil.OptionHas(opts, "auto-rebuild", "auto_rebuild"),
-	}
+	return servicecommon.FromOptions(opts)
 }
 
 func runServiceInstall(req serviceRequest) error {
@@ -305,77 +275,11 @@ func runServiceRun(ctx context.Context, req serviceRequest) error {
 }
 
 func loadServiceConfig(req serviceRequest) (buildservice.Config, error) {
-	cwd, err := serviceGetwd()
-	if err != nil {
-		return buildservice.Config{}, coreerr.E("service.loadServiceConfig", "failed to get working directory", err)
-	}
-
-	projectDir := req.ProjectDir
-	if projectDir == "" {
-		projectDir = cwd
-	} else if !filepath.IsAbs(projectDir) {
-		projectDir = filepath.Join(cwd, projectDir)
-	}
-
-	cfg, err := resolveBuildServiceCfg(projectDir)
-	if err != nil {
-		return buildservice.Config{}, err
-	}
-
-	if err := applyServiceOverrides(&cfg, req); err != nil {
-		return buildservice.Config{}, err
-	}
-	return cfg.Normalized(), nil
+	return servicecommon.LoadConfig(req, serviceGetwd, resolveBuildServiceCfg)
 }
 
 func applyServiceOverrides(cfg *buildservice.Config, req serviceRequest) error {
-	if cfg == nil {
-		return nil
-	}
-
-	if req.Name != "" {
-		cfg.Name = req.Name
-	}
-	if req.DisplayName != "" {
-		cfg.DisplayName = req.DisplayName
-	}
-	if req.Description != "" {
-		cfg.Description = req.Description
-	}
-	if req.APIAddr != "" {
-		cfg.APIAddr = req.APIAddr
-	}
-	if req.HealthAddr != "" {
-		cfg.HealthAddr = req.HealthAddr
-	}
-	if req.PIDFile != "" {
-		cfg.PIDFile = req.PIDFile
-		if !filepath.IsAbs(cfg.PIDFile) {
-			cfg.PIDFile = filepath.Join(cfg.ProjectDir, cfg.PIDFile)
-		}
-	}
-	if req.WatchPaths != "" {
-		cfg.WatchPaths = parseServiceCSV(req.WatchPaths)
-	}
-	if req.WatchInterval != "" {
-		duration, err := time.ParseDuration(req.WatchInterval)
-		if err != nil {
-			return coreerr.E("service.applyServiceOverrides", "invalid watch interval", err)
-		}
-		cfg.WatchInterval = duration
-	}
-	if req.ScheduleInterval != "" {
-		duration, err := time.ParseDuration(req.ScheduleInterval)
-		if err != nil {
-			return coreerr.E("service.applyServiceOverrides", "invalid schedule interval", err)
-		}
-		cfg.ScheduleInterval = duration
-	}
-	if req.AutoRebuildSet {
-		cfg.AutoRebuild = req.AutoRebuild
-	}
-
-	return nil
+	return servicecommon.ApplyOverrides(cfg, req)
 }
 
 func newServiceController(cfg buildservice.Config, program nativeservice.Interface, runWait func()) (serviceController, error) {
@@ -438,14 +342,5 @@ func copyServiceEnv(values map[string]string) map[string]string {
 }
 
 func parseServiceCSV(value string) []string {
-	parts := strings.Split(value, ",")
-	paths := make([]string, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		paths = append(paths, part)
-	}
-	return paths
+	return servicecommon.ParseCSV(value)
 }

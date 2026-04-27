@@ -51,19 +51,15 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	ensureBuildFilesystem(cfg)
 	artifactFilesystem := build.ResolveOutputMedium(cfg)
 
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: core.Env("GOOS"), Arch: core.Env("GOARCH")}}
-	}
+	targets = defaultHostTargets(targets)
 
 	outputDir := cfg.OutputDir
 	if outputDir == "" && build.MediumIsLocal(artifactFilesystem) {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+		outputDir = defaultOutputDir(cfg)
 	}
 
-	if outputDir != "" {
-		if err := artifactFilesystem.EnsureDir(outputDir); err != nil {
-			return nil, coreerr.E("GoBuilder.Build", "failed to create output directory", err)
-		}
+	if err := ensureOutputDir(artifactFilesystem, outputDir, "GoBuilder.Build"); err != nil {
+		return nil, err
 	}
 
 	var artifacts []build.Artifact
@@ -98,29 +94,22 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, artifact
 		binaryName += ".exe"
 	}
 
-	// Create platform-specific output path: output/os_arch/binary
-	platformName := core.Sprintf("%s_%s", target.OS, target.Arch)
-	platformDir := platformName
-	if outputDir != "" {
-		platformDir = ax.Join(outputDir, platformName)
-	}
-	if err := artifactFilesystem.EnsureDir(platformDir); err != nil {
-		return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create platform directory", err)
+	platformID := platformName(target)
+	platformDir, err := ensurePlatformDir(artifactFilesystem, outputDir, target, "GoBuilder.buildTarget")
+	if err != nil {
+		return build.Artifact{}, err
 	}
 
 	outputPath := ax.Join(platformDir, binaryName)
 	commandOutputPath := outputPath
-	cleanup := func() {}
+	stage, err := prepareStagedOutput(outputDir, artifactFilesystem, "core-build-go-*", "GoBuilder.buildTarget")
+	if err != nil {
+		return build.Artifact{}, err
+	}
+	defer stage.cleanup()
 	if !build.MediumIsLocal(artifactFilesystem) {
-		stageDir, err := ax.TempDir("core-build-go-*")
-		if err != nil {
-			return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create local artifact staging directory", err)
-		}
-		cleanup = func() { _ = ax.RemoveAll(stageDir) }
-		defer cleanup()
-
-		stagePlatformDir := ax.Join(stageDir, platformName)
-		if err := io.Local.EnsureDir(stagePlatformDir); err != nil {
+		stagePlatformDir := ax.Join(stage.commandOutputDir, platformID)
+		if err := stage.commandFS.EnsureDir(stagePlatformDir); err != nil {
 			return build.Artifact{}, coreerr.E("GoBuilder.buildTarget", "failed to create local platform staging directory", err)
 		}
 		commandOutputPath = ax.Join(stagePlatformDir, binaryName)
@@ -163,27 +152,14 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, artifact
 	args = append(args, mainPackage)
 
 	// Set up environment.
-	env := append([]string{}, cfg.Env...)
-	env = append(env, build.CacheEnvironment(&cfg.Cache)...)
-	env = append(env,
-		core.Sprintf("TARGET_OS=%s", target.OS),
-		core.Sprintf("TARGET_ARCH=%s", target.Arch),
-		core.Sprintf("OUTPUT_DIR=%s", outputDir),
-		core.Sprintf("TARGET_DIR=%s", platformDir),
-		core.Sprintf("GOOS=%s", target.OS),
-		core.Sprintf("GOARCH=%s", target.Arch),
-	)
+	env := appendConfiguredEnv(cfg, standardTargetValues(outputDir, platformDir, target)...)
 	if binaryName != "" {
 		env = append(env, core.Sprintf("NAME=%s", binaryName))
 	}
 	if cfg.Version != "" {
 		env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
 	}
-	if cfg.CGO {
-		env = append(env, "CGO_ENABLED=1")
-	} else {
-		env = append(env, "CGO_ENABLED=0")
-	}
+	env = append(env, cgoEnvValue(cfg.CGO))
 
 	command := "go"
 	var err error

@@ -55,9 +55,7 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 		return nil, coreerr.E("LinuxKitImageBuilder.Build", "build config is required", nil)
 	}
 
-	if cfg.FS == nil {
-		cfg.FS = io.Local
-	}
+	ensureBuildFilesystem(cfg)
 	artifactFilesystem := build.ResolveOutputMedium(cfg)
 
 	imageCfg := mergeLinuxKitImageConfig(build.DefaultLinuxKitConfig(), cfg.LinuxKit)
@@ -68,28 +66,20 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 
 	outputDir := cfg.OutputDir
 	if outputDir == "" && build.MediumIsLocal(artifactFilesystem) {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+		outputDir = defaultOutputDir(cfg)
 	}
 	if outputDir != "" && !ax.IsAbs(outputDir) && cfg.ProjectDir != "" && build.MediumIsLocal(artifactFilesystem) {
 		outputDir = ax.Join(cfg.ProjectDir, outputDir)
 	}
-	if outputDir != "" {
-		if err := artifactFilesystem.EnsureDir(outputDir); err != nil {
-			return nil, coreerr.E("LinuxKitImageBuilder.Build", "failed to create output directory", err)
-		}
+	if err := ensureOutputDir(artifactFilesystem, outputDir, "LinuxKitImageBuilder.Build"); err != nil {
+		return nil, err
 	}
 
-	commandOutputDir := outputDir
-	commandFilesystem := artifactFilesystem
-	if !build.MediumIsLocal(artifactFilesystem) {
-		stageDir, err := ax.TempDir("core-build-linuxkit-image-*")
-		if err != nil {
-			return nil, coreerr.E("LinuxKitImageBuilder.Build", "failed to create local artifact staging directory", err)
-		}
-		defer func() { _ = ax.RemoveAll(stageDir) }()
-		commandOutputDir = stageDir
-		commandFilesystem = io.Local
+	stage, err := prepareStagedOutput(outputDir, artifactFilesystem, "core-build-linuxkit-image-*", "LinuxKitImageBuilder.Build")
+	if err != nil {
+		return nil, err
 	}
+	defer stage.cleanup()
 
 	imageName := cfg.Name
 	if imageName == "" {
@@ -107,11 +97,11 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 		return nil, err
 	}
 
-	templatePath := ax.Join(commandOutputDir, "."+imageName+"-linuxkit.yml")
-	if err := commandFilesystem.WriteMode(templatePath, renderedTemplate, 0o644); err != nil {
+	templatePath := ax.Join(stage.commandOutputDir, "."+imageName+"-linuxkit.yml")
+	if err := stage.commandFS.WriteMode(templatePath, renderedTemplate, 0o644); err != nil {
 		return nil, coreerr.E("LinuxKitImageBuilder.Build", "failed to write LinuxKit template", err)
 	}
-	defer func() { _ = commandFilesystem.Delete(templatePath) }()
+	defer func() { _ = stage.commandFS.Delete(templatePath) }()
 
 	linuxkitCommand, err := (&LinuxKitBuilder{}).resolveLinuxKitCli()
 	if err != nil {
@@ -129,7 +119,7 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 			continue
 		}
 
-		artifactPath, err := b.buildFormat(ctx, commandFilesystem, artifactFilesystem, linuxkitCommand, cfg.ProjectDir, commandOutputDir, outputDir, imageName, templatePath, format)
+		artifactPath, err := b.buildFormat(ctx, stage.commandFS, artifactFilesystem, linuxkitCommand, cfg.ProjectDir, stage.commandOutputDir, outputDir, imageName, templatePath, format)
 		if err != nil {
 			return nil, err
 		}

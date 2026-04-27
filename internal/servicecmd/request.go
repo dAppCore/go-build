@@ -1,0 +1,161 @@
+package servicecmd
+
+import (
+	"path/filepath"
+	"strings"
+	"time"
+
+	"dappco.re/go/build/internal/cmdutil"
+	buildservice "dappco.re/go/build/pkg/service"
+	"dappco.re/go/core"
+	coreerr "dappco.re/go/log"
+)
+
+type Request struct {
+	Name             string
+	DisplayName      string
+	Description      string
+	ProjectDir       string
+	Output           string
+	Format           string
+	APIAddr          string
+	HealthAddr       string
+	PIDFile          string
+	WatchPaths       string
+	WatchInterval    string
+	ScheduleInterval string
+	AutoRebuild      bool
+	AutoRebuildSet   bool
+}
+
+// FromOptions returns a service request decoded from CLI options.
+//
+// Example:
+//
+//	req := servicecmd.FromOptions(opts)
+//	err := runServiceInstall(req)
+func FromOptions(opts core.Options) Request {
+	return Request{
+		Name:             cmdutil.OptionString(opts, "name"),
+		DisplayName:      cmdutil.OptionString(opts, "display-name", "display_name"),
+		Description:      cmdutil.OptionString(opts, "description"),
+		ProjectDir:       cmdutil.OptionString(opts, "project-dir", "project_dir"),
+		Output:           cmdutil.OptionString(opts, "output"),
+		Format:           cmdutil.OptionString(opts, "format"),
+		APIAddr:          cmdutil.OptionString(opts, "addr", "api-addr", "api_addr"),
+		HealthAddr:       cmdutil.OptionString(opts, "health-addr", "health_addr"),
+		PIDFile:          cmdutil.OptionString(opts, "pid-file", "pid_file"),
+		WatchPaths:       cmdutil.OptionString(opts, "watch-paths", "watch_paths"),
+		WatchInterval:    cmdutil.OptionString(opts, "watch-interval", "watch_interval"),
+		ScheduleInterval: cmdutil.OptionString(opts, "schedule-interval", "schedule_interval"),
+		AutoRebuild:      cmdutil.OptionBoolDefault(opts, true, "auto-rebuild", "auto_rebuild"),
+		AutoRebuildSet:   cmdutil.OptionHas(opts, "auto-rebuild", "auto_rebuild"),
+	}
+}
+
+// LoadConfig resolves, overrides, and normalizes a service config for a request.
+//
+// Example:
+//
+//	cfg, err := servicecmd.LoadConfig(req, ax.Getwd, buildservice.ResolveConfig)
+//	if err != nil {
+//		return err
+//	}
+func LoadConfig(req Request, getwd func() (string, error), resolve func(string) (buildservice.Config, error)) (buildservice.Config, error) {
+	cwd, err := getwd()
+	if err != nil {
+		return buildservice.Config{}, coreerr.E("service.loadServiceConfig", "failed to get working directory", err)
+	}
+
+	projectDir := req.ProjectDir
+	if projectDir == "" {
+		projectDir = cwd
+	} else if !filepath.IsAbs(projectDir) {
+		projectDir = filepath.Join(cwd, projectDir)
+	}
+
+	cfg, err := resolve(projectDir)
+	if err != nil {
+		return buildservice.Config{}, err
+	}
+
+	if err := ApplyOverrides(&cfg, req); err != nil {
+		return buildservice.Config{}, err
+	}
+	return cfg.Normalized(), nil
+}
+
+// ApplyOverrides applies request-level service overrides to a config.
+//
+// Example:
+//
+//	cfg := buildservice.Config{ProjectDir: projectDir}
+//	err := servicecmd.ApplyOverrides(&cfg, servicecmd.Request{Name: "core-build"})
+func ApplyOverrides(cfg *buildservice.Config, req Request) error {
+	if cfg == nil {
+		return nil
+	}
+
+	if req.Name != "" {
+		cfg.Name = req.Name
+	}
+	if req.DisplayName != "" {
+		cfg.DisplayName = req.DisplayName
+	}
+	if req.Description != "" {
+		cfg.Description = req.Description
+	}
+	if req.APIAddr != "" {
+		cfg.APIAddr = req.APIAddr
+	}
+	if req.HealthAddr != "" {
+		cfg.HealthAddr = req.HealthAddr
+	}
+	if req.PIDFile != "" {
+		cfg.PIDFile = req.PIDFile
+		if !filepath.IsAbs(cfg.PIDFile) {
+			cfg.PIDFile = filepath.Join(cfg.ProjectDir, cfg.PIDFile)
+		}
+	}
+	if req.WatchPaths != "" {
+		cfg.WatchPaths = ParseCSV(req.WatchPaths)
+	}
+	if req.WatchInterval != "" {
+		duration, err := time.ParseDuration(req.WatchInterval)
+		if err != nil {
+			return coreerr.E("service.applyServiceOverrides", "invalid watch interval", err)
+		}
+		cfg.WatchInterval = duration
+	}
+	if req.ScheduleInterval != "" {
+		duration, err := time.ParseDuration(req.ScheduleInterval)
+		if err != nil {
+			return coreerr.E("service.applyServiceOverrides", "invalid schedule interval", err)
+		}
+		cfg.ScheduleInterval = duration
+	}
+	if req.AutoRebuildSet {
+		cfg.AutoRebuild = req.AutoRebuild
+	}
+
+	return nil
+}
+
+// ParseCSV splits comma-separated service option values and drops blank entries.
+//
+// Example:
+//
+//	paths := servicecmd.ParseCSV("src, .core/build.yaml")
+//	cfg.WatchPaths = paths
+func ParseCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	paths := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		paths = append(paths, part)
+	}
+	return paths
+}

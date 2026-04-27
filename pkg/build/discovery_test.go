@@ -24,6 +24,69 @@ func setupTestDir(t *testing.T, markers ...string) string {
 	return dir
 }
 
+func setupDiscoveryFile(t *testing.T, relPath string, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	writeDiscoveryFile(t, dir, relPath, content)
+	return dir
+}
+
+func writeDiscoveryFile(t *testing.T, dir string, relPath string, content string) {
+	t.Helper()
+	path := ax.Join(dir, relPath)
+	if err := ax.MkdirAll(ax.Dir(path), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func assertDiscoverTypes(t *testing.T, fs io.Medium, dir string, want []ProjectType) {
+	t.Helper()
+
+	types, err := Discover(fs, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(want, types) {
+		t.Fatalf("want %v, got %v", want, types)
+	}
+}
+
+func assertDiscoverEmpty(t *testing.T, fs io.Medium, dir string) {
+	t.Helper()
+
+	types, err := Discover(fs, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEmpty(types) {
+		t.Fatalf("expected empty, got %v", types)
+	}
+}
+
+func assertDiscoverFullStack(t *testing.T, fs io.Medium, dir string, want []ProjectType, wantStack string, markers ...string) *DiscoveryResult {
+	t.Helper()
+
+	result, err := DiscoverFull(fs, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !stdlibAssertEqual(want, result.Types) {
+		t.Fatalf("want %v, got %v", want, result.Types)
+	}
+	if !stdlibAssertEqual(wantStack, result.PrimaryStack) {
+		t.Fatalf("want %v, got %v", wantStack, result.PrimaryStack)
+	}
+	for _, marker := range markers {
+		if !result.Markers[marker] {
+			t.Fatalf("expected marker %q", marker)
+		}
+	}
+	return result
+}
+
 func TestDiscovery_Discover_Good(t *testing.T) {
 	fs := io.Local
 	t.Run("prefers configured build type from .core/build.yaml", func(t *testing.T) {
@@ -35,13 +98,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocker}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocker}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocker})
 
 	})
 
@@ -63,73 +120,37 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocker}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocker}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocker})
 
 	})
 
 	t.Run("detects Go project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeGo}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeGo}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeGo})
 
 	})
 
 	t.Run("detects Go workspace project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.work")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeGo}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeGo}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeGo})
 
 	})
 
 	t.Run("detects Wails project with priority over Go", func(t *testing.T) {
 		dir := setupTestDir(t, "wails.json", "go.mod")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeWails, ProjectTypeGo})
 
 	})
 
 	t.Run("detects Node.js project", func(t *testing.T) {
 		dir := setupTestDir(t, "package.json")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeNode}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeNode})
 
 	})
 
 	t.Run("detects Deno project", func(t *testing.T) {
 		dir := setupTestDir(t, "deno.json")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeNode}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeNode})
 
 	})
 
@@ -143,13 +164,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeNode}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeNode})
 
 	})
 
@@ -163,25 +178,13 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeNode}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeNode})
 
 	})
 
 	t.Run("detects Wails project from go.mod and root package.json", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod", "package.json")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode})
 
 	})
 
@@ -199,13 +202,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode})
 
 	})
 
@@ -223,13 +220,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode})
 
 	})
 
@@ -247,61 +238,31 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode})
 
 	})
 
 	t.Run("detects PHP project", func(t *testing.T) {
 		dir := setupTestDir(t, "composer.json")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypePHP}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypePHP}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypePHP})
 
 	})
 
 	t.Run("detects docs project", func(t *testing.T) {
 		dir := setupTestDir(t, "mkdocs.yml")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocs}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocs}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocs})
 
 	})
 
 	t.Run("keeps docs after generic Node markers", func(t *testing.T) {
 		dir := setupTestDir(t, "mkdocs.yml", "package.json")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeNode, ProjectTypeDocs}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode, ProjectTypeDocs}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeNode, ProjectTypeDocs})
 
 	})
 
 	t.Run("detects docs project with mkdocs.yaml", func(t *testing.T) {
 		dir := setupTestDir(t, "mkdocs.yaml")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocs}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocs}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocs})
 
 	})
 
@@ -314,13 +275,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocs}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocs}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocs})
 
 	})
 
@@ -333,85 +288,43 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocs}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocs}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocs})
 
 	})
 
 	t.Run("detects Python project with pyproject.toml", func(t *testing.T) {
 		dir := setupTestDir(t, "pyproject.toml")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypePython}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypePython}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypePython})
 
 	})
 
 	t.Run("detects Python project with requirements.txt", func(t *testing.T) {
 		dir := setupTestDir(t, "requirements.txt")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypePython}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypePython}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypePython})
 
 	})
 
 	t.Run("detects Python only once with both markers", func(t *testing.T) {
 		dir := setupTestDir(t, "pyproject.toml", "requirements.txt")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypePython}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypePython}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypePython})
 
 	})
 
 	t.Run("detects Rust project", func(t *testing.T) {
 		dir := setupTestDir(t, "Cargo.toml")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeRust}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeRust}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeRust})
 
 	})
 
 	t.Run("detects Docker project", func(t *testing.T) {
 		dir := setupTestDir(t, "Dockerfile")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocker}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocker}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocker})
 
 	})
 
 	t.Run("detects Containerfile project", func(t *testing.T) {
 		dir := setupTestDir(t, "Containerfile")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocker}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocker}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocker})
 
 	})
 
@@ -425,13 +338,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeLinuxKit}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeLinuxKit}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeLinuxKit})
 
 	})
 
@@ -441,97 +348,49 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeLinuxKit}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeLinuxKit}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeLinuxKit})
 
 	})
 
 	t.Run("detects C++ project", func(t *testing.T) {
 		dir := setupTestDir(t, "CMakeLists.txt")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeCPP}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeCPP}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeCPP})
 
 	})
 
 	t.Run("detects Taskfile project", func(t *testing.T) {
 		dir := setupTestDir(t, "Taskfile.yml")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeTaskfile}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeTaskfile}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeTaskfile})
 
 	})
 
 	t.Run("detects multiple project types", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod", "package.json")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode})
 
 	})
 
 	t.Run("preserves priority when core and fallback markers overlap", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod", "Dockerfile", "Taskfile.yml")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeGo, ProjectTypeDocker, ProjectTypeTaskfile}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeGo, ProjectTypeDocker, ProjectTypeTaskfile}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeGo, ProjectTypeDocker, ProjectTypeTaskfile})
 
 	})
 
 	t.Run("prefers C++ ahead of Docker and Taskfile in fallback detection", func(t *testing.T) {
 		dir := setupTestDir(t, "CMakeLists.txt", "Dockerfile", "Taskfile.yml")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeCPP, ProjectTypeDocker, ProjectTypeTaskfile}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeCPP, ProjectTypeDocker, ProjectTypeTaskfile}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeCPP, ProjectTypeDocker, ProjectTypeTaskfile})
 
 	})
 
 	t.Run("keeps docs after taskfile and docker per RFC priority", func(t *testing.T) {
 		dir := setupTestDir(t, "mkdocs.yml", "Dockerfile", "Taskfile.yml")
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocker, ProjectTypeTaskfile, ProjectTypeDocs}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocker, ProjectTypeTaskfile, ProjectTypeDocs}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocker, ProjectTypeTaskfile, ProjectTypeDocs})
 
 	})
 
 	t.Run("empty directory returns empty slice", func(t *testing.T) {
 		dir := t.TempDir()
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEmpty(types) {
-			t.Fatalf("expected empty, got %v", types)
-		}
+		assertDiscoverEmpty(t, fs, dir)
 
 	})
 }
@@ -559,13 +418,7 @@ func TestDiscovery_Discover_Bad(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEmpty(types) {
-			t.Fatalf("expected empty, got %v", types)
-		}
+		assertDiscoverEmpty(t, fs, dir)
 
 	})
 
@@ -581,13 +434,7 @@ func TestDiscovery_Discover_Bad(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		types, err := Discover(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeGo}, types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeGo}, types)
-		}
+		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeGo})
 
 	})
 }
@@ -2220,235 +2067,111 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	})
 
-	t.Run("detects docs project markers", func(t *testing.T) {
-		dir := setupTestDir(t, "mkdocs.yml")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocs}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocs}, result.Types)
-		}
-		if !stdlibAssertEqual("docs", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "docs", result.PrimaryStack)
-		}
-		if !stdlibAssertEqual("docs", result.PrimaryStackSuggestion) {
-			t.Fatalf("want %v, got %v", "docs", result.PrimaryStackSuggestion)
-		}
-		if !(result.HasDocsConfig) {
-			t.Fatal("expected true")
-		}
-		if !(result.Markers["mkdocs.yml"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("detects docs project markers with mkdocs.yaml", func(t *testing.T) {
-		dir := setupTestDir(t, "mkdocs.yaml")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocs}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocs}, result.Types)
-		}
-		if !stdlibAssertEqual("docs", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "docs", result.PrimaryStack)
-		}
-		if !(result.Markers["mkdocs.yaml"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("detects docs project markers in docs directory", func(t *testing.T) {
-		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, "docs"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "docs", "mkdocs.yaml"), []byte("site_name: Demo\n"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocs}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocs}, result.Types)
-		}
-		if !stdlibAssertEqual("docs", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "docs", result.PrimaryStack)
-		}
-		if !(result.Markers["docs/mkdocs.yaml"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("detects Rust project markers", func(t *testing.T) {
-		dir := setupTestDir(t, "Cargo.toml")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeRust}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeRust}, result.Types)
-		}
-		if !stdlibAssertEqual("rust", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "rust", result.PrimaryStack)
-		}
-		if !(result.Markers["Cargo.toml"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("detects Python project markers", func(t *testing.T) {
-		dir := setupTestDir(t, "pyproject.toml")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypePython}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypePython}, result.Types)
-		}
-		if !stdlibAssertEqual("python", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "python", result.PrimaryStack)
-		}
-		if !(result.Markers["pyproject.toml"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("detects Docker project markers", func(t *testing.T) {
-		dir := setupTestDir(t, "Dockerfile")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocker}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocker}, result.Types)
-		}
-		if !stdlibAssertEqual("docker", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "docker", result.PrimaryStack)
-		}
-		if !(result.Markers["Dockerfile"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("records alternate Docker manifest markers", func(t *testing.T) {
-		dir := setupTestDir(t, "Containerfile", "dockerfile", "containerfile")
-
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocker}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocker}, result.Types)
-		}
-		if !stdlibAssertEqual("docker", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "docker", result.PrimaryStack)
-		}
-		if !(result.Markers["Containerfile"]) {
-			t.Fatal("expected true")
-		}
-		if !(result.Markers["dockerfile"]) {
-			t.Fatal("expected true")
-		}
-		if !(result.Markers["containerfile"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("detects LinuxKit project markers in .core/linuxkit", func(t *testing.T) {
-		dir := t.TempDir()
-		lkDir := ax.Join(dir, ".core", "linuxkit")
-		if err := ax.MkdirAll(lkDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n  image: test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeLinuxKit}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeLinuxKit}, result.Types)
-		}
-		if !stdlibAssertEqual("linuxkit", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "linuxkit", result.PrimaryStack)
-		}
-		if !(result.Markers[".core/linuxkit/*.yml"]) {
-			t.Fatal("expected true")
-		}
-		if !(result.Markers[".core/linuxkit/*.yaml"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("detects LinuxKit project markers in linuxkit.yaml", func(t *testing.T) {
-		dir := setupTestDir(t, "linuxkit.yaml")
-
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeLinuxKit}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeLinuxKit}, result.Types)
-		}
-		if !stdlibAssertEqual("linuxkit", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "linuxkit", result.PrimaryStack)
-		}
-		if !(result.Markers["linuxkit.yaml"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("detects C++ project markers", func(t *testing.T) {
-		dir := setupTestDir(t, "CMakeLists.txt")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeCPP}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeCPP}, result.Types)
-		}
-		if !stdlibAssertEqual("cpp", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "cpp", result.PrimaryStack)
-		}
-		if !(result.Markers["CMakeLists.txt"]) {
-			t.Fatal("expected true")
-		}
-
-	})
-
-	t.Run("detects Taskfile project markers", func(t *testing.T) {
-		dir := setupTestDir(t, "Taskfile.yaml")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !stdlibAssertEqual([]ProjectType{ProjectTypeTaskfile}, result.Types) {
-			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeTaskfile}, result.Types)
-		}
-		if !stdlibAssertEqual("taskfile", result.PrimaryStack) {
-			t.Fatalf("want %v, got %v", "taskfile", result.PrimaryStack)
-		}
-		if !(result.Markers["Taskfile.yaml"]) {
-			t.Fatal("expected true")
-		}
-
-	})
+	for _, tc := range []struct {
+		name    string
+		setup   func(t *testing.T) string
+		want    []ProjectType
+		stack   string
+		markers []string
+		check   func(t *testing.T, result *DiscoveryResult)
+	}{
+		{
+			name:    "detects docs project markers",
+			setup:   func(t *testing.T) string { return setupTestDir(t, "mkdocs.yml") },
+			want:    []ProjectType{ProjectTypeDocs},
+			stack:   "docs",
+			markers: []string{"mkdocs.yml"},
+			check: func(t *testing.T, result *DiscoveryResult) {
+				t.Helper()
+				if !stdlibAssertEqual("docs", result.PrimaryStackSuggestion) {
+					t.Fatalf("want %v, got %v", "docs", result.PrimaryStackSuggestion)
+				}
+				if !result.HasDocsConfig {
+					t.Fatal("expected true")
+				}
+			},
+		},
+		{
+			name:    "detects docs project markers with mkdocs.yaml",
+			setup:   func(t *testing.T) string { return setupTestDir(t, "mkdocs.yaml") },
+			want:    []ProjectType{ProjectTypeDocs},
+			stack:   "docs",
+			markers: []string{"mkdocs.yaml"},
+		},
+		{
+			name:    "detects docs project markers in docs directory",
+			setup:   func(t *testing.T) string { return setupDiscoveryFile(t, "docs/mkdocs.yaml", "site_name: Demo\n") },
+			want:    []ProjectType{ProjectTypeDocs},
+			stack:   "docs",
+			markers: []string{"docs/mkdocs.yaml"},
+		},
+		{
+			name:    "detects Rust project markers",
+			setup:   func(t *testing.T) string { return setupTestDir(t, "Cargo.toml") },
+			want:    []ProjectType{ProjectTypeRust},
+			stack:   "rust",
+			markers: []string{"Cargo.toml"},
+		},
+		{
+			name:    "detects Python project markers",
+			setup:   func(t *testing.T) string { return setupTestDir(t, "pyproject.toml") },
+			want:    []ProjectType{ProjectTypePython},
+			stack:   "python",
+			markers: []string{"pyproject.toml"},
+		},
+		{
+			name:    "detects Docker project markers",
+			setup:   func(t *testing.T) string { return setupTestDir(t, "Dockerfile") },
+			want:    []ProjectType{ProjectTypeDocker},
+			stack:   "docker",
+			markers: []string{"Dockerfile"},
+		},
+		{
+			name:    "records alternate Docker manifest markers",
+			setup:   func(t *testing.T) string { return setupTestDir(t, "Containerfile", "dockerfile", "containerfile") },
+			want:    []ProjectType{ProjectTypeDocker},
+			stack:   "docker",
+			markers: []string{"Containerfile", "dockerfile", "containerfile"},
+		},
+		{
+			name: "detects LinuxKit project markers in .core/linuxkit",
+			setup: func(t *testing.T) string {
+				return setupDiscoveryFile(t, ".core/linuxkit/server.yml", "kernel:\n  image: test")
+			},
+			want:    []ProjectType{ProjectTypeLinuxKit},
+			stack:   "linuxkit",
+			markers: []string{".core/linuxkit/*.yml", ".core/linuxkit/*.yaml"},
+		},
+		{
+			name:    "detects LinuxKit project markers in linuxkit.yaml",
+			setup:   func(t *testing.T) string { return setupTestDir(t, "linuxkit.yaml") },
+			want:    []ProjectType{ProjectTypeLinuxKit},
+			stack:   "linuxkit",
+			markers: []string{"linuxkit.yaml"},
+		},
+		{
+			name:    "detects C++ project markers",
+			setup:   func(t *testing.T) string { return setupTestDir(t, "CMakeLists.txt") },
+			want:    []ProjectType{ProjectTypeCPP},
+			stack:   "cpp",
+			markers: []string{"CMakeLists.txt"},
+		},
+		{
+			name:    "detects Taskfile project markers",
+			setup:   func(t *testing.T) string { return setupTestDir(t, "Taskfile.yaml") },
+			want:    []ProjectType{ProjectTypeTaskfile},
+			stack:   "taskfile",
+			markers: []string{"Taskfile.yaml"},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			result := assertDiscoverFullStack(t, fs, tc.setup(t), tc.want, tc.stack, tc.markers...)
+			if tc.check != nil {
+				tc.check(t, result)
+			}
+		})
+	}
 
 	t.Run("reports nested Go toolchains for action parity even when root detection is empty", func(t *testing.T) {
 		dir := t.TempDir()

@@ -49,16 +49,14 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
-	}
+	targets = defaultRuntimeTargets(targets, runtime.GOOS, runtime.GOARCH)
 
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+		outputDir = defaultOutputDir(cfg)
 	}
-	if err := filesystem.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("NodeBuilder.Build", "failed to create output directory", err)
+	if err := ensureOutputDir(filesystem, outputDir, "NodeBuilder.Build"); err != nil {
+		return nil, err
 	}
 
 	projectDir := b.resolveNodeProjectDir(filesystem, cfg.ProjectDir)
@@ -73,25 +71,12 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 
 	var artifacts []build.Artifact
 	for _, target := range targets {
-		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := filesystem.EnsureDir(platformDir); err != nil {
-			return artifacts, coreerr.E("NodeBuilder.Build", "failed to create platform directory", err)
+		platformDir, err := ensurePlatformDir(filesystem, outputDir, target, "NodeBuilder.Build")
+		if err != nil {
+			return artifacts, err
 		}
 
-		env := appendConfiguredEnv(cfg,
-			core.Sprintf("GOOS=%s", target.OS),
-			core.Sprintf("GOARCH=%s", target.Arch),
-			core.Sprintf("TARGET_OS=%s", target.OS),
-			core.Sprintf("TARGET_ARCH=%s", target.Arch),
-			core.Sprintf("OUTPUT_DIR=%s", outputDir),
-			core.Sprintf("TARGET_DIR=%s", platformDir),
-		)
-		if cfg.Name != "" {
-			env = append(env, core.Sprintf("NAME=%s", cfg.Name))
-		}
-		if cfg.Version != "" {
-			env = append(env, core.Sprintf("VERSION=%s", cfg.Version))
-		}
+		env := configuredTargetEnv(cfg, target, standardTargetValues(outputDir, platformDir, target)...)
 
 		output, err := ax.CombinedOutput(ctx, projectDir, env, command, args...)
 		if err != nil {

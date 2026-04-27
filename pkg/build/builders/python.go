@@ -2,12 +2,8 @@
 package builders
 
 import (
-	"archive/zip"
 	"context"
-	stdio "io"
-	stdfs "io/fs"
 	"runtime"
-	"slices"
 
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
@@ -51,23 +47,21 @@ func (b *PythonBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
-	if len(targets) == 0 {
-		targets = []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
-	}
+	targets = defaultRuntimeTargets(targets, runtime.GOOS, runtime.GOARCH)
 
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
-		outputDir = ax.Join(cfg.ProjectDir, "dist")
+		outputDir = defaultOutputDir(cfg)
 	}
-	if err := filesystem.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("PythonBuilder.Build", "failed to create output directory", err)
+	if err := ensureOutputDir(filesystem, outputDir, "PythonBuilder.Build"); err != nil {
+		return nil, err
 	}
 
 	var artifacts []build.Artifact
 	for _, target := range targets {
-		platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-		if err := filesystem.EnsureDir(platformDir); err != nil {
-			return artifacts, coreerr.E("PythonBuilder.Build", "failed to create platform directory", err)
+		platformDir, err := ensurePlatformDir(filesystem, outputDir, target, "PythonBuilder.Build")
+		if err != nil {
+			return artifacts, err
 		}
 
 		bundlePath := ax.Join(platformDir, b.bundleName(cfg)+".zip")
@@ -98,90 +92,10 @@ func (b *PythonBuilder) bundleName(cfg *build.Config) string {
 
 // bundleProject creates a zip bundle containing the Python project tree.
 func (b *PythonBuilder) bundleProject(fs io.Medium, projectDir, outputDir, bundlePath string) error {
-	if err := fs.EnsureDir(ax.Dir(bundlePath)); err != nil {
-		return coreerr.E("PythonBuilder.bundleProject", "failed to create bundle directory", err)
+	exclude := func(path string) bool {
+		return b.isExcludedPath(path, outputDir, bundlePath)
 	}
-
-	file, err := fs.Create(bundlePath)
-	if err != nil {
-		return coreerr.E("PythonBuilder.bundleProject", "failed to create bundle file", err)
-	}
-	defer func() { _ = file.Close() }()
-
-	writer := zip.NewWriter(file)
-	defer func() { _ = writer.Close() }()
-
-	return b.writeZipTree(fs, writer, projectDir, projectDir, outputDir, bundlePath)
-}
-
-// writeZipTree walks the project directory and writes files into the zip bundle.
-func (b *PythonBuilder) writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, currentDir, outputDir, bundlePath string) error {
-	entries, err := fs.List(currentDir)
-	if err != nil {
-		return coreerr.E("PythonBuilder.writeZipTree", "failed to list directory", err)
-	}
-
-	slices.SortFunc(entries, func(a, b stdfs.DirEntry) int {
-		if a.Name() < b.Name() {
-			return -1
-		}
-		if a.Name() > b.Name() {
-			return 1
-		}
-		return 0
-	})
-
-	for _, entry := range entries {
-		entryPath := ax.Join(currentDir, entry.Name())
-		if b.isExcludedPath(entryPath, outputDir, bundlePath) {
-			continue
-		}
-
-		if entry.IsDir() {
-			if err := b.writeZipTree(fs, writer, rootDir, entryPath, outputDir, bundlePath); err != nil {
-				return err
-			}
-			continue
-		}
-
-		relPath, err := ax.Rel(rootDir, entryPath)
-		if err != nil {
-			return coreerr.E("PythonBuilder.writeZipTree", "failed to relativise bundle path", err)
-		}
-
-		info, err := fs.Stat(entryPath)
-		if err != nil {
-			return coreerr.E("PythonBuilder.writeZipTree", "failed to stat bundle entry", err)
-		}
-
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return coreerr.E("PythonBuilder.writeZipTree", "failed to create zip header", err)
-		}
-		header.Name = core.Replace(relPath, ax.DS(), "/")
-		header.Method = zip.Deflate
-		header.SetModTime(deterministicZipTime)
-
-		zipEntry, err := writer.CreateHeader(header)
-		if err != nil {
-			return coreerr.E("PythonBuilder.writeZipTree", "failed to create zip entry", err)
-		}
-
-		source, err := fs.Open(entryPath)
-		if err != nil {
-			return coreerr.E("PythonBuilder.writeZipTree", "failed to open bundle entry", err)
-		}
-
-		if _, err := stdio.Copy(zipEntry, source); err != nil {
-			_ = source.Close()
-			return coreerr.E("PythonBuilder.writeZipTree", "failed to write bundle entry", err)
-		}
-		if err := source.Close(); err != nil {
-			return coreerr.E("PythonBuilder.writeZipTree", "failed to close bundle entry", err)
-		}
-	}
-
-	return nil
+	return bundleZipTree(fs, projectDir, bundlePath, "PythonBuilder.bundleProject", exclude)
 }
 
 // isExcludedPath excludes generated output from the archive.

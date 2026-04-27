@@ -15,10 +15,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	coreapi "dappco.re/go/api"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
-	coreapi "dappco.re/go/api"
 	"dappco.re/go/io"
 	"dappco.re/go/ws"
 	"errors"
@@ -694,797 +694,135 @@ func TestProvider_ResolveProjectType_Good(t *testing.T) {
 	})
 }
 
+type providerReleaseWorkflowCase struct {
+	name           string
+	body           string
+	bodyFor        func(projectDir string) string
+	nilBody        bool
+	wantStatus     int
+	wantPath       func(projectDir string) string
+	before         func(t *testing.T, projectDir string)
+	useLocalMedium bool
+	expectWorkflow bool
+}
+
 func TestProvider_GenerateReleaseWorkflow_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	cases := []providerReleaseWorkflowCase{
+		{name: "default path", body: `{}`, wantPath: build.ReleaseWorkflowPath, expectWorkflow: true},
+		{name: "custom path", body: `{"path":"ci/release.yml"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "workflowPath alias", body: `{"workflowPath":"ci/workflow-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-path.yml"), expectWorkflow: true},
+		{name: "workflow_path alias", body: `{"workflow_path":"ci/workflow-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-path.yml"), expectWorkflow: true},
+		{name: "workflow-path alias", body: `{"workflow-path":"ci/workflow-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-path.yml"), expectWorkflow: true},
+		{name: "conflicting workflow path aliases", body: `{"path":"ci/workflow-path.yml","workflowPath":"ops/workflow-path.yml"}`, wantStatus: http.StatusBadRequest},
+		{name: "output alias", body: `{"output":"ci/release.yml"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "outputPath alias", body: `{"outputPath":"ci/output-path.yml"}`, wantPath: providerWorkflowPath("ci", "output-path.yml"), expectWorkflow: true},
+		{name: "output-path alias", body: `{"output-path":"ci/output-path.yml"}`, wantPath: providerWorkflowPath("ci", "output-path.yml"), expectWorkflow: true},
+		{name: "output_path alias", body: `{"output_path":"ci/output-path.yml"}`, wantPath: providerWorkflowPath("ci", "output-path.yml"), expectWorkflow: true},
+		{name: "workflowOutputPath alias", body: `{"workflowOutputPath":"ci/workflow-output-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-output-path.yml"), expectWorkflow: true},
+		{name: "workflow_output alias", body: `{"workflow_output":"ci/workflow-output.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-output.yml"), expectWorkflow: true},
+		{name: "workflow_output_path alias", body: `{"workflow_output_path":"ci/workflow-output-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-output-path.yml"), expectWorkflow: true},
+		{
+			name: "absolute equivalent workflow output path",
+			bodyFor: func(projectDir string) string {
+				absolutePath := ax.Join(projectDir, "ci", "workflow-output-path.yml")
+				return `{"outputPath":"ci/workflow-output-path.yml","workflowOutputPath":"` + absolutePath + `"}`
+			},
+			wantPath:       providerWorkflowPath("ci", "workflow-output-path.yml"),
+			expectWorkflow: true,
+		},
+		{name: "workflow-output-path alias", body: `{"workflow-output-path":"ci/workflow-output-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-output-path.yml"), expectWorkflow: true},
+		{name: "workflow-output alias", body: `{"workflow-output":"ci/workflow-output.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-output.yml"), expectWorkflow: true},
+		{name: "conflicting workflow output aliases", body: `{"outputPath":"ci/output-path.yml","workflowOutputPath":"ops/output-path.yml"}`, wantStatus: http.StatusBadRequest},
+		{name: "conflicting output aliases", body: `{"outputPath":"ci/output-path.yml","output_path":"ops/output-path.yml"}`, wantStatus: http.StatusBadRequest},
+		{name: "conflicting output path hyphen aliases", body: `{"outputPath":"ci/output-path.yml","output-path":"ops/output-path.yml"}`, wantStatus: http.StatusBadRequest},
+		{name: "bare directory path", body: `{"path":"ci"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "current directory prefixed path", body: `{"path":"./ci"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "workflows directory", body: `{"path":".github/workflows"}`, wantPath: providerWorkflowPath(".github", "workflows", "release.yml"), expectWorkflow: true},
+		{
+			name:           "existing directory path",
+			body:           `{"path":"ci"}`,
+			before:         createProviderWorkflowDir("ci"),
+			useLocalMedium: true,
+			wantPath:       providerWorkflowPath("ci", "release.yml"),
+			expectWorkflow: true,
+		},
+		{name: "conflicting path and output", body: `{"path":"ci/release.yml","output":"ops/release.yml"}`, wantStatus: http.StatusBadRequest},
+		{name: "invalid JSON", body: `{"path":`, wantStatus: http.StatusBadRequest},
+		{name: "empty body", nilBody: true, useLocalMedium: true, wantPath: build.ReleaseWorkflowPath, expectWorkflow: true},
 	}
 
-	path := build.ReleaseWorkflowPath(projectDir)
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			assertProviderReleaseWorkflow(t, tc)
+		})
 	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
 }
 
-func TestProvider_GenerateReleaseWorkflow_CustomPath_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":"ci/release.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+func providerWorkflowPath(parts ...string) func(projectDir string) string {
+	return func(projectDir string) string {
+		return ax.Join(append([]string{projectDir}, parts...)...)
 	}
-
-	path := ax.Join(projectDir, "ci", "release.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
 }
 
-func TestProvider_GenerateReleaseWorkflow_WorkflowPath_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflowPath":"ci/workflow-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+func createProviderWorkflowDir(parts ...string) func(t *testing.T, projectDir string) {
+	return func(t *testing.T, projectDir string) {
+		t.Helper()
+		if err := ax.MkdirAll(ax.Join(append([]string{projectDir}, parts...)...), 0o755); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
-
-	path := ax.Join(projectDir, "ci", "workflow-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
 }
 
-func TestProvider_GenerateReleaseWorkflow_WorkflowPathSnake_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+func assertProviderReleaseWorkflow(t *testing.T, tc providerReleaseWorkflowCase) {
+	t.Helper()
 
 	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflow_path":"ci/workflow-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "workflow-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_WorkflowPathHyphen_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflow-path":"ci/workflow-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "workflow-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_ConflictingWorkflowPathAliases_Bad(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":"ci/workflow-path.yml","workflowPath":"ops/workflow-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
-	}
-
-	path := build.ReleaseWorkflowPath(projectDir)
-	_, err := io.Local.Read(path)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_OutputAlias_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"output":"ci/release.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "release.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_OutputPath_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"outputPath":"ci/output-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "output-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_OutputPathHyphen_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"output-path":"ci/output-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "output-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_OutputPathSnake_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"output_path":"ci/output-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "output-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPath_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflowOutputPath":"ci/workflow-output-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_WorkflowOutputSnake_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflow_output":"ci/workflow-output.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "workflow-output.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathSnake_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflow_output_path":"ci/workflow-output-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathAbsoluteEquivalent_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	absolutePath := ax.Join(projectDir, "ci", "workflow-output-path.yml")
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"outputPath":"ci/workflow-output-path.yml","workflowOutputPath":"`+absolutePath+`"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_WorkflowOutputPathHyphen_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflow-output-path":"ci/workflow-output-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "workflow-output-path.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_WorkflowOutputHyphen_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"workflow-output":"ci/workflow-output.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "workflow-output.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_ConflictingWorkflowOutputAliases_Bad(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"outputPath":"ci/output-path.yml","workflowOutputPath":"ops/output-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
-	}
-
-	path := build.ReleaseWorkflowPath(projectDir)
-	_, err := io.Local.Read(path)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_ConflictingOutputAliases_Bad(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"outputPath":"ci/output-path.yml","output_path":"ops/output-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
-	}
-
-	path := build.ReleaseWorkflowPath(projectDir)
-	_, err := io.Local.Read(path)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_ConflictingOutputPathHyphenAliases_Bad(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"outputPath":"ci/output-path.yml","output-path":"ops/output-path.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
-	}
-
-	path := build.ReleaseWorkflowPath(projectDir)
-	_, err := io.Local.Read(path)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_BareDirectoryPath_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":"ci"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "release.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_CurrentDirectoryPrefixedPath_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":"./ci"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, "ci", "release.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_WorkflowsDirectory_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":".github/workflows"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
-	}
-
-	path := ax.Join(projectDir, ".github", "workflows", "release.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_ExistingDirectoryPath_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	if err := ax.MkdirAll(ax.Join(projectDir, "ci"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if tc.before != nil {
+		tc.before(t, projectDir)
 	}
 
 	p := NewProvider(projectDir, nil)
-	p.medium = io.Local
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":"ci"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	if tc.useLocalMedium {
+		p.medium = io.Local
 	}
-
-	path := ax.Join(projectDir, "ci", "release.yml")
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertContains(content, "workflow_call:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
-	}
-	if !stdlibAssertContains(content, "workflow_dispatch:") {
-		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_ConflictingPathAndOutput_Bad(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":"ci/release.yml","output":"ops/release.yml"}`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
-	}
-
-	path := build.ReleaseWorkflowPath(projectDir)
-	_, err := io.Local.Read(path)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_InvalidJSON_Bad(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(`{"path":`))
-	request.Header.Set("Content-Type", "application/json")
-
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = request
-
-	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusBadRequest, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusBadRequest, recorder.Code)
-	}
-
-	path := build.ReleaseWorkflowPath(projectDir)
-	_, err := io.Local.Read(path)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-
-}
-
-func TestProvider_GenerateReleaseWorkflow_EmptyBody_Good(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	projectDir := t.TempDir()
-	p := NewProvider(projectDir, nil)
-	p.medium = io.Local
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/release/workflow", nil)
+	if !tc.nilBody {
+		body := tc.body
+		if tc.bodyFor != nil {
+			body = tc.bodyFor(projectDir)
+		}
+		request = httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(body))
+	}
 	request.Header.Set("Content-Type", "application/json")
 
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = request
 
 	p.generateReleaseWorkflow(ctx)
-	if !stdlibAssertEqual(http.StatusOK, recorder.Code) {
-		t.Fatalf("want %v, got %v", http.StatusOK, recorder.Code)
+	wantStatus := tc.wantStatus
+	if wantStatus == 0 {
+		wantStatus = http.StatusOK
+	}
+	if !stdlibAssertEqual(wantStatus, recorder.Code) {
+		t.Fatalf("want %v, got %v", wantStatus, recorder.Code)
 	}
 
 	path := build.ReleaseWorkflowPath(projectDir)
+	if tc.wantPath != nil {
+		path = tc.wantPath(projectDir)
+	}
+	if !tc.expectWorkflow {
+		if _, err := io.Local.Read(path); err == nil {
+			t.Fatal("expected error")
+		}
+		return
+	}
+
 	content, err := io.Local.Read(path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1495,7 +833,6 @@ func TestProvider_GenerateReleaseWorkflow_EmptyBody_Good(t *testing.T) {
 	if !stdlibAssertContains(content, "workflow_dispatch:") {
 		t.Fatalf("expected %v to contain %v", content, "workflow_dispatch:")
 	}
-
 }
 
 func TestProvider_DiscoverProject_Good(t *testing.T) {

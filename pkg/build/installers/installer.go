@@ -258,9 +258,12 @@ func canonicalVariant(variant InstallerVariant) InstallerVariant {
 }
 
 func validateInstallerVersion(version string) error {
-	version = core.Trim(version)
-	if version == "" {
+	trimmed := core.Trim(version)
+	if trimmed == "" {
 		return nil
+	}
+	if version != trimmed {
+		return coreerr.E("installers.validateInstallerVersion", "version contains unsupported whitespace", nil)
 	}
 	if !safeInstallerVersion.MatchString(version) {
 		return coreerr.E("installers.validateInstallerVersion", "version contains unsupported characters", nil)
