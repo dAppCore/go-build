@@ -7,12 +7,12 @@ import (
 	"context" // Note: AX-6 — carries cancellation through release build and publish workflows.
 	"slices"  // Note: AX-6 — sorts discovered release artifacts deterministically.
 
+	"dappco.re/go"                              // Note: AX-6 — provides approved string and formatting helpers.
 	"dappco.re/go/build/internal/ax"            // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
 	"dappco.re/go/build/pkg/build"              // Note: AX-6 — release pipeline depends on build config, artifacts, and checksum helpers.
 	"dappco.re/go/build/pkg/build/builders"     // Note: AX-6 — resolves project builders for release artifact generation.
 	"dappco.re/go/build/pkg/build/signing"      // Note: AX-6 — wires release signing and notarization hooks.
 	"dappco.re/go/build/pkg/release/publishers" // Note: AX-6 — publishes completed release artifacts to configured targets.
-	"dappco.re/go/core"                         // Note: AX-6 — provides approved string and formatting helpers.
 	"dappco.re/go/io"                           // Note: AX-6 — Medium abstraction for release filesystem access.
 	coreerr "dappco.re/go/log"                  // Note: AX-6 — wraps release errors with Core logging semantics.
 )
@@ -20,9 +20,10 @@ import (
 // release signing hooks allow tests to observe the release pipeline without
 // shelling out to platform-specific signing tools.
 var (
-	signReleaseBinaries     = signing.SignBinaries
-	notarizeReleaseBinaries = signing.NotarizeBinaries
-	signReleaseChecksums    = signing.SignChecksums
+	signReleaseBinaries        = signing.SignBinaries
+	notarizeReleaseBinaries    = signing.NotarizeBinaries
+	signReleaseChecksums       = signing.SignChecksums
+	generateReleaseChangelogFn = generateReleaseChangelog
 )
 
 const defaultChecksumFileName = "CHECKSUMS.txt"
@@ -93,7 +94,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 	}
 
 	// Step 3: Generate changelog
-	changelog, err := generateReleaseChangelog(ctx, absProjectDir, version, cfg)
+	changelog, err := generateReleaseChangelogFn(ctx, absProjectDir, version, cfg)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, coreerr.E("release.Publish", "changelog generation cancelled", ctx.Err())
@@ -358,9 +359,12 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) (*Release, error) {
 			return nil, coreerr.E("release.Run", "failed to determine version", err)
 		}
 	}
+	if err := ValidateVersionIdentifier(version); err != nil {
+		return nil, coreerr.E("release.Run", "invalid release version override", err)
+	}
 
 	// Step 2: Generate changelog
-	changelog, err := generateReleaseChangelog(ctx, absProjectDir, version, cfg)
+	changelog, err := generateReleaseChangelogFn(ctx, absProjectDir, version, cfg)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, coreerr.E("release.Run", "changelog generation cancelled", ctx.Err())

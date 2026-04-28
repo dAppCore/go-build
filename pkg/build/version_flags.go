@@ -1,7 +1,7 @@
 package build
 
 import (
-	"dappco.re/go/core"
+	"dappco.re/go"
 	coreerr "dappco.re/go/log"
 )
 

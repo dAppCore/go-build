@@ -6,10 +6,10 @@ import (
 	"runtime"
 	"testing"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 )
 
@@ -44,6 +44,9 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 2)
+		if !stdlibAssertContains(artifacts[0].Path, distDir) {
+			t.Fatalf("expected %v to contain %v", artifacts[0].Path, distDir)
+		}
 
 	})
 
@@ -126,6 +129,9 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 1)
+		if !stdlibAssertContains(artifacts[0].Path, "app.tar.gz.sig") {
+			t.Fatalf("expected %v to contain %v", artifacts[0].Path, "app.tar.gz.sig")
+		}
 
 	})
 
@@ -169,6 +175,9 @@ func TestRelease_FindArtifacts_Good(t *testing.T) {
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 5)
+		if !stdlibAssertContains(artifacts[0].Path, distDir) {
+			t.Fatalf("expected %v to contain %v", artifacts[0].Path, distDir)
+		}
 
 	})
 

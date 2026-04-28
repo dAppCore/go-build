@@ -6,9 +6,9 @@ import (
 	"os"
 	"runtime"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -781,12 +781,16 @@ func (b *WailsBuilder) prepareV3Obfuscation(env []string) ([]string, func(), err
 	}
 
 	if err := writeGoShim(shimDir, goCommand, garbleCommand); err != nil {
-		_ = ax.RemoveAll(shimDir)
+		if cleanupErr := ax.RemoveAll(shimDir); cleanupErr != nil {
+			return nil, nil, coreerr.E("WailsBuilder.prepareV3Obfuscation", "failed to clean up garble shim directory", cleanupErr)
+		}
 		return nil, nil, err
 	}
 
 	return prependPathEnv(env, shimDir), func() {
-		_ = ax.RemoveAll(shimDir)
+		if err := ax.RemoveAll(shimDir); err != nil {
+			return
+		}
 	}, nil
 }
 

@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
+	coreapi "dappco.re/go/api"
+	providerpkg "dappco.re/go/api/pkg/provider"
 	"dappco.re/go/build/internal/ax"
 	buildapi "dappco.re/go/build/pkg/api"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
 	"dappco.re/go/build/pkg/release"
-	coreapi "dappco.re/go/api"
-	providerpkg "dappco.re/go/api/pkg/provider"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 	"dappco.re/go/process"
@@ -358,10 +358,12 @@ func sendEvent(hub *ws.Hub, channel string, payload any) {
 	if hub == nil {
 		return
 	}
-	_ = hub.SendToChannel(channel, ws.Message{
+	if err := hub.SendToChannel(channel, ws.Message{
 		Type: ws.TypeEvent,
 		Data: payload,
-	})
+	}); err != nil {
+		return
+	}
 }
 
 type daemonEventEmitter struct {

@@ -3,7 +3,7 @@ package generators
 import (
 	"context"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	coreerr "dappco.re/go/log"
 )

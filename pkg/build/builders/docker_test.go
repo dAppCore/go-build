@@ -169,9 +169,18 @@ func TestDocker_DockerBuilderDetect_Good(t *testing.T) {
 }
 
 func TestDocker_DockerBuilderInterface_Good(t *testing.T) {
-	// Verify DockerBuilder implements Builder interface
-	var _ build.Builder = (*DockerBuilder)(nil)
-	var _ build.Builder = NewDockerBuilder()
+	builder := NewDockerBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("docker", builder.Name()) {
+		t.Fatalf("want %v, got %v", "docker", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }
 
 func TestDocker_DockerBuilderResolveDockerCli_Good(t *testing.T) {

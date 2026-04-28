@@ -3,13 +3,13 @@ package buildcmd
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
 	buildinstallers "dappco.re/go/build/pkg/build/installers"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/release/publishers"
-	"dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"

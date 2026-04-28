@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
 )
 

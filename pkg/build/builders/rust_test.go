@@ -197,6 +197,16 @@ func TestRust_RustBuilderBuild_Good(t *testing.T) {
 }
 
 func TestRust_RustBuilderInterface_Good(t *testing.T) {
-	var _ build.Builder = (*RustBuilder)(nil)
-	var _ build.Builder = NewRustBuilder()
+	builder := NewRustBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("rust", builder.Name()) {
+		t.Fatalf("want %v, got %v", "rust", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }

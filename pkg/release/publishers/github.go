@@ -9,10 +9,10 @@ import (
 	"net/url"  // Note: AX-6 — parses GitHub remote URLs using the structured URL parser.
 	"sort"     // Note: AX-6 — keeps remote selection deterministic with origin first.
 
+	"dappco.re/go"                   // Note: AX-6 — approved string helpers and Core error joining.
 	"dappco.re/go/build/internal/ax" // Note: AX-6 — Core-backed command, path, JSON, and temp helpers.
-	"dappco.re/go/core"              // Note: AX-6 — approved string helpers and Core error joining.
-	coreio "dappco.re/go/core/io"    // Note: AX-6 — Core Medium abstraction for artifact filesystem access.
-	coreerr "dappco.re/go/core/log"  // Note: AX-6 — wraps GitHub publisher errors with Core logging semantics.
+	coreio "dappco.re/go/io"         // Note: AX-6 — Core Medium abstraction for artifact filesystem access.
+	coreerr "dappco.re/go/log"       // Note: AX-6 — wraps GitHub publisher errors with Core logging semantics.
 )
 
 // GitHubPublisher publishes releases to GitHub using the gh CLI.
@@ -256,14 +256,18 @@ func (p *GitHubPublisher) materializeArtifacts(release *Release) ([]string, func
 	for i, artifact := range release.Artifacts {
 		localPath := ax.Join(tempDir, core.Sprintf("%03d", i), ax.Base(artifact.Path))
 		if err := copyArtifactPathToLocal(artifactFS, artifact.Path, localPath); err != nil {
-			_ = ax.RemoveAll(tempDir)
+			if cleanupErr := ax.RemoveAll(tempDir); cleanupErr != nil {
+				return nil, func() {}, coreerr.E("github.Publish", "failed to clean up artifact staging directory", cleanupErr)
+			}
 			return nil, func() {}, coreerr.E("github.Publish", "failed to stage artifact "+artifact.Path, err)
 		}
 		paths = append(paths, localPath)
 	}
 
 	return paths, func() {
-		_ = ax.RemoveAll(tempDir)
+		if err := ax.RemoveAll(tempDir); err != nil {
+			return
+		}
 	}, nil
 }
 

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"dappco.re/go"
 	buildservice "dappco.re/go/build/pkg/service"
-	"dappco.re/go/core"
 	nativeservice "github.com/kardianos/service"
 )
 
@@ -195,12 +195,9 @@ func TestService_Run_UsesKardianosRunCallback_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	stubResolvedServiceConfig(t, projectDir)
 
-	daemonCalled := false
+	daemonConfigs := make(chan buildservice.Config, 1)
 	runBuildServiceDaemon = func(ctx context.Context, cfg buildservice.Config) error {
-		daemonCalled = true
-		if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
-			t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
-		}
+		daemonConfigs <- cfg
 		<-ctx.Done()
 		return nil
 	}
@@ -223,7 +220,12 @@ func TestService_Run_UsesKardianosRunCallback_Good(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !(daemonCalled) {
+	select {
+	case cfg := <-daemonConfigs:
+		if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
+			t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
+		}
+	default:
 		t.Fatal("expected daemon to be called")
 	}
 }

@@ -286,6 +286,16 @@ func TestPHP_PHPBuilderBuildDefaults_Good(t *testing.T) {
 }
 
 func TestPHP_PHPBuilderInterface_Good(t *testing.T) {
-	var _ build.Builder = (*PHPBuilder)(nil)
-	var _ build.Builder = NewPHPBuilder()
+	builder := NewPHPBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("php", builder.Name()) {
+		t.Fatalf("want %v, got %v", "php", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }

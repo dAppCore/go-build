@@ -613,8 +613,18 @@ func TestNode_NodeBuilderFindArtifactsForTarget_Good(t *testing.T) {
 }
 
 func TestNode_NodeBuilderInterface_Good(t *testing.T) {
-	var _ build.Builder = (*NodeBuilder)(nil)
-	var _ build.Builder = NewNodeBuilder()
+	builder := NewNodeBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("node", builder.Name()) {
+		t.Fatalf("want %v, got %v", "node", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }
 
 func TestNode_NodeBuilderBuildDefaults_Good(t *testing.T) {

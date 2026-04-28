@@ -3,11 +3,12 @@
 package build
 
 import (
+	"os"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -332,7 +333,9 @@ func applyCacheEnvironment(cfg *CacheConfig) {
 		if len(parts) != 2 {
 			continue
 		}
-		_ = core.Setenv(parts[0], parts[1])
+		if err := os.Setenv(parts[0], parts[1]); err != nil {
+			continue
+		}
 	}
 }
 

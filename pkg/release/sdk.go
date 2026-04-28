@@ -4,10 +4,10 @@ package release
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -178,12 +178,16 @@ func materializeTaggedSDKSpec(ctx context.Context, projectDir, tag, specPath str
 
 	tempPath := ax.Join(tempDir, "base"+ax.Ext(specPath))
 	if err := ax.WriteString(tempPath, content, 0o644); err != nil {
-		_ = ax.RemoveAll(tempDir)
+		if cleanupErr := ax.RemoveAll(tempDir); cleanupErr != nil {
+			return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "failed to clean up temp dir", cleanupErr)
+		}
 		return "", func() {}, coreerr.E("release.materializeTaggedSDKSpec", "failed to write tagged spec", err)
 	}
 
 	return tempPath, func() {
-		_ = ax.RemoveAll(tempDir)
+		if err := ax.RemoveAll(tempDir); err != nil {
+			return
+		}
 	}, nil
 }
 

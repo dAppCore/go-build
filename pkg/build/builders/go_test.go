@@ -1374,9 +1374,18 @@ func TestGo_containsString_Ugly(t *testing.T) {
 }
 
 func TestGo_GoBuilderInterface_Good(t *testing.T) {
-	// Verify GoBuilder implements Builder interface
-	var _ build.Builder = (*GoBuilder)(nil)
-	var _ build.Builder = NewGoBuilder()
+	builder := NewGoBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("go", builder.Name()) {
+		t.Fatalf("want %v, got %v", "go", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }
 
 var (

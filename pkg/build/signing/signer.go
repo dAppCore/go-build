@@ -4,7 +4,7 @@ package signing
 import (
 	"context"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/io"
 )
 

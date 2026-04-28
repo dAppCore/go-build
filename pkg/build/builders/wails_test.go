@@ -2042,9 +2042,18 @@ func TestWails_WailsBuilderBuild_Bad(t *testing.T) {
 }
 
 func TestWails_WailsBuilderInterface_Good(t *testing.T) {
-
-	var _ build.Builder = (*WailsBuilder)(nil)
-	var _ build.Builder = NewWailsBuilder()
+	builder := NewWailsBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("wails", builder.Name()) {
+		t.Fatalf("want %v, got %v", "wails", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }
 
 func TestWails_WailsBuilder_Ugly(t *testing.T) {

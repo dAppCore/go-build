@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/testassert"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
-	"dappco.re/go/core"
 )
 
 func TestBuildCmd_resolveAppleCommandOptions_Good(t *testing.T) {

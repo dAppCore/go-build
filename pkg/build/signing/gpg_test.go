@@ -18,7 +18,13 @@ func TestGPG_GPGSignerName_Good(t *testing.T) {
 
 func TestGPG_GPGSignerAvailable_Good(t *testing.T) {
 	s := NewGPGSigner("ABCD1234")
-	_ = s.Available()
+	available := s.Available()
+	if available && s.Name() == "" {
+		t.Fatal("expected available signer to have a name")
+	}
+	if !stdlibAssertEqual("gpg", s.Name()) {
+		t.Fatalf("want %v, got %v", "gpg", s.Name())
+	}
 }
 
 func TestGPG_GPGSignerNoKey_Bad(t *testing.T) {

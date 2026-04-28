@@ -4,9 +4,11 @@ package build
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
 	io_interface "dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -230,14 +232,14 @@ func remoteRepositoryPath(raw string) string {
 		if len(pathParts) != 2 {
 			return ""
 		}
-		return core.Trim(core.SplitN(pathParts[1], "?", 2)[0], "/")
+		return strings.Trim(core.SplitN(pathParts[1], "?", 2)[0], "/")
 	}
 
 	if splitSCM := core.SplitN(raw, ":", 2); len(splitSCM) == 2 && splitSCM[0] != "" && core.Contains(splitSCM[0], "@") {
-		return core.Trim(splitSCM[1], "/")
+		return strings.Trim(splitSCM[1], "/")
 	}
 
-	return core.Trim(raw, "/")
+	return strings.Trim(raw, "/")
 }
 
 // ArtifactName generates a canonical artifact filename from the build name, CI context, and target.
@@ -290,12 +292,12 @@ func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, ta
 		meta.Repo = ci.Repo
 	}
 
-	encodedData := core.JSONMarshal(meta)
-	if !encodedData.OK {
-		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", encodedData.Error())
+	encodedData, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", err)
 	}
 
-	if err := fs.Write(path, string(encodedData.Value.([]byte))); err != nil {
+	if err := fs.Write(path, string(encodedData)); err != nil {
 		return coreerr.E("build.WriteArtifactMeta", "failed to write artifact meta", err)
 	}
 

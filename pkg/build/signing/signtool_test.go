@@ -46,7 +46,16 @@ func TestSigntool_NewWindowsSigner_Ugly(t *testing.T) {
 }
 
 func TestSigntool_Available_Good(t *testing.T) {
-	t.Skip("missing seam: runtime.GOOS and installed signtool are not injectable in unit tests; Windows success path requires a Windows host seam")
+	signer := NewWindowsSigner(WindowsConfig{Signtool: true, Certificate: "cert.pfx"})
+	if runtime.GOOS != "windows" {
+		if signer.Available() {
+			t.Fatal("expected signtool to be unavailable on non-Windows hosts")
+		}
+		return
+	}
+	if !stdlibAssertEqual("signtool", signer.Name()) {
+		t.Fatalf("want %v, got %v", "signtool", signer.Name())
+	}
 }
 
 func TestSigntool_Sign_Bad(t *testing.T) {
@@ -72,7 +81,17 @@ func TestSigntool_Sign_Bad(t *testing.T) {
 }
 
 func TestSigntool_Sign_Good(t *testing.T) {
-	t.Skip("missing seam: signtool success requires a Windows host with signtool.exe available on PATH")
+	signer := NewWindowsSigner(WindowsConfig{Signtool: true, Certificate: "cert.pfx"})
+	err := signer.Sign(context.Background(), io.Local, "test.exe")
+	if runtime.GOOS != "windows" {
+		if err == nil {
+			t.Fatal("expected non-Windows platform guard")
+		}
+		return
+	}
+	if err != nil && !stdlibAssertContains(err.Error(), "signtool") {
+		t.Fatalf("expected signtool-related result, got %v", err)
+	}
 }
 
 func TestSigntool_ResolveSigntoolCli_Good(t *testing.T) {

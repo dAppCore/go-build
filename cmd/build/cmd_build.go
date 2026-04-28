@@ -4,10 +4,10 @@ package buildcmd
 import (
 	"embed"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/cmdutil"
 	_ "dappco.re/go/build/locales" // registers locale translations
 	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/core"
 )
 
 // Style aliases used by build command output.

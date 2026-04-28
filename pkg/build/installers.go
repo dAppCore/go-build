@@ -3,9 +3,9 @@ package build
 import (
 	"strings"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	buildinstallers "dappco.re/go/build/pkg/build/installers"
-	"dappco.re/go/core"
 )
 
 // InstallerVariant identifies an installer script profile.

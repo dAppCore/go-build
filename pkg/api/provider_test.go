@@ -358,8 +358,13 @@ func TestProvider_BuildProviderCustomProjectDir_Good(t *testing.T) {
 
 func TestProvider_BuildProviderNilHub_Good(t *testing.T) {
 	p := NewProvider(".", nil)
-	// emitEvent should not panic with nil hub
+	if p.hub != nil {
+		t.Fatal("expected nil hub")
+	}
 	p.emitEvent("build.started", map[string]any{"test": true})
+	if !stdlibAssertEqual(".", p.projectDir) {
+		t.Fatalf("want %v, got %v", ".", p.projectDir)
+	}
 }
 
 func TestProvider_ResolveBuildOutputs_Good(t *testing.T) {

@@ -364,9 +364,18 @@ func TestTaskfile_TaskfileBuilderMatchPattern_Good(t *testing.T) {
 }
 
 func TestTaskfile_TaskfileBuilderInterface_Good(t *testing.T) {
-	// Verify TaskfileBuilder implements Builder interface
-	var _ build.Builder = (*TaskfileBuilder)(nil)
-	var _ build.Builder = NewTaskfileBuilder()
+	builder := NewTaskfileBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("taskfile", builder.Name()) {
+		t.Fatalf("want %v, got %v", "taskfile", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }
 
 func TestTaskfile_TaskfileBuilderResolveTaskCli_Good(t *testing.T) {

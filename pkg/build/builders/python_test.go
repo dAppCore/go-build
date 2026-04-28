@@ -209,6 +209,16 @@ func TestPython_PythonBuilderBuildIsDeterministic_Good(t *testing.T) {
 }
 
 func TestPython_PythonBuilderInterface_Good(t *testing.T) {
-	var _ build.Builder = (*PythonBuilder)(nil)
-	var _ build.Builder = NewPythonBuilder()
+	builder := NewPythonBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("python", builder.Name()) {
+		t.Fatalf("want %v, got %v", "python", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }

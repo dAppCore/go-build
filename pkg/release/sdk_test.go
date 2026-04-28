@@ -9,7 +9,7 @@ import (
 
 func runReleaseGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	if err := ax.ExecDir(context.Background(), dir, "git", args); err != nil {
+	if err := ax.ExecDir(context.Background(), dir, "git", args...); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

@@ -11,11 +11,11 @@ package sdkcmd
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/internal/sdkcfg"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
 	"dappco.re/go/i18n"
 	"dappco.re/go/io"

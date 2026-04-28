@@ -7,8 +7,8 @@ import (
 	"regexp"        // Note: AX-6 — validates release versions with a precompiled pattern.
 	"text/template" // Note: AX-6 — renders shell installer templates.
 
-	"dappco.re/go/core"             // Note: AX-6 — provides approved string helpers and template writer construction.
-	coreerr "dappco.re/go/core/log" // Note: AX-6 — wraps installer errors with Core logging semantics.
+	"dappco.re/go"             // Note: AX-6 — provides approved string helpers and template writer construction.
+	coreerr "dappco.re/go/log" // Note: AX-6 — wraps installer errors with Core logging semantics.
 )
 
 //go:embed templates/*.tmpl

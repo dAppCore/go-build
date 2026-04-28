@@ -4,7 +4,7 @@
 package ci
 
 import (
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // AddCICommands registers the 'ci' command and all subcommands.

@@ -1,6 +1,6 @@
 package build
 
-import "dappco.re/go/core"
+import "dappco.re/go"
 
 // BuildEnvironment returns a fresh environment slice that includes the
 // configured build environment, any derived cache variables, and optional

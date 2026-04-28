@@ -8,10 +8,10 @@ import (
 	"text/template" // Note: AX-6 — renders Homebrew formula templates.
 	"unicode"       // Note: AX-6 — classifies runes while deriving Ruby formula class names.
 
+	"dappco.re/go"                   // Note: AX-6 — provides approved string and formatting helpers.
 	"dappco.re/go/build/internal/ax" // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
-	"dappco.re/go/core"              // Note: AX-6 — provides approved string and formatting helpers.
-	coreio "dappco.re/go/core/io"    // Note: AX-6 — Core Medium abstraction for release filesystem access.
-	coreerr "dappco.re/go/core/log"  // Note: AX-6 — wraps publisher errors with Core logging semantics.
+	coreio "dappco.re/go/io"         // Note: AX-6 — Core Medium abstraction for release filesystem access.
+	coreerr "dappco.re/go/log"       // Note: AX-6 — wraps publisher errors with Core logging semantics.
 )
 
 //go:embed templates/homebrew/*.tmpl

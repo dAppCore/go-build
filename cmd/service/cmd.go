@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	servicecommon "dappco.re/go/build/internal/servicecmd"
 	buildservice "dappco.re/go/build/pkg/service"
 	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/core"
 	coreerr "dappco.re/go/log"
 )
 

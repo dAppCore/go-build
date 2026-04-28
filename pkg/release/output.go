@@ -5,7 +5,7 @@ import (
 	"io/fs"
 	"reflect"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	coreio "dappco.re/go/io"

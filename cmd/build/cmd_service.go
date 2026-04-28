@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
 	servicecommon "dappco.re/go/build/internal/servicecmd"
 	buildservice "dappco.re/go/build/pkg/service"
 	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/core"
 	coreerr "dappco.re/go/log"
 	nativeservice "github.com/kardianos/service"
 )
@@ -62,10 +62,11 @@ func (p *serviceProgram) Start(nativeservice.Service) error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
 	p.cancel = cancel
-	p.done = make(chan error, 1)
+	p.done = done
 	go func() {
-		p.done <- runBuildServiceDaemon(ctx, p.cfg)
+		done <- runBuildServiceDaemon(ctx, p.cfg)
 	}()
 
 	return nil
