@@ -4,9 +4,9 @@ package builders
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -162,7 +162,6 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, artifact
 	env = append(env, cgoEnvValue(cfg.CGO))
 
 	command := "go"
-	var err error
 	if cfg.Obfuscate {
 		command, err = b.resolveGarbleCli()
 		if err != nil {

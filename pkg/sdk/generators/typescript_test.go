@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
 	"errors"
 	"os"
 )

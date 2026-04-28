@@ -3,10 +3,10 @@ package buildcmd
 import (
 	"testing"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/buildtest"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 )
 

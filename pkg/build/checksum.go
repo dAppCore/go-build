@@ -7,7 +7,7 @@ import (
 	stdio "io"
 	"slices"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	io_interface "dappco.re/go/io"
 	coreerr "dappco.re/go/log"

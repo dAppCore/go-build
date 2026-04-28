@@ -10,6 +10,9 @@ import (
 	"context"
 	"slices"
 
+	"dappco.re/go"
+	"dappco.re/go/api"
+	"dappco.re/go/api/pkg/provider"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/projectdetect"
 	"dappco.re/go/build/internal/sdkcfg"
@@ -18,12 +21,9 @@ import (
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/core"
-	"dappco.re/go/core/api"
-	"dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
-	"dappco.re/go/core/ws"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+	"dappco.re/go/ws"
 	"github.com/gin-gonic/gin"
 )
 
@@ -1045,8 +1045,10 @@ func (p *BuildProvider) emitEvent(channel string, data any) {
 	if p.hub == nil {
 		return
 	}
-	_ = p.hub.SendToChannel(channel, ws.Message{
+	if err := p.hub.SendToChannel(channel, ws.Message{
 		Type: ws.TypeEvent,
 		Data: data,
-	})
+	}); err != nil {
+		return
+	}
 }

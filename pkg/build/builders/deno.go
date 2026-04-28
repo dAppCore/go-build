@@ -4,8 +4,8 @@ import (
 	"strings"
 	"unicode"
 
+	"dappco.re/go"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
 	coreerr "dappco.re/go/log"
 )
 

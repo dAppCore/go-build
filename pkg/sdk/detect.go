@@ -3,7 +3,7 @@ package sdk
 import (
 	"context"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	coreerr "dappco.re/go/log"
 )
@@ -32,6 +32,13 @@ var commonSpecPaths = []string{
 //
 // path, err := s.DetectSpec() // → "api/openapi.yaml", nil
 func (s *SDK) DetectSpec() (string, error) {
+	if s == nil {
+		return "", coreerr.E("sdk.DetectSpec", "sdk is nil", nil)
+	}
+	if s.config == nil {
+		return "", coreerr.E("sdk.DetectSpec", "sdk config is nil", nil)
+	}
+
 	// 1. Check configured path
 	if s.config.Spec != "" {
 		specPath := ax.Join(s.projectDir, s.config.Spec)

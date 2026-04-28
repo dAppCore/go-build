@@ -7,7 +7,7 @@ import (
 	"embed"
 	"text/template"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	coreio "dappco.re/go/io"
 	coreerr "dappco.re/go/log"

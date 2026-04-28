@@ -5,10 +5,10 @@ import (
 	"context"
 	"testing"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
 )
 
@@ -136,14 +136,18 @@ func TestBuildCmd_runRelease_TargetSDK_Good(t *testing.T) {
 
 func TestBuildCmd_runRelease_AppleTestFlight_Good(t *testing.T) {
 	projectDir := t.TempDir()
-	require.NoError(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+	if err := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 project:
   name: Core
   binary: Core
 apple:
   bundle_id: ai.lthn.core
-`), 0o644))
+`), 0o644); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	originalGetwd := getReleaseWorkingDir
 	originalConfigExists := releaseConfigExistsFn
@@ -163,11 +167,21 @@ apple:
 	called := false
 	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
 		called = true
-		assert.Equal(t, projectDir, cfg.ProjectDir)
-		assert.Equal(t, "v1.2.3", cfg.Version)
-		assert.Equal(t, "ai.lthn.core", options.BundleID)
-		assert.True(t, options.TestFlight)
-		assert.Equal(t, "1", buildNumber)
+		if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
+			t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
+		}
+		if !stdlibAssertEqual("v1.2.3", cfg.Version) {
+			t.Fatalf("want %v, got %v", "v1.2.3", cfg.Version)
+		}
+		if !stdlibAssertEqual("ai.lthn.core", options.BundleID) {
+			t.Fatalf("want %v, got %v", "ai.lthn.core", options.BundleID)
+		}
+		if !options.TestFlight {
+			t.Fatal("expected TestFlight")
+		}
+		if !stdlibAssertEqual("1", buildNumber) {
+			t.Fatalf("want %v, got %v", "1", buildNumber)
+		}
 		return &build.AppleBuildResult{
 			BundlePath:  ax.Join(cfg.OutputDir, "Core.app"),
 			Version:     "1.2.3",
@@ -176,15 +190,27 @@ apple:
 	}
 
 	err := runRelease(context.Background(), false, false, "apple-testflight", "v1.2.3", false, false, "")
-	require.NoError(t, err)
-	assert.True(t, called)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Fatal("expected buildAppleFn to be called")
+	}
 }
 
 func TestBuildCmd_releaseAppleTestFlightRequested_Good(t *testing.T) {
-	assert.True(t, releaseAppleTestFlightRequested("apple-testflight"))
-	assert.True(t, releaseAppleTestFlightRequested("testflight"))
-	assert.True(t, releaseAppleTestFlightRequested("release", true))
-	assert.False(t, releaseAppleTestFlightRequested("release"))
+	if !releaseAppleTestFlightRequested("apple-testflight") {
+		t.Fatal("expected apple-testflight target to request TestFlight")
+	}
+	if !releaseAppleTestFlightRequested("testflight") {
+		t.Fatal("expected testflight target to request TestFlight")
+	}
+	if !releaseAppleTestFlightRequested("release", true) {
+		t.Fatal("expected explicit flag to request TestFlight")
+	}
+	if releaseAppleTestFlightRequested("release") {
+		t.Fatal("expected release target without flag to skip TestFlight")
+	}
 }
 
 func TestBuildCmd_runRelease_RejectsUnsafeVersion_Bad(t *testing.T) {

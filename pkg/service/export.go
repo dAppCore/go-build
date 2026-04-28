@@ -130,6 +130,8 @@ func systemdCommand(executable string, args []string) string {
 
 func xmlEscape(value string) string {
 	var b strings.Builder
-	_ = xml.EscapeText(&b, []byte(value))
+	if err := xml.EscapeText(&b, []byte(value)); err != nil {
+		return value
+	}
 	return b.String()
 }

@@ -13,8 +13,8 @@ import (
 	"time"
 	"unicode"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -1158,7 +1158,9 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) error {
 	attached := false
 	defer func() {
 		if attached {
-			_ = detachDMG(context.Background(), hdiutilCommand, mountDir)
+			if err := detachDMG(context.Background(), hdiutilCommand, mountDir); err != nil {
+				return
+			}
 		}
 	}()
 
@@ -2125,12 +2127,16 @@ func prepareASCAPIKeyEnv(apiKeyID, apiKeyPath string) ([]string, func(), error) 
 
 	stagedPath := ax.Join(tempDir, expectedName)
 	if err := io.Local.WriteMode(stagedPath, content, 0o600); err != nil {
-		_ = ax.RemoveAll(tempDir)
+		if cleanupErr := ax.RemoveAll(tempDir); cleanupErr != nil {
+			return nil, nil, coreerr.E("build.prepareASCAPIKeyEnv", "failed to clean up App Store Connect key staging directory", cleanupErr)
+		}
 		return nil, nil, coreerr.E("build.prepareASCAPIKeyEnv", "failed to stage App Store Connect API key", err)
 	}
 
 	return []string{"API_PRIVATE_KEYS_DIR=" + tempDir}, func() {
-		_ = ax.RemoveAll(tempDir)
+		if err := ax.RemoveAll(tempDir); err != nil {
+			return
+		}
 	}, nil
 }
 

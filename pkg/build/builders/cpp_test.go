@@ -568,6 +568,16 @@ func TestCPP_CPPBuilderResolveConanCli_Bad(t *testing.T) {
 }
 
 func TestCPP_CPPBuilderInterface_Good(t *testing.T) {
-	var _ build.Builder = (*CPPBuilder)(nil)
-	var _ build.Builder = NewCPPBuilder()
+	builder := NewCPPBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("cpp", builder.Name()) {
+		t.Fatalf("want %v, got %v", "cpp", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }

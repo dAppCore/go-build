@@ -5,7 +5,7 @@ import (
 	"context"
 	"reflect"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"

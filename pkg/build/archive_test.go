@@ -7,16 +7,86 @@ import (
 	"compress/gzip"
 	"io"
 	stdfs "io/fs"
+	"reflect"
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
 
-	io_interface "dappco.re/go/core/io"
+	io_interface "dappco.re/go/io"
 	// TODO(AX-6): Replace with dappco.re/go/crypt when it exposes Compress/Decompress API parity.
 	"github.com/Snider/Borg/pkg/compress"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
+
+func archiveRequireNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func archiveAssertNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func archiveAssertError(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func archiveAssertEqual(t *testing.T, want, got any) {
+	t.Helper()
+	if !stdlibAssertEqual(want, got) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func archiveAssertContains(t *testing.T, value, contains any) {
+	t.Helper()
+	if !stdlibAssertContains(value, contains) {
+		t.Fatalf("expected %v to contain %v", value, contains)
+	}
+}
+
+func archiveAssertEmpty(t *testing.T, value any) {
+	t.Helper()
+	if !stdlibAssertEmpty(value) {
+		t.Fatalf("expected empty, got %v", value)
+	}
+}
+
+func archiveAssertNil(t *testing.T, value any) {
+	t.Helper()
+	if !stdlibAssertNil(value) {
+		t.Fatalf("expected nil, got %v", value)
+	}
+}
+
+func archiveAssertFileExists(t *testing.T, path string) {
+	t.Helper()
+	if _, err := ax.Stat(path); err != nil {
+		t.Fatalf("expected file to exist: %v", path)
+	}
+}
+
+func archiveRequireLen(t *testing.T, value any, want int) {
+	t.Helper()
+	got := reflect.ValueOf(value).Len()
+	if got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
+}
+
+func archiveAssertLess(t *testing.T, got, want int64) {
+	t.Helper()
+	if got >= want {
+		t.Fatalf("expected %v to be less than %v", got, want)
+	}
+}
 
 // setupArchiveTestFile creates a test binary file in a temp directory with the standard structure.
 // Returns the path to the binary and the output directory.
@@ -28,13 +98,13 @@ func setupArchiveTestFile(t *testing.T, name, os_, arch string) (binaryPath stri
 	// Create platform directory: dist/os_arch
 	platformDir := ax.Join(outputDir, os_+"_"+arch)
 	err := ax.MkdirAll(platformDir, 0755)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 
 	// Create test binary
 	binaryPath = ax.Join(platformDir, name)
 	content := []byte("#!/bin/bash\necho 'Hello, World!'\n")
 	err = ax.WriteFile(binaryPath, content, 0755)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 
 	return binaryPath, outputDir
 }
@@ -46,13 +116,13 @@ func setupArchiveTestDirectory(t *testing.T, name, os_, arch string) (artifactPa
 
 	outputDir = t.TempDir()
 	platformDir := ax.Join(outputDir, os_+"_"+arch)
-	require.NoError(t, ax.MkdirAll(platformDir, 0o755))
+	archiveRequireNoError(t, ax.MkdirAll(platformDir, 0o755))
 
 	artifactPath = ax.Join(platformDir, name)
-	require.NoError(t, ax.MkdirAll(ax.Join(artifactPath, "Contents", "MacOS"), 0o755))
-	require.NoError(t, ax.MkdirAll(ax.Join(artifactPath, "Resources"), 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(artifactPath, "Contents", "MacOS", "core"), []byte("bundle binary"), 0o755))
-	require.NoError(t, ax.WriteFile(ax.Join(artifactPath, "Resources", "config.json"), []byte(`{"ok":true}`), 0o644))
+	archiveRequireNoError(t, ax.MkdirAll(ax.Join(artifactPath, "Contents", "MacOS"), 0o755))
+	archiveRequireNoError(t, ax.MkdirAll(ax.Join(artifactPath, "Resources"), 0o755))
+	archiveRequireNoError(t, ax.WriteFile(ax.Join(artifactPath, "Contents", "MacOS", "core"), []byte("bundle binary"), 0o755))
+	archiveRequireNoError(t, ax.WriteFile(ax.Join(artifactPath, "Resources", "config.json"), []byte(`{"ok":true}`), 0o644))
 
 	return artifactPath, outputDir
 }
@@ -69,16 +139,16 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		// Verify archive was created
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.tar.gz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 
 		// Verify OS and Arch are preserved
-		assert.Equal(t, "linux", result.OS)
-		assert.Equal(t, "amd64", result.Arch)
+		archiveAssertEqual(t, "linux", result.OS)
+		archiveAssertEqual(t, "amd64", result.Arch)
 
 		// Verify archive content
 		verifyTarGzContent(t, result.Path, "myapp")
@@ -94,11 +164,11 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64_v1.2.3.tar.gz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 	})
 
 	t.Run("creates tar.gz for darwin", func(t *testing.T) {
@@ -111,11 +181,11 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		expectedPath := ax.Join(outputDir, "myapp_darwin_arm64.tar.gz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 
 		verifyTarGzContent(t, result.Path, "myapp")
 	})
@@ -130,12 +200,12 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		// Windows archives should strip .exe from archive name
 		expectedPath := ax.Join(outputDir, "myapp_windows_amd64.zip")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 
 		verifyZipContent(t, result.Path, "myapp.exe")
 	})
@@ -151,8 +221,8 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
-		assert.Equal(t, "abc123", result.Checksum)
+		archiveRequireNoError(t, err)
+		archiveAssertEqual(t, "abc123", result.Checksum)
 	})
 
 	t.Run("creates tar.xz for linux with ArchiveXZ", func(t *testing.T) {
@@ -165,11 +235,11 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveXZ(fs, artifact)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.tar.xz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 
 		verifyTarXzContent(t, result.Path, "myapp")
 	})
@@ -184,11 +254,11 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		expectedPath := ax.Join(outputDir, "myapp_darwin_arm64.tar.xz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 
 		verifyTarXzContent(t, result.Path, "myapp")
 	})
@@ -203,12 +273,12 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		// Windows should still get .zip regardless of format
 		expectedPath := ax.Join(outputDir, "myapp_windows_amd64.zip")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 
 		verifyZipContent(t, result.Path, "myapp.exe")
 	})
@@ -223,11 +293,11 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatZip)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.zip")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 
 		verifyZipContent(t, result.Path, "myapp")
 	})
@@ -242,14 +312,14 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		expectedPath := ax.Join(outputDir, "Core_darwin_arm64.tar.gz")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 
-		assert.Equal(t, []byte("bundle binary"), extractTarGzFile(t, result.Path, "Core.app/Contents/MacOS/core"))
-		assert.Equal(t, []byte(`{"ok":true}`), extractTarGzFile(t, result.Path, "Core.app/Resources/config.json"))
+		archiveAssertEqual(t, []byte("bundle binary"), extractTarGzFile(t, result.Path, "Core.app/Contents/MacOS/core"))
+		archiveAssertEqual(t, []byte(`{"ok":true}`), extractTarGzFile(t, result.Path, "Core.app/Resources/config.json"))
 	})
 
 	t.Run("creates zip for directory artifacts", func(t *testing.T) {
@@ -262,51 +332,51 @@ func TestArchive_Archive_Good(t *testing.T) {
 		}
 
 		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatZip)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		expectedPath := ax.Join(outputDir, "bundle_linux_amd64.zip")
-		assert.Equal(t, expectedPath, result.Path)
-		assert.FileExists(t, result.Path)
+		archiveAssertEqual(t, expectedPath, result.Path)
+		archiveAssertFileExists(t, result.Path)
 
-		assert.Equal(t, []byte("bundle binary"), extractZipFile(t, result.Path, "bundle/Contents/MacOS/core"))
-		assert.Equal(t, []byte(`{"ok":true}`), extractZipFile(t, result.Path, "bundle/Resources/config.json"))
+		archiveAssertEqual(t, []byte("bundle binary"), extractZipFile(t, result.Path, "bundle/Contents/MacOS/core"))
+		archiveAssertEqual(t, []byte(`{"ok":true}`), extractZipFile(t, result.Path, "bundle/Resources/config.json"))
 	})
 }
 
 func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
 	t.Run("defaults to gzip when empty", func(t *testing.T) {
 		format, err := ParseArchiveFormat("")
-		require.NoError(t, err)
-		assert.Equal(t, ArchiveFormatGzip, format)
+		archiveRequireNoError(t, err)
+		archiveAssertEqual(t, ArchiveFormatGzip, format)
 	})
 
 	t.Run("accepts xz aliases", func(t *testing.T) {
 		for _, input := range []string{"xz", "txz", "tar.xz", "tar-xz"} {
 			format, err := ParseArchiveFormat(input)
-			require.NoError(t, err)
-			assert.Equal(t, ArchiveFormatXZ, format)
+			archiveRequireNoError(t, err)
+			archiveAssertEqual(t, ArchiveFormatXZ, format)
 		}
 	})
 
 	t.Run("accepts zip", func(t *testing.T) {
 		format, err := ParseArchiveFormat("zip")
-		require.NoError(t, err)
-		assert.Equal(t, ArchiveFormatZip, format)
+		archiveRequireNoError(t, err)
+		archiveAssertEqual(t, ArchiveFormatZip, format)
 	})
 
 	t.Run("accepts gzip aliases", func(t *testing.T) {
 		for _, input := range []string{"gz", "gzip", "tgz", "tar.gz", "tar-gz"} {
 			format, err := ParseArchiveFormat(input)
-			require.NoError(t, err)
-			assert.Equal(t, ArchiveFormatGzip, format)
+			archiveRequireNoError(t, err)
+			archiveAssertEqual(t, ArchiveFormatGzip, format)
 		}
 	})
 
 	t.Run("rejects unsupported formats", func(t *testing.T) {
 		format, err := ParseArchiveFormat("bzip2")
-		assert.Error(t, err)
-		assert.Empty(t, format)
-		assert.Contains(t, err.Error(), "unsupported archive format")
+		archiveAssertError(t, err)
+		archiveAssertEmpty(t, format)
+		archiveAssertContains(t, err.Error(), "unsupported archive format")
 	})
 }
 
@@ -320,9 +390,9 @@ func TestArchive_Archive_Bad(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "artifact path is empty")
-		assert.Empty(t, result.Path)
+		archiveAssertError(t, err)
+		archiveAssertContains(t, err.Error(), "artifact path is empty")
+		archiveAssertEmpty(t, result.Path)
 	})
 
 	t.Run("returns error for non-existent file", func(t *testing.T) {
@@ -333,9 +403,9 @@ func TestArchive_Archive_Bad(t *testing.T) {
 		}
 
 		result, err := Archive(fs, artifact)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "source file not found")
-		assert.Empty(t, result.Path)
+		archiveAssertError(t, err)
+		archiveAssertContains(t, err.Error(), "source file not found")
+		archiveAssertEmpty(t, result.Path)
 	})
 
 }
@@ -360,7 +430,7 @@ func TestArchive_ArchiveAll_Good(t *testing.T) {
 		for _, target := range targets {
 			platformDir := ax.Join(outputDir, target.os_+"_"+target.arch)
 			err := ax.MkdirAll(platformDir, 0755)
-			require.NoError(t, err)
+			archiveRequireNoError(t, err)
 
 			name := "myapp"
 			if target.os_ == "windows" {
@@ -369,7 +439,7 @@ func TestArchive_ArchiveAll_Good(t *testing.T) {
 
 			binaryPath := ax.Join(platformDir, name)
 			err = ax.WriteFile(binaryPath, []byte("binary content"), 0755)
-			require.NoError(t, err)
+			archiveRequireNoError(t, err)
 
 			artifacts = append(artifacts, Artifact{
 				Path: binaryPath,
@@ -379,27 +449,27 @@ func TestArchive_ArchiveAll_Good(t *testing.T) {
 		}
 
 		results, err := ArchiveAll(fs, artifacts)
-		require.NoError(t, err)
-		require.Len(t, results, 4)
+		archiveRequireNoError(t, err)
+		archiveRequireLen(t, results, 4)
 
 		// Verify all archives were created
 		for i, result := range results {
-			assert.FileExists(t, result.Path)
-			assert.Equal(t, artifacts[i].OS, result.OS)
-			assert.Equal(t, artifacts[i].Arch, result.Arch)
+			archiveAssertFileExists(t, result.Path)
+			archiveAssertEqual(t, artifacts[i].OS, result.OS)
+			archiveAssertEqual(t, artifacts[i].Arch, result.Arch)
 		}
 	})
 
 	t.Run("returns nil for empty slice", func(t *testing.T) {
 		results, err := ArchiveAll(fs, []Artifact{})
-		assert.NoError(t, err)
-		assert.Nil(t, results)
+		archiveAssertNoError(t, err)
+		archiveAssertNil(t, results)
 	})
 
 	t.Run("returns nil for nil slice", func(t *testing.T) {
 		results, err := ArchiveAll(fs, nil)
-		assert.NoError(t, err)
-		assert.Nil(t, results)
+		archiveAssertNoError(t, err)
+		archiveAssertNil(t, results)
 	})
 }
 
@@ -414,10 +484,10 @@ func TestArchive_ArchiveAll_Bad(t *testing.T) {
 		}
 
 		results, err := ArchiveAll(fs, artifacts)
-		assert.Error(t, err)
+		archiveAssertError(t, err)
 		// Should have the first successful result
-		assert.Len(t, results, 1)
-		assert.FileExists(t, results[0].Path)
+		archiveRequireLen(t, results, 1)
+		archiveAssertFileExists(t, results[0].Path)
 	})
 }
 
@@ -430,7 +500,7 @@ func TestArchive_ArchiveFilename_Good(t *testing.T) {
 		}
 
 		filename := archiveFilename(artifact, ".tar.gz")
-		assert.Equal(t, "/output/myapp_linux_amd64.tar.gz", filename)
+		archiveAssertEqual(t, "/output/myapp_linux_amd64.tar.gz", filename)
 	})
 
 	t.Run("generates correct zip filename", func(t *testing.T) {
@@ -441,7 +511,7 @@ func TestArchive_ArchiveFilename_Good(t *testing.T) {
 		}
 
 		filename := archiveFilename(artifact, ".zip")
-		assert.Equal(t, "/output/myapp_windows_amd64.zip", filename)
+		archiveAssertEqual(t, "/output/myapp_windows_amd64.zip", filename)
 	})
 
 	t.Run("handles nested output directories", func(t *testing.T) {
@@ -452,7 +522,7 @@ func TestArchive_ArchiveFilename_Good(t *testing.T) {
 		}
 
 		filename := archiveFilename(artifact, ".tar.gz")
-		assert.Equal(t, "/project/dist/cli_linux_arm64.tar.gz", filename)
+		archiveAssertEqual(t, "/project/dist/cli_linux_arm64.tar.gz", filename)
 	})
 
 	t.Run("strips app bundle suffix from archive name", func(t *testing.T) {
@@ -463,7 +533,7 @@ func TestArchive_ArchiveFilename_Good(t *testing.T) {
 		}
 
 		filename := archiveFilename(artifact, ".tar.gz")
-		assert.Equal(t, "/output/Core_darwin_arm64.tar.gz", filename)
+		archiveAssertEqual(t, "/output/Core_darwin_arm64.tar.gz", filename)
 	})
 }
 
@@ -475,7 +545,7 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 
 		// Read original content
 		originalContent, err := ax.ReadFile(binaryPath)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -485,19 +555,19 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 
 		// Create archive
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
-		assert.FileExists(t, archiveArtifact.Path)
+		archiveRequireNoError(t, err)
+		archiveAssertFileExists(t, archiveArtifact.Path)
 
 		// Extract and verify content matches
 		extractedContent := extractTarGzFile(t, archiveArtifact.Path, "roundtrip-app")
-		assert.Equal(t, originalContent, extractedContent)
+		archiveAssertEqual(t, originalContent, extractedContent)
 	})
 
 	t.Run("tar.xz round trip preserves content", func(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip-xz", "linux", "arm64")
 
 		originalContent, err := ax.ReadFile(binaryPath)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -506,18 +576,18 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := ArchiveXZ(fs, artifact)
-		require.NoError(t, err)
-		assert.FileExists(t, archiveArtifact.Path)
+		archiveRequireNoError(t, err)
+		archiveAssertFileExists(t, archiveArtifact.Path)
 
 		extractedContent := extractTarXzFile(t, archiveArtifact.Path, "roundtrip-xz")
-		assert.Equal(t, originalContent, extractedContent)
+		archiveAssertEqual(t, originalContent, extractedContent)
 	})
 
 	t.Run("zip round trip preserves content", func(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip.exe", "windows", "amd64")
 
 		originalContent, err := ax.ReadFile(binaryPath)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -526,11 +596,11 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
-		assert.FileExists(t, archiveArtifact.Path)
+		archiveRequireNoError(t, err)
+		archiveAssertFileExists(t, archiveArtifact.Path)
 
 		extractedContent := extractZipFile(t, archiveArtifact.Path, "roundtrip.exe")
-		assert.Equal(t, originalContent, extractedContent)
+		archiveAssertEqual(t, originalContent, extractedContent)
 	})
 
 	t.Run("tar.gz preserves file permissions", func(t *testing.T) {
@@ -543,18 +613,18 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		// Extract and verify permissions are preserved
 		mode := extractTarGzFileMode(t, archiveArtifact.Path, "perms-app")
 		// The original file was written with 0755
-		assert.Equal(t, stdfs.FileMode(0o755), mode&stdfs.ModePerm)
+		archiveAssertEqual(t, stdfs.FileMode(0o755), mode&stdfs.ModePerm)
 	})
 
 	t.Run("round trip with large binary content", func(t *testing.T) {
 		outputDir := t.TempDir()
 		platformDir := ax.Join(outputDir, "linux_amd64")
-		require.NoError(t, ax.MkdirAll(platformDir, 0755))
+		archiveRequireNoError(t, ax.MkdirAll(platformDir, 0755))
 
 		// Create a larger file (64KB)
 		largeContent := make([]byte, 64*1024)
@@ -562,7 +632,7 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 			largeContent[i] = byte(i % 256)
 		}
 		binaryPath := ax.Join(platformDir, "large-app")
-		require.NoError(t, ax.WriteFile(binaryPath, largeContent, 0755))
+		archiveRequireNoError(t, ax.WriteFile(binaryPath, largeContent, 0755))
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -571,16 +641,16 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		extractedContent := extractTarGzFile(t, archiveArtifact.Path, "large-app")
-		assert.Equal(t, largeContent, extractedContent)
+		archiveAssertEqual(t, largeContent, extractedContent)
 	})
 
 	t.Run("archive is smaller than original for tar.gz", func(t *testing.T) {
 		outputDir := t.TempDir()
 		platformDir := ax.Join(outputDir, "linux_amd64")
-		require.NoError(t, ax.MkdirAll(platformDir, 0755))
+		archiveRequireNoError(t, ax.MkdirAll(platformDir, 0755))
 
 		// Create a compressible file (repeated pattern)
 		compressibleContent := make([]byte, 4096)
@@ -588,7 +658,7 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 			compressibleContent[i] = 'A'
 		}
 		binaryPath := ax.Join(platformDir, "compressible-app")
-		require.NoError(t, ax.WriteFile(binaryPath, compressibleContent, 0755))
+		archiveRequireNoError(t, ax.WriteFile(binaryPath, compressibleContent, 0755))
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -597,15 +667,15 @@ func TestArchive_RoundTrip_Good(t *testing.T) {
 		}
 
 		archiveArtifact, err := Archive(fs, artifact)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		originalInfo, err := ax.Stat(binaryPath)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 		archiveInfo, err := ax.Stat(archiveArtifact.Path)
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		// Compressed archive should be smaller than original
-		assert.Less(t, archiveInfo.Size(), originalInfo.Size())
+		archiveAssertLess(t, archiveInfo.Size(), originalInfo.Size())
 	})
 }
 
@@ -614,11 +684,11 @@ func extractTarGzFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
 	file, err := ax.Open(archivePath)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 	defer func() { _ = file.Close() }()
 
 	gzReader, err := gzip.NewReader(file)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 	defer func() { _ = gzReader.Close() }()
 
 	tarReader := tar.NewReader(gzReader)
@@ -628,11 +698,11 @@ func extractTarGzFile(t *testing.T, archivePath, fileName string) []byte {
 		if err == io.EOF {
 			t.Fatalf("file %q not found in archive", fileName)
 		}
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		if header.Name == fileName {
 			content, err := io.ReadAll(tarReader)
-			require.NoError(t, err)
+			archiveRequireNoError(t, err)
 			return content
 		}
 	}
@@ -643,11 +713,11 @@ func extractTarGzFileMode(t *testing.T, archivePath, fileName string) stdfs.File
 	t.Helper()
 
 	file, err := ax.Open(archivePath)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 	defer func() { _ = file.Close() }()
 
 	gzReader, err := gzip.NewReader(file)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 	defer func() { _ = gzReader.Close() }()
 
 	tarReader := tar.NewReader(gzReader)
@@ -657,7 +727,7 @@ func extractTarGzFileMode(t *testing.T, archivePath, fileName string) stdfs.File
 		if err == io.EOF {
 			t.Fatalf("file %q not found in archive", fileName)
 		}
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		if header.Name == fileName {
 			return header.FileInfo().Mode()
@@ -670,10 +740,10 @@ func extractTarXzFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
 	xzData, err := ax.ReadFile(archivePath)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 
 	tarData, err := compress.Decompress(xzData)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 
 	tarReader := tar.NewReader(bytes.NewReader(tarData))
 
@@ -682,11 +752,11 @@ func extractTarXzFile(t *testing.T, archivePath, fileName string) []byte {
 		if err == io.EOF {
 			t.Fatalf("file %q not found in archive", fileName)
 		}
-		require.NoError(t, err)
+		archiveRequireNoError(t, err)
 
 		if header.Name == fileName {
 			content, err := io.ReadAll(tarReader)
-			require.NoError(t, err)
+			archiveRequireNoError(t, err)
 			return content
 		}
 	}
@@ -697,17 +767,17 @@ func extractZipFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
 	reader, err := zip.OpenReader(archivePath)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 	defer func() { _ = reader.Close() }()
 
 	for _, f := range reader.File {
 		if f.Name == fileName {
 			rc, err := f.Open()
-			require.NoError(t, err)
+			archiveRequireNoError(t, err)
 			defer func() { _ = rc.Close() }()
 
 			content, err := io.ReadAll(rc)
-			require.NoError(t, err)
+			archiveRequireNoError(t, err)
 			return content
 		}
 	}
@@ -721,22 +791,22 @@ func verifyTarGzContent(t *testing.T, archivePath, expectedName string) {
 	t.Helper()
 
 	file, err := ax.Open(archivePath)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 	defer func() { _ = file.Close() }()
 
 	gzReader, err := gzip.NewReader(file)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 	defer func() { _ = gzReader.Close() }()
 
 	tarReader := tar.NewReader(gzReader)
 
 	header, err := tarReader.Next()
-	require.NoError(t, err)
-	assert.Equal(t, expectedName, header.Name)
+	archiveRequireNoError(t, err)
+	archiveAssertEqual(t, expectedName, header.Name)
 
 	// Verify there's only one file
 	_, err = tarReader.Next()
-	assert.Equal(t, io.EOF, err)
+	archiveAssertEqual(t, io.EOF, err)
 }
 
 // verifyZipContent opens a zip file and verifies it contains the expected file.
@@ -744,11 +814,11 @@ func verifyZipContent(t *testing.T, archivePath, expectedName string) {
 	t.Helper()
 
 	reader, err := zip.OpenReader(archivePath)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 	defer func() { _ = reader.Close() }()
 
-	require.Len(t, reader.File, 1)
-	assert.Equal(t, expectedName, reader.File[0].Name)
+	archiveRequireLen(t, reader.File, 1)
+	archiveAssertEqual(t, expectedName, reader.File[0].Name)
 }
 
 // verifyTarXzContent opens a tar.xz file and verifies it contains the expected file.
@@ -757,20 +827,20 @@ func verifyTarXzContent(t *testing.T, archivePath, expectedName string) {
 
 	// Read the xz-compressed file
 	xzData, err := ax.ReadFile(archivePath)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 
 	// Decompress with the deferred Borg API.
 	tarData, err := compress.Decompress(xzData)
-	require.NoError(t, err)
+	archiveRequireNoError(t, err)
 
 	// Read tar archive
 	tarReader := tar.NewReader(bytes.NewReader(tarData))
 
 	header, err := tarReader.Next()
-	require.NoError(t, err)
-	assert.Equal(t, expectedName, header.Name)
+	archiveRequireNoError(t, err)
+	archiveAssertEqual(t, expectedName, header.Name)
 
 	// Verify there's only one file
 	_, err = tarReader.Next()
-	assert.Equal(t, io.EOF, err)
+	archiveAssertEqual(t, io.EOF, err)
 }

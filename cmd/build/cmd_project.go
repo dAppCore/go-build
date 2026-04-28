@@ -13,12 +13,12 @@ import (
 	"runtime"
 	"strings"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
 	"dappco.re/go/i18n"
 	"dappco.re/go/io"

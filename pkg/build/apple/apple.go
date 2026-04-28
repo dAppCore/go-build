@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	build "dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"

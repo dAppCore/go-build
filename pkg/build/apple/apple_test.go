@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/testassert"
 	build "dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
-	"dappco.re/go/core"
 	coreio "dappco.re/go/io"
 )
 

@@ -545,9 +545,18 @@ func TestLinuxKit_LinuxKitBuilderFindArtifact_Good(t *testing.T) {
 }
 
 func TestLinuxKit_LinuxKitBuilderInterface_Good(t *testing.T) {
-	// Verify LinuxKitBuilder implements Builder interface
-	var _ build.Builder = (*LinuxKitBuilder)(nil)
-	var _ build.Builder = NewLinuxKitBuilder()
+	builder := NewLinuxKitBuilder()
+	var _ build.Builder = builder
+	if !stdlibAssertEqual("linuxkit", builder.Name()) {
+		t.Fatalf("want %v, got %v", "linuxkit", builder.Name())
+	}
+	detected, err := builder.Detect(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if detected {
+		t.Fatal("expected empty temp directory not to be detected")
+	}
 }
 
 func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCli_Good(t *testing.T) {

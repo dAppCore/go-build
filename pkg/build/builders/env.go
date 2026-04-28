@@ -4,11 +4,12 @@ import (
 	"archive/zip"
 	stdio "io"
 	stdfs "io/fs"
+	"runtime"
 	"slices"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -37,7 +38,15 @@ func defaultHostTargets(targets []build.Target) []build.Target {
 	if len(targets) > 0 {
 		return targets
 	}
-	return []build.Target{{OS: core.Env("GOOS"), Arch: core.Env("GOARCH")}}
+	goos := core.Env("GOOS")
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+	goarch := core.Env("GOARCH")
+	if goarch == "" {
+		goarch = runtime.GOARCH
+	}
+	return []build.Target{{OS: goos, Arch: goarch}}
 }
 
 func defaultRuntimeTargets(targets []build.Target, osName, archName string) []build.Target {
@@ -241,7 +250,9 @@ func writeZipEntry(fs io.Medium, writer *zip.Writer, rootDir, entryPath, operati
 	}
 
 	if _, err := stdio.Copy(zipEntry, source); err != nil {
-		_ = source.Close()
+		if closeErr := source.Close(); closeErr != nil {
+			return coreerr.E(operation, "failed to close bundle entry after write failure", closeErr)
+		}
 		return coreerr.E(operation, "failed to write bundle entry", err)
 	}
 	if err := source.Close(); err != nil {

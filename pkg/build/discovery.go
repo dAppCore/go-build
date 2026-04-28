@@ -1,8 +1,10 @@
 package build
 
 import (
+	"runtime"
+
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 )
 
@@ -206,6 +208,10 @@ func ResolveMkDocsConfigPath(fs io.Medium, dir string) string {
 //
 //	ok := build.HasSubtreeNpm(io.Local, ".") // true if apps/web/package.json exists
 func HasSubtreeNpm(fs io.Medium, dir string) bool {
+	if fs == nil {
+		return false
+	}
+
 	// Depth 1: list immediate subdirectories
 	entries, err := fs.List(dir)
 	if err != nil {
@@ -454,16 +460,7 @@ func discoverHostOS() string {
 	if goos := core.Env("GOOS"); goos != "" {
 		return goos
 	}
-
-	if hosttype := core.Env("HOSTTYPE"); hosttype != "" {
-		return hosttype
-	}
-
-	if ostype := core.Env("OSTYPE"); ostype != "" {
-		return ostype
-	}
-
-	return "linux"
+	return runtime.GOOS
 }
 
 func discoverHostArch() string {
@@ -488,7 +485,7 @@ func discoverHostArch() string {
 		return hosttype
 	}
 
-	return "amd64"
+	return runtime.GOARCH
 }
 
 // SuggestStack returns the action-oriented stack suggestion for the detected
@@ -586,6 +583,9 @@ func containsProjectType(types []ProjectType, projectType ProjectType) bool {
 
 // hasFrontendManifest reports whether a frontend directory contains a supported manifest.
 func hasFrontendManifest(fs io.Medium, dir string) bool {
+	if fs == nil {
+		return false
+	}
 	return fs.IsFile(ax.Join(dir, markerNodePackage)) ||
 		fs.IsFile(ax.Join(dir, "deno.json")) ||
 		fs.IsFile(ax.Join(dir, "deno.jsonc"))
@@ -593,6 +593,9 @@ func hasFrontendManifest(fs io.Medium, dir string) bool {
 
 // hasSubtreeFrontendManifest checks for package.json or deno.json within depth 2 subdirectories.
 func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
+	if fs == nil {
+		return false
+	}
 	entries, err := fs.List(dir)
 	if err != nil {
 		return false
@@ -635,11 +638,17 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 
 func hasSubtreeDenoManifest(fs io.Medium, dir string) bool {
 	return hasSubtreeManifest(fs, dir, 0, func(fs io.Medium, candidate string) bool {
+		if fs == nil {
+			return false
+		}
 		return fs.IsFile(ax.Join(candidate, markerDenoJSON)) || fs.IsFile(ax.Join(candidate, markerDenoJSONC))
 	})
 }
 
 func findMkDocsConfigInSubtree(fs io.Medium, dir string, depth int) string {
+	if fs == nil {
+		return ""
+	}
 	if depth >= 2 {
 		return ""
 	}
@@ -676,11 +685,17 @@ func findMkDocsConfigInSubtree(fs io.Medium, dir string, depth int) string {
 
 func hasNestedGoToolchain(fs io.Medium, dir string, depth int) bool {
 	return hasSubtreeManifest(fs, dir, depth, func(fs io.Medium, candidate string) bool {
+		if fs == nil {
+			return false
+		}
 		return fs.IsFile(ax.Join(candidate, markerGoMod)) || fs.IsFile(ax.Join(candidate, markerGoWork))
 	}, 4)
 }
 
 func hasSubtreeManifest(fs io.Medium, dir string, depth int, match func(io.Medium, string) bool, maxDepth ...int) bool {
+	if fs == nil || match == nil {
+		return false
+	}
 	limit := 2
 	if len(maxDepth) > 0 {
 		limit = maxDepth[0]
@@ -762,6 +777,9 @@ func hasGoRootMarker(fs io.Medium, dir string) bool {
 
 // fileExists checks if a file exists and is not a directory.
 func fileExists(fs io.Medium, path string) bool {
+	if fs == nil {
+		return false
+	}
 	return fs.IsFile(path)
 }
 
@@ -832,6 +850,9 @@ func IsTaskfileProject(fs io.Medium, dir string) bool {
 
 // hasYAMLInDir reports whether a directory contains at least one YAML file.
 func hasYAMLInDir(fs io.Medium, dir string) bool {
+	if fs == nil {
+		return false
+	}
 	if !fs.IsDir(dir) {
 		return false
 	}

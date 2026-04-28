@@ -1150,11 +1150,23 @@ func TestPublish_Iso_Good(t *testing.T) {
 }
 
 func TestPublish_Iso_Bad(t *testing.T) {
-	assertLinuxKitPublishError(t, "iso", "fail", "build failed")
+	result := runLinuxKitPublishFixture(t, []string{"iso"}, "fail", nil)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(result.Err.Error(), "build failed") {
+		t.Fatalf("expected %v to contain %v", result.Err.Error(), "build failed")
+	}
 }
 
 func TestPublish_Iso_Ugly(t *testing.T) {
-	assertLinuxKitPublishError(t, "iso", "missing", "artifact not found after build")
+	result := runLinuxKitPublishFixture(t, []string{"iso"}, "missing", nil)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(result.Err.Error(), "artifact not found after build") {
+		t.Fatalf("expected %v to contain %v", result.Err.Error(), "artifact not found after build")
+	}
 }
 
 func TestPublish_Qcow2_Good(t *testing.T) {
@@ -1166,11 +1178,23 @@ func TestPublish_Qcow2_Good(t *testing.T) {
 }
 
 func TestPublish_Qcow2_Bad(t *testing.T) {
-	assertLinuxKitPublishError(t, "qcow2", "fail", "build failed")
+	result := runLinuxKitPublishFixture(t, []string{"qcow2"}, "fail", nil)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(result.Err.Error(), "build failed") {
+		t.Fatalf("expected %v to contain %v", result.Err.Error(), "build failed")
+	}
 }
 
 func TestPublish_Qcow2_Ugly(t *testing.T) {
-	assertLinuxKitPublishError(t, "qcow2", "missing", "artifact not found after build")
+	result := runLinuxKitPublishFixture(t, []string{"qcow2"}, "missing", nil)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(result.Err.Error(), "artifact not found after build") {
+		t.Fatalf("expected %v to contain %v", result.Err.Error(), "artifact not found after build")
+	}
 }
 
 func TestPublish_Raw_Good(t *testing.T) {
@@ -1182,11 +1206,23 @@ func TestPublish_Raw_Good(t *testing.T) {
 }
 
 func TestPublish_Raw_Bad(t *testing.T) {
-	assertLinuxKitPublishError(t, "raw", "fail", "build failed")
+	result := runLinuxKitPublishFixture(t, []string{"raw"}, "fail", nil)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(result.Err.Error(), "build failed") {
+		t.Fatalf("expected %v to contain %v", result.Err.Error(), "build failed")
+	}
 }
 
 func TestPublish_Raw_Ugly(t *testing.T) {
-	assertLinuxKitPublishError(t, "raw", "missing", "artifact not found after build")
+	result := runLinuxKitPublishFixture(t, []string{"raw"}, "missing", nil)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if !stdlibAssertContains(result.Err.Error(), "artifact not found after build") {
+		t.Fatalf("expected %v to contain %v", result.Err.Error(), "artifact not found after build")
+	}
 }
 
 func TestPublish_Qcow2WithCloudTargets_Good(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	buildservice "dappco.re/go/build/pkg/service"
-	"dappco.re/go/core"
 )
 
 type stubManager struct {

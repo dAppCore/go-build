@@ -5,9 +5,9 @@ import (
 	"context"
 	"text/template" // AX-6 intrinsic: no core template primitive.
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -249,7 +249,9 @@ func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectD
 	}
 
 	cleanup := func() {
-		_ = ax.RemoveAll(tempDir)
+		if err := ax.RemoveAll(tempDir); err != nil {
+			return
+		}
 	}
 
 	contentHash := linuxKitServiceImageContentHash(baseImage, cfg)

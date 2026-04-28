@@ -10,10 +10,10 @@ import (
 	stdfs "io/fs"
 	"slices"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
-	io_interface "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	io_interface "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	// TODO(AX-6): Replace with dappco.re/go/crypt when it exposes Compress/Decompress API parity.
 	"github.com/Snider/Borg/pkg/compress"
 )

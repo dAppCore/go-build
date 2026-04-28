@@ -4,9 +4,9 @@ package sdk
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/sdk/generators"
-	"dappco.re/go/core"
 	coreerr "dappco.re/go/log"
 	"gopkg.in/yaml.v3"
 )
@@ -217,6 +217,13 @@ func (s *SDK) Generate(ctx context.Context) error {
 // GenerateWithStatus generates SDKs for all configured languages and returns
 // per-language status information.
 func (s *SDK) GenerateWithStatus(ctx context.Context) ([]LanguageResult, error) {
+	if s == nil {
+		return nil, coreerr.E("sdk.GenerateWithStatus", "sdk is nil", nil)
+	}
+	if s.config == nil {
+		return nil, coreerr.E("sdk.GenerateWithStatus", "sdk config is nil", nil)
+	}
+
 	results := make([]LanguageResult, 0, len(s.config.Languages))
 	for _, lang := range s.config.Languages {
 		result, err := s.GenerateLanguageWithStatus(ctx, lang)
@@ -253,6 +260,9 @@ func (s *SDK) outputRoot() string {
 //
 // dir := s.outputDir("typescript") // "sdk/typescript" or "packages/myapi/sdk/typescript"
 func (s *SDK) outputDir(lang string) string {
+	if s == nil {
+		return ax.Join("sdk", lang)
+	}
 	return ax.Join(s.projectDir, s.outputRoot(), lang)
 }
 
@@ -268,9 +278,15 @@ func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
 // whether it was generated or skipped.
 func (s *SDK) GenerateLanguageWithStatus(ctx context.Context, lang string) (LanguageResult, error) {
 	lang = normaliseLanguage(lang)
+	if s == nil {
+		return LanguageResult{Language: lang, OutputDir: ax.Join("sdk", lang)}, coreerr.E("sdk.GenerateLanguage", "sdk is nil", nil)
+	}
 	result := LanguageResult{
 		Language:  lang,
 		OutputDir: s.outputDir(lang),
+	}
+	if s.config == nil {
+		return result, coreerr.E("sdk.GenerateLanguage", "sdk config is nil", nil)
 	}
 
 	registry := newGeneratorRegistry()

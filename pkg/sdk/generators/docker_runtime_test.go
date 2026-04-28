@@ -10,8 +10,11 @@ import (
 	"dappco.re/go/build/internal/ax"
 )
 
+const dockerRuntimeTestProbeTimeout = 10 * time.Second
+
 func resetDockerRuntimeState() {
 	resetDockerRuntimeAvailabilityCache()
+	availabilityProbeTimeout = dockerRuntimeTestProbeTimeout
 }
 
 func setAvailabilityProbeTimeout(t *testing.T, timeout time.Duration) {

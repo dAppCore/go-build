@@ -4,7 +4,7 @@ import (
 	"context"
 	"runtime"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -59,6 +59,9 @@ func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifac
 	}
 
 	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	if len(artifacts) == 0 {
 		return nil
 	}
 
