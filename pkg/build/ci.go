@@ -8,7 +8,6 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	io_interface "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 // CIContext holds environment information detected from a GitHub Actions run.
@@ -100,21 +99,21 @@ func detectLocalGitMetadata(dir string) *CIContext {
 		return nil
 	}
 
-	sha, err := runGitMetadataCommand(dir, "rev-parse", "HEAD")
-	if err != nil || sha == "" {
+	sha := runGitMetadataCommand(dir, "rev-parse", "HEAD")
+	if !sha.OK || sha.Value.(string) == "" {
 		return nil
 	}
 
-	ctx := &CIContext{SHA: sha}
+	ctx := &CIContext{SHA: sha.Value.(string)}
 
-	if tag, err := runGitMetadataCommand(dir, "describe", "--tags", "--exact-match", "HEAD"); err == nil && tag != "" {
-		ctx.Ref = "refs/tags/" + tag
-	} else if branch, err := runGitMetadataCommand(dir, "symbolic-ref", "--quiet", "--short", "HEAD"); err == nil && branch != "" {
-		ctx.Ref = "refs/heads/" + branch
+	if tag := runGitMetadataCommand(dir, "describe", "--tags", "--exact-match", "HEAD"); tag.OK && tag.Value.(string) != "" {
+		ctx.Ref = "refs/tags/" + tag.Value.(string)
+	} else if branch := runGitMetadataCommand(dir, "symbolic-ref", "--quiet", "--short", "HEAD"); branch.OK && branch.Value.(string) != "" {
+		ctx.Ref = "refs/heads/" + branch.Value.(string)
 	}
 
-	if remoteURL, err := runGitMetadataCommand(dir, "remote", "get-url", "origin"); err == nil {
-		ctx.Repo, ctx.Owner = parseGitRemote(remoteURL)
+	if remoteURL := runGitMetadataCommand(dir, "remote", "get-url", "origin"); remoteURL.OK {
+		ctx.Repo, ctx.Owner = parseGitRemote(remoteURL.Value.(string))
 	}
 
 	populateGitHubContext(ctx)
@@ -177,12 +176,12 @@ func populateGitHubContext(ctx *CIContext) {
 	}
 }
 
-func runGitMetadataCommand(dir string, args ...string) (string, error) {
-	output, err := ax.RunDir(context.Background(), dir, "git", args...)
-	if err != nil {
-		return "", err
+func runGitMetadataCommand(dir string, args ...string) core.Result {
+	output := ax.RunDir(context.Background(), dir, "git", args...)
+	if !output.OK {
+		return output
 	}
-	return core.Trim(output), nil
+	return core.Ok(core.Trim(output.Value.(string)))
 }
 
 func parseGitRemote(raw string) (string, string) {
@@ -263,7 +262,7 @@ func ArtifactName(buildName string, ci *CIContext, target Target) string {
 //
 //	err := build.WriteArtifactMeta(io.Local, "dist/artifact_meta.json", "core", build.Target{OS: "linux", Arch: "amd64"}, ci)
 //	// writes metadata fields for name, platform, arch, tag, and CI status.
-func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, target Target, ci *CIContext) error {
+func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, target Target, ci *CIContext) core.Result {
 	meta := map[string]any{
 		"name":              buildName,
 		artifactMetaOSField: target.OS,
@@ -282,14 +281,15 @@ func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, ta
 
 	encodedData := core.JSONMarshalIndent(meta, "", "  ")
 	if !encodedData.OK {
-		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", resultError(encodedData))
+		return core.Fail(core.E("build.WriteArtifactMeta", "failed to marshal artifact meta", core.NewError(encodedData.Error())))
 	}
 
-	if err := fs.Write(path, string(encodedData.Value.([]byte))); err != nil {
-		return coreerr.E("build.WriteArtifactMeta", "failed to write artifact meta", err)
+	written := fs.Write(path, string(encodedData.Value.([]byte)))
+	if !written.OK {
+		return core.Fail(core.E("build.WriteArtifactMeta", "failed to write artifact meta", core.NewError(written.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func addArtifactMetaString(meta map[string]any, key, value string) {
@@ -306,13 +306,6 @@ func trimSlashes(value string) string {
 		value = core.TrimSuffix(value, "/")
 	}
 	return value
-}
-
-func resultError(result core.Result) error {
-	if err, ok := result.Value.(error); ok {
-		return err
-	}
-	return core.NewError(result.Error())
 }
 
 // CIArtifactPath returns the CI-stamped artifact path for a build output.

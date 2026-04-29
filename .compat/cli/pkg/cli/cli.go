@@ -59,25 +59,33 @@ func Blank() {
 	}
 }
 
-func Err(format string, args ...any) error {
-	return core.Errorf(format, args...)
+func Err(format string, args ...any) core.Result {
+	return core.Fail(core.Errorf(format, args...))
 }
 
-func Wrap(err error, message string) error {
-	if err == nil {
-		return nil
+func Wrap(cause any, message string) core.Result {
+	if cause == nil {
+		return core.Ok(nil)
+	}
+	err, ok := cause.(error)
+	if !ok {
+		err = core.NewError(core.Sprintf("%v", cause))
 	}
 	if message == "" {
-		return err
+		return core.Fail(err)
 	}
-	return core.Errorf("%s: %w", message, err)
+	return core.Fail(core.Errorf("%s: %w", message, err))
 }
 
-func WrapVerb(err error, verb, subject string) error {
-	if err == nil {
-		return nil
+func WrapVerb(cause any, verb, subject string) core.Result {
+	if cause == nil {
+		return core.Ok(nil)
 	}
-	return core.Errorf("failed to %s %s: %w", verb, subject, err)
+	err, ok := cause.(error)
+	if !ok {
+		err = core.NewError(core.Sprintf("%v", cause))
+	}
+	return core.Fail(core.Errorf("failed to %s %s: %w", verb, subject, err))
 }
 
 type ExitError struct {
@@ -95,18 +103,15 @@ func (e *ExitError) Error() string {
 	return core.Sprintf("exit %d", e.Code)
 }
 
-func (e *ExitError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.Err
-}
-
-func Exit(code int, err error) error {
+func Exit(code int, err any) core.Result {
 	if err == nil {
 		err = core.NewError("exit")
 	}
-	return &ExitError{Code: code, Err: err}
+	cause, ok := err.(error)
+	if !ok {
+		cause = core.NewError(core.Sprintf("%v", err))
+	}
+	return core.Fail(&ExitError{Code: code, Err: cause})
 }
 
 func Context() context.Context {

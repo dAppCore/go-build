@@ -8,35 +8,36 @@ import (
 )
 
 // Export renders a native service definition for cfg.
-func Export(cfg Config, format string) (ExportedConfig, error) {
+func Export(cfg Config, format string) core.Result {
 	cfg = cfg.Normalized()
 
-	nativeFormat, err := ResolveNativeFormat(format)
-	if err != nil {
-		return ExportedConfig{}, err
+	resolved := ResolveNativeFormat(format)
+	if !resolved.OK {
+		return resolved
 	}
+	nativeFormat := resolved.Value.(NativeFormat)
 
 	switch nativeFormat {
 	case NativeFormatSystemd:
-		return ExportedConfig{
+		return core.Ok(ExportedConfig{
 			Format:   nativeFormat,
 			Filename: cfg.Name + ".service",
 			Content:  renderSystemd(cfg),
-		}, nil
+		})
 	case NativeFormatLaunchd:
-		return ExportedConfig{
+		return core.Ok(ExportedConfig{
 			Format:   nativeFormat,
 			Filename: cfg.Name + ".plist",
 			Content:  renderLaunchd(cfg),
-		}, nil
+		})
 	case NativeFormatWindows:
-		return ExportedConfig{
+		return core.Ok(ExportedConfig{
 			Format:   nativeFormat,
 			Filename: cfg.Name + ".ps1",
 			Content:  renderWindows(cfg),
-		}, nil
+		})
 	default:
-		return ExportedConfig{}, core.Errorf("unsupported native service format: %s", nativeFormat)
+		return core.Fail(core.Errorf("unsupported native service format: %s", nativeFormat))
 	}
 }
 

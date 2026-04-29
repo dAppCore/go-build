@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/io"
@@ -34,16 +35,11 @@ func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffectsGood(t *testin
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/test-repo", projectName: "testapp"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Verify dry run output contains expected information
-				err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: GitHub Release") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: GitHub Release")
 		}
@@ -86,10 +82,7 @@ func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffectsGood(t *testin
 			t.Fatalf("expected %v to contain %v", output, "--prerelease")
 		}
 
-		entries, err := ax.ReadDir(tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		entries := requirePublisherDirEntries(t, ax.ReadDir(tmpDir))
 		if !stdlibAssertEmpty(entries) {
 			t.Fatal("dry run should not create any files")
 		}
@@ -195,13 +188,11 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetectionGood(t *testin
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: "explicit/repo"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Repository: explicit/repo") {
 			t.Fatalf("expected %v to contain %v", output, "Repository: explicit/repo")
 		}
@@ -223,13 +214,11 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetectionGood(t *testin
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: ""}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Repository: detected/from-git") {
 			t.Fatalf("expected %v to contain %v", output, "Repository: detected/from-git")
 		}
@@ -248,12 +237,9 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetectionGood(t *testin
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: ""}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "could not determine repository") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "could not determine repository")
+		err := requirePublisherError(t, p.Publish(context.Background(), release, pubCfg, relCfg, true))
+		if !stdlibAssertContains(err, "could not determine repository") {
+			t.Fatalf("expected %v to contain %v", err, "could not determine repository")
 		}
 
 	})
@@ -278,13 +264,11 @@ func TestIntegration_GitHubPublisherIntegrationArtifactUploadGood(t *testing.T) 
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, pubCfg, "owner/repo")
+			publishResult = p.dryRunPublish(release, pubCfg, "owner/repo")
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would upload artifacts:") {
 			t.Fatalf("expected %v to contain %v", output, "Would upload artifacts:")
 		}
@@ -343,7 +327,7 @@ func TestIntegration_GitHubPublisherIntegrationArtifactUploadGood(t *testing.T) 
 }
 
 func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
-	if err := validateDockerCli(); err != nil {
+	if err := validateDockerCli(); !err.OK {
 		t.Skip("skipping: docker CLI not available")
 	}
 
@@ -353,10 +337,7 @@ func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffectsGood(t *testin
 		tmpDir := t.TempDir()
 
 		// Create a Dockerfile
-		err := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.2.3",
@@ -378,15 +359,11 @@ func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffectsGood(t *testin
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/test-app"}
 
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Verify dry run output
-				err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Docker Build & Push") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Docker Build & Push")
 		}
@@ -586,16 +563,11 @@ func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffectsGood(t *test
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/my-cli", projectName: "my-cli"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Verify dry run output
-				err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Homebrew Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Homebrew Publish")
 		}
@@ -638,10 +610,7 @@ func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffectsGood(t *test
 			t.Fatalf("expected %v to contain %v", output, "Would commit to tap: test-org/homebrew-tap")
 		}
 
-		entries, err := ax.ReadDir(tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		entries := requirePublisherDirEntries(t, ax.ReadDir(tmpDir))
 		if !stdlibAssertEmpty(entries) {
 			t.Fatal("dry run should not create any files")
 		}
@@ -666,13 +635,11 @@ func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffectsGood(t *test
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "repo"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: dist/homebrew-official") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/homebrew-official")
 		}
@@ -699,13 +666,7 @@ func TestIntegration_HomebrewPublisherIntegrationFormulaGenerationGood(t *testin
 			},
 		}
 
-		formula, err := p.renderTemplate(io.Local, "templates/homebrew/formula.rb.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Verify class definition
-				err)
-		}
+		formula := requirePublisherString(t, p.renderTemplate(io.Local, "templates/homebrew/formula.rb.tmpl", data))
 		if !stdlibAssertContains(formula, "class CoreCli < Formula") {
 			t.Fatalf("expected %v to contain %v",
 
@@ -794,13 +755,11 @@ func TestIntegration_ScoopPublisherIntegrationDryRunNoSideEffectsGood(t *testing
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/myapp", projectName: "myapp"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Scoop Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Scoop Publish")
 		}
@@ -829,10 +788,7 @@ func TestIntegration_ScoopPublisherIntegrationDryRunNoSideEffectsGood(t *testing
 			t.Fatalf("expected %v to contain %v", output, "Would commit to bucket: test-org/scoop-bucket")
 		}
 
-		entries, err := ax.ReadDir(tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		entries := requirePublisherDirEntries(t, ax.ReadDir(tmpDir))
 		if !stdlibAssertEmpty(entries) {
 			t.Fatalf("expected empty, got %v", entries)
 		}
@@ -863,13 +819,11 @@ func TestIntegration_AURPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/myapp", projectName: "myapp"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: AUR Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: AUR Publish")
 		}
@@ -905,10 +859,7 @@ func TestIntegration_AURPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T
 			t.Fatalf("expected %v to contain %v", output, "Would push to AUR:")
 		}
 
-		entries, err := ax.ReadDir(tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		entries := requirePublisherDirEntries(t, ax.ReadDir(tmpDir))
 		if !stdlibAssertEmpty(entries) {
 			t.Fatalf("expected empty, got %v", entries)
 		}
@@ -939,13 +890,11 @@ func TestIntegration_ChocolateyPublisherIntegrationDryRunNoSideEffectsGood(t *te
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/my-cli-tool", projectName: "my-cli-tool"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Chocolatey Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Chocolatey Publish")
 		}
@@ -977,10 +926,7 @@ func TestIntegration_ChocolateyPublisherIntegrationDryRunNoSideEffectsGood(t *te
 			t.Fatalf("expected %v to contain %v", output, "Would generate package files only")
 		}
 
-		entries, err := ax.ReadDir(tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		entries := requirePublisherDirEntries(t, ax.ReadDir(tmpDir))
 		if !stdlibAssertEmpty(entries) {
 			t.Fatalf("expected empty, got %v", entries)
 		}
@@ -1008,13 +954,11 @@ func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/my-cli", projectName: "my-cli"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: npm Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: npm Publish")
 		}
@@ -1048,10 +992,7 @@ func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T
 			t.Fatalf("expected %v to contain %v", output, "Would run: npm publish --access public")
 		}
 
-		entries, err := ax.ReadDir(tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		entries := requirePublisherDirEntries(t, ax.ReadDir(tmpDir))
 		if !stdlibAssertEmpty(entries) {
 			t.Fatalf("expected empty, got %v", entries)
 		}
@@ -1060,7 +1001,7 @@ func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T
 }
 
 func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
-	if err := validateLinuxKitCli(); err != nil {
+	if err := validateLinuxKitCli(); !err.OK {
 		t.Skip("skipping: linuxkit CLI not available")
 	}
 
@@ -1070,11 +1011,11 @@ func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffectsGood(t *test
 		tmpDir := t.TempDir()
 
 		configDir := ax.Join(tmpDir, ".core", "linuxkit")
-		if err := ax.MkdirAll(configDir, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(configDir, 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(configDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(configDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		release := &Release{
@@ -1091,13 +1032,11 @@ func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffectsGood(t *test
 		}
 		relCfg := &mockReleaseConfig{repository: "test-org/my-os"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.Background(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.Background(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: LinuxKit Build & Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: LinuxKit Build & Publish")
 		}
@@ -1195,13 +1134,11 @@ func TestIntegration_AllPublishersIntegrationNilRelCfgGood(t *testing.T) {
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = NewGitHubPublisher().Publish(context.Background(), release, pubCfg, nil, true)
+			publishResult = NewGitHubPublisher().Publish(context.Background(), release, pubCfg, nil, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "niltest/repo") {
 			t.Fatalf("expected %v to contain %v", output, "niltest/repo")
 		}

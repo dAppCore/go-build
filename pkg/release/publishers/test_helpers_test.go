@@ -27,8 +27,8 @@ func capturePublisherOutput(t *testing.T, fn func()) string {
 
 func runPublisherCommand(t *testing.T, dir, command string, args ...string) {
 	t.Helper()
-	if err := ax.ExecDir(context.Background(), dir, command, args...); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.ExecDir(context.Background(), dir, command, args...); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }

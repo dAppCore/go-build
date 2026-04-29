@@ -15,8 +15,8 @@ type unavailableGenerator struct {
 }
 
 func (g unavailableGenerator) Language() string { return g.language }
-func (g unavailableGenerator) Generate(ctx context.Context, opts generators.Options) error {
-	return core.NewError("test error")
+func (g unavailableGenerator) Generate(ctx context.Context, opts generators.Options) core.Result {
+	return core.Fail(core.NewError("test error"))
 }
 func (g unavailableGenerator) Available() bool { return false }
 func (g unavailableGenerator) Install() string { return "install me" }
@@ -181,19 +181,18 @@ func TestSDK_GenerateLanguage_Bad(t *testing.T) {
 
 		specPath := ax.Join(tmpDir, "openapi.yaml")
 
-		err := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		s := New(tmpDir, nil)
 
-		err = s.GenerateLanguage(context.Background(), "invalid-lang")
-		if err == nil {
+		result := s.GenerateLanguage(context.Background(), "invalid-lang")
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertContains(err.Error(), "unknown language") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "unknown language")
+		if !stdlibAssertContains(result.Error(), "unknown language") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "unknown language")
 		}
 
 	})
@@ -216,10 +215,11 @@ func TestSDK_GenerateWithStatus_SkipsUnavailableWhenConfigured_Good(t *testing.T
 		SkipUnavailable: true,
 	})
 
-	results, err := s.GenerateWithStatus(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := s.GenerateWithStatus(context.Background())
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
+	results := result.Value.([]LanguageResult)
 	if len(results) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(results))
 	}
@@ -237,28 +237,28 @@ func TestSDK_GenerateWithStatus_SkipsUnavailableWhenConfigured_Good(t *testing.T
 func TestSDK_NilSafetyGood(t *testing.T) {
 	var s *SDK
 
-	_, err := s.GenerateWithStatus(context.Background())
-	if err == nil {
+	result := s.GenerateWithStatus(context.Background())
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "sdk is nil") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "sdk is nil")
+	if !stdlibAssertContains(result.Error(), "sdk is nil") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "sdk is nil")
 	}
 
-	_, err = s.GenerateLanguageWithStatus(context.Background(), "typescript")
-	if err == nil {
+	result = s.GenerateLanguageWithStatus(context.Background(), "typescript")
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "sdk is nil") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "sdk is nil")
+	if !stdlibAssertContains(result.Error(), "sdk is nil") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "sdk is nil")
 	}
 
-	_, err = s.DetectSpec()
-	if err == nil {
+	result = s.DetectSpec()
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "sdk is nil") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "sdk is nil")
+	if !stdlibAssertContains(result.Error(), "sdk is nil") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "sdk is nil")
 	}
 
 }
@@ -507,7 +507,7 @@ func TestSdk_SDK_GenerateWithStatus_Good(t *core.T) {
 	subject := &SDK{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.GenerateWithStatus(ctx)
+		_ = subject.GenerateWithStatus(ctx)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -519,7 +519,7 @@ func TestSdk_SDK_GenerateWithStatus_Bad(t *core.T) {
 	subject := &SDK{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.GenerateWithStatus(ctx)
+		_ = subject.GenerateWithStatus(ctx)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -531,7 +531,7 @@ func TestSdk_SDK_GenerateWithStatus_Ugly(t *core.T) {
 	subject := &SDK{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.GenerateWithStatus(ctx)
+		_ = subject.GenerateWithStatus(ctx)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -579,7 +579,7 @@ func TestSdk_SDK_GenerateLanguageWithStatus_Good(t *core.T) {
 	subject := &SDK{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.GenerateLanguageWithStatus(ctx, "go")
+		_ = subject.GenerateLanguageWithStatus(ctx, "go")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -591,7 +591,7 @@ func TestSdk_SDK_GenerateLanguageWithStatus_Bad(t *core.T) {
 	subject := &SDK{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.GenerateLanguageWithStatus(ctx, "")
+		_ = subject.GenerateLanguageWithStatus(ctx, "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -603,7 +603,7 @@ func TestSdk_SDK_GenerateLanguageWithStatus_Ugly(t *core.T) {
 	subject := &SDK{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.GenerateLanguageWithStatus(ctx, "go")
+		_ = subject.GenerateLanguageWithStatus(ctx, "go")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

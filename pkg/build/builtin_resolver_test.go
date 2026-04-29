@@ -34,20 +34,23 @@ func TestBuiltinResolver_GoBuilder_Detect_Good(t *core.T) {
 	dir := t.TempDir()
 	writeBuiltinResolverFile(t, ax.Join(dir, "go.mod"), "module example.com/demo\n")
 
-	detected, err := (&builtinGoBuilder{}).Detect(coreio.Local, dir)
-	core.RequireNoError(t, err)
+	result := (&builtinGoBuilder{}).Detect(coreio.Local, dir)
+	core.RequireTrue(t, result.OK)
+	detected := result.Value.(bool)
 	core.AssertTrue(t, detected)
 }
 
 func TestBuiltinResolver_GoBuilder_Detect_Bad(t *core.T) {
-	detected, err := (&builtinGoBuilder{}).Detect(coreio.Local, t.TempDir())
-	core.RequireNoError(t, err)
+	result := (&builtinGoBuilder{}).Detect(coreio.Local, t.TempDir())
+	core.RequireTrue(t, result.OK)
+	detected := result.Value.(bool)
 	core.AssertFalse(t, detected)
 }
 
 func TestBuiltinResolver_GoBuilder_Detect_Ugly(t *core.T) {
-	detected, err := (&builtinGoBuilder{}).Detect(nil, "")
-	core.RequireNoError(t, err)
+	result := (&builtinGoBuilder{}).Detect(nil, "")
+	core.RequireTrue(t, result.OK)
+	detected := result.Value.(bool)
 	core.AssertFalse(t, detected)
 }
 
@@ -56,38 +59,38 @@ func TestBuiltinResolver_GoBuilder_Build_Good(t *core.T) {
 	writeBuiltinResolverFile(t, ax.Join(dir, "go.mod"), "module example.com/demo\n\ngo 1.23\n")
 	writeBuiltinResolverFile(t, ax.Join(dir, "main.go"), "package main\n\nfunc main() {}\n")
 
-	artifacts, err := (&builtinGoBuilder{}).Build(context.Background(), &Config{
+	result := (&builtinGoBuilder{}).Build(context.Background(), &Config{
 		FS:         coreio.Local,
 		ProjectDir: dir,
 		OutputDir:  ax.Join(dir, "dist"),
 		Name:       "demo",
 		Project:    Project{Main: "."},
 	}, []Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
-	core.RequireNoError(t, err)
+	core.RequireTrue(t, result.OK)
+	artifacts := result.Value.([]Artifact)
 	core.AssertLen(t, artifacts, 1)
 	core.AssertEqual(t, runtime.GOOS+"/"+runtime.GOARCH, artifacts[0].OS+"/"+artifacts[0].Arch)
 }
 
 func TestBuiltinResolver_GoBuilder_Build_Bad(t *core.T) {
-	artifacts, err := (&builtinGoBuilder{}).Build(context.Background(), nil, nil)
-	core.AssertError(t, err)
-	core.AssertNil(t, artifacts)
+	result := (&builtinGoBuilder{}).Build(context.Background(), nil, nil)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "nil")
 }
 
 func TestBuiltinResolver_GoBuilder_Build_Ugly(t *core.T) {
 	dir := t.TempDir()
-	artifacts, err := (&builtinGoBuilder{}).Build(context.Background(), &Config{
+	result := (&builtinGoBuilder{}).Build(context.Background(), &Config{
 		FS:         coreio.Local,
 		ProjectDir: dir,
 		OutputDir:  ax.Join(dir, "dist"),
 		Name:       "demo",
 	}, []Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
-	core.AssertError(t, err)
-	core.AssertEmpty(t, artifacts)
+	core.AssertFalse(t, result.OK)
 }
 
 func writeBuiltinResolverFile(t *core.T, path, content string) {
 	t.Helper()
-	core.RequireNoError(t, ax.MkdirAll(ax.Dir(path), 0o755))
-	core.RequireNoError(t, ax.WriteFile(path, []byte(content), 0o644))
+	core.RequireTrue(t, ax.MkdirAll(ax.Dir(path), 0o755).OK)
+	core.RequireTrue(t, ax.WriteFile(path, []byte(content), 0o644).OK)
 }

@@ -8,7 +8,7 @@ import (
 func ExampleRunSDK() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = RunSDK(ctx, &Config{}, true)
+	_ = RunSDK(ctx, &Config{}, true)
 	core.Println("RunSDK")
 	// Output: RunSDK
 }

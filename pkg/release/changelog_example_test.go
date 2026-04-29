@@ -6,7 +6,7 @@ import (
 
 // --- v0.9.0 generated usage examples ---
 func ExampleGenerate() {
-	_, _ = Generate(core.Path(core.TempDir(), "go-build-compliance"), "agent", "agent")
+	_ = Generate(core.Path(core.TempDir(), "go-build-compliance"), "agent", "agent")
 	core.Println("Generate")
 	// Output: Generate
 }
@@ -14,13 +14,13 @@ func ExampleGenerate() {
 func ExampleGenerateWithContext() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = GenerateWithContext(ctx, core.Path(core.TempDir(), "go-build-compliance"), "agent", "agent")
+	_ = GenerateWithContext(ctx, core.Path(core.TempDir(), "go-build-compliance"), "agent", "agent")
 	core.Println("GenerateWithContext")
 	// Output: GenerateWithContext
 }
 
 func ExampleGenerateWithConfig() {
-	_, _ = GenerateWithConfig(core.Path(core.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
+	_ = GenerateWithConfig(core.Path(core.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
 	core.Println("GenerateWithConfig")
 	// Output: GenerateWithConfig
 }
@@ -28,7 +28,7 @@ func ExampleGenerateWithConfig() {
 func ExampleGenerateWithConfigWithContext() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = GenerateWithConfigWithContext(ctx, core.Path(core.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
+	_ = GenerateWithConfigWithContext(ctx, core.Path(core.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
 	core.Println("GenerateWithConfigWithContext")
 	// Output: GenerateWithConfigWithContext
 }

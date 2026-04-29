@@ -20,11 +20,11 @@ type capturingRunTestBuilder struct {
 
 func (b *runTestBuilder) Name() string { return "run-test" }
 
-func (b *runTestBuilder) Detect(fs coreio.Medium, dir string) (bool, error) {
-	return true, nil
+func (b *runTestBuilder) Detect(fs coreio.Medium, dir string) core.Result {
+	return core.Ok(true)
 }
 
-func (b *runTestBuilder) Build(ctx context.Context, cfg *Config, targets []Target) ([]Artifact, error) {
+func (b *runTestBuilder) Build(ctx context.Context, cfg *Config, targets []Target) core.Result {
 	if cfg.FS == nil {
 		cfg.FS = coreio.Local
 	}
@@ -37,46 +37,81 @@ func (b *runTestBuilder) Build(ctx context.Context, cfg *Config, targets []Targe
 		basePath := ax.Join(cfg.OutputDir, target.OS+"_"+target.Arch, cfg.Name)
 		if b.directoryArtifact {
 			artifactPath := basePath + ".app"
-			if err := cfg.FS.EnsureDir(ax.Join(artifactPath, "Contents", "MacOS")); err != nil {
-				return nil, err
+			created := cfg.FS.EnsureDir(ax.Join(artifactPath, "Contents", "MacOS"))
+			if !created.OK {
+				return created
 			}
-			if err := cfg.FS.WriteMode(ax.Join(artifactPath, "Contents", "MacOS", cfg.Name), "bundle:"+target.String(), 0o755); err != nil {
-				return nil, err
+			written := cfg.FS.WriteMode(ax.Join(artifactPath, "Contents", "MacOS", cfg.Name), "bundle:"+target.String(), 0o755)
+			if !written.OK {
+				return written
 			}
 			artifacts = append(artifacts, Artifact{Path: artifactPath, OS: target.OS, Arch: target.Arch})
 			continue
 		}
 
-		if err := cfg.FS.EnsureDir(ax.Dir(basePath)); err != nil {
-			return nil, err
+		created := cfg.FS.EnsureDir(ax.Dir(basePath))
+		if !created.OK {
+			return created
 		}
-		if err := cfg.FS.WriteMode(basePath, "artifact:"+target.String(), 0o755); err != nil {
-			return nil, err
+		written := cfg.FS.WriteMode(basePath, "artifact:"+target.String(), 0o755)
+		if !written.OK {
+			return written
 		}
 		artifacts = append(artifacts, Artifact{Path: basePath, OS: target.OS, Arch: target.Arch})
 	}
 
-	return artifacts, nil
+	return core.Ok(artifacts)
 }
 
 func (b *capturingRunTestBuilder) Name() string { return "capturing-run-test" }
 
-func (b *capturingRunTestBuilder) Detect(fs coreio.Medium, dir string) (bool, error) {
-	return true, nil
+func (b *capturingRunTestBuilder) Detect(fs coreio.Medium, dir string) core.Result {
+	return core.Ok(true)
 }
 
-func (b *capturingRunTestBuilder) Build(ctx context.Context, cfg *Config, targets []Target) ([]Artifact, error) {
+func (b *capturingRunTestBuilder) Build(ctx context.Context, cfg *Config, targets []Target) core.Result {
 	if b.captured != nil {
 		*b.captured = cfg
 	}
 	return (&runTestBuilder{}).Build(ctx, cfg, targets)
 }
 
+func requireRunOKResult(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requireRunArtifacts(t *testing.T, result core.Result) []Artifact {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]Artifact)
+}
+
+func requireRunString(t *testing.T, result core.Result) string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
+}
+
+func requireRunError(t *testing.T, result core.Result) string {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	return result.Error()
+}
+
 func TestRun_UsesOutputMediumGood(t *testing.T) {
 	projectDir := t.TempDir()
 	output := coreio.NewMemoryMedium()
 
-	artifacts, err := Run(
+	artifacts := requireRunArtifacts(t, Run(
 		WithContext(context.Background()),
 		WithProjectDir(projectDir),
 		WithBuildConfig(DefaultConfig()),
@@ -85,13 +120,10 @@ func TestRun_UsesOutputMediumGood(t *testing.T) {
 		WithTargets(Target{OS: "linux", Arch: "amd64"}),
 		WithOutput(output),
 		WithOutputDir("releases"),
-		WithBuilderResolver(func(projectType ProjectType) (Builder, error) {
-			return &runTestBuilder{}, nil
+		WithBuilderResolver(func(projectType ProjectType) core.Result {
+			return core.Ok(&runTestBuilder{})
 		}),
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -99,10 +131,7 @@ func TestRun_UsesOutputMediumGood(t *testing.T) {
 		t.Fatalf("want %v, got %v", ax.Join("releases", "linux_amd64", "core-build"), artifacts[0].Path)
 	}
 
-	content, err := output.Read(ax.Join("releases", "linux_amd64", "core-build"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireRunString(t, output.Read(ax.Join("releases", "linux_amd64", "core-build")))
 	if !stdlibAssertEqual("artifact:linux/amd64", content) {
 		t.Fatalf("want %v, got %v", "artifact:linux/amd64", content)
 	}
@@ -113,7 +142,7 @@ func TestRun_UsesOutputMediumRootWhenOutputDirUnsetGood(t *testing.T) {
 	projectDir := t.TempDir()
 	output := coreio.NewMemoryMedium()
 
-	artifacts, err := Run(
+	artifacts := requireRunArtifacts(t, Run(
 		WithContext(context.Background()),
 		WithProjectDir(projectDir),
 		WithBuildConfig(DefaultConfig()),
@@ -121,13 +150,10 @@ func TestRun_UsesOutputMediumRootWhenOutputDirUnsetGood(t *testing.T) {
 		WithBuildName("core-build"),
 		WithTargets(Target{OS: "linux", Arch: "amd64"}),
 		WithOutput(output),
-		WithBuilderResolver(func(projectType ProjectType) (Builder, error) {
-			return &runTestBuilder{}, nil
+		WithBuilderResolver(func(projectType ProjectType) core.Result {
+			return core.Ok(&runTestBuilder{})
 		}),
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -135,10 +161,7 @@ func TestRun_UsesOutputMediumRootWhenOutputDirUnsetGood(t *testing.T) {
 		t.Fatalf("want %v, got %v", ax.Join("linux_amd64", "core-build"), artifacts[0].Path)
 	}
 
-	content, err := output.Read(ax.Join("linux_amd64", "core-build"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireRunString(t, output.Read(ax.Join("linux_amd64", "core-build")))
 	if !stdlibAssertEqual("artifact:linux/amd64", content) {
 		t.Fatalf("want %v, got %v", "artifact:linux/amd64", content)
 	}
@@ -149,7 +172,7 @@ func TestRun_MirrorsDirectoryArtifactsGood(t *testing.T) {
 	projectDir := t.TempDir()
 	output := coreio.NewMemoryMedium()
 
-	artifacts, err := Run(
+	artifacts := requireRunArtifacts(t, Run(
 		WithProjectDir(projectDir),
 		WithBuildConfig(DefaultConfig()),
 		WithBuildType(string(ProjectTypeWails)),
@@ -157,13 +180,10 @@ func TestRun_MirrorsDirectoryArtifactsGood(t *testing.T) {
 		WithTargets(Target{OS: "darwin", Arch: "arm64"}),
 		WithOutput(output),
 		WithOutputDir("bundles"),
-		WithBuilderResolver(func(projectType ProjectType) (Builder, error) {
-			return &runTestBuilder{directoryArtifact: true}, nil
+		WithBuilderResolver(func(projectType ProjectType) core.Result {
+			return core.Ok(&runTestBuilder{directoryArtifact: true})
 		}),
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -177,10 +197,7 @@ func TestRun_MirrorsDirectoryArtifactsGood(t *testing.T) {
 	}
 
 	binaryPath := ax.Join(bundlePath, "Contents", "MacOS", "core-build")
-	content, err := output.Read(binaryPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireRunString(t, output.Read(binaryPath))
 	if !stdlibAssertEqual("bundle:darwin/arm64", content) {
 		t.Fatalf("want %v, got %v", "bundle:darwin/arm64", content)
 	}
@@ -190,23 +207,18 @@ func TestRun_MirrorsDirectoryArtifactsGood(t *testing.T) {
 func TestRun_UsesLocalTargetWhenBuildConfigMissingGood(t *testing.T) {
 	projectDir := t.TempDir()
 	output := coreio.NewMemoryMedium()
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireRunOKResult(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
-	artifacts, err := Run(
+	artifacts := requireRunArtifacts(t, Run(
 		WithProjectDir(projectDir),
 		WithBuildType(string(ProjectTypeGo)),
 		WithBuildName("core-build"),
 		WithOutput(output),
 		WithOutputDir("releases"),
-		WithBuilderResolver(func(projectType ProjectType) (Builder, error) {
-			return &runTestBuilder{}, nil
+		WithBuilderResolver(func(projectType ProjectType) core.Result {
+			return core.Ok(&runTestBuilder{})
 		}),
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -220,15 +232,11 @@ func TestRun_UsesLocalTargetWhenBuildConfigMissingGood(t *testing.T) {
 
 func TestRun_UsesBuiltinGoResolverWhenResolverUnsetGood(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/builtin\n\ngo 1.24\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireRunOKResult(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/builtin\n\ngo 1.24\n"), 0o644))
+	requireRunOKResult(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
 	output := coreio.NewMemoryMedium()
-	artifacts, err := Run(
+	artifacts := requireRunArtifacts(t, Run(
 		WithProjectDir(projectDir),
 		WithBuildConfig(DefaultConfig()),
 		WithBuildType(string(ProjectTypeGo)),
@@ -236,10 +244,7 @@ func TestRun_UsesBuiltinGoResolverWhenResolverUnsetGood(t *testing.T) {
 		WithTargets(Target{OS: runtime.GOOS, Arch: runtime.GOARCH}),
 		WithOutput(output),
 		WithOutputDir("releases"),
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -260,16 +265,13 @@ func TestRun_UsesBuiltinGoResolverWhenResolverUnsetGood(t *testing.T) {
 func TestRun_Bad_NoBuilderResolverForUnsupportedProjectType(t *testing.T) {
 	projectDir := t.TempDir()
 
-	_, err := Run(
+	err := requireRunError(t, Run(
 		WithProjectDir(projectDir),
 		WithBuildConfig(DefaultConfig()),
 		WithBuildType(string(ProjectTypeNode)),
-	)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "builtin fallback only supports go projects") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "builtin fallback only supports go projects")
+	))
+	if !stdlibAssertContains(err, "builtin fallback only supports go projects") {
+		t.Fatalf("expected %v to contain %v", err, "builtin fallback only supports go projects")
 	}
 
 }
@@ -278,7 +280,7 @@ func TestRun_ForwardsActionPortOverridesGood(t *testing.T) {
 	projectDir := t.TempDir()
 
 	var captured *Config
-	_, err := Run(
+	_ = requireRunArtifacts(t, Run(
 		WithProjectDir(projectDir),
 		WithBuildConfig(DefaultConfig()),
 		WithBuildType(string(ProjectTypeGo)),
@@ -291,14 +293,11 @@ func TestRun_ForwardsActionPortOverridesGood(t *testing.T) {
 		WithDenoBuild("deno task bundle"),
 		WithNpmBuild("npm run bundle"),
 		WithBuildCache(true),
-		WithBuilderResolver(func(projectType ProjectType) (Builder, error) {
-			return &capturingRunTestBuilder{captured: &captured}, nil
+		WithBuilderResolver(func(projectType ProjectType) core.Result {
+			return core.Ok(&capturingRunTestBuilder{captured: &captured})
 		}),
 		WithOutput(coreio.NewMemoryMedium()),
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	))
 	if stdlibAssertNil(captured) {
 		t.Fatal("expected non-nil")
 	}
@@ -933,7 +932,7 @@ func TestRun_WithVersionResolver_Ugly(t *core.T) {
 func TestRun_Run_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Run()
+		_ = Run()
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -942,7 +941,7 @@ func TestRun_Run_Good(t *core.T) {
 func TestRun_Run_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Run()
+		_ = Run()
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -951,7 +950,7 @@ func TestRun_Run_Bad(t *core.T) {
 func TestRun_Run_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Run()
+		_ = Run()
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

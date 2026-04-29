@@ -40,8 +40,8 @@ if [ -n "$dir" ] && [ -n "$name" ]; then
 	printf 'linuxkit image\n' > "$dir/$name.iso"
 fi
 `
-	if err := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -59,16 +59,12 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 
 	t.Run("detects linuxkit.yml in root", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "linuxkit.yml"), []byte("kernel:\n  image: test\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "linuxkit.yml"), []byte("kernel:\n  image: test\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -77,16 +73,12 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 
 	t.Run("detects linuxkit.yaml in root", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "linuxkit.yaml"), []byte("kernel:\n  image: test\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "linuxkit.yaml"), []byte("kernel:\n  image: test\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -96,20 +88,16 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 	t.Run("detects .core/linuxkit/*.yml", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
-		if err := ax.MkdirAll(lkDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(lkDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err := ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n  image: test\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -119,20 +107,16 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 	t.Run("detects .core/linuxkit/*.yaml", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
-		if err := ax.MkdirAll(lkDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(lkDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err := ax.WriteFile(ax.Join(lkDir, "server.yaml"), []byte("kernel:\n  image: test\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(lkDir, "server.yaml"), []byte("kernel:\n  image: test\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -142,25 +126,20 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 	t.Run("detects .core/linuxkit with multiple yml files", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
-		if err := ax.MkdirAll(lkDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(lkDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err := ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err = ax.WriteFile(ax.Join(lkDir, "desktop.yml"), []byte("kernel:\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(lkDir, "desktop.yml"), []byte("kernel:\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -171,10 +150,7 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 		dir := t.TempDir()
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -183,16 +159,12 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 
 	t.Run("returns false for non-LinuxKit project", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -202,15 +174,12 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 	t.Run("returns false for empty .core/linuxkit directory", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
-		if err := ax.MkdirAll(lkDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(lkDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -220,20 +189,16 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 	t.Run("returns false when .core/linuxkit has only non-yml files", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
-		if err := ax.MkdirAll(lkDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(lkDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err := ax.WriteFile(ax.Join(lkDir, "README.md"), []byte("# LinuxKit\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(lkDir, "README.md"), []byte("# LinuxKit\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -243,20 +208,16 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 	t.Run("returns false when .core/linuxkit has only non-yaml files", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
-		if err := ax.MkdirAll(lkDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(lkDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err := ax.WriteFile(ax.Join(lkDir, "README.md"), []byte("# LinuxKit\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(lkDir, "README.md"), []byte("# LinuxKit\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -267,23 +228,16 @@ func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
 		subDir := ax.Join(lkDir, "subdir")
-		if err := ax.MkdirAll(subDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Put yml in subdir only, not in lkDir itself
-				err)
+		if result := ax.MkdirAll(subDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err := ax.WriteFile(ax.Join(subDir, "server.yml"), []byte("kernel:\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(subDir, "server.yml"), []byte("kernel:\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewLinuxKitBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -422,11 +376,11 @@ func TestLinuxKit_LinuxKitBuilderBuild_ResolvesRelativeConfigPathGood(t *testing
 
 	projectDir := t.TempDir()
 	configPath := ax.Join(projectDir, "deploy", "linuxkit.yml")
-	if err := ax.MkdirAll(ax.Dir(configPath), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Dir(configPath), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	outputDir := t.TempDir()
@@ -440,10 +394,7 @@ func TestLinuxKit_LinuxKitBuilderBuild_ResolvesRelativeConfigPathGood(t *testing
 		Formats:        []string{"iso"},
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}}))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -452,7 +403,7 @@ func TestLinuxKit_LinuxKitBuilderBuild_ResolvesRelativeConfigPathGood(t *testing
 	if !stdlibAssertEqual(expectedPath, artifacts[0].Path) {
 		t.Fatalf("want %v, got %v", expectedPath, artifacts[0].Path)
 	}
-	if _, err := ax.Stat(expectedPath); err != nil {
+	if result := ax.Stat(expectedPath); !result.OK {
 		t.Fatalf("expected file to exist: %v", expectedPath)
 	}
 
@@ -465,8 +416,8 @@ func TestLinuxKit_LinuxKitBuilderFindArtifactGood(t *testing.T) {
 	t.Run("finds artifact with exact extension", func(t *testing.T) {
 		dir := t.TempDir()
 		artifactPath := ax.Join(dir, "server-amd64.iso")
-		if err := ax.WriteFile(artifactPath, []byte("fake iso"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(artifactPath, []byte("fake iso"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		found := builder.findArtifact(fs, dir, "server-amd64", "iso")
@@ -490,8 +441,8 @@ func TestLinuxKit_LinuxKitBuilderFindArtifactGood(t *testing.T) {
 		dir := t.TempDir()
 		// Create file matching the name prefix + known image extension
 		artifactPath := ax.Join(dir, "server-amd64.qcow2")
-		if err := ax.WriteFile(artifactPath, []byte("fake qcow2"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(artifactPath, []byte("fake qcow2"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		found := builder.findArtifact(fs, dir, "server-amd64", "qcow2")
@@ -504,8 +455,8 @@ func TestLinuxKit_LinuxKitBuilderFindArtifactGood(t *testing.T) {
 	t.Run("finds cloud image artifacts", func(t *testing.T) {
 		dir := t.TempDir()
 		artifactPath := ax.Join(dir, "server-amd64-gcp.img.tar.gz")
-		if err := ax.WriteFile(artifactPath, []byte("fake gcp image"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(artifactPath, []byte("fake gcp image"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		found := builder.findArtifact(fs, dir, "server-amd64", "gcp")
@@ -518,8 +469,8 @@ func TestLinuxKit_LinuxKitBuilderFindArtifactGood(t *testing.T) {
 	t.Run("finds docker artifacts", func(t *testing.T) {
 		dir := t.TempDir()
 		artifactPath := ax.Join(dir, "server-amd64.docker.tar")
-		if err := ax.WriteFile(artifactPath, []byte("fake docker tar"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(artifactPath, []byte("fake docker tar"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		found := builder.findArtifact(fs, dir, "server-amd64", "docker")
@@ -532,8 +483,8 @@ func TestLinuxKit_LinuxKitBuilderFindArtifactGood(t *testing.T) {
 	t.Run("finds kernel+initrd artifacts", func(t *testing.T) {
 		dir := t.TempDir()
 		artifactPath := ax.Join(dir, "server-amd64-initrd.img")
-		if err := ax.WriteFile(artifactPath, []byte("fake initrd"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(artifactPath, []byte("fake initrd"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		found := builder.findArtifact(fs, dir, "server-amd64", "kernel+initrd")
@@ -550,10 +501,7 @@ func TestLinuxKit_LinuxKitBuilderInterfaceGood(t *testing.T) {
 	if !stdlibAssertEqual("linuxkit", builder.Name()) {
 		t.Fatalf("want %v, got %v", "linuxkit", builder.Name())
 	}
-	detected, err := builder.Detect(nil, t.TempDir())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	detected := requireCPPBool(t, builder.Detect(nil, t.TempDir()))
 	if detected {
 		t.Fatal("expected empty temp directory not to be detected")
 	}
@@ -563,16 +511,13 @@ func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCliGood(t *testing.T) {
 	builder := NewLinuxKitBuilder()
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "linuxkit")
-	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("PATH", "")
 
-	command, err := builder.resolveLinuxKitCli(fallbackPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	command := requireCPPString(t, builder.resolveLinuxKitCli(fallbackPath))
 	if !stdlibAssertEqual(fallbackPath, command) {
 		t.Fatalf("want %v, got %v", fallbackPath, command)
 	}
@@ -583,12 +528,12 @@ func TestLinuxKit_LinuxKitBuilderResolveLinuxKitCliBad(t *testing.T) {
 	builder := NewLinuxKitBuilder()
 	t.Setenv("PATH", "")
 
-	_, err := builder.resolveLinuxKitCli(ax.Join(t.TempDir(), "missing-linuxkit"))
-	if err == nil {
+	result := builder.resolveLinuxKitCli(ax.Join(t.TempDir(), "missing-linuxkit"))
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "linuxkit CLI not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "linuxkit CLI not found")
+	if !stdlibAssertContains(result.Error(), "linuxkit CLI not found") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "linuxkit CLI not found")
 	}
 
 }
@@ -655,7 +600,7 @@ func TestLinuxkit_LinuxKitBuilder_Detect_Good(t *core.T) {
 	subject := &LinuxKitBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -665,7 +610,7 @@ func TestLinuxkit_LinuxKitBuilder_Detect_Bad(t *core.T) {
 	subject := &LinuxKitBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(io.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -675,7 +620,7 @@ func TestLinuxkit_LinuxKitBuilder_Detect_Ugly(t *core.T) {
 	subject := &LinuxKitBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -687,7 +632,7 @@ func TestLinuxkit_LinuxKitBuilder_Build_Good(t *core.T) {
 	subject := &LinuxKitBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -699,7 +644,7 @@ func TestLinuxkit_LinuxKitBuilder_Build_Bad(t *core.T) {
 	subject := &LinuxKitBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -711,7 +656,7 @@ func TestLinuxkit_LinuxKitBuilder_Build_Ugly(t *core.T) {
 	subject := &LinuxKitBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

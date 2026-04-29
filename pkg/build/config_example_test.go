@@ -2,20 +2,6 @@ package build
 
 import core "dappco.re/go"
 
-// ExampleTargetConfig_MarshalJSON references TargetConfig.MarshalJSON on this package API surface.
-func ExampleTargetConfig_MarshalJSON() {
-	_ = (*TargetConfig).MarshalJSON
-	core.Println("TargetConfig.MarshalJSON")
-	// Output: TargetConfig.MarshalJSON
-}
-
-// ExampleTargetConfig_UnmarshalJSON references TargetConfig.UnmarshalJSON on this package API surface.
-func ExampleTargetConfig_UnmarshalJSON() {
-	_ = (*TargetConfig).UnmarshalJSON
-	core.Println("TargetConfig.UnmarshalJSON")
-	// Output: TargetConfig.UnmarshalJSON
-}
-
 // ExampleTargetConfig_MarshalYAML references TargetConfig.MarshalYAML on this package API surface.
 func ExampleTargetConfig_MarshalYAML() {
 	_ = (*TargetConfig).MarshalYAML

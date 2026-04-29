@@ -31,29 +31,26 @@ func TestShouldSkipWatchPath_Good(t *testing.T) {
 
 func TestSnapshotFiles_ExcludesGeneratedOutputsGood(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := ax.MkdirAll(core.PathJoin(projectDir, "cmd"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(core.PathJoin(projectDir, "cmd"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.MkdirAll(core.PathJoin(projectDir, "dist"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(core.PathJoin(projectDir, "dist"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.MkdirAll(core.PathJoin(projectDir, ".git"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(core.PathJoin(projectDir, ".git"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(core.PathJoin(projectDir, "cmd", "main.go"), []byte("package main"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(core.PathJoin(projectDir, "cmd", "main.go"), []byte("package main"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(core.PathJoin(projectDir, "dist", "app"), []byte("binary"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(core.PathJoin(projectDir, "dist", "app"), []byte("binary"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(core.PathJoin(projectDir, ".git", "HEAD"), []byte("ref: refs/heads/dev"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(core.PathJoin(projectDir, ".git", "HEAD"), []byte("ref: refs/heads/dev"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	snapshot, err := snapshotFiles(Config{ProjectDir: projectDir, WatchPaths: []string{projectDir}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	snapshot := requireServiceSnapshot(t, snapshotFiles(Config{ProjectDir: projectDir, WatchPaths: []string{projectDir}}))
 	if !stdlibAssertContains(snapshot, core.PathJoin(projectDir, "cmd", "main.go")) {
 		t.Fatalf("expected %v to contain %v", snapshot, core.PathJoin(projectDir, "cmd", "main.go"))
 	}
@@ -86,23 +83,17 @@ func TestDiffSnapshots_Good(t *testing.T) {
 
 func TestDefaultRunWatchedBuild_WithoutBuildConfig_UsesLocalTargetGood(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(core.PathJoin(projectDir, "go.mod"), []byte("module example.com/daemon\n\ngo 1.20\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(core.PathJoin(projectDir, "go.mod"), []byte("module example.com/daemon\n\ngo 1.20\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(core.PathJoin(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(core.PathJoin(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err := defaultRunWatchedBuild(context.Background(), projectDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireServiceOK(t, defaultRunWatchedBuild(context.Background(), projectDir))
 
 	distDir := core.PathJoin(projectDir, "dist")
-	entries, err := ax.ReadDir(distDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	entries := requireServiceDirEntries(t, ax.ReadDir(distDir))
 	if len(entries) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(entries))
 	}
@@ -110,10 +101,7 @@ func TestDefaultRunWatchedBuild_WithoutBuildConfig_UsesLocalTargetGood(t *testin
 		t.Fatalf("want %v, got %v", runtime.GOOS+"_"+runtime.GOARCH, entries[0].Name())
 	}
 
-	platformEntries, err := ax.ReadDir(core.PathJoin(distDir, entries[0].Name()))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	platformEntries := requireServiceDirEntries(t, ax.ReadDir(core.PathJoin(distDir, entries[0].Name())))
 	if len(platformEntries) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(platformEntries))
 	}

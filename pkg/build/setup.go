@@ -59,17 +59,17 @@ type SetupPlan struct {
 // ComputeSetupPlan derives the action-style setup requirements from discovery
 // and config. When discovery is nil the function performs a fresh DiscoverFull
 // pass using the provided filesystem and directory.
-func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *DiscoveryResult) (*SetupPlan, error) {
+func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *DiscoveryResult) core.Result {
 	if fs == nil {
 		fs = io.Local
 	}
 
 	if discovery == nil {
-		var err error
-		discovery, err = DiscoverFull(fs, dir)
-		if err != nil {
-			return nil, err
+		discovered := DiscoverFull(fs, dir)
+		if !discovered.OK {
+			return discovered
 		}
+		discovery = discovered.Value.(*DiscoveryResult)
 	}
 
 	configuredType := resolveConfiguredBuildType(cfg, discovery)
@@ -135,7 +135,7 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 		plan.addStep(SetupToolDeno, "Deno manifest or override detected")
 	}
 
-	return plan, nil
+	return core.Ok(plan)
 }
 
 func pythonSetupReason(hasPython, hasCPP, hasDocs bool) string {
@@ -195,12 +195,12 @@ func collectFrontendSetupDirs(fs io.Medium, dir string, depth int, dirs *[]strin
 		return
 	}
 
-	entries, err := fs.List(dir)
-	if err != nil {
+	entriesResult := fs.List(dir)
+	if !entriesResult.OK {
 		return
 	}
 
-	for _, entry := range entries {
+	for _, entry := range entriesResult.Value.([]core.FsDirEntry) {
 		if !entry.IsDir() {
 			continue
 		}

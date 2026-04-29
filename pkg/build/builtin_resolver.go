@@ -7,19 +7,18 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
-func resolveBuiltinBuilder(projectType ProjectType) (Builder, error) {
+func resolveBuiltinBuilder(projectType ProjectType) core.Result {
 	switch projectType {
 	case ProjectTypeGo:
-		return &builtinGoBuilder{}, nil
+		return core.Ok(&builtinGoBuilder{})
 	default:
-		return nil, coreerr.E(
+		return core.Fail(core.E(
 			"build.resolveBuiltinBuilder",
 			"no builder resolver registered; builtin fallback only supports go projects (requested "+string(projectType)+")",
 			nil,
-		)
+		))
 	}
 }
 
@@ -27,13 +26,13 @@ type builtinGoBuilder struct{}
 
 func (b *builtinGoBuilder) Name() string { return "go" }
 
-func (b *builtinGoBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return IsGoProject(fs, dir), nil
+func (b *builtinGoBuilder) Detect(fs io.Medium, dir string) core.Result {
+	return core.Ok(IsGoProject(fs, dir))
 }
 
-func (b *builtinGoBuilder) Build(ctx context.Context, cfg *Config, targets []Target) ([]Artifact, error) {
+func (b *builtinGoBuilder) Build(ctx context.Context, cfg *Config, targets []Target) core.Result {
 	if cfg == nil {
-		return nil, coreerr.E("builtinGoBuilder.Build", "config is nil", nil)
+		return core.Fail(core.E("builtinGoBuilder.Build", "config is nil", nil))
 	}
 
 	if len(targets) == 0 {
@@ -49,23 +48,24 @@ func (b *builtinGoBuilder) Build(ctx context.Context, cfg *Config, targets []Tar
 	if outputDir == "" {
 		outputDir = ax.Join(cfg.ProjectDir, "dist")
 	}
-	if err := filesystem.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("builtinGoBuilder.Build", "failed to create output directory", err)
+	created := filesystem.EnsureDir(outputDir)
+	if !created.OK {
+		return core.Fail(core.E("builtinGoBuilder.Build", "failed to create output directory", core.NewError(created.Error())))
 	}
 
 	artifacts := make([]Artifact, 0, len(targets))
 	for _, target := range targets {
-		artifact, err := b.buildTarget(ctx, filesystem, cfg, outputDir, target)
-		if err != nil {
-			return artifacts, coreerr.E("builtinGoBuilder.Build", "failed to build "+target.String(), err)
+		artifactResult := b.buildTarget(ctx, filesystem, cfg, outputDir, target)
+		if !artifactResult.OK {
+			return core.Fail(core.E("builtinGoBuilder.Build", "failed to build "+target.String(), core.NewError(artifactResult.Error())))
 		}
-		artifacts = append(artifacts, artifact)
+		artifacts = append(artifacts, artifactResult.Value.(Artifact))
 	}
 
-	return artifacts, nil
+	return core.Ok(artifacts)
 }
 
-func (b *builtinGoBuilder) buildTarget(ctx context.Context, filesystem io.Medium, cfg *Config, outputDir string, target Target) (Artifact, error) {
+func (b *builtinGoBuilder) buildTarget(ctx context.Context, filesystem io.Medium, cfg *Config, outputDir string, target Target) core.Result {
 	binaryName := cfg.Name
 	if binaryName == "" {
 		binaryName = cfg.Project.Binary
@@ -82,8 +82,9 @@ func (b *builtinGoBuilder) buildTarget(ctx context.Context, filesystem io.Medium
 	}
 
 	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
-	if err := filesystem.EnsureDir(platformDir); err != nil {
-		return Artifact{}, coreerr.E("builtinGoBuilder.buildTarget", "failed to create platform directory", err)
+	created := filesystem.EnsureDir(platformDir)
+	if !created.OK {
+		return core.Fail(core.E("builtinGoBuilder.buildTarget", "failed to create platform directory", core.NewError(created.Error())))
 	}
 
 	outputPath := ax.Join(platformDir, binaryName)
@@ -101,11 +102,11 @@ func (b *builtinGoBuilder) buildTarget(ctx context.Context, filesystem io.Medium
 
 	ldflags := append([]string{}, cfg.LDFlags...)
 	if cfg.Version != "" && !builtinHasVersionLDFlag(ldflags) {
-		versionFlag, err := VersionLinkerFlag(cfg.Version)
-		if err != nil {
-			return Artifact{}, err
+		versionFlag := VersionLinkerFlag(cfg.Version)
+		if !versionFlag.OK {
+			return versionFlag
 		}
-		ldflags = append(ldflags, versionFlag)
+		ldflags = append(ldflags, versionFlag.Value.(string))
 	}
 	if len(ldflags) > 0 {
 		args = append(args, "-ldflags", core.Join(" ", ldflags...))
@@ -142,27 +143,27 @@ func (b *builtinGoBuilder) buildTarget(ctx context.Context, filesystem io.Medium
 	}
 
 	command := "go"
-	var err error
 	if cfg.Obfuscate {
-		command, err = resolveBuiltinGarbleCli()
-		if err != nil {
-			return Artifact{}, err
+		resolved := resolveBuiltinGarbleCli()
+		if !resolved.OK {
+			return resolved
 		}
+		command = resolved.Value.(string)
 	}
 
-	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, command, args...)
-	if err != nil {
-		return Artifact{}, coreerr.E("builtinGoBuilder.buildTarget", command+" build failed: "+output, err)
+	output := ax.CombinedOutput(ctx, cfg.ProjectDir, env, command, args...)
+	if !output.OK {
+		return core.Fail(core.E("builtinGoBuilder.buildTarget", command+" build failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	return Artifact{
+	return core.Ok(Artifact{
 		Path: outputPath,
 		OS:   target.OS,
 		Arch: target.Arch,
-	}, nil
+	})
 }
 
-func resolveBuiltinGarbleCli(paths ...string) (string, error) {
+func resolveBuiltinGarbleCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/garble",
@@ -176,12 +177,12 @@ func resolveBuiltinGarbleCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("garble", paths...)
-	if err != nil {
-		return "", coreerr.E("builtinGoBuilder.resolveGarbleCli", "garble CLI not found. Install it with: go install mvdan.cc/garble@latest", err)
+	command := ax.ResolveCommand("garble", paths...)
+	if !command.OK {
+		return core.Fail(core.E("builtinGoBuilder.resolveGarbleCli", "garble CLI not found. Install it with: go install mvdan.cc/garble@latest", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }
 
 func builtinGarbleInstallPaths() []string {

@@ -17,31 +17,71 @@ const releaseMetaOSField = "o" + "s"
 func assertFindArtifacts(t *testing.T, distDir string, wantLen int) []build.Artifact {
 	t.Helper()
 
-	artifacts, err := findArtifacts(io.Local, distDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireReleaseArtifacts(t, findArtifacts(io.Local, distDir))
 	if len(artifacts) != wantLen {
 		t.Fatalf("want len %v, got %v", wantLen, len(artifacts))
 	}
 	return artifacts
 }
 
+func requireReleaseArtifacts(t *testing.T, result core.Result) []build.Artifact {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]build.Artifact)
+}
+
+func requireReleaseValue(t *testing.T, result core.Result) *Release {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*Release)
+}
+
+func requireReleaseNamed(t *testing.T, result core.Result) interface{ Name() string } {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(interface{ Name() string })
+}
+
+func requireReleaseProjectType(t *testing.T, result core.Result) build.ProjectType {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(build.ProjectType)
+}
+
+func requireReleaseError(t *testing.T, result core.Result) string {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	return result.Error()
+}
+
+func requireReleaseBytes(t *testing.T, result core.Result) []byte {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]byte)
+}
+
 func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("finds tar.gz artifacts", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Create test artifact files
-				err)
+		requireReleaseConfigOKResult(t, ax.MkdirAll(distDir, 0755))
+		if result := ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-darwin-arm64.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app-darwin-arm64.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 2)
@@ -54,11 +94,11 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("finds tar.xz artifacts", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.xz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.xz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 1)
@@ -71,11 +111,11 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("finds zip artifacts", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-windows-amd64.zip"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app-windows-amd64.zip"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 1)
@@ -88,11 +128,11 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("finds checksum files", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 1)
@@ -105,11 +145,11 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("ignores unrelated text files", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "release-notes.txt"), []byte("notes"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "release-notes.txt"), []byte("notes"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 0)
@@ -122,11 +162,11 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("finds signature files", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz.sig"), []byte("signature"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.gz.sig"), []byte("signature"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 1)
@@ -139,11 +179,11 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("finds asc signature files", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt.asc"), []byte("signature"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt.asc"), []byte("signature"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 1)
@@ -156,23 +196,23 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("finds mixed artifact types", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-linux-arm64.tar.xz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app-linux-arm64.tar.xz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-windows.zip"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app-windows.zip"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.sig"), []byte("sig"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.sig"), []byte("sig"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 5)
@@ -185,20 +225,20 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("ignores non-artifact files", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "README.md"), []byte("readme"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "README.md"), []byte("readme"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.exe"), []byte("binary"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.exe"), []byte("binary"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.xz"), []byte("artifact"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.xz"), []byte("artifact"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 2)
@@ -211,17 +251,17 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("finds nested archived artifacts in subdirectories", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.MkdirAll(ax.Join(distDir, "subdir"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Join(distDir, "subdir"), 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "subdir", "nested.tar.gz"), []byte("nested"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "subdir", "nested.tar.gz"), []byte("nested"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 2)
@@ -234,20 +274,20 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("falls back to raw platform artifacts when no archives exist", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.MkdirAll(ax.Join(distDir, "windows_amd64"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Join(distDir, "windows_amd64"), 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "linux_amd64", "myapp"), []byte("binary"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "linux_amd64", "myapp"), []byte("binary"), 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "windows_amd64", "myapp.exe"), []byte("binary"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "windows_amd64", "myapp.exe"), []byte("binary"), 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "linux_amd64", "artifact_meta.json"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "linux_amd64", "artifact_meta.json"), []byte("{}"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 2)
@@ -275,14 +315,14 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("includes checksum artifacts alongside raw platform artifacts", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "linux_amd64", "myapp"), []byte("binary"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "linux_amd64", "myapp"), []byte("binary"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 2)
@@ -296,11 +336,11 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
 		platformDir := ax.Join(distDir, "go", "linux_amd64")
-		if err := ax.MkdirAll(platformDir, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(platformDir, 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(platformDir, "myapp"), []byte("binary"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(platformDir, "myapp"), []byte("binary"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 1)
@@ -320,14 +360,14 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
 		platformDir := ax.Join(distDir, "darwin_arm64")
-		if err := ax.MkdirAll(ax.Join(platformDir, "TestApp.app"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Join(platformDir, "TestApp.app"), 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.MkdirAll(ax.Join(platformDir, "TestApp.app", "Contents"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Join(platformDir, "TestApp.app", "Contents"), 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(platformDir, "TestApp.app", "Contents", "Info.plist"), []byte("<plist/>"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(platformDir, "TestApp.app", "Contents", "Info.plist"), []byte("<plist/>"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 1)
@@ -346,8 +386,8 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("returns empty slice for empty dist directory", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		artifacts := assertFindArtifacts(t, distDir, 0)
@@ -361,11 +401,11 @@ func TestRelease_FindArtifactsGood(t *testing.T) {
 func TestRelease_Publish_ValidatesPublisherBeforePublish_Bad(t *testing.T) {
 	dir := t.TempDir()
 	distDir := ax.Join(dir, "dist")
-	if err := ax.MkdirAll(distDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(distDir, 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("artifact"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	cfg := DefaultConfig()
@@ -373,12 +413,9 @@ func TestRelease_Publish_ValidatesPublisherBeforePublish_Bad(t *testing.T) {
 	cfg.SetVersion("v1.0.0")
 	cfg.Publishers = []PublisherConfig{{Type: "npm"}}
 
-	_, err := Publish(context.Background(), cfg, true)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "validate publisher npm failed") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "validate publisher npm failed")
+	err := requireReleaseError(t, Publish(context.Background(), cfg, true))
+	if !stdlibAssertContains(err, "validate publisher npm failed") {
+		t.Fatalf("expected %v to contain %v", err, "validate publisher npm failed")
 	}
 
 }
@@ -388,12 +425,9 @@ func TestRelease_FindArtifactsBad(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
 
-		_, err := findArtifacts(io.Local, distDir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "dist/ directory not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "dist/ directory not found")
+		err := requireReleaseError(t, findArtifacts(io.Local, distDir))
+		if !stdlibAssertContains(err, "dist/ directory not found") {
+			t.Fatalf("expected %v to contain %v", err, "dist/ directory not found")
 		}
 
 	})
@@ -404,25 +438,14 @@ func TestRelease_FindArtifactsBad(t *testing.T) {
 		}
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v",
+		requireReleaseConfigOKResult(t, ax.MkdirAll(distDir, 0755))
+		requireReleaseConfigOKResult(t, ax.Chmod(distDir, 0000))
 
-				// Create a file that looks like dist but will cause ReadDir to fail
-				// by making the directory unreadable
-				err)
-		}
-		if err := ax.Chmod(distDir, 0000); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		defer func() { requireReleaseConfigOKResult(t, ax.Chmod(distDir, 0755)) }()
 
-		defer func() { _ = ax.Chmod(distDir, 0755) }()
-
-		_, err := findArtifacts(io.Local, distDir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read dist/") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read dist/")
+		err := requireReleaseError(t, findArtifacts(io.Local, distDir))
+		if !stdlibAssertContains(err, "failed to read dist/") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read dist/")
 		}
 
 	})
@@ -430,10 +453,7 @@ func TestRelease_FindArtifactsBad(t *testing.T) {
 
 func TestRelease_GetBuilderGood(t *testing.T) {
 	t.Run("returns Go builder for go project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypeGo)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypeGo))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -444,10 +464,7 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 	})
 
 	t.Run("returns Wails builder for wails project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypeWails)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypeWails))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -458,10 +475,7 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 	})
 
 	t.Run("returns Node builder for node project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypeNode)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypeNode))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -472,10 +486,7 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 	})
 
 	t.Run("returns PHP builder for php project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypePHP)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypePHP))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -486,10 +497,7 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 	})
 
 	t.Run("returns Python builder for python project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypePython)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypePython))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -500,10 +508,7 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 	})
 
 	t.Run("returns Rust builder for rust project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypeRust)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypeRust))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -514,10 +519,7 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 	})
 
 	t.Run("returns C++ builder for cpp project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypeCPP)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypeCPP))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -528,10 +530,7 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 	})
 
 	t.Run("returns Docker builder for docker project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypeDocker)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypeDocker))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -542,10 +541,7 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 	})
 
 	t.Run("returns LinuxKit builder for linuxkit project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypeLinuxKit)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypeLinuxKit))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -556,10 +552,7 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 	})
 
 	t.Run("returns Taskfile builder for taskfile project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypeTaskfile)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireReleaseNamed(t, getBuilder(build.ProjectTypeTaskfile))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -572,12 +565,9 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 
 func TestRelease_GetBuilderBad(t *testing.T) {
 	t.Run("returns error for unsupported project type", func(t *testing.T) {
-		_, err := getBuilder(build.ProjectType("unknown"))
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "unsupported project type") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "unsupported project type")
+		err := requireReleaseError(t, getBuilder(build.ProjectType("unknown")))
+		if !stdlibAssertContains(err, "unsupported project type") {
+			t.Fatalf("expected %v to contain %v", err, "unsupported project type")
 		}
 
 	})
@@ -600,10 +590,7 @@ func TestRelease_GetPublisherGood(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.pubType, func(t *testing.T) {
-			publisher, err := getPublisher(tc.pubType)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			publisher := requireReleaseNamed(t, getPublisher(tc.pubType))
 			if stdlibAssertNil(publisher) {
 				t.Fatal("expected non-nil")
 			}
@@ -617,23 +604,17 @@ func TestRelease_GetPublisherGood(t *testing.T) {
 
 func TestRelease_GetPublisherBad(t *testing.T) {
 	t.Run("returns error for unsupported publisher type", func(t *testing.T) {
-		_, err := getPublisher("unsupported")
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "unsupported publisher type: unsupported") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "unsupported publisher type: unsupported")
+		err := requireReleaseError(t, getPublisher("unsupported"))
+		if !stdlibAssertContains(err, "unsupported publisher type: unsupported") {
+			t.Fatalf("expected %v to contain %v", err, "unsupported publisher type: unsupported")
 		}
 
 	})
 
 	t.Run("returns error for empty publisher type", func(t *testing.T) {
-		_, err := getPublisher("")
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "unsupported publisher type") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "unsupported publisher type")
+		err := requireReleaseError(t, getPublisher(""))
+		if !stdlibAssertContains(err, "unsupported publisher type") {
+			t.Fatalf("expected %v to contain %v", err, "unsupported publisher type")
 		}
 
 	})
@@ -643,10 +624,7 @@ func TestRelease_ResolveProjectTypeGood(t *testing.T) {
 	t.Run("honours explicit build type override", func(t *testing.T) {
 		dir := t.TempDir()
 
-		projectType, err := resolveProjectType(io.Local, dir, "docker")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		projectType := requireReleaseProjectType(t, resolveProjectType(io.Local, dir, "docker"))
 		if !stdlibAssertEqual(build.ProjectTypeDocker, projectType) {
 			t.Fatalf("want %v, got %v", build.ProjectTypeDocker, projectType)
 		}
@@ -655,14 +633,11 @@ func TestRelease_ResolveProjectTypeGood(t *testing.T) {
 
 	t.Run("falls back to marker detection when build type is empty", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		projectType, err := resolveProjectType(io.Local, dir, "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		projectType := requireReleaseProjectType(t, resolveProjectType(io.Local, dir, ""))
 		if !stdlibAssertEqual(build.ProjectTypeGo, projectType) {
 			t.Fatalf("want %v, got %v", build.ProjectTypeGo, projectType)
 		}
@@ -900,14 +875,14 @@ func TestRelease_Publish_Good(t *testing.T) {
 	t.Run("returns release with version from config", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.xz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.xz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := DefaultConfig()
@@ -915,10 +890,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 		cfg.SetVersion("v1.0.0")
 		cfg.Publishers = nil // No publishers to avoid network calls
 
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if !stdlibAssertEqual("v1.0.0", release.Version) {
 			t.Fatalf("want %v, got %v", "v1.0.0", release.Version)
 		}
@@ -931,20 +903,20 @@ func TestRelease_Publish_Good(t *testing.T) {
 	t.Run("finds artifacts in dist directory", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app-linux.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-linux.tar.xz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app-linux.tar.xz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app-darwin.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app-darwin.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := DefaultConfig()
@@ -952,10 +924,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 		cfg.SetVersion("v1.0.0")
 		cfg.Publishers = nil
 
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if len(release.Artifacts) != 4 {
 			t.Fatalf("want len %v, got %v", 4, len(release.Artifacts))
 		}
@@ -965,14 +934,14 @@ func TestRelease_Publish_Good(t *testing.T) {
 	t.Run("keeps raw platform artifacts when checksums exist without archives", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Join(distDir, "linux_amd64"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "linux_amd64", "app"), []byte("binary"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "linux_amd64", "app"), []byte("binary"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "CHECKSUMS.txt"), []byte("checksums"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := DefaultConfig()
@@ -980,10 +949,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 		cfg.SetVersion("v1.0.0")
 		cfg.Publishers = nil
 
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if !stdlibAssertContains(release.Artifacts, build.Artifact{Path: ax.Join(distDir, "linux_amd64", "app"), OS: "linux", Arch: "amd64"}) {
 			t.Fatalf("expected %v to contain %v", release.Artifacts, build.Artifact{Path: ax.Join(distDir, "linux_amd64", "app"), OS: "linux", Arch: "amd64"})
 		}
@@ -995,12 +961,8 @@ func TestRelease_Publish_Good(t *testing.T) {
 
 	t.Run("reads artifacts from configured output medium", func(t *testing.T) {
 		medium := io.NewMemoryMedium()
-		if err := medium.Write("releases/app-linux-amd64.tar.gz", "artifact"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := medium.Write("releases/CHECKSUMS.txt", "checksums"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireReleaseConfigOKResult(t, medium.Write("releases/app-linux-amd64.tar.gz", "artifact"))
+		requireReleaseConfigOKResult(t, medium.Write("releases/CHECKSUMS.txt", "checksums"))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(t.TempDir())
@@ -1008,10 +970,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 		cfg.SetOutput(medium, "releases")
 		cfg.Publishers = nil
 
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if len(release.Artifacts) != 2 {
 			t.Fatalf("want len %v, got %v", 2, len(release.Artifacts))
 		}
@@ -1032,12 +991,8 @@ func TestRelease_Publish_Good(t *testing.T) {
 
 	t.Run("reads artifacts from medium root when output dir is unset", func(t *testing.T) {
 		medium := io.NewMemoryMedium()
-		if err := medium.Write("app-linux-amd64.tar.gz", "artifact"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := medium.Write("CHECKSUMS.txt", "checksums"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireReleaseConfigOKResult(t, medium.Write("app-linux-amd64.tar.gz", "artifact"))
+		requireReleaseConfigOKResult(t, medium.Write("CHECKSUMS.txt", "checksums"))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(t.TempDir())
@@ -1045,10 +1000,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 		cfg.SetOutputMedium(medium)
 		cfg.Publishers = nil
 
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if len(release.Artifacts) != 2 {
 			t.Fatalf("want len %v, got %v", 2, len(release.Artifacts))
 		}
@@ -1064,12 +1016,9 @@ func TestRelease_Publish_Good(t *testing.T) {
 
 func TestRelease_Publish_Bad(t *testing.T) {
 	t.Run("returns error when config is nil", func(t *testing.T) {
-		_, err := Publish(context.Background(), nil, true)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "config is nil") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "config is nil")
+		err := requireReleaseError(t, Publish(context.Background(), nil, true))
+		if !stdlibAssertContains(err, "config is nil") {
+			t.Fatalf("expected %v to contain %v", err, "config is nil")
 		}
 
 	})
@@ -1081,12 +1030,9 @@ func TestRelease_Publish_Bad(t *testing.T) {
 		cfg.SetProjectDir(dir)
 		cfg.SetVersion("v1.0.0")
 
-		_, err := Publish(context.Background(), cfg, true)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "dist/ directory not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "dist/ directory not found")
+		err := requireReleaseError(t, Publish(context.Background(), cfg, true))
+		if !stdlibAssertContains(err, "dist/ directory not found") {
+			t.Fatalf("expected %v to contain %v", err, "dist/ directory not found")
 		}
 
 	})
@@ -1094,20 +1040,17 @@ func TestRelease_Publish_Bad(t *testing.T) {
 	t.Run("returns error when no artifacts found", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
 		cfg.SetVersion("v1.0.0")
 
-		_, err := Publish(context.Background(), cfg, true)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "no artifacts found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "no artifacts found")
+		err := requireReleaseError(t, Publish(context.Background(), cfg, true))
+		if !stdlibAssertContains(err, "no artifacts found") {
+			t.Fatalf("expected %v to contain %v", err, "no artifacts found")
 		}
 
 	})
@@ -1115,11 +1058,11 @@ func TestRelease_Publish_Bad(t *testing.T) {
 	t.Run("returns error for unsupported publisher", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := DefaultConfig()
@@ -1129,12 +1072,9 @@ func TestRelease_Publish_Bad(t *testing.T) {
 			{Type: "unsupported"},
 		}
 
-		_, err := Publish(context.Background(), cfg, true)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "unsupported publisher type") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "unsupported publisher type")
+		err := requireReleaseError(t, Publish(context.Background(), cfg, true))
+		if !stdlibAssertContains(err, "unsupported publisher type") {
+			t.Fatalf("expected %v to contain %v", err, "unsupported publisher type")
 		}
 
 	})
@@ -1142,14 +1082,10 @@ func TestRelease_Publish_Bad(t *testing.T) {
 	t.Run("returns error when version determination fails in non-git dir", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-
-			// Don't set version - let it try to determine from git
-		}
+		requireReleaseConfigOKResult(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -1158,10 +1094,7 @@ func TestRelease_Publish_Bad(t *testing.T) {
 
 		// In a non-git directory, DetermineVersion returns v0.0.1 as default
 		// so we verify that the publish proceeds without error
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if !stdlibAssertEqual("v0.0.1", release.Version) {
 			t.Fatalf("want %v, got %v", "v0.0.1", release.Version)
 		}
@@ -1179,19 +1112,14 @@ func TestRelease_Run_Good(t *testing.T) {
 
 go 1.21
 `
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0644); err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Create main.go
-				err)
-		}
+		requireReleaseConfigOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0644))
 
 		mainGo := `package main
 
 func main() {}
 `
-		if err := ax.WriteFile(ax.Join(dir, "main.go"), []byte(mainGo), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte(mainGo), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := DefaultConfig()
@@ -1203,15 +1131,16 @@ func main() {}
 
 		// Note: This test will actually try to build, which may fail in CI
 		// So we just test that the function accepts the config properly
-		release, err := Run(context.Background(), cfg, true)
-		if err != nil {
+		runResult := Run(context.Background(), cfg, true)
+		if !runResult.OK {
 			if !stdlibAssertContains(
 				// Build might fail in test environment, but we still verify the error message
-				err.Error(), "build") {
-				t.Fatalf("expected %v to contain %v", err.Error(), "build")
+				runResult.Error(), "build") {
+				t.Fatalf("expected %v to contain %v", runResult.Error(), "build")
 			}
 
 		} else {
+			release := runResult.Value.(*Release)
 			if !stdlibAssertEqual("v1.0.0", release.Version) {
 				t.Fatalf("want %v, got %v", "v1.0.0", release.Version)
 			}
@@ -1221,11 +1150,11 @@ func main() {}
 
 	t.Run("mirrors artifacts to configured output medium", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module testapp\n\ngo 1.21\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module testapp\n\ngo 1.21\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		medium := io.NewMemoryMedium()
@@ -1238,10 +1167,7 @@ func main() {}
 		cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 		cfg.Publishers = nil
 
-		release, err := Run(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Run(context.Background(), cfg, true))
 		if stdlibAssertNil(release) {
 			t.Fatal("expected non-nil")
 		}
@@ -1269,11 +1195,11 @@ func main() {}
 
 	t.Run("mirrors artifacts to medium root when output dir is unset", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module testapp\n\ngo 1.21\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module testapp\n\ngo 1.21\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		medium := io.NewMemoryMedium()
@@ -1286,10 +1212,7 @@ func main() {}
 		cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 		cfg.Publishers = nil
 
-		release, err := Run(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Run(context.Background(), cfg, true))
 		if stdlibAssertNil(release) {
 			t.Fatal("expected non-nil")
 		}
@@ -1321,12 +1244,9 @@ func main() {}
 
 func TestRelease_Run_Bad(t *testing.T) {
 	t.Run("returns error when config is nil", func(t *testing.T) {
-		_, err := Run(context.Background(), nil, true)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "config is nil") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "config is nil")
+		err := requireReleaseError(t, Run(context.Background(), nil, true))
+		if !stdlibAssertContains(err, "config is nil") {
+			t.Fatalf("expected %v to contain %v", err, "config is nil")
 		}
 
 	})
@@ -1345,17 +1265,14 @@ func TestRelease_Run_Bad(t *testing.T) {
 		}()
 
 		called := false
-		generateReleaseChangelogFn = func(ctx context.Context, projectDir, version string, cfg *Config) (string, error) {
+		generateReleaseChangelogFn = func(ctx context.Context, projectDir, version string, cfg *Config) core.Result {
 			called = true
-			return "", nil
+			return core.Ok("")
 		}
 
-		_, err := Run(context.Background(), cfg, true)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "invalid release version override") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "invalid release version override")
+		err := requireReleaseError(t, Run(context.Background(), cfg, true))
+		if !stdlibAssertContains(err, "invalid release version override") {
+			t.Fatalf("expected %v to contain %v", err, "invalid release version override")
 		}
 		if called {
 			t.Fatal("changelog generation should not run for unsafe versions")
@@ -1396,24 +1313,17 @@ func TestRelease_PublishVersionFromGitGood(t *testing.T) {
 
 		// Create dist directory with artifact
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-
-			// Don't set version - let it be determined from git
-		}
+		requireReleaseConfigOKResult(t, ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644))
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
 
 		cfg.Publishers = nil
 
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if !stdlibAssertEqual("v1.2.3", release.Version) {
 			t.Fatalf("want %v, got %v", "v1.2.3", release.Version)
 		}
@@ -1431,11 +1341,11 @@ func TestRelease_PublishChangelogGenerationGood(t *testing.T) {
 
 		// Create dist directory with artifact
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := DefaultConfig()
@@ -1443,13 +1353,7 @@ func TestRelease_PublishChangelogGenerationGood(t *testing.T) {
 		cfg.SetVersion("v1.0.1")
 		cfg.Publishers = nil
 
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Changelog should contain either the commit message or the version
-				err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if !stdlibAssertContains(release.Changelog, "v1.0.1") {
 			t.Fatalf("expected %v to contain %v", release.Changelog, "v1.0.1")
 		}
@@ -1459,11 +1363,11 @@ func TestRelease_PublishChangelogGenerationGood(t *testing.T) {
 	t.Run("uses fallback changelog on error", func(t *testing.T) {
 		dir := t.TempDir() // Not a git repo
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := DefaultConfig()
@@ -1471,13 +1375,7 @@ func TestRelease_PublishChangelogGenerationGood(t *testing.T) {
 		cfg.SetVersion("v1.0.0")
 		cfg.Publishers = nil
 
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Should use fallback changelog
-				err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if !stdlibAssertContains(release.Changelog, "Release v1.0.0") {
 			t.Fatalf("expected %v to contain %v", release.Changelog, "Release v1.0.0")
 		}
@@ -1490,11 +1388,11 @@ func TestRelease_PublishDefaultProjectDirGood(t *testing.T) {
 		// Create artifacts in current directory's dist folder
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
-		if err := ax.MkdirAll(distDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(distDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(distDir, "app.tar.gz"), []byte("test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := DefaultConfig()
@@ -1502,10 +1400,7 @@ func TestRelease_PublishDefaultProjectDirGood(t *testing.T) {
 		cfg.SetVersion("v1.0.0")
 		cfg.Publishers = nil
 
-		release, err := Publish(context.Background(), cfg, true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 		if stdlibAssertEmpty(release.ProjectDir) {
 			t.Fatal("expected non-empty")
 		}
@@ -1519,11 +1414,11 @@ func TestRelease_BuildArtifacts_SignsChecksumsGood(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	gpgDir := t.TempDir()
@@ -1548,8 +1443,8 @@ fi
 
 : > "$out"
 `
-	if err := ax.WriteFile(gpgPath, []byte(gpgScript), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(gpgPath, []byte(gpgScript), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	oldPath := core.Getenv("PATH")
@@ -1567,10 +1462,7 @@ fi
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 
 	var sawChecksumSignature bool
 	var sawXzArchive bool
@@ -1588,19 +1480,17 @@ fi
 	if !(sawXzArchive) {
 		t.Fatal("expected true")
 	}
-	if _, err := ax.Stat(ax.Join(dir, "dist", "CHECKSUMS.txt.asc")); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(dir, "dist", "CHECKSUMS.txt.asc"))
-	}
+	requireReleaseConfigOKResult(t, ax.Stat(ax.Join(dir, "dist", "CHECKSUMS.txt.asc")))
 
 }
 
 func TestRelease_BuildArtifacts_UsesConfiguredChecksumFileGood(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	oldSignChecksums := signReleaseChecksums
@@ -1609,9 +1499,9 @@ func TestRelease_BuildArtifacts_UsesConfiguredChecksumFileGood(t *testing.T) {
 	}()
 
 	var checksumPaths []string
-	signReleaseChecksums = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, checksumFile string) error {
+	signReleaseChecksums = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, checksumFile string) core.Result {
 		checksumPaths = append(checksumPaths, checksumFile)
-		return nil
+		return core.Ok(nil)
 	}
 
 	cfg := DefaultConfig()
@@ -1621,18 +1511,13 @@ func TestRelease_BuildArtifacts_UsesConfiguredChecksumFileGood(t *testing.T) {
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 
 	customChecksumPath := ax.Join(dir, "dist", "checksums.txt")
 	if !stdlibAssertEqual([]string{customChecksumPath}, checksumPaths) {
 		t.Fatalf("want %v, got %v", []string{customChecksumPath}, checksumPaths)
 	}
-	if _, err := ax.Stat(customChecksumPath); err != nil {
-		t.Fatalf("expected file to exist: %v", customChecksumPath)
-	}
+	requireReleaseConfigOKResult(t, ax.Stat(customChecksumPath))
 
 	var sawChecksum bool
 	for _, artifact := range artifacts {
@@ -1649,16 +1534,16 @@ func TestRelease_BuildArtifacts_UsesConfiguredChecksumFileGood(t *testing.T) {
 
 func TestRelease_BuildArtifacts_SignsBinariesBeforeArchivingGood(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(`
+	if result := ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(`
 version: 1
 project:
   name: signedapp
@@ -1678,8 +1563,8 @@ sign:
 targets:
   - os: `+runtime.GOOS+`
     arch: `+runtime.GOARCH+`
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	oldSignBinaries := signReleaseBinaries
@@ -1695,7 +1580,7 @@ targets:
 	var notarizedPaths []string
 	var checksumPaths []string
 
-	signReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) error {
+	signReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) core.Result {
 		if !(cfg.Enabled) {
 			t.Fatal("expected true")
 		}
@@ -1704,9 +1589,9 @@ targets:
 		}
 
 		signedPaths = append(signedPaths, artifacts[0].Path)
-		return nil
+		return core.Ok(nil)
 	}
-	notarizeReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) error {
+	notarizeReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) core.Result {
 		if !(cfg.Enabled) {
 			t.Fatal("expected true")
 		}
@@ -1715,15 +1600,15 @@ targets:
 		}
 
 		notarizedPaths = append(notarizedPaths, artifacts[0].Path)
-		return nil
+		return core.Ok(nil)
 	}
-	signReleaseChecksums = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, checksumFile string) error {
+	signReleaseChecksums = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, checksumFile string) core.Result {
 		if !(cfg.Enabled) {
 			t.Fatal("expected true")
 		}
 
 		checksumPaths = append(checksumPaths, checksumFile)
-		return nil
+		return core.Ok(nil)
 	}
 
 	cfg := DefaultConfig()
@@ -1732,10 +1617,7 @@ targets:
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 	if !stdlibAssertEqual([]string{ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "signedapp")}, signedPaths) {
 		t.Fatalf("want %v, got %v", []string{ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "signedapp")}, signedPaths)
 	}
@@ -1762,14 +1644,14 @@ targets:
 func TestRelease_Publish_IncludesConfiguredChecksumArtifact_Good(t *testing.T) {
 	dir := t.TempDir()
 	distDir := ax.Join(dir, "dist")
-	if err := ax.MkdirAll(distDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(distDir, 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.gz"), []byte("archive"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(distDir, "app-linux-amd64.tar.gz"), []byte("archive"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(distDir, "checksums.txt"), []byte("checksums"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(distDir, "checksums.txt"), []byte("checksums"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	cfg := DefaultConfig()
@@ -1778,10 +1660,7 @@ func TestRelease_Publish_IncludesConfiguredChecksumArtifact_Good(t *testing.T) {
 	cfg.Checksum.File = "checksums.txt"
 	cfg.Publishers = nil
 
-	release, err := Publish(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	release := requireReleaseValue(t, Publish(context.Background(), cfg, true))
 	if !stdlibAssertContains(release.Artifacts, build.Artifact{Path: ax.Join(distDir, "checksums.txt")}) {
 		t.Fatalf("expected %v to contain %v", release.Artifacts, build.Artifact{Path: ax.Join(distDir, "checksums.txt")})
 	}
@@ -1790,16 +1669,16 @@ func TestRelease_Publish_IncludesConfiguredChecksumArtifact_Good(t *testing.T) {
 
 func TestRelease_BuildArtifacts_WritesArtifactMetadataGood(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(`
+	if result := ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(`
 version: 1
 project:
   name: signedapp
@@ -1813,8 +1692,8 @@ build:
 targets:
   - os: `+runtime.GOOS+`
     arch: `+runtime.GOARCH+`
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("GITHUB_SHA", "abc1234def5678901234567890123456789012345")
@@ -1827,23 +1706,17 @@ targets:
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 	if stdlibAssertEmpty(artifacts) {
 		t.Fatal("expected non-empty")
 	}
 
 	metaPath := ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "artifact_meta.json")
-	content, err := ax.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireReleaseBytes(t, ax.ReadFile(metaPath))
 
 	var meta map[string]any
-	if err := ax.JSONUnmarshal([]byte(content), &meta); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.JSONUnmarshal([]byte(content), &meta); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 	if !stdlibAssertEqual("signedapp", meta["name"]) {
 		t.Fatalf("want %v, got %v", "signedapp", meta["name"])
@@ -1868,17 +1741,17 @@ targets:
 
 func TestRelease_BuildArtifacts_HonoursBuildProjectMainGood(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.MkdirAll(ax.Join(dir, "cmd", "app"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(dir, "cmd", "app"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/releaseapp\n\ngo 1.21\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/releaseapp\n\ngo 1.21\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "cmd", "app", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "cmd", "app", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	buildConfig := `version: 1
@@ -1892,8 +1765,8 @@ targets:
   - os: ` + runtime.GOOS + `
     arch: ` + runtime.GOARCH + `
 `
-	if err := ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(buildConfig), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(buildConfig), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	cfg := DefaultConfig()
@@ -1901,10 +1774,7 @@ targets:
 	cfg.Project.Name = "releaseapp"
 	cfg.Publishers = nil
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 
 	var sawArchive bool
 	for _, artifact := range artifacts {
@@ -1921,14 +1791,14 @@ targets:
 
 func TestRelease_BuildArtifacts_InheritsBuildTargetsWhenReleaseTargetsOmittedGood(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/releaseapp\n\ngo 1.21\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/releaseapp\n\ngo 1.21\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	buildConfig := `version: 1
@@ -1941,22 +1811,19 @@ targets:
 sign:
   enabled: false
 `
-	if err := ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(buildConfig), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, ".core", build.ConfigFileName), []byte(buildConfig), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	releaseConfig := `version: 1
 project:
   name: releaseapp
 `
-	if err := ax.WriteFile(ax.Join(dir, ".core", ConfigFileName), []byte(releaseConfig), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, ".core", ConfigFileName), []byte(releaseConfig), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	cfg, err := LoadConfig(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	cfg := requireReleaseConfig(t, LoadConfig(dir))
 	if stdlibAssertNil(cfg) {
 		t.Fatal("expected non-nil")
 	}
@@ -1964,10 +1831,7 @@ project:
 		t.Fatalf("expected empty, got %v", cfg.Build.Targets)
 	}
 
-	artifacts, err := buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 	if stdlibAssertEmpty(artifacts) {
 		t.Fatal("expected non-empty")
 	}
@@ -2004,10 +1868,14 @@ func createPublishCommit(t *testing.T, dir, message string) {
 	t.Helper()
 
 	filePath := ax.Join(dir, "publish_test.txt")
-	content, _ := ax.ReadFile(filePath)
+	content := []byte{}
+	readResult := ax.ReadFile(filePath)
+	if readResult.OK {
+		content = readResult.Value.([]byte)
+	}
 	content = append(content, []byte(message+"\n")...)
-	if err := ax.WriteFile(filePath, content, 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(filePath, content, 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	runGit(t, dir, "add", ".")
@@ -2025,7 +1893,7 @@ func TestRelease_Publish_Ugly(t *core.T) {
 	cancel()
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Publish(ctx, &Config{}, true)
+		_ = Publish(ctx, &Config{}, true)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2036,7 +1904,7 @@ func TestRelease_Run_Ugly(t *core.T) {
 	cancel()
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Run(ctx, &Config{}, true)
+		_ = Run(ctx, &Config{}, true)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

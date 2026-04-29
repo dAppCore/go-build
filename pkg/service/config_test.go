@@ -69,22 +69,19 @@ func TestDefaultConfig_Normalized_Good(t *testing.T) {
 
 func TestResolveConfig_UsesBuildMetadataGood(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := ax.MkdirAll(core.PathJoin(projectDir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(core.PathJoin(projectDir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(core.PathJoin(projectDir, ".core", "build.yaml"), []byte(`version: 1
+	if result := ax.WriteFile(core.PathJoin(projectDir, ".core", "build.yaml"), []byte(`version: 1
 project:
   name: "Core Build"
   binary: "core-builder"
   description: "Background build daemon"
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	cfg, err := ResolveConfig(projectDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	cfg := requireServiceConfig(t, ResolveConfig(projectDir))
 	if !stdlibAssertEqual("core-builder", cfg.Name) {
 		t.Fatalf("want %v, got %v", "core-builder", cfg.Name)
 	}
@@ -98,10 +95,7 @@ project:
 }
 
 func TestResolveNativeFormat_Good(t *testing.T) {
-	format, err := ResolveNativeFormat("launchd")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	format := requireServiceNativeFormat(t, ResolveNativeFormat("launchd"))
 	if !stdlibAssertEqual(NativeFormatLaunchd, format) {
 		t.Fatalf("want %v, got %v", NativeFormatLaunchd, format)
 	}
@@ -111,10 +105,7 @@ func TestResolveNativeFormat_Good(t *testing.T) {
 func TestExport_SystemdGood(t *testing.T) {
 	cfg := DefaultConfig(t.TempDir()).Normalized()
 
-	exported, err := Export(cfg, "systemd")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	exported := requireServiceExportedConfig(t, Export(cfg, "systemd"))
 	if !stdlibAssertEqual(NativeFormatSystemd, exported.Format) {
 		t.Fatalf("want %v, got %v", NativeFormatSystemd, exported.Format)
 	}
@@ -136,10 +127,7 @@ func TestExport_SystemdGood(t *testing.T) {
 func TestExport_LaunchdGood(t *testing.T) {
 	cfg := DefaultConfig(t.TempDir()).Normalized()
 
-	exported, err := Export(cfg, "launchd")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	exported := requireServiceExportedConfig(t, Export(cfg, "launchd"))
 	if !stdlibAssertEqual(NativeFormatLaunchd, exported.Format) {
 		t.Fatalf("want %v, got %v", NativeFormatLaunchd, exported.Format)
 	}
@@ -179,10 +167,7 @@ func TestOSManager_ServiceConfigMappingGood(t *testing.T) {
 	cfg.WatchInterval = 5 * time.Second
 	cfg = cfg.Normalized()
 
-	err := manager.Install(cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireServiceOK(t, manager.Install(cfg))
 	if stdlibAssertNil(recorded) {
 		t.Fatal("expected non-nil")
 	}
@@ -217,7 +202,7 @@ func TestOSManager_ServiceConfigMappingGood(t *testing.T) {
 func TestConfig_ResolveConfig_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveConfig(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveConfig(core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -226,7 +211,7 @@ func TestConfig_ResolveConfig_Good(t *core.T) {
 func TestConfig_ResolveConfig_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveConfig("")
+		_ = ResolveConfig("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -235,7 +220,7 @@ func TestConfig_ResolveConfig_Bad(t *core.T) {
 func TestConfig_ResolveConfig_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveConfig(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveConfig(core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -301,7 +286,7 @@ func TestConfig_Config_Normalized_Ugly(t *core.T) {
 func TestConfig_ResolveNativeFormat_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveNativeFormat("tar.gz")
+		_ = ResolveNativeFormat("tar.gz")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -310,7 +295,7 @@ func TestConfig_ResolveNativeFormat_Good(t *core.T) {
 func TestConfig_ResolveNativeFormat_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveNativeFormat("")
+		_ = ResolveNativeFormat("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -319,7 +304,7 @@ func TestConfig_ResolveNativeFormat_Bad(t *core.T) {
 func TestConfig_ResolveNativeFormat_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveNativeFormat("tar.gz")
+		_ = ResolveNativeFormat("tar.gz")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

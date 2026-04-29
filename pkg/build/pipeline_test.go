@@ -18,24 +18,51 @@ type stubPipelineBuilder struct {
 
 func (b *stubPipelineBuilder) Name() string { return "stub" }
 
-func (b *stubPipelineBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return true, nil
+func (b *stubPipelineBuilder) Detect(fs io.Medium, dir string) core.Result {
+	return core.Ok(true)
 }
 
-func (b *stubPipelineBuilder) Build(ctx context.Context, cfg *Config, targets []Target) ([]Artifact, error) {
+func (b *stubPipelineBuilder) Build(ctx context.Context, cfg *Config, targets []Target) core.Result {
 	b.lastCfg = cfg
 	b.lastTgts = append([]Target(nil), targets...)
-	return append([]Artifact(nil), b.artifacts...), nil
+	return core.Ok(append([]Artifact(nil), b.artifacts...))
+}
+
+func requirePipelineOKResult(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requirePipelinePlan(t *testing.T, result core.Result) *PipelinePlan {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*PipelinePlan)
+}
+
+func requirePipelineRunResult(t *testing.T, result core.Result) *PipelineResult {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*PipelineResult)
+}
+
+func requirePipelineError(t *testing.T, result core.Result) string {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	return result.Error()
 }
 
 func TestPipeline_Plan_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
 
 	cfg := DefaultConfig()
 	cfg.Project.Binary = "core-demo"
@@ -49,27 +76,24 @@ func TestPipeline_Plan_Good(t *testing.T) {
 	var resolvedTypes []ProjectType
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+		ResolveBuilder: func(projectType ProjectType) core.Result {
 			resolvedTypes = append(resolvedTypes, projectType)
-			return builder, nil
+			return core.Ok(builder)
 		},
-		ResolveVersion: func(ctx context.Context, projectDir string) (string, error) {
+		ResolveVersion: func(ctx context.Context, projectDir string) core.Result {
 			if !stdlibAssertEqual(dir, projectDir) {
 				t.Fatalf("want %v, got %v", dir, projectDir)
 			}
 
-			return "v1.2.3", nil
+			return core.Ok("v1.2.3")
 		},
 	}
 
-	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+	plan := requirePipelinePlan(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:  dir,
 		BuildConfig: cfg,
 		OutputDir:   "artifacts",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual(dir, plan.ProjectDir) {
 		t.Fatalf("want %v, got %v", dir, plan.ProjectDir)
 	}
@@ -138,33 +162,28 @@ func TestPipeline_Plan_Good(t *testing.T) {
 
 func TestPipeline_Plan_UsesExplicitBuildTypeOverride_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
 	cfg := DefaultConfig()
 	cfg.Build.Type = "go"
 
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+		ResolveBuilder: func(projectType ProjectType) core.Result {
 			if !stdlibAssertEqual(ProjectTypeNode, projectType) {
 				t.Fatalf("want %v, got %v", ProjectTypeNode, projectType)
 			}
 
-			return &stubPipelineBuilder{}, nil
+			return core.Ok(&stubPipelineBuilder{})
 		},
 	}
 
-	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+	plan := requirePipelinePlan(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:  dir,
 		BuildConfig: cfg,
 		BuildType:   "NoDe",
 		Targets:     []Target{{OS: "darwin", Arch: "arm64"}},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual(ProjectTypeNode, plan.ProjectType) {
 		t.Fatalf("want %v, got %v", ProjectTypeNode, plan.ProjectType)
 	}
@@ -192,23 +211,20 @@ func TestPipeline_Plan_NormalisesConfiguredBuildType_Good(t *testing.T) {
 
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+		ResolveBuilder: func(projectType ProjectType) core.Result {
 			if !stdlibAssertEqual(ProjectTypeWails, projectType) {
 				t.Fatalf("want %v, got %v", ProjectTypeWails, projectType)
 			}
 
-			return &stubPipelineBuilder{}, nil
+			return core.Ok(&stubPipelineBuilder{})
 		},
 	}
 
-	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+	plan := requirePipelinePlan(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:  t.TempDir(),
 		BuildConfig: cfg,
 		Targets:     []Target{{OS: "darwin", Arch: "arm64"}},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual(ProjectTypeWails, plan.ProjectType) {
 		t.Fatalf("want %v, got %v", ProjectTypeWails, plan.ProjectType)
 	}
@@ -229,12 +245,8 @@ func TestPipeline_Plan_NormalisesConfiguredBuildType_Good(t *testing.T) {
 
 func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
 
 	cfg := DefaultConfig()
 	cfg.Build.BuildTags = []string{"integration"}
@@ -242,13 +254,13 @@ func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
 	var resolvedTypes []ProjectType
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+		ResolveBuilder: func(projectType ProjectType) core.Result {
 			resolvedTypes = append(resolvedTypes, projectType)
-			return &stubPipelineBuilder{}, nil
+			return core.Ok(&stubPipelineBuilder{})
 		},
 	}
 
-	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+	plan := requirePipelinePlan(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:    dir,
 		BuildConfig:   cfg,
 		BuildTags:     []string{"mlx", "release", "mlx"},
@@ -262,10 +274,7 @@ func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
 		DenoBuildSet:  true,
 		BuildCache:    true,
 		BuildCacheSet: true,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertContains(plan.Options.Tags, "mlx") {
 		t.Fatalf("expected %v to contain %v", plan.Options.Tags, "mlx")
 	}
@@ -319,28 +328,23 @@ func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
 
 func TestPipeline_Plan_UsesLocalTargetWhenBuildConfigMissing_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+		ResolveBuilder: func(projectType ProjectType) core.Result {
 			if !stdlibAssertEqual(ProjectTypeGo, projectType) {
 				t.Fatalf("want %v, got %v", ProjectTypeGo, projectType)
 			}
 
-			return &stubPipelineBuilder{}, nil
+			return core.Ok(&stubPipelineBuilder{})
 		},
 	}
 
-	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+	plan := requirePipelinePlan(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir: dir,
 		BuildType:  string(ProjectTypeGo),
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual([]Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}, plan.Targets) {
 		t.Fatalf("want %v, got %v", []Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}, plan.Targets)
 	}
@@ -349,35 +353,30 @@ func TestPipeline_Plan_UsesLocalTargetWhenBuildConfigMissing_Good(t *testing.T) 
 
 func TestPipeline_Plan_UsesExplicitVersionOverride_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
 	versionResolverCalled := false
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+		ResolveBuilder: func(projectType ProjectType) core.Result {
 			if !stdlibAssertEqual(ProjectTypeGo, projectType) {
 				t.Fatalf("want %v, got %v", ProjectTypeGo, projectType)
 			}
 
-			return &stubPipelineBuilder{}, nil
+			return core.Ok(&stubPipelineBuilder{})
 		},
-		ResolveVersion: func(ctx context.Context, projectDir string) (string, error) {
+		ResolveVersion: func(ctx context.Context, projectDir string) core.Result {
 			versionResolverCalled = true
-			return "v0.0.1", nil
+			return core.Ok("v0.0.1")
 		},
 	}
 
-	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+	plan := requirePipelinePlan(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:  dir,
 		BuildConfig: DefaultConfig(),
 		Version:     "v9.9.9",
 		Targets:     []Target{{OS: "linux", Arch: "amd64"}},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual("v9.9.9", plan.Version) {
 		t.Fatalf("want %v, got %v", "v9.9.9", plan.Version)
 	}
@@ -392,52 +391,43 @@ func TestPipeline_Plan_UsesExplicitVersionOverride_Good(t *testing.T) {
 
 func TestPipeline_Plan_RejectsUnsafeVersionOverride_Bad(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
-			return &stubPipelineBuilder{}, nil
+		ResolveBuilder: func(projectType ProjectType) core.Result {
+			return core.Ok(&stubPipelineBuilder{})
 		},
 	}
 
-	_, err := pipeline.Plan(context.Background(), PipelineRequest{
+	err := requirePipelineError(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:  dir,
 		BuildConfig: DefaultConfig(),
 		Version:     "v1.2.3 --bad",
 		Targets:     []Target{{OS: "linux", Arch: "amd64"}},
-	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "invalid build version override") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "invalid build version override")
+	}))
+	if !stdlibAssertContains(err, "invalid build version override") {
+		t.Fatalf("expected %v to contain %v", err, "invalid build version override")
 	}
 
 }
 
 func TestPipeline_Plan_DoesNotMutateCallerBuildConfig_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
 
 	cfg := DefaultConfig()
 	cfg.Build.BuildTags = []string{"integration"}
 
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
-			return &stubPipelineBuilder{}, nil
+		ResolveBuilder: func(projectType ProjectType) core.Result {
+			return core.Ok(&stubPipelineBuilder{})
 		},
 	}
 
-	_, err := pipeline.Plan(context.Background(), PipelineRequest{
+	_ = requirePipelinePlan(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:    dir,
 		BuildConfig:   cfg,
 		BuildTags:     []string{"mlx"},
@@ -447,10 +437,7 @@ func TestPipeline_Plan_DoesNotMutateCallerBuildConfig_Good(t *testing.T) {
 		DenoBuildSet:  true,
 		BuildCache:    true,
 		BuildCacheSet: true,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual([]string{"integration"}, cfg.Build.BuildTags) {
 		t.Fatalf("want %v, got %v", []string{"integration"}, cfg.Build.BuildTags)
 	}
@@ -474,9 +461,7 @@ func TestPipeline_Plan_DoesNotMutateCallerBuildConfig_Good(t *testing.T) {
 
 func TestPipeline_Run_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
 	builder := &stubPipelineBuilder{
 		artifacts: []Artifact{{Path: ax.Join(dir, "dist", "demo"), OS: "linux", Arch: "amd64"}},
@@ -484,24 +469,18 @@ func TestPipeline_Run_Good(t *testing.T) {
 
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
-			return builder, nil
+		ResolveBuilder: func(projectType ProjectType) core.Result {
+			return core.Ok(builder)
 		},
 	}
 
-	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+	plan := requirePipelinePlan(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:  dir,
 		BuildConfig: DefaultConfig(),
 		Targets:     []Target{{OS: "linux", Arch: "amd64"}},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 
-	result, err := pipeline.Run(context.Background(), plan)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requirePipelineRunResult(t, pipeline.Run(context.Background(), plan))
 	if !stdlibAssertEqual(plan, result.Plan) {
 		t.Fatalf("want %v, got %v", plan, result.Plan)
 	}
@@ -522,12 +501,8 @@ func TestPipeline_Run_Good(t *testing.T) {
 
 func TestPipeline_Run_MultiType_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
+	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644))
 
 	nodeBuilder := &stubPipelineBuilder{
 		artifacts: []Artifact{{Path: ax.Join(dir, "dist", "node", "linux_amd64", "node-artifact"), OS: "linux", Arch: "amd64"}},
@@ -538,34 +513,28 @@ func TestPipeline_Run_MultiType_Good(t *testing.T) {
 
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
+		ResolveBuilder: func(projectType ProjectType) core.Result {
 			switch projectType {
 			case ProjectTypeNode:
-				return nodeBuilder, nil
+				return core.Ok(nodeBuilder)
 			case ProjectTypeDocs:
-				return docsBuilder, nil
+				return core.Ok(docsBuilder)
 			default:
-				return nil, core.NewError("test error")
+				return core.Fail(core.NewError("test error"))
 			}
 		},
 	}
 
-	plan, err := pipeline.Plan(context.Background(), PipelineRequest{
+	plan := requirePipelinePlan(t, pipeline.Plan(context.Background(), PipelineRequest{
 		ProjectDir:  dir,
 		BuildConfig: DefaultConfig(),
 		Targets:     []Target{{OS: "linux", Arch: "amd64"}},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual([]ProjectType{ProjectTypeNode, ProjectTypeDocs}, plan.ProjectTypes) {
 		t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode, ProjectTypeDocs}, plan.ProjectTypes)
 	}
 
-	result, err := pipeline.Run(context.Background(), plan)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requirePipelineRunResult(t, pipeline.Run(context.Background(), plan))
 	if len(result.Artifacts) != 2 {
 		t.Fatalf("want len %v, got %v", 2, len(result.Artifacts))
 	}
@@ -599,17 +568,14 @@ func TestPipeline_Run_MultiType_Good(t *testing.T) {
 func TestPipeline_Plan_Bad(t *testing.T) {
 	pipeline := &Pipeline{
 		FS: io.Local,
-		ResolveBuilder: func(projectType ProjectType) (Builder, error) {
-			return &stubPipelineBuilder{}, nil
+		ResolveBuilder: func(projectType ProjectType) core.Result {
+			return core.Ok(&stubPipelineBuilder{})
 		},
 	}
 
-	_, err := pipeline.Plan(context.Background(), PipelineRequest{ProjectDir: t.TempDir()})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "no buildable project type found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "no buildable project type found")
+	err := requirePipelineError(t, pipeline.Plan(context.Background(), PipelineRequest{ProjectDir: t.TempDir()}))
+	if !stdlibAssertContains(err, "no buildable project type found") {
+		t.Fatalf("expected %v to contain %v", err, "no buildable project type found")
 	}
 
 }
@@ -617,12 +583,9 @@ func TestPipeline_Plan_Bad(t *testing.T) {
 func TestPipeline_Run_Bad(t *testing.T) {
 	pipeline := &Pipeline{}
 
-	_, err := pipeline.Run(context.Background(), nil)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "pipeline plan is nil") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "pipeline plan is nil")
+	err := requirePipelineError(t, pipeline.Run(context.Background(), nil))
+	if !stdlibAssertContains(err, "pipeline plan is nil") {
+		t.Fatalf("expected %v to contain %v", err, "pipeline plan is nil")
 	}
 
 }
@@ -634,7 +597,7 @@ func TestPipeline_Pipeline_Plan_Ugly(t *core.T) {
 	subject := &Pipeline{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Plan(ctx, PipelineRequest{})
+		_ = subject.Plan(ctx, PipelineRequest{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -646,7 +609,7 @@ func TestPipeline_Pipeline_Run_Ugly(t *core.T) {
 	subject := &Pipeline{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Run(ctx, &PipelinePlan{})
+		_ = subject.Run(ctx, &PipelinePlan{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

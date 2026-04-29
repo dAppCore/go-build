@@ -12,6 +12,13 @@ import (
 	coreio "dappco.re/go/io"
 )
 
+func requireAppleOKResult(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
 func TestAppleBuilder_New_Good(t *testing.T) {
 	builder := New(
 		WithArch("arm64"),
@@ -134,9 +141,7 @@ func TestAppleBuilder_Register_Good(t *testing.T) {
 
 func TestAppleBuilder_Detect_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireAppleOKResult(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644))
 
 	result := New().Detect(coreio.Local, dir)
 	if !(result.OK) {
@@ -171,12 +176,12 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 		writeXcodeCloudScriptsFn = oldWriteXcodeCloudScripts
 	})
 
-	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+	loadConfigFn = func(fs coreio.Medium, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return &build.BuildConfig{
+		return core.Ok(&build.BuildConfig{
 			Project: build.Project{
 				Name:   "Core",
 				Binary: "Core",
@@ -194,19 +199,19 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 					TeamID:   "ABC123DEF4",
 				},
 			},
-		}, nil
+		})
 	}
-	determineVersion = func(ctx context.Context, dir string) (string, error) {
+	determineVersion = func(ctx context.Context, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return "v1.2.3", nil
+		return core.Ok("v1.2.3")
 	}
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
@@ -217,9 +222,9 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 			t.Fatalf("want %v, got %v", []string{"rev-list", "--count", "HEAD"}, args)
 		}
 
-		return "42", nil
+		return core.Ok("42")
 	}
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		if !stdlibAssertEqual(ax.Join(projectDir, "dist", "apple"), cfg.OutputDir) {
 			t.Fatalf("want %v, got %v", ax.Join(projectDir, "dist", "apple"), cfg.OutputDir)
 		}
@@ -242,9 +247,9 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 			t.Fatalf("want %v, got %v", "arm64", options.Arch)
 		}
 
-		return &build.AppleBuildResult{
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
-		}, nil
+		})
 	}
 
 	result := New(WithArch("arm64"), WithSign(true)).Build(context.Background(), nil)
@@ -273,12 +278,12 @@ func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t
 		runDirFn = oldRunDir
 	})
 
-	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+	loadConfigFn = func(fs coreio.Medium, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return &build.BuildConfig{
+		return core.Ok(&build.BuildConfig{
 			Project: build.Project{
 				Name:   "Core",
 				Binary: "Core",
@@ -293,18 +298,18 @@ func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t
 					TeamID:   "ABC123DEF4",
 				},
 			},
-		}, nil
+		})
 	}
-	determineVersion = func(ctx context.Context, dir string) (string, error) {
-		return "v1.2.3", nil
+	determineVersion = func(ctx context.Context, dir string) core.Result {
+		return core.Ok("v1.2.3")
 	}
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
-		return "42", nil
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) core.Result {
+		return core.Ok("42")
 	}
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		if !stdlibAssertEqual("ai.lthn.override", options.BundleID) {
 			t.Fatalf("want %v, got %v", "ai.lthn.override", options.BundleID)
 		}
@@ -324,9 +329,9 @@ func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t
 			t.Fatal("expected false")
 		}
 
-		return &build.AppleBuildResult{
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
-		}, nil
+		})
 	}
 
 	result := New().Build(context.Background(), &AppleOptions{
@@ -357,12 +362,12 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 		runDirFn = oldRunDir
 	})
 
-	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+	loadConfigFn = func(fs coreio.Medium, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return &build.BuildConfig{
+		return core.Ok(&build.BuildConfig{
 			Project: build.Project{
 				Name:   "Core",
 				Binary: "Core",
@@ -380,18 +385,18 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 				BundleID: "ai.lthn.core",
 				Sign:     boolPtr(false),
 			},
-		}, nil
+		})
 	}
-	determineVersion = func(ctx context.Context, dir string) (string, error) {
-		return "v1.2.3", nil
+	determineVersion = func(ctx context.Context, dir string) core.Result {
+		return core.Ok("v1.2.3")
 	}
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
-		return "42", nil
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) core.Result {
+		return core.Ok("42")
 	}
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		if !stdlibAssertEqual([]string{ax.Join(projectDir, "cache", "go-build"), ax.Join(projectDir, "cache", "go-mod")}, cfg.Cache.Paths) {
 			t.Fatalf("want %v, got %v", []string{ax.Join(projectDir, "cache", "go-build"), ax.Join(projectDir, "cache", "go-mod")}, cfg.Cache.Paths)
 		}
@@ -405,9 +410,9 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 			t.Fatal("expected true")
 		}
 
-		return &build.AppleBuildResult{
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
-		}, nil
+		})
 	}
 
 	result := New().Build(context.Background(), nil)
@@ -438,12 +443,12 @@ func TestAppleBuilder_Build_WritesXcodeCloudScripts_Good(t *testing.T) {
 		writeXcodeCloudScriptsFn = oldWriteXcodeCloudScripts
 	})
 
-	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+	loadConfigFn = func(fs coreio.Medium, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return &build.BuildConfig{
+		return core.Ok(&build.BuildConfig{
 			Project: build.Project{
 				Name:   "Core",
 				Binary: "Core",
@@ -455,20 +460,20 @@ func TestAppleBuilder_Build_WritesXcodeCloudScripts_Good(t *testing.T) {
 					Workflow: "CoreGUI Release",
 				},
 			},
-		}, nil
+		})
 	}
-	determineVersion = func(ctx context.Context, dir string) (string, error) {
-		return "v1.2.3", nil
+	determineVersion = func(ctx context.Context, dir string) core.Result {
+		return core.Ok("v1.2.3")
 	}
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
-		return "42", nil
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) core.Result {
+		return core.Ok("42")
 	}
 
 	var scriptsWritten bool
-	writeXcodeCloudScriptsFn = func(fs coreio.Medium, dir string, cfg *build.BuildConfig) ([]string, error) {
+	writeXcodeCloudScriptsFn = func(fs coreio.Medium, dir string, cfg *build.BuildConfig) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
@@ -477,12 +482,12 @@ func TestAppleBuilder_Build_WritesXcodeCloudScripts_Good(t *testing.T) {
 		}
 
 		scriptsWritten = true
-		return []string{ax.Join(dir, build.XcodeCloudScriptsDir, build.XcodeCloudPreXcodebuildScriptName)}, nil
+		return core.Ok([]string{ax.Join(dir, build.XcodeCloudScriptsDir, build.XcodeCloudPreXcodebuildScriptName)})
 	}
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
-		return &build.AppleBuildResult{
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
-		}, nil
+		})
 	}
 
 	result := New().Build(context.Background(), nil)
@@ -537,11 +542,11 @@ func TestApple_BuildWailsApp_UsesCurrentDirectoryAndStringLDFlags_Good(t *testin
 		getwdFn = oldGetwd
 	})
 
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
 
-	buildWailsAppFn = func(ctx context.Context, cfg build.WailsBuildConfig) (string, error) {
+	buildWailsAppFn = func(ctx context.Context, cfg build.WailsBuildConfig) core.Result {
 		if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
 			t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
 		}
@@ -564,7 +569,7 @@ func TestApple_BuildWailsApp_UsesCurrentDirectoryAndStringLDFlags_Good(t *testin
 			t.Fatalf("want %v, got %v", []string{"FOO=bar"}, cfg.Env)
 		}
 
-		return ax.Join(projectDir, "dist", "Core.app"), nil
+		return core.Ok(ax.Join(projectDir, "dist", "Core.app"))
 	}
 
 	result := BuildWailsApp(context.Background(), WailsBuildConfig{

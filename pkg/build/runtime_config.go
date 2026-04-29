@@ -85,7 +85,7 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 }
 
 func versionIsSafeRelease(version string) bool {
-	return ValidateVersionString(version) == nil
+	return ValidateVersionString(version).OK
 }
 
 func stripVersionTemplateFlags(values []string) []string {

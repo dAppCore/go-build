@@ -6,7 +6,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/log"
 )
 
 // TypeScriptGenerator generates TypeScript SDKs from OpenAPI specs.
@@ -45,77 +44,79 @@ func (g *TypeScriptGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec.
 //
 // err := g.Generate(ctx, generators.Options{SpecPath: "docs/openapi.yaml", OutputDir: "sdk/typescript"})
-func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) error {
+func (g *TypeScriptGenerator) Generate(ctx context.Context, opts Options) core.Result {
 	if err := ctx.Err(); err != nil {
-		return coreerr.E("typescript.Generate", "generation cancelled", err)
+		return core.Fail(core.E("typescript.Generate", "generation cancelled", err))
 	}
 
-	stagingDir, err := ax.TempDir("core-typescript-sdk-*")
-	if err != nil {
-		return coreerr.E("typescript.Generate", "failed to create staging dir", err)
+	staging := ax.TempDir("core-typescript-sdk-*")
+	if !staging.OK {
+		return core.Fail(core.E("typescript.Generate", "failed to create staging dir", core.NewError(staging.Error())))
 	}
+	stagingDir := staging.Value.(string)
 	defer func() { _ = ax.RemoveAll(stagingDir) }()
 
-	if command, err := g.resolveNativeCli(); err == nil {
-		if err := g.generateNative(ctx, opts, command, stagingDir); err != nil {
-			return err
+	if command := g.resolveNativeCli(); command.OK {
+		generated := g.generateNative(ctx, opts, command.Value.(string), stagingDir)
+		if !generated.OK {
+			return generated
 		}
 		return finalizeTypeScriptOutput(stagingDir, opts)
 	}
-	if command, err := g.resolveNpxCli(); err == nil {
-		if g.npxAvailableWithContext(ctx, command) {
-			if err := g.generateNpx(ctx, opts, command, stagingDir); err != nil {
-				return err
+	if command := g.resolveNpxCli(); command.OK {
+		if g.npxAvailableWithContext(ctx, command.Value.(string)) {
+			generated := g.generateNpx(ctx, opts, command.Value.(string), stagingDir)
+			if !generated.OK {
+				return generated
 			}
 			return finalizeTypeScriptOutput(stagingDir, opts)
 		}
 		if err := ctx.Err(); err != nil {
-			return coreerr.E("typescript.Generate", "generation cancelled", err)
+			return core.Fail(core.E("typescript.Generate", "generation cancelled", err))
 		}
 	}
 	if !dockerRuntimeAvailableWithContext(ctx) {
 		if err := ctx.Err(); err != nil {
-			return coreerr.E("typescript.Generate", "generation cancelled", err)
+			return core.Fail(core.E("typescript.Generate", "generation cancelled", err))
 		}
-		return coreerr.E("typescript.Generate", "Docker is required for fallback generation but not available", nil)
+		return core.Fail(core.E("typescript.Generate", "Docker is required for fallback generation but not available", nil))
 	}
-	if err := g.generateDocker(ctx, opts, stagingDir); err != nil {
-		return err
+	generated := g.generateDocker(ctx, opts, stagingDir)
+	if !generated.OK {
+		return generated
 	}
 	return finalizeTypeScriptOutput(stagingDir, opts)
 }
 
 func (g *TypeScriptGenerator) nativeAvailable() bool {
-	_, err := g.resolveNativeCli()
-	return err == nil
+	return g.resolveNativeCli().OK
 }
 
 func (g *TypeScriptGenerator) npxAvailable() bool {
-	command, err := g.resolveNpxCli()
-	if err != nil {
+	command := g.resolveNpxCli()
+	if !command.OK {
 		return false
 	}
 
 	ctx, cancel := availabilityProbeContext()
 	defer cancel()
 
-	return g.npxAvailableWithContext(ctx, command)
+	return g.npxAvailableWithContext(ctx, command.Value.(string))
 }
 
 func (g *TypeScriptGenerator) npxAvailableWithContext(ctx context.Context, command string) bool {
-	_, err := ax.Run(ctx, command, "--version")
-	return err == nil
+	return ax.Run(ctx, command, "--version").OK
 }
 
-func (g *TypeScriptGenerator) resolveNativeCli(paths ...string) (string, error) {
-	command, err := ax.ResolveCommand("openapi-typescript-codegen", paths...)
-	if err != nil {
-		return "", coreerr.E("typescript.resolveNativeCli", "openapi-typescript-codegen not found. Install it with: "+g.Install(), err)
+func (g *TypeScriptGenerator) resolveNativeCli(paths ...string) core.Result {
+	command := ax.ResolveCommand("openapi-typescript-codegen", paths...)
+	if !command.OK {
+		return core.Fail(core.E("typescript.resolveNativeCli", "openapi-typescript-codegen not found. Install it with: "+g.Install(), core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func (g *TypeScriptGenerator) resolveNpxCli(paths ...string) (string, error) {
+func (g *TypeScriptGenerator) resolveNpxCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/npx",
@@ -123,14 +124,14 @@ func (g *TypeScriptGenerator) resolveNpxCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("npx", paths...)
-	if err != nil {
-		return "", coreerr.E("typescript.resolveNpxCli", "npx not found. Install Node.js from https://nodejs.org/", err)
+	command := ax.ResolveCommand("npx", paths...)
+	if !command.OK {
+		return core.Fail(core.E("typescript.resolveNpxCli", "npx not found. Install Node.js from https://nodejs.org/", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func (g *TypeScriptGenerator) generateNative(ctx context.Context, opts Options, command string, outputDir string) error {
+func (g *TypeScriptGenerator) generateNative(ctx context.Context, opts Options, command string, outputDir string) core.Result {
 	return ax.Exec(ctx, command,
 		"--input", opts.SpecPath,
 		"--output", outputDir,
@@ -138,7 +139,7 @@ func (g *TypeScriptGenerator) generateNative(ctx context.Context, opts Options, 
 	)
 }
 
-func (g *TypeScriptGenerator) generateNpx(ctx context.Context, opts Options, command string, outputDir string) error {
+func (g *TypeScriptGenerator) generateNpx(ctx context.Context, opts Options, command string, outputDir string) core.Result {
 	return ax.Exec(ctx, command, "--yes", "openapi-typescript-codegen",
 		"--input", opts.SpecPath,
 		"--output", outputDir,
@@ -146,10 +147,10 @@ func (g *TypeScriptGenerator) generateNpx(ctx context.Context, opts Options, com
 	)
 }
 
-func (g *TypeScriptGenerator) generateDocker(ctx context.Context, opts Options, outputDir string) error {
-	dockerCommand, err := resolveDockerRuntimeCli()
-	if err != nil {
-		return coreerr.E("typescript.generateDocker", "docker CLI not available", err)
+func (g *TypeScriptGenerator) generateDocker(ctx context.Context, opts Options, outputDir string) core.Result {
+	dockerCommand := resolveDockerRuntimeCli()
+	if !dockerCommand.OK {
+		return core.Fail(core.E("typescript.generateDocker", "docker CLI not available", core.NewError(dockerCommand.Error())))
 	}
 
 	specDir := ax.Dir(opts.SpecPath)
@@ -167,59 +168,67 @@ func (g *TypeScriptGenerator) generateDocker(ctx context.Context, opts Options, 
 		"--additional-properties=npmName="+opts.PackageName,
 	)
 
-	if err := ax.Exec(ctx, dockerCommand, args...); err != nil {
-		return coreerr.E("typescript.generateDocker", "docker run failed", err)
+	run := ax.Exec(ctx, dockerCommand.Value.(string), args...)
+	if !run.OK {
+		return core.Fail(core.E("typescript.generateDocker", "docker run failed", core.NewError(run.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func finalizeTypeScriptOutput(stagingDir string, opts Options) error {
+func finalizeTypeScriptOutput(stagingDir string, opts Options) core.Result {
 	if core.Trim(opts.OutputDir) == "" {
-		return coreerr.E("typescript.finalizeOutput", "output dir is required", nil)
+		return core.Fail(core.E("typescript.finalizeOutput", "output dir is required", nil))
 	}
 
-	if err := ax.RemoveAll(opts.OutputDir); err != nil && ax.Exists(opts.OutputDir) {
-		return coreerr.E("typescript.finalizeOutput", "failed to reset output dir", err)
+	removed := ax.RemoveAll(opts.OutputDir)
+	if !removed.OK && ax.Exists(opts.OutputDir) {
+		return core.Fail(core.E("typescript.finalizeOutput", "failed to reset output dir", core.NewError(removed.Error())))
 	}
-	if err := ax.MkdirAll(opts.OutputDir, 0o755); err != nil {
-		return coreerr.E("typescript.finalizeOutput", "failed to create output dir", err)
+	created := ax.MkdirAll(opts.OutputDir, 0o755)
+	if !created.OK {
+		return core.Fail(core.E("typescript.finalizeOutput", "failed to create output dir", core.NewError(created.Error())))
 	}
 
 	srcDir := ax.Join(opts.OutputDir, "src")
-	if err := ax.MkdirAll(srcDir, 0o755); err != nil {
-		return coreerr.E("typescript.finalizeOutput", "failed to create src dir", err)
+	created = ax.MkdirAll(srcDir, 0o755)
+	if !created.OK {
+		return core.Fail(core.E("typescript.finalizeOutput", "failed to create src dir", core.NewError(created.Error())))
 	}
 
-	entries, err := ax.ReadDir(stagingDir)
-	if err != nil {
-		return coreerr.E("typescript.finalizeOutput", "failed to read staging dir", err)
+	read := ax.ReadDir(stagingDir)
+	if !read.OK {
+		return core.Fail(core.E("typescript.finalizeOutput", "failed to read staging dir", core.NewError(read.Error())))
 	}
 
-	for _, entry := range entries {
+	for _, entry := range read.Value.([]core.FsDirEntry) {
 		name := entry.Name()
 		sourcePath := ax.Join(stagingDir, name)
 
 		switch {
 		case entry.IsDir() && core.Lower(name) == "src":
-			if err := copyTypeScriptDirectoryContents(sourcePath, srcDir); err != nil {
-				return err
+			copied := copyTypeScriptDirectoryContents(sourcePath, srcDir)
+			if !copied.OK {
+				return copied
 			}
 		case shouldPlaceTypeScriptInSrc(name, entry.IsDir()):
-			if err := copyTypeScriptPath(sourcePath, ax.Join(srcDir, name)); err != nil {
-				return err
+			copied := copyTypeScriptPath(sourcePath, ax.Join(srcDir, name))
+			if !copied.OK {
+				return copied
 			}
 		default:
-			if err := copyTypeScriptPath(sourcePath, ax.Join(opts.OutputDir, name)); err != nil {
-				return err
+			copied := copyTypeScriptPath(sourcePath, ax.Join(opts.OutputDir, name))
+			if !copied.OK {
+				return copied
 			}
 		}
 	}
 
-	if err := ensureTypeScriptPackageMetadata(opts.OutputDir, opts.PackageName, opts.Version); err != nil {
-		return err
+	metadata := ensureTypeScriptPackageMetadata(opts.OutputDir, opts.PackageName, opts.Version)
+	if !metadata.OK {
+		return metadata
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func shouldPlaceTypeScriptInSrc(name string, isDir bool) bool {
@@ -245,18 +254,19 @@ func shouldPlaceTypeScriptInSrc(name string, isDir bool) bool {
 	}
 }
 
-func ensureTypeScriptPackageMetadata(outputDir, packageName, version string) error {
+func ensureTypeScriptPackageMetadata(outputDir, packageName, version string) core.Result {
 	manifestPath := ax.Join(outputDir, "package.json")
 	manifest := map[string]any{}
 
 	if ax.IsFile(manifestPath) {
-		content, err := ax.ReadFile(manifestPath)
-		if err != nil {
-			return coreerr.E("typescript.ensurePackageMetadata", "failed to read package.json", err)
+		content := ax.ReadFile(manifestPath)
+		if !content.OK {
+			return core.Fail(core.E("typescript.ensurePackageMetadata", "failed to read package.json", core.NewError(content.Error())))
 		}
-		if len(core.Trim(string(content))) > 0 {
-			if decoded := core.JSONUnmarshal(content, &manifest); !decoded.OK {
-				return coreerr.E("typescript.ensurePackageMetadata", "failed to parse package.json", resultError(decoded))
+		data := content.Value.([]byte)
+		if len(core.Trim(string(data))) > 0 {
+			if decoded := core.JSONUnmarshal(data, &manifest); !decoded.OK {
+				return core.Fail(core.E("typescript.ensurePackageMetadata", "failed to parse package.json", core.NewError(decoded.Error())))
 			}
 		}
 	}
@@ -294,74 +304,75 @@ func ensureTypeScriptPackageMetadata(outputDir, packageName, version string) err
 
 	encoded := core.JSONMarshalIndent(manifest, "", "  ")
 	if !encoded.OK {
-		return coreerr.E("typescript.ensurePackageMetadata", "failed to encode package.json", resultError(encoded))
+		return core.Fail(core.E("typescript.ensurePackageMetadata", "failed to encode package.json", core.NewError(encoded.Error())))
 	}
-	if err := ax.WriteFile(manifestPath, append(encoded.Value.([]byte), '\n'), 0o644); err != nil {
-		return coreerr.E("typescript.ensurePackageMetadata", "failed to write package.json", err)
+	written := ax.WriteFile(manifestPath, append(encoded.Value.([]byte), '\n'), 0o644)
+	if !written.OK {
+		return core.Fail(core.E("typescript.ensurePackageMetadata", "failed to write package.json", core.NewError(written.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func copyTypeScriptDirectoryContents(sourceDir, destinationDir string) error {
-	entries, err := ax.ReadDir(sourceDir)
-	if err != nil {
-		return coreerr.E("typescript.copyDirectoryContents", "failed to list source dir", err)
+func copyTypeScriptDirectoryContents(sourceDir, destinationDir string) core.Result {
+	entries := ax.ReadDir(sourceDir)
+	if !entries.OK {
+		return core.Fail(core.E("typescript.copyDirectoryContents", "failed to list source dir", core.NewError(entries.Error())))
 	}
 
-	for _, entry := range entries {
+	for _, entry := range entries.Value.([]core.FsDirEntry) {
 		sourcePath := ax.Join(sourceDir, entry.Name())
 		destinationPath := ax.Join(destinationDir, entry.Name())
-		if err := copyTypeScriptPath(sourcePath, destinationPath); err != nil {
-			return err
+		copied := copyTypeScriptPath(sourcePath, destinationPath)
+		if !copied.OK {
+			return copied
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func resultError(result core.Result) error {
-	if err, ok := result.Value.(error); ok {
-		return err
+func copyTypeScriptPath(sourcePath, destinationPath string) core.Result {
+	info := ax.Stat(sourcePath)
+	if !info.OK {
+		return core.Fail(core.E("typescript.copyPath", "failed to stat source path", core.NewError(info.Error())))
 	}
-	return core.NewError(result.Error())
-}
+	fileInfo := info.Value.(core.FsFileInfo)
 
-func copyTypeScriptPath(sourcePath, destinationPath string) error {
-	info, err := ax.Stat(sourcePath)
-	if err != nil {
-		return coreerr.E("typescript.copyPath", "failed to stat source path", err)
-	}
-
-	if info.IsDir() {
-		if err := ax.MkdirAll(destinationPath, 0o755); err != nil {
-			return coreerr.E("typescript.copyPath", "failed to create destination dir", err)
+	if fileInfo.IsDir() {
+		created := ax.MkdirAll(destinationPath, 0o755)
+		if !created.OK {
+			return core.Fail(core.E("typescript.copyPath", "failed to create destination dir", core.NewError(created.Error())))
 		}
 		return copyTypeScriptDirectoryContents(sourcePath, destinationPath)
 	}
 
-	if err := ax.MkdirAll(ax.Dir(destinationPath), 0o755); err != nil {
-		return coreerr.E("typescript.copyPath", "failed to create file parent dir", err)
+	created := ax.MkdirAll(ax.Dir(destinationPath), 0o755)
+	if !created.OK {
+		return core.Fail(core.E("typescript.copyPath", "failed to create file parent dir", core.NewError(created.Error())))
 	}
 
-	sourceFile, err := ax.Open(sourcePath)
-	if err != nil {
-		return coreerr.E("typescript.copyPath", "failed to open source file", err)
+	sourceFile := ax.Open(sourcePath)
+	if !sourceFile.OK {
+		return core.Fail(core.E("typescript.copyPath", "failed to open source file", core.NewError(sourceFile.Error())))
 	}
-	defer func() { _ = sourceFile.Close() }()
+	source := sourceFile.Value.(core.FsFile)
+	defer func() { _ = source.Close() }()
 
-	destinationFile, err := ax.Create(destinationPath)
-	if err != nil {
-		return coreerr.E("typescript.copyPath", "failed to create destination file", err)
+	destinationFile := ax.Create(destinationPath)
+	if !destinationFile.OK {
+		return core.Fail(core.E("typescript.copyPath", "failed to create destination file", core.NewError(destinationFile.Error())))
 	}
-	defer func() { _ = destinationFile.Close() }()
+	destination := destinationFile.Value.(core.WriteCloser)
+	defer func() { _ = destination.Close() }()
 
-	if _, err := stdio.Copy(destinationFile, sourceFile); err != nil {
-		return coreerr.E("typescript.copyPath", "failed to copy file", err)
+	if _, err := stdio.Copy(destination, source); err != nil {
+		return core.Fail(core.E("typescript.copyPath", "failed to copy file", err))
 	}
-	if err := ax.Chmod(destinationPath, info.Mode()); err != nil {
-		return coreerr.E("typescript.copyPath", "failed to preserve file mode", err)
+	chmod := ax.Chmod(destinationPath, fileInfo.Mode())
+	if !chmod.OK {
+		return core.Fail(core.E("typescript.copyPath", "failed to preserve file mode", core.NewError(chmod.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }

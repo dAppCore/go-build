@@ -40,12 +40,12 @@ func TestGPG_GPGSignerSignBad(t *testing.T) {
 	fs := io.Local
 	t.Run("fails when no key", func(t *testing.T) {
 		s := NewGPGSigner("")
-		err := s.Sign(context.Background(), fs, "test.txt")
-		if err == nil {
+		result := s.Sign(context.Background(), fs, "test.txt")
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertContains(err.Error(), "not available or key not configured") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "not available or key not configured")
+		if !stdlibAssertContains(result.Error(), "not available or key not configured") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "not available or key not configured")
 		}
 
 	})
@@ -54,16 +54,17 @@ func TestGPG_GPGSignerSignBad(t *testing.T) {
 func TestGPG_ResolveGpgCliGood(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "gpg")
-	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("PATH", "")
 
-	command, err := resolveGpgCli(fallbackPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := resolveGpgCli(fallbackPath)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
+	command := result.Value.(string)
 	if !stdlibAssertEqual(fallbackPath, command) {
 		t.Fatalf("want %v, got %v", fallbackPath, command)
 	}
@@ -73,12 +74,12 @@ func TestGPG_ResolveGpgCliGood(t *testing.T) {
 func TestGPG_ResolveGpgCliBad(t *testing.T) {
 	t.Setenv("PATH", "")
 
-	_, err := resolveGpgCli(ax.Join(t.TempDir(), "missing-gpg"))
-	if err == nil {
+	result := resolveGpgCli(ax.Join(t.TempDir(), "missing-gpg"))
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "gpg CLI not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "gpg CLI not found")
+	if !stdlibAssertContains(result.Error(), "gpg CLI not found") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "gpg CLI not found")
 	}
 
 }

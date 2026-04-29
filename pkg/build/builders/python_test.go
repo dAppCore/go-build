@@ -16,14 +16,17 @@ func setupPythonTestProject(t *testing.T) string {
 	t.Helper()
 
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("[build-system]\nrequires = []\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("[build-system]\nrequires = []\n"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "app.py"), []byte("print('hello')\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(ax.Join(dir, "app.py"), []byte("print('hello')\n"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "README.md"), []byte("demo"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(ax.Join(dir, "README.md"), []byte("demo"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	return dir
@@ -42,15 +45,13 @@ func TestPython_PythonBuilderDetectGood(t *testing.T) {
 
 	t.Run("detects pyproject.toml projects", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := ax.WriteFile(ax.Join(dir, "pyproject.toml"), []byte("{}"), 0o644)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewPythonBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -59,15 +60,13 @@ func TestPython_PythonBuilderDetectGood(t *testing.T) {
 
 	t.Run("detects requirements.txt projects", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "requirements.txt"), []byte("requests"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := ax.WriteFile(ax.Join(dir, "requirements.txt"), []byte("requests"), 0o644)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewPythonBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -76,10 +75,7 @@ func TestPython_PythonBuilderDetectGood(t *testing.T) {
 
 	t.Run("returns false for empty directory", func(t *testing.T) {
 		builder := NewPythonBuilder()
-		detected, err := builder.Detect(fs, t.TempDir())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, t.TempDir()))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -99,10 +95,7 @@ func TestPython_PythonBuilderBuildGood(t *testing.T) {
 		Name:       "demo-app",
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}}))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -114,7 +107,7 @@ func TestPython_PythonBuilderBuildGood(t *testing.T) {
 	if !stdlibAssertEqual("amd64", artifact.Arch) {
 		t.Fatalf("want %v, got %v", "amd64", artifact.Arch)
 	}
-	if _, err := ax.Stat(artifact.Path); err != nil {
+	if stat := ax.Stat(artifact.Path); !stat.OK {
 		t.Fatalf("expected file to exist: %v", artifact.Path)
 	}
 
@@ -154,10 +147,7 @@ func TestPython_PythonBuilderBuildDefaultsGood(t *testing.T) {
 		OutputDir:  outputDir,
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, nil))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -184,20 +174,12 @@ func TestPython_PythonBuilderBuildIsDeterministicGood(t *testing.T) {
 			Name:       "demo-app",
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}}))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
 
-		content, err := ax.ReadFile(artifacts[0].Path)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		return content
+		return requireBuilderBytes(t, ax.ReadFile(artifacts[0].Path))
 	}
 
 	first := buildOnce(t.TempDir())
@@ -214,10 +196,7 @@ func TestPython_PythonBuilderInterfaceGood(t *testing.T) {
 	if !stdlibAssertEqual("python", builder.Name()) {
 		t.Fatalf("want %v, got %v", "python", builder.Name())
 	}
-	detected, err := builder.Detect(nil, t.TempDir())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	detected := requireCPPBool(t, builder.Detect(nil, t.TempDir()))
 	if detected {
 		t.Fatal("expected empty temp directory not to be detected")
 	}
@@ -285,7 +264,7 @@ func TestPython_PythonBuilder_Detect_Good(t *core.T) {
 	subject := &PythonBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -295,7 +274,7 @@ func TestPython_PythonBuilder_Detect_Bad(t *core.T) {
 	subject := &PythonBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(io.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -305,7 +284,7 @@ func TestPython_PythonBuilder_Detect_Ugly(t *core.T) {
 	subject := &PythonBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -317,7 +296,7 @@ func TestPython_PythonBuilder_Build_Good(t *core.T) {
 	subject := &PythonBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -329,7 +308,7 @@ func TestPython_PythonBuilder_Build_Bad(t *core.T) {
 	subject := &PythonBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -341,7 +320,7 @@ func TestPython_PythonBuilder_Build_Ugly(t *core.T) {
 	subject := &PythonBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

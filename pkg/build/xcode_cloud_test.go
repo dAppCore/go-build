@@ -8,6 +8,38 @@ import (
 	"dappco.re/go/io"
 )
 
+func requireXcodeCloudPaths(t *testing.T, result core.Result) []string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]string)
+}
+
+func requireXcodeCloudString(t *testing.T, result core.Result) string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
+}
+
+func requireXcodeCloudFileInfo(t *testing.T, result core.Result) core.FsFileInfo {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(core.FsFileInfo)
+}
+
+func requireXcodeCloudError(t *testing.T, result core.Result) string {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	return result.Error()
+}
+
 func TestXcodeCloud_HasXcodeCloudConfig_Good(t *testing.T) {
 	if HasXcodeCloudConfig(nil) {
 		t.Fatal("expected false")
@@ -145,7 +177,7 @@ func TestXcodeCloud_GenerateXcodeCloudScripts_QuotesShellValues(t *testing.T) {
 func TestXcodeCloud_WriteXcodeCloudScripts_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
-	paths, err := WriteXcodeCloudScripts(io.Local, projectDir, &BuildConfig{
+	paths := requireXcodeCloudPaths(t, WriteXcodeCloudScripts(io.Local, projectDir, &BuildConfig{
 		Project: Project{
 			Name:   "Core",
 			Binary: "Core",
@@ -155,27 +187,18 @@ func TestXcodeCloud_WriteXcodeCloudScripts_Good(t *testing.T) {
 				Workflow: "CoreGUI Release",
 			},
 		},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual([]string{ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostCloneScriptName), ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPreXcodebuildScriptName), ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostXcodebuildScriptName)}, paths) {
 		t.Fatalf("want %v, got %v", []string{ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostCloneScriptName), ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPreXcodebuildScriptName), ax.Join(projectDir, XcodeCloudScriptsDir, XcodeCloudPostXcodebuildScriptName)}, paths)
 	}
 
 	for _, path := range paths {
-		content, err := io.Local.Read(path)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireXcodeCloudString(t, io.Local.Read(path))
 		if stdlibAssertEmpty(content) {
 			t.Fatal("expected non-empty")
 		}
 
-		info, err := io.Local.Stat(path)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		info := requireXcodeCloudFileInfo(t, io.Local.Stat(path))
 		if !stdlibAssertEqual(0o755, int(info.Mode().Perm())) {
 			t.Fatalf("want %v, got %v", 0o755, int(info.Mode().Perm()))
 		}
@@ -184,12 +207,9 @@ func TestXcodeCloud_WriteXcodeCloudScripts_Good(t *testing.T) {
 }
 
 func TestXcodeCloud_WriteXcodeCloudScripts_Bad(t *testing.T) {
-	_, err := WriteXcodeCloudScripts(nil, t.TempDir(), DefaultConfig())
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "filesystem medium is required") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "filesystem medium is required")
+	err := requireXcodeCloudError(t, WriteXcodeCloudScripts(nil, t.TempDir(), DefaultConfig()))
+	if !stdlibAssertContains(err, "filesystem medium is required") {
+		t.Fatalf("expected %v to contain %v", err, "filesystem medium is required")
 	}
 
 }
@@ -238,7 +258,7 @@ func TestXcodeCloud_GenerateXcodeCloudScripts_Ugly(t *core.T) {
 func TestXcodeCloud_WriteXcodeCloudScripts_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = WriteXcodeCloudScripts(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
+		_ = WriteXcodeCloudScripts(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

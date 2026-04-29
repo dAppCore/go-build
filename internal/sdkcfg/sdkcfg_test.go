@@ -7,30 +7,41 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
+	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/io"
 )
+
+func requireSDKCfgOK(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requireSDKCfgLoadProjectConfig(t *testing.T, medium io.Medium, projectDir string) *sdk.Config {
+	t.Helper()
+
+	result := LoadProjectConfig(medium, projectDir)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*sdk.Config)
+}
 
 func TestLoadProjectConfig_Good(t *testing.T) {
 	t.Run("falls back to release config in the provided medium", func(t *testing.T) {
 		medium := io.NewMemoryMedium()
 		projectDir := "project"
-		if err := medium.EnsureDir(ax.Join(projectDir, release.ConfigDir)); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := medium.Write(release.ConfigPath(projectDir), `
+		requireSDKCfgOK(t, medium.EnsureDir(ax.Join(projectDir, release.ConfigDir)))
+		requireSDKCfgOK(t, medium.Write(release.ConfigPath(projectDir), `
 version: 1
 sdk:
   spec: docs/openapi.yaml
   languages: [php]
   output: generated/sdk
-`); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+`))
 
-		cfg, err := LoadProjectConfig(medium, projectDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireSDKCfgLoadProjectConfig(t, medium, projectDir)
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -49,33 +60,22 @@ sdk:
 	t.Run("prefers build config over release config in the provided medium", func(t *testing.T) {
 		medium := io.NewMemoryMedium()
 		projectDir := "project"
-		if err := medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := medium.Write(build.ConfigPath(projectDir), `
+		requireSDKCfgOK(t, medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)))
+		requireSDKCfgOK(t, medium.Write(build.ConfigPath(projectDir), `
 version: 1
 sdk:
   spec: openapi.yaml
   languages: [typescript]
-`); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := medium.EnsureDir(ax.Join(projectDir, release.ConfigDir)); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := medium.Write(release.ConfigPath(projectDir), `
+`))
+		requireSDKCfgOK(t, medium.EnsureDir(ax.Join(projectDir, release.ConfigDir)))
+		requireSDKCfgOK(t, medium.Write(release.ConfigPath(projectDir), `
 version: 1
 sdk:
   spec: docs/openapi.yaml
   languages: [python]
-`); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+`))
 
-		cfg, err := LoadProjectConfig(medium, projectDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireSDKCfgLoadProjectConfig(t, medium, projectDir)
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -91,21 +91,14 @@ sdk:
 	t.Run("applies documented defaults to partial sdk config", func(t *testing.T) {
 		medium := io.NewMemoryMedium()
 		projectDir := "project"
-		if err := medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := medium.Write(build.ConfigPath(projectDir), `
+		requireSDKCfgOK(t, medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)))
+		requireSDKCfgOK(t, medium.Write(build.ConfigPath(projectDir), `
 version: 1
 sdk:
   spec: openapi.yaml
-`); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+`))
 
-		cfg, err := LoadProjectConfig(medium, projectDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireSDKCfgLoadProjectConfig(t, medium, projectDir)
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -129,7 +122,7 @@ sdk:
 func TestSdkcfg_LoadProjectConfig_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LoadProjectConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadProjectConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -138,7 +131,7 @@ func TestSdkcfg_LoadProjectConfig_Good(t *core.T) {
 func TestSdkcfg_LoadProjectConfig_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LoadProjectConfig(io.NewMemoryMedium(), "")
+		_ = LoadProjectConfig(io.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -147,7 +140,7 @@ func TestSdkcfg_LoadProjectConfig_Bad(t *core.T) {
 func TestSdkcfg_LoadProjectConfig_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LoadProjectConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadProjectConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

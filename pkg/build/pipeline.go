@@ -7,18 +7,17 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 // BuilderResolver resolves a project type into a concrete builder.
 //
-//	resolver := func(projectType build.ProjectType) (build.Builder, error) { return builders.ResolveBuilder(projectType) }
-type BuilderResolver func(ProjectType) (Builder, error)
+//	resolver := func(projectType build.ProjectType) core.Result { return builders.ResolveBuilder(projectType) }
+type BuilderResolver func(ProjectType) core.Result
 
 // VersionResolver determines the build version for a project directory.
 //
-//	resolver := func(ctx context.Context, dir string) (string, error) { return release.DetermineVersionWithContext(ctx, dir) }
-type VersionResolver func(context.Context, string) (string, error)
+//	resolver := func(ctx context.Context, dir string) core.Result { return release.DetermineVersionWithContext(ctx, dir) }
+type VersionResolver func(context.Context, string) core.Result
 
 // Pipeline coordinates the action-style gateway phases for a build request:
 // discovery, option computation, setup planning, builder resolution, and build.
@@ -83,8 +82,8 @@ type PipelineResult struct {
 
 // Plan resolves the action-style gateway phases without executing the builder.
 //
-//	plan, err := pipeline.Plan(ctx, build.PipelineRequest{ProjectDir: "."})
-func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) (*PipelinePlan, error) {
+//	result := pipeline.Plan(ctx, build.PipelineRequest{ProjectDir: "."})
+func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) core.Result {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -96,47 +95,53 @@ func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) (*PipelinePlan
 
 	projectDir := req.ProjectDir
 	if projectDir == "" {
-		var err error
-		projectDir, err = ax.Getwd()
-		if err != nil {
-			return nil, coreerr.E("build.Pipeline.Plan", "failed to get working directory", err)
+		wd := ax.Getwd()
+		if !wd.OK {
+			return core.Fail(core.E("build.Pipeline.Plan", "failed to get working directory", core.NewError(wd.Error())))
 		}
+		projectDir = wd.Value.(string)
 	}
 	projectDir = ax.Clean(projectDir)
 
-	buildConfig, err := p.loadBuildConfig(filesystem, projectDir, req)
-	if err != nil {
-		return nil, err
+	buildConfigResult := p.loadBuildConfig(filesystem, projectDir, req)
+	if !buildConfigResult.OK {
+		return buildConfigResult
 	}
+	buildConfig := buildConfigResult.Value.(*BuildConfig)
 	buildConfig = CloneBuildConfig(buildConfig)
 	applyPipelineBuildOverrides(buildConfig, req)
 
-	if err := SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
-		return nil, coreerr.E("build.Pipeline.Plan", "failed to set up build cache", err)
+	cacheSetup := SetupBuildCache(filesystem, projectDir, buildConfig)
+	if !cacheSetup.OK {
+		return core.Fail(core.E("build.Pipeline.Plan", "failed to set up build cache", core.NewError(cacheSetup.Error())))
 	}
 
-	discovery, err := DiscoverFull(filesystem, projectDir)
-	if err != nil {
-		return nil, coreerr.E("build.Pipeline.Plan", "failed to inspect project", err)
+	discoveryResult := DiscoverFull(filesystem, projectDir)
+	if !discoveryResult.OK {
+		return core.Fail(core.E("build.Pipeline.Plan", "failed to inspect project", core.NewError(discoveryResult.Error())))
 	}
+	discovery := discoveryResult.Value.(*DiscoveryResult)
 
 	options := ComputeOptions(buildConfig, discovery)
-	setupPlan, err := ComputeSetupPlan(filesystem, projectDir, buildConfig, discovery)
-	if err != nil {
-		return nil, coreerr.E("build.Pipeline.Plan", "failed to compute setup plan", err)
+	setupPlanResult := ComputeSetupPlan(filesystem, projectDir, buildConfig, discovery)
+	if !setupPlanResult.OK {
+		return core.Fail(core.E("build.Pipeline.Plan", "failed to compute setup plan", core.NewError(setupPlanResult.Error())))
 	}
+	setupPlan := setupPlanResult.Value.(*SetupPlan)
 
-	projectTypes, err := resolvePipelineProjectTypes(filesystem, projectDir, req.BuildType, buildConfig)
-	if err != nil {
-		return nil, err
+	projectTypesResult := resolvePipelineProjectTypes(filesystem, projectDir, req.BuildType, buildConfig)
+	if !projectTypesResult.OK {
+		return projectTypesResult
 	}
+	projectTypes := projectTypesResult.Value.([]ProjectType)
 
 	builders := make([]Builder, 0, len(projectTypes))
 	for _, projectType := range projectTypes {
-		builder, err := p.resolveBuilder(projectType)
-		if err != nil {
-			return nil, err
+		builderResult := p.resolveBuilder(projectType)
+		if !builderResult.OK {
+			return builderResult
 		}
+		builder := builderResult.Value.(Builder)
 		builders = append(builders, builder)
 	}
 
@@ -164,21 +169,23 @@ func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) (*PipelinePlan
 
 	version := req.Version
 	if version == "" && p.ResolveVersion != nil {
-		version, err = p.ResolveVersion(ctx, projectDir)
-		if err != nil {
-			return nil, coreerr.E("build.Pipeline.Plan", "failed to determine build version", err)
+		versionResult := p.ResolveVersion(ctx, projectDir)
+		if !versionResult.OK {
+			return core.Fail(core.E("build.Pipeline.Plan", "failed to determine build version", core.NewError(versionResult.Error())))
 		}
+		version = versionResult.Value.(string)
 	}
 	if version != "" {
-		if err := ValidateVersionString(version); err != nil {
-			return nil, coreerr.E("build.Pipeline.Plan", "invalid build version override", err)
+		valid := ValidateVersionString(version)
+		if !valid.OK {
+			return core.Fail(core.E("build.Pipeline.Plan", "invalid build version override", core.NewError(valid.Error())))
 		}
 	}
 
 	runtimeCfg := RuntimeConfigFromBuildConfig(filesystem, projectDir, outputDir, buildName, buildConfig, req.Push, req.ImageName, version)
 	ApplyOptions(runtimeCfg, options)
 
-	return &PipelinePlan{
+	return core.Ok(&PipelinePlan{
 		ProjectDir:    projectDir,
 		ProjectTypes:  append([]ProjectType(nil), projectTypes...),
 		BuildConfig:   buildConfig,
@@ -193,28 +200,28 @@ func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) (*PipelinePlan
 		BuildName:     buildName,
 		Version:       version,
 		RuntimeConfig: runtimeCfg,
-	}, nil
+	})
 }
 
 // Run executes the builder for a precomputed plan.
 //
-//	result, err := pipeline.Run(ctx, plan)
-func (p *Pipeline) Run(ctx context.Context, plan *PipelinePlan) (*PipelineResult, error) {
+//	result := pipeline.Run(ctx, plan)
+func (p *Pipeline) Run(ctx context.Context, plan *PipelinePlan) core.Result {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if plan == nil {
-		return nil, coreerr.E("build.Pipeline.Run", "pipeline plan is nil", nil)
+		return core.Fail(core.E("build.Pipeline.Run", "pipeline plan is nil", nil))
 	}
 	if plan.RuntimeConfig == nil {
-		return nil, coreerr.E("build.Pipeline.Run", "pipeline plan is missing runtime config", nil)
+		return core.Fail(core.E("build.Pipeline.Run", "pipeline plan is missing runtime config", nil))
 	}
 
 	builders := append([]Builder(nil), plan.Builders...)
 	projectTypes := append([]ProjectType(nil), plan.ProjectTypes...)
 	if len(builders) == 0 {
 		if plan.Builder == nil {
-			return nil, coreerr.E("build.Pipeline.Run", "pipeline plan is missing a builder", nil)
+			return core.Fail(core.E("build.Pipeline.Run", "pipeline plan is missing a builder", nil))
 		}
 		builders = []Builder{plan.Builder}
 		if len(projectTypes) == 0 && plan.ProjectType != "" {
@@ -222,14 +229,14 @@ func (p *Pipeline) Run(ctx context.Context, plan *PipelinePlan) (*PipelineResult
 		}
 	}
 	if len(projectTypes) == 0 {
-		return nil, coreerr.E("build.Pipeline.Run", "pipeline plan is missing project types", nil)
+		return core.Fail(core.E("build.Pipeline.Run", "pipeline plan is missing project types", nil))
 	}
 
 	artifacts := make([]Artifact, 0, len(builders))
 	multiType := len(builders) > 1
 	for i, builder := range builders {
 		if builder == nil {
-			return nil, coreerr.E("build.Pipeline.Run", "pipeline plan contains a nil builder", nil)
+			return core.Fail(core.E("build.Pipeline.Run", "pipeline plan contains a nil builder", nil))
 		}
 
 		runtimeCfg := plan.RuntimeConfig
@@ -238,17 +245,17 @@ func (p *Pipeline) Run(ctx context.Context, plan *PipelinePlan) (*PipelineResult
 			runtimeCfg.OutputDir = multiTypeOutputDir(plan.OutputDir, projectTypes, i)
 		}
 
-		builtArtifacts, err := builder.Build(ctx, runtimeCfg, plan.Targets)
-		if err != nil {
-			return nil, err
+		builtArtifacts := builder.Build(ctx, runtimeCfg, plan.Targets)
+		if !builtArtifacts.OK {
+			return builtArtifacts
 		}
-		artifacts = append(artifacts, builtArtifacts...)
+		artifacts = append(artifacts, builtArtifacts.Value.([]Artifact)...)
 	}
 
-	return &PipelineResult{
+	return core.Ok(&PipelineResult{
 		Plan:      plan,
 		Artifacts: artifacts,
-	}, nil
+	})
 }
 
 // ResolveBuildName resolves the output name from an explicit override, config,
@@ -270,17 +277,17 @@ func ResolveBuildName(projectDir string, cfg *BuildConfig, override string) stri
 	return ax.Base(projectDir)
 }
 
-func (p *Pipeline) loadBuildConfig(filesystem io.Medium, projectDir string, req PipelineRequest) (*BuildConfig, error) {
+func (p *Pipeline) loadBuildConfig(filesystem io.Medium, projectDir string, req PipelineRequest) core.Result {
 	if req.BuildConfig != nil {
-		return req.BuildConfig, nil
+		return core.Ok(req.BuildConfig)
 	}
 
 	if req.ConfigPath == "" {
-		cfg, err := LoadConfig(filesystem, projectDir)
-		if err != nil {
-			return nil, coreerr.E("build.Pipeline.Plan", "failed to load config", err)
+		cfg := LoadConfig(filesystem, projectDir)
+		if !cfg.OK {
+			return core.Fail(core.E("build.Pipeline.Plan", "failed to load config", core.NewError(cfg.Error())))
 		}
-		return cfg, nil
+		return cfg
 	}
 
 	configPath := req.ConfigPath
@@ -288,51 +295,53 @@ func (p *Pipeline) loadBuildConfig(filesystem io.Medium, projectDir string, req 
 		configPath = ax.Join(projectDir, configPath)
 	}
 	if !filesystem.Exists(configPath) {
-		return nil, coreerr.E("build.Pipeline.Plan", "build config not found: "+configPath, nil)
+		return core.Fail(core.E("build.Pipeline.Plan", "build config not found: "+configPath, nil))
 	}
 
-	cfg, err := LoadConfigAtPath(filesystem, configPath)
-	if err != nil {
-		return nil, coreerr.E("build.Pipeline.Plan", "failed to load config", err)
+	cfg := LoadConfigAtPath(filesystem, configPath)
+	if !cfg.OK {
+		return core.Fail(core.E("build.Pipeline.Plan", "failed to load config", core.NewError(cfg.Error())))
 	}
-	return cfg, nil
+	return cfg
 }
 
-func (p *Pipeline) resolveBuilder(projectType ProjectType) (Builder, error) {
+func (p *Pipeline) resolveBuilder(projectType ProjectType) core.Result {
 	if p.ResolveBuilder == nil {
-		return nil, coreerr.E("build.Pipeline.Plan", "builder resolver is required", nil)
+		return core.Fail(core.E("build.Pipeline.Plan", "builder resolver is required", nil))
 	}
 
-	builder, err := p.ResolveBuilder(projectType)
-	if err != nil {
-		return nil, coreerr.E("build.Pipeline.Plan", "failed to resolve builder for "+string(projectType), err)
+	builderResult := p.ResolveBuilder(projectType)
+	if !builderResult.OK {
+		return core.Fail(core.E("build.Pipeline.Plan", "failed to resolve builder for "+string(projectType), core.NewError(builderResult.Error())))
 	}
+	builder := builderResult.Value.(Builder)
 	if builder == nil {
-		return nil, coreerr.E("build.Pipeline.Plan", "builder resolver returned nil for "+string(projectType), nil)
+		return core.Fail(core.E("build.Pipeline.Plan", "builder resolver returned nil for "+string(projectType), nil))
 	}
 
-	return builder, nil
+	return core.Ok(builder)
 }
 
-func resolvePipelineProjectTypes(filesystem io.Medium, projectDir, buildType string, cfg *BuildConfig) ([]ProjectType, error) {
+func resolvePipelineProjectTypes(filesystem io.Medium, projectDir, buildType string, cfg *BuildConfig) core.Result {
 	if value := normalisePipelineBuildType(buildType); value != "" {
-		return []ProjectType{ProjectType(value)}, nil
+		return core.Ok([]ProjectType{ProjectType(value)})
 	}
 	if cfg != nil {
 		if value := normalisePipelineBuildType(cfg.Build.Type); value != "" {
-			return []ProjectType{ProjectType(value)}, nil
+			return core.Ok([]ProjectType{ProjectType(value)})
 		}
 	}
 
-	projectTypes, err := Discover(filesystem, projectDir)
-	if err != nil {
-		return nil, coreerr.E("build.Pipeline.Plan", "failed to detect project type", err)
+	projectTypesResult := Discover(filesystem, projectDir)
+	if !projectTypesResult.OK {
+		return core.Fail(core.E("build.Pipeline.Plan", "failed to detect project type", core.NewError(projectTypesResult.Error())))
 	}
+	projectTypes := projectTypesResult.Value.([]ProjectType)
 	if len(projectTypes) == 0 {
-		return nil, coreerr.E("build.Pipeline.Plan", "no buildable project type found in "+projectDir, nil)
+		return core.Fail(core.E("build.Pipeline.Plan", "no buildable project type found in "+projectDir, nil))
 	}
 
-	return projectTypes, nil
+	return projectTypesResult
 }
 
 func shouldUseLocalTargetByDefault(filesystem io.Medium, projectDir string, req PipelineRequest) bool {

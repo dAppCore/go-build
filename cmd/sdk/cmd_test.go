@@ -24,13 +24,13 @@ paths:
 
 func TestRunSDKValidate_Good(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(validOpenAPISpec), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(validOpenAPISpec), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err := runSDKValidateInDir(context.Background(), tmpDir, "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := runSDKValidateInDir(context.Background(), tmpDir, "")
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -56,13 +56,13 @@ func TestAddSDKCommands_RegistersGenerateAliasGood(t *testing.T) {
 
 func TestRunSDKGenerateInDir_ValidSpecDryRunGood(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(validOpenAPISpec), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(validOpenAPISpec), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "go", "", true, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := runSDKGenerateInDir(context.Background(), tmpDir, "", "go", "", true, false)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -70,67 +70,67 @@ func TestRunSDKGenerateInDir_ValidSpecDryRunGood(t *testing.T) {
 func TestRunSDKGenerateInDir_UsesBuildSDKConfigGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := ax.Join(tmpDir, "docs", "openapi.yaml")
-	if err := ax.MkdirAll(ax.Dir(specPath), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Dir(specPath), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(specPath, []byte(validOpenAPISpec), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(specPath, []byte(validOpenAPISpec), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.MkdirAll(ax.Join(tmpDir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(tmpDir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(tmpDir, ".core", "build.yaml"), []byte(`version: 1
+	if result := ax.WriteFile(ax.Join(tmpDir, ".core", "build.yaml"), []byte(`version: 1
 sdk:
   spec: docs/openapi.yaml
   languages:
     - go
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "", "", true, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := runSDKGenerateInDir(context.Background(), tmpDir, "", "", "", true, false)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
 
 func TestRunSDKGenerateInDir_InvalidDocumentBad(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(`openapi: "3.0.0"
+	if result := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(`openapi: "3.0.0"
 info:
   title: Test API
 paths: {}
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err := runSDKGenerateInDir(context.Background(), tmpDir, "", "", "", true, false)
-	if err == nil {
+	result := runSDKGenerateInDir(context.Background(), tmpDir, "", "", "", true, false)
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "invalid OpenAPI spec") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "invalid OpenAPI spec")
+	if !stdlibAssertContains(result.Error(), "invalid OpenAPI spec") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "invalid OpenAPI spec")
 	}
 
 }
 
 func TestRunSDKValidate_InvalidDocumentBad(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(`openapi: "3.0.0"
+	if result := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(`openapi: "3.0.0"
 info:
   title: Test API
 paths: {}
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err := runSDKValidateInDir(context.Background(), tmpDir, "")
-	if err == nil {
+	result := runSDKValidateInDir(context.Background(), tmpDir, "")
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "invalid OpenAPI spec") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "invalid OpenAPI spec")
+	if !stdlibAssertContains(result.Error(), "invalid OpenAPI spec") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "invalid OpenAPI spec")
 	}
 
 }
@@ -138,25 +138,25 @@ paths: {}
 func TestRunSDKValidate_UsesBuildSDKConfigGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := ax.Join(tmpDir, "docs", "openapi.yaml")
-	if err := ax.MkdirAll(ax.Dir(specPath), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Dir(specPath), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(specPath, []byte(validOpenAPISpec), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(specPath, []byte(validOpenAPISpec), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.MkdirAll(ax.Join(tmpDir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(tmpDir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(tmpDir, ".core", "build.yaml"), []byte(`version: 1
+	if result := ax.WriteFile(ax.Join(tmpDir, ".core", "build.yaml"), []byte(`version: 1
 sdk:
   spec: docs/openapi.yaml
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err := runSDKValidateInDir(context.Background(), tmpDir, "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := runSDKValidateInDir(context.Background(), tmpDir, "")
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -206,25 +206,25 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	specPath := ax.Join(tmpDir, "openapi.yaml")
-	if err := ax.WriteFile(basePath, []byte(baseSpec), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(baseSpec), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(specPath, []byte(revSpec), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	err := runSDKDiffInDir(tmpDir, basePath, specPath, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(specPath, []byte(revSpec), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err = runSDKDiffInDir(tmpDir, basePath, specPath, true)
-	if err == nil {
+	result := runSDKDiffInDir(tmpDir, basePath, specPath, false)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+
+	result = runSDKDiffInDir(tmpDir, basePath, specPath, true)
+	if result.OK {
 		t.Fatal("expected error")
 	}
 
 	var exitErr *cli.ExitError
-	if !(core.As(err, &exitErr)) {
+	if !(core.As(result.Value.(error), &exitErr)) {
 		t.Fatal("expected true")
 	}
 	if !stdlibAssertEqual(1, exitErr.Code) {

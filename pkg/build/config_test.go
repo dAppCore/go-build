@@ -19,20 +19,69 @@ func setupConfigTestDir(t *testing.T, configContent string) string {
 
 	if configContent != "" {
 		coreDir := ax.Join(dir, ConfigDir)
-		err := ax.MkdirAll(coreDir, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireConfigOKResult(t, ax.MkdirAll(coreDir, 0755))
 
 		configPath := ax.Join(coreDir, ConfigFileName)
-		err = ax.WriteFile(configPath, []byte(configContent), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireConfigOKResult(t, ax.WriteFile(configPath, []byte(configContent), 0644))
 
 	}
 
 	return dir
+}
+
+func requireConfigOKResult(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requireConfigOK(t *testing.T, result core.Result) *BuildConfig {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*BuildConfig)
+}
+
+func requireConfigError(t *testing.T, result core.Result) string {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	return result.Error()
+}
+
+func requireConfigBytes(t *testing.T, result core.Result) []byte {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]byte)
+}
+
+func requireConfigMap(t *testing.T, result core.Result) map[string]string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(map[string]string)
+}
+
+func requireConfigBuildYAML(t *testing.T, result core.Result) buildConfigYAML {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(buildConfigYAML)
+}
+
+func requireConfigString(t *testing.T, result core.Result) string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
 }
 
 func TestConfig_LoadConfig_Good(t *testing.T) {
@@ -68,10 +117,7 @@ targets:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -137,10 +183,7 @@ project:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(nil, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(nil, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -162,10 +205,7 @@ targets:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -236,10 +276,7 @@ sign:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -310,10 +347,7 @@ build:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -343,10 +377,7 @@ cache:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -377,10 +408,7 @@ pre_build:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -408,10 +436,7 @@ pre_build:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -462,10 +487,7 @@ apple:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -555,10 +577,7 @@ linuxkit:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -609,10 +628,7 @@ linuxkit:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -653,10 +669,7 @@ linuxkit:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -687,10 +700,7 @@ sdk:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -726,10 +736,7 @@ sdk:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -755,10 +762,7 @@ sign:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -773,10 +777,7 @@ sign:
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
 		dir := t.TempDir()
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -823,10 +824,7 @@ project:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -864,10 +862,7 @@ sign:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -892,10 +887,7 @@ targets:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, dir))
 		if stdlibAssertNil(
 
 			// Empty arrays are preserved (not replaced with defaults)
@@ -921,12 +913,6 @@ targets:
 }
 
 func TestConfig_MarshalYAMLGood(t *testing.T) {
-	type marshalledBuildConfig struct {
-		Build    map[string]any `yaml:"build"`
-		Cache    map[string]any `yaml:"cache"`
-		PreBuild map[string]any `yaml:"pre_build"`
-	}
-
 	t.Run("emits the RFC top-level cache block", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.Project.Name = "demo"
@@ -938,31 +924,18 @@ func TestConfig_MarshalYAMLGood(t *testing.T) {
 			RestoreKeys: []string{"go-"},
 		}
 
-		data, err := yaml.Marshal(cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		var decoded marshalledBuildConfig
-		if err := yaml.Unmarshal(data, &decoded); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		decoded := requireConfigBuildYAML(t, cfg.MarshalYAML())
 		if stdlibAssertNil(decoded.Cache) {
 			t.Fatal("expected non-nil")
 		}
-		if !stdlibAssertEqual(true, decoded.Cache["enabled"]) {
-			t.Fatalf("want %v, got %v", true, decoded.Cache["enabled"])
+		if !stdlibAssertEqual(true, decoded.Cache.Enabled) {
+			t.Fatalf("want %v, got %v", true, decoded.Cache.Enabled)
 		}
-		if !stdlibAssertEqual(".core/cache", decoded.Cache["dir"]) {
-			t.Fatalf("want %v, got %v", ".core/cache", decoded.Cache["dir"])
+		if !stdlibAssertEqual(".core/cache", decoded.Cache.Dir) {
+			t.Fatalf("want %v, got %v", ".core/cache", decoded.Cache.Dir)
 		}
-		if !stdlibAssertEqual("demo", decoded.Cache["key_prefix"]) {
-			t.Fatalf("want %v, got %v", "demo", decoded.Cache["key_prefix"])
-		}
-
-		_, hasNestedCache := decoded.Build["cache"]
-		if hasNestedCache {
-			t.Fatal("expected false")
+		if !stdlibAssertEqual("demo", decoded.Cache.KeyPrefix) {
+			t.Fatalf("want %v, got %v", "demo", decoded.Cache.KeyPrefix)
 		}
 
 	})
@@ -971,22 +944,9 @@ func TestConfig_MarshalYAMLGood(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.Build.Cache = CacheConfig{}
 
-		data, err := yaml.Marshal(cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		var decoded marshalledBuildConfig
-		if err := yaml.Unmarshal(data, &decoded); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		decoded := requireConfigBuildYAML(t, cfg.MarshalYAML())
 		if !stdlibAssertNil(decoded.Cache) {
 			t.Fatalf("expected nil, got %v", decoded.Cache)
-		}
-
-		_, hasNestedCache := decoded.Build["cache"]
-		if hasNestedCache {
-			t.Fatal("expected false")
 		}
 
 	})
@@ -1000,31 +960,20 @@ func TestConfig_MarshalYAMLGood(t *testing.T) {
 			Npm:  "npm run build",
 		}
 
-		data, err := yaml.Marshal(cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		var decoded marshalledBuildConfig
-		if err := yaml.Unmarshal(data, &decoded); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		decoded := requireConfigBuildYAML(t, cfg.MarshalYAML())
 		if stdlibAssertNil(decoded.PreBuild) {
 			t.Fatal("expected non-nil")
 		}
-		if !stdlibAssertEqual("deno task build", decoded.PreBuild["deno"]) {
-			t.Fatalf("want %v, got %v", "deno task build", decoded.PreBuild["deno"])
+		if !stdlibAssertEqual("deno task build", decoded.PreBuild.Deno) {
+			t.Fatalf("want %v, got %v", "deno task build", decoded.PreBuild.Deno)
 		}
-		if !stdlibAssertEqual("npm run build", decoded.PreBuild["npm"]) {
-			t.Fatalf("want %v, got %v", "npm run build", decoded.PreBuild["npm"])
+		if !stdlibAssertEqual("npm run build", decoded.PreBuild.Npm) {
+			t.Fatalf("want %v, got %v", "npm run build", decoded.PreBuild.Npm)
 		}
-
-		_, hasLegacyDeno := decoded.Build["deno_build"]
-		_, hasLegacyNpm := decoded.Build["npm_build"]
-		if hasLegacyDeno {
+		if decoded.Build.DenoBuild != "" {
 			t.Fatal("expected false")
 		}
-		if hasLegacyNpm {
+		if decoded.Build.NpmBuild != "" {
 			t.Fatal("expected false")
 		}
 
@@ -1048,15 +997,9 @@ targets:
   - os: linux
     arch: amd64
 `
-		err := ax.WriteFile(configPath, []byte(content), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireConfigOKResult(t, ax.WriteFile(configPath, []byte(content), 0644))
 
-		cfg, err := LoadConfigAtPath(fs, configPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfigAtPath(fs, configPath))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -1095,15 +1038,9 @@ version: 1
 project:
   name: explicit-nil-medium
 `
-		err := ax.WriteFile(configPath, []byte(content), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireConfigOKResult(t, ax.WriteFile(configPath, []byte(content), 0o644))
 
-		cfg, err := LoadConfigAtPath(nil, configPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfigAtPath(nil, configPath))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -1133,15 +1070,9 @@ project:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(fs, dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertNil(cfg) {
-			t.Fatalf("expected nil, got %v", cfg)
-		}
-		if !stdlibAssertContains(err.Error(), "failed to parse config file") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to parse config file")
+		err := requireConfigError(t, LoadConfig(fs, dir))
+		if !stdlibAssertContains(err, "failed to parse config file") {
+			t.Fatalf("expected %v to contain %v", err, "failed to parse config file")
 		}
 
 	})
@@ -1149,29 +1080,15 @@ project:
 	t.Run("returns error for unreadable file", func(t *testing.T) {
 		dir := t.TempDir()
 		coreDir := ax.Join(dir, ConfigDir)
-		err := ax.MkdirAll(coreDir, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
+		requireConfigOKResult(t, ax.MkdirAll(coreDir, 0755))
 
-				// Create config as a directory instead of file
-				err)
-		}
-
+		// Create config as a directory instead of file.
 		configPath := ax.Join(coreDir, ConfigFileName)
-		err = ax.Mkdir(configPath, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireConfigOKResult(t, ax.Mkdir(configPath, 0755))
 
-		cfg, err := LoadConfig(fs, dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertNil(cfg) {
-			t.Fatalf("expected nil, got %v", cfg)
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read config file") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read config file")
+		err := requireConfigError(t, LoadConfig(fs, dir))
+		if !stdlibAssertContains(err, "failed to read config file") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read config file")
 		}
 
 	})
@@ -1445,7 +1362,7 @@ func TestConfig_ConfigExists_Good(t *testing.T) {
 func TestConfig_LoadConfigSignConfigGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	coreDir := ax.Join(tmpDir, ".core")
-	_ = ax.MkdirAll(coreDir, 0755)
+	requireConfigOKResult(t, ax.MkdirAll(coreDir, 0755))
 
 	configContent := `version: 1
 sign:
@@ -1456,12 +1373,9 @@ sign:
     identity: "Developer ID Application: Test"
     notarize: true
 `
-	_ = ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(configContent), 0644)
+	requireConfigOKResult(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(configContent), 0644))
 
-	cfg, err := LoadConfig(io.Local, tmpDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	cfg := requireConfigOK(t, LoadConfig(io.Local, tmpDir))
 
 	if !cfg.Sign.Enabled {
 		t.Error("expected Sign.Enabled to be true")
@@ -1521,16 +1435,10 @@ func TestConfig_BuildConfigToTargetsGood(t *testing.T) {
 
 func TestConfig_LoadConfigTestdataGood(t *testing.T) {
 	fs := io.Local
-	abs, err := ax.Abs("testdata/config-project")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	abs := requireConfigString(t, ax.Abs("testdata/config-project"))
 
 	t.Run("loads config-project fixture", func(t *testing.T) {
-		cfg, err := LoadConfig(fs, abs)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireConfigOK(t, LoadConfig(fs, abs))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -1609,7 +1517,7 @@ func TestConfig_BuildConfig_MarshalYAML_Good(t *core.T) {
 	subject := BuildConfig{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.MarshalYAML()
+		_ = subject.MarshalYAML()
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1619,7 +1527,7 @@ func TestConfig_BuildConfig_MarshalYAML_Bad(t *core.T) {
 	subject := BuildConfig{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.MarshalYAML()
+		_ = subject.MarshalYAML()
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1629,73 +1537,27 @@ func TestConfig_BuildConfig_MarshalYAML_Ugly(t *core.T) {
 	subject := BuildConfig{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.MarshalYAML()
+		_ = subject.MarshalYAML()
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
 }
 
-func TestConfig_TargetConfig_MarshalJSON_Good(t *core.T) {
-	data, err := TargetConfig{OS: "linux", Arch: "amd64"}.MarshalJSON()
-	core.RequireNoError(t, err)
-	core.AssertContains(t, string(data), `"linux"`)
-	core.AssertContains(t, string(data), `"amd64"`)
-}
-
-func TestConfig_TargetConfig_MarshalJSON_Bad(t *core.T) {
-	data, err := TargetConfig{}.MarshalJSON()
-	core.RequireNoError(t, err)
-	core.AssertContains(t, string(data), targetConfigOSField)
-}
-
-func TestConfig_TargetConfig_MarshalJSON_Ugly(t *core.T) {
-	data, err := TargetConfig{OS: "darwin", Arch: "arm64/v8"}.MarshalJSON()
-	core.RequireNoError(t, err)
-	core.AssertContains(t, string(data), "arm64/v8")
-}
-
-func TestConfig_TargetConfig_UnmarshalJSON_Good(t *core.T) {
-	var subject TargetConfig
-	err := subject.UnmarshalJSON([]byte(`{"` + targetConfigOSField + `":"linux","arch":"amd64"}`))
-	core.RequireNoError(t, err)
-	core.AssertEqual(t, "linux", subject.OS)
-	core.AssertEqual(t, "amd64", subject.Arch)
-}
-
-func TestConfig_TargetConfig_UnmarshalJSON_Bad(t *core.T) {
-	var subject TargetConfig
-	err := subject.UnmarshalJSON([]byte(`{`))
-	core.AssertError(t, err)
-}
-
-func TestConfig_TargetConfig_UnmarshalJSON_Ugly(t *core.T) {
-	var subject TargetConfig
-	err := subject.UnmarshalJSON([]byte(`{"` + targetConfigOSField + `":"windows","arch":"arm64","ignored":"yes"}`))
-	core.RequireNoError(t, err)
-	core.AssertEqual(t, "windows", subject.OS)
-	core.AssertEqual(t, "arm64", subject.Arch)
-}
-
 func TestConfig_TargetConfig_MarshalYAML_Good(t *core.T) {
-	value, err := (TargetConfig{OS: "linux", Arch: "amd64"}).MarshalYAML()
-	core.RequireNoError(t, err)
-	raw := value.(map[string]string)
+	raw := requireConfigMap((*testing.T)(t), (TargetConfig{OS: "linux", Arch: "amd64"}).MarshalYAML())
 	core.AssertEqual(t, "linux", raw[targetConfigOSField])
 	core.AssertEqual(t, "amd64", raw["arch"])
 }
 
 func TestConfig_TargetConfig_MarshalYAML_Bad(t *core.T) {
-	value, err := (TargetConfig{}).MarshalYAML()
-	core.RequireNoError(t, err)
-	raw := value.(map[string]string)
+	raw := requireConfigMap((*testing.T)(t), (TargetConfig{}).MarshalYAML())
 	core.AssertEqual(t, "", raw[targetConfigOSField])
 	core.AssertEqual(t, "", raw["arch"])
 }
 
 func TestConfig_TargetConfig_MarshalYAML_Ugly(t *core.T) {
-	value, err := (TargetConfig{OS: "darwin", Arch: "arm64/v8"}).MarshalYAML()
-	core.RequireNoError(t, err)
-	raw := value.(map[string]string)
+	raw := requireConfigMap((*testing.T)(t), (TargetConfig{OS: "darwin", Arch: "arm64/v8"}).MarshalYAML())
+	core.AssertEqual(t, "darwin", raw[targetConfigOSField])
 	core.AssertEqual(t, "arm64/v8", raw["arch"])
 }
 
@@ -1703,22 +1565,24 @@ func TestConfig_TargetConfig_UnmarshalYAML_Good(t *core.T) {
 	node := &yaml.Node{}
 	core.RequireNoError(t, node.Encode(map[string]string{targetConfigOSField: "linux", "arch": "amd64"}))
 	var subject TargetConfig
-	core.RequireNoError(t, subject.UnmarshalYAML(node))
+	result := subject.UnmarshalYAML(node)
+	core.RequireTrue(t, result.OK)
 	core.AssertEqual(t, "linux", subject.OS)
 	core.AssertEqual(t, "amd64", subject.Arch)
 }
 
 func TestConfig_TargetConfig_UnmarshalYAML_Bad(t *core.T) {
 	var subject TargetConfig
-	err := subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "not-a-map"})
-	core.AssertError(t, err)
+	result := subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "not-a-map"})
+	core.AssertFalse(t, result.OK)
 }
 
 func TestConfig_TargetConfig_UnmarshalYAML_Ugly(t *core.T) {
 	node := &yaml.Node{}
 	core.RequireNoError(t, node.Encode(map[string]string{targetConfigOSField: "windows", "arch": "arm64", "ignored": "yes"}))
 	var subject TargetConfig
-	core.RequireNoError(t, subject.UnmarshalYAML(node))
+	result := subject.UnmarshalYAML(node)
+	core.RequireTrue(t, result.OK)
 	core.AssertEqual(t, "windows", subject.OS)
 	core.AssertEqual(t, "arm64", subject.Arch)
 }
@@ -1726,7 +1590,7 @@ func TestConfig_TargetConfig_UnmarshalYAML_Ugly(t *core.T) {
 func TestConfig_LoadConfig_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LoadConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1735,7 +1599,7 @@ func TestConfig_LoadConfig_Ugly(t *core.T) {
 func TestConfig_LoadConfigAtPath_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LoadConfigAtPath(io.NewMemoryMedium(), "")
+		_ = LoadConfigAtPath(io.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1744,7 +1608,7 @@ func TestConfig_LoadConfigAtPath_Bad(t *core.T) {
 func TestConfig_LoadConfigAtPath_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LoadConfigAtPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadConfigAtPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

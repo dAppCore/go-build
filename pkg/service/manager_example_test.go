@@ -2,9 +2,20 @@ package service
 
 import (
 	core "dappco.re/go"
+	nativeservice "github.com/kardianos/service"
 )
 
 type Program = noopProgram
+
+type noopProgram struct{}
+
+func (noopProgram) Start(nativeservice.Service) error {
+	return nil
+}
+
+func (noopProgram) Stop(nativeservice.Service) error {
+	return nil
+}
 
 // --- v0.9.0 generated usage examples ---
 func ExampleNewManager() {

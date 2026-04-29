@@ -2,6 +2,7 @@ package builders
 
 import (
 	core "dappco.re/go"
+	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	coreio "dappco.re/go/io"
 )
@@ -26,24 +27,27 @@ func TestApplePlist_GenerateAppleInfoPlist_Ugly(t *core.T) {
 
 func TestApplePlist_WriteAppleInfoPlist_Good(t *core.T) {
 	fs := coreio.NewMemoryMedium()
-	path, err := WriteAppleInfoPlist(fs, "Core.app", &build.Config{Name: "Core"}, AppleOptions{BundleID: "ai.lthn.core"}, "7")
-	core.RequireNoError(t, err)
+	result := WriteAppleInfoPlist(fs, "Core.app", &build.Config{Name: "Core"}, AppleOptions{BundleID: "ai.lthn.core"}, "7")
+	core.RequireTrue(t, result.OK)
+	path := result.Value.(string)
 	core.AssertEqual(t, "Core.app/Contents/Info.plist", path)
 	core.AssertTrue(t, fs.IsFile(path))
 }
 
 func TestApplePlist_WriteAppleInfoPlist_Bad(t *core.T) {
-	path, err := WriteAppleInfoPlist(coreio.NewMemoryMedium(), "", nil, AppleOptions{}, "")
-	core.AssertError(t, err)
-	core.AssertEqual(t, "", path)
+	result := WriteAppleInfoPlist(coreio.NewMemoryMedium(), "", nil, AppleOptions{}, "")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "app path is required")
 }
 
 func TestApplePlist_WriteAppleInfoPlist_Ugly(t *core.T) {
 	fs := coreio.NewMemoryMedium()
-	path, err := WriteAppleInfoPlist(fs, "Edge.app", nil, AppleOptions{}, "")
-	core.RequireNoError(t, err)
-	content, readErr := fs.Read(path)
-	core.RequireNoError(t, readErr)
+	result := WriteAppleInfoPlist(fs, "Edge.app", nil, AppleOptions{}, "")
+	core.RequireTrue(t, result.OK)
+	path := result.Value.(string)
+	readResult := fs.Read(path)
+	core.RequireTrue(t, readResult.OK)
+	content := readResult.Value.(string)
 	core.AssertContains(t, content, "CFBundleName")
 }
 
@@ -85,21 +89,21 @@ func TestApplePlist_DefaultAppleEntitlements_Ugly(t *core.T) {
 
 func TestApplePlist_WriteAppleEntitlements_Good(t *core.T) {
 	fs := coreio.NewMemoryMedium()
-	err := WriteAppleEntitlements(fs, "Core.app/Contents/Core.entitlements", DefaultAppleEntitlements())
-	core.RequireNoError(t, err)
+	result := WriteAppleEntitlements(fs, "Core.app/Contents/Core.entitlements", DefaultAppleEntitlements())
+	core.RequireTrue(t, result.OK)
 	core.AssertTrue(t, fs.IsFile("Core.app/Contents/Core.entitlements"))
 }
 
 func TestApplePlist_WriteAppleEntitlements_Bad(t *core.T) {
-	err := WriteAppleEntitlements(coreio.NewMemoryMedium(), "", DefaultAppleEntitlements())
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "path is required")
+	result := WriteAppleEntitlements(coreio.NewMemoryMedium(), "", DefaultAppleEntitlements())
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "path is required")
 }
 
 func TestApplePlist_WriteAppleEntitlements_Ugly(t *core.T) {
 	fs := coreio.NewMemoryMedium()
-	err := WriteAppleEntitlements(fs, "Core.entitlements", AppleEntitlements{})
-	core.RequireNoError(t, err)
+	result := WriteAppleEntitlements(fs, "Core.entitlements", AppleEntitlements{})
+	core.RequireTrue(t, result.OK)
 	core.AssertTrue(t, fs.IsFile("Core.entitlements"))
 }
 
@@ -123,20 +127,25 @@ func TestApplePlist_AppleEntitlements_Values_Ugly(t *core.T) {
 
 func TestApplePlist_AppleBuilder_WriteXcodeCloudConfig_Good(t *core.T) {
 	fs := coreio.NewMemoryMedium()
-	paths, err := NewAppleBuilder().WriteXcodeCloudConfig(fs, "Project", &build.Config{Name: "Core"}, AppleOptions{Arch: "universal"})
-	core.RequireNoError(t, err)
+	result := NewAppleBuilder().WriteXcodeCloudConfig(fs, "Project", &build.Config{Name: "Core"}, AppleOptions{Arch: "universal"})
+	core.RequireTrue(t, result.OK)
+	paths := result.Value.([]string)
 	core.AssertLen(t, paths, 3)
 }
 
 func TestApplePlist_AppleBuilder_WriteXcodeCloudConfig_Bad(t *core.T) {
-	paths, err := NewAppleBuilder().WriteXcodeCloudConfig(nil, "", nil, AppleOptions{})
-	core.AssertError(t, err)
-	core.AssertNil(t, paths)
+	projectDir := core.TempDir()
+	result := ax.WriteFile(ax.Join(projectDir, ".xcode-cloud"), []byte("not a directory"), 0o644)
+	core.RequireTrue(t, result.OK)
+	result = NewAppleBuilder().WriteXcodeCloudConfig(coreio.Local, projectDir, nil, AppleOptions{})
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "failed to create Xcode Cloud scripts directory")
 }
 
 func TestApplePlist_AppleBuilder_WriteXcodeCloudConfig_Ugly(t *core.T) {
 	fs := coreio.NewMemoryMedium()
-	paths, err := NewAppleBuilder().WriteXcodeCloudConfig(fs, ".", nil, AppleOptions{})
-	core.RequireNoError(t, err)
+	result := NewAppleBuilder().WriteXcodeCloudConfig(fs, ".", nil, AppleOptions{})
+	core.RequireTrue(t, result.OK)
+	paths := result.Value.([]string)
 	core.AssertContains(t, paths, ".xcode-cloud/ci_scripts/ci_post_clone.sh")
 }

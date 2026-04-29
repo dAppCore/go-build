@@ -6,12 +6,12 @@ import (
 	"dappco.re/go/cli/pkg/cli"
 )
 
-func emitCIErrorAnnotation(err error) {
-	if err == nil {
+func emitCIErrorAnnotation(result core.Result) {
+	if result.OK {
 		return
 	}
 
-	message := core.Trim(err.Error())
+	message := core.Trim(result.Error())
 	if message == "" {
 		return
 	}

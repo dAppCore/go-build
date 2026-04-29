@@ -10,16 +10,17 @@ import (
 func TestCI_runCIReleaseInitInDir_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
-	err := runCIReleaseInitInDir(projectDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := runCIReleaseInitInDir(projectDir)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	configPath := release.ConfigPath(projectDir)
-	content, err := ax.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	contentResult := ax.ReadFile(configPath)
+	if !contentResult.OK {
+		t.Fatalf("unexpected error: %v", contentResult.Error())
 	}
+	content := contentResult.Value.([]byte)
 	if !stdlibAssertContains(string(content), "sdk:") {
 		t.Fatalf("expected %v to contain %v", string(content), "sdk:")
 	}

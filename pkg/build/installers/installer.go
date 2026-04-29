@@ -7,8 +7,7 @@ import (
 	"regexp"        // Note: AX-6 — validates release versions with a precompiled pattern.
 	"text/template" // Note: AX-6 — renders shell installer templates.
 
-	"dappco.re/go"             // Note: AX-6 — provides approved string helpers and template writer construction.
-	coreerr "dappco.re/go/log" // Note: AX-6 — wraps installer errors with Core logging semantics.
+	"dappco.re/go" // Note: AX-6 — provides approved string helpers and template writer construction.
 )
 
 //go:embed templates/*.tmpl
@@ -106,42 +105,44 @@ type InstallerConfig struct {
 //	script, err := installers.GenerateInstaller(installers.VariantCI, installers.InstallerConfig{
 //	    Version: "v1.2.3", Repo: "dappcore/core", BinaryName: "core",
 //	})
-func GenerateInstaller(variant InstallerVariant, args ...any) (string, error) {
-	cfg, err := normalizeInstallerArgs(args...)
-	if err != nil {
-		return "", err
+func GenerateInstaller(variant InstallerVariant, args ...any) core.Result {
+	cfgResult := normalizeInstallerArgs(args...)
+	if !cfgResult.OK {
+		return cfgResult
 	}
+	cfg := cfgResult.Value.(InstallerConfig)
 
 	variant = canonicalVariant(variant)
-	if err := validateInstallerVersion(cfg.Version); err != nil {
-		return "", coreerr.E("installers.GenerateInstaller", "version is not a safe release identifier", err)
+	valid := validateInstallerVersion(cfg.Version)
+	if !valid.OK {
+		return core.Fail(core.E("installers.GenerateInstaller", "version is not a safe release identifier", core.NewError(valid.Error())))
 	}
 
 	entry, ok := variantTemplates[variant]
 	if !ok {
-		return "", coreerr.E("installers.GenerateInstaller", "unknown variant: "+string(variant), nil)
+		return core.Fail(core.E("installers.GenerateInstaller", "unknown variant: "+string(variant), nil))
 	}
 
 	raw, err := installerTemplates.ReadFile(entry.tmpl)
 	if err != nil {
-		return "", coreerr.E("installers.GenerateInstaller", "failed to read template "+entry.tmpl, err)
+		return core.Fail(core.E("installers.GenerateInstaller", "failed to read template "+entry.tmpl, err))
 	}
 
 	tmpl, err := template.New(entry.output).Funcs(template.FuncMap{
 		"shellQuote": shellQuote,
 	}).Parse(string(raw))
 	if err != nil {
-		return "", coreerr.E("installers.GenerateInstaller", "failed to parse template "+entry.tmpl, err)
+		return core.Fail(core.E("installers.GenerateInstaller", "failed to parse template "+entry.tmpl, err))
 	}
 
 	// Note: AX-6 — core.NewBuffer is unavailable in the pinned core module;
 	// core.NewBuilder is the available Core-owned writer.
 	buf := core.NewBuilder()
 	if err := tmpl.Execute(buf, cfg); err != nil {
-		return "", coreerr.E("installers.GenerateInstaller", "failed to render template "+entry.tmpl, err)
+		return core.Fail(core.E("installers.GenerateInstaller", "failed to render template "+entry.tmpl, err))
 	}
 
-	return buf.String(), nil
+	return core.Ok(buf.String())
 }
 
 // GenerateAll renders all installer variants and returns a map of output filename → script content.
@@ -156,60 +157,62 @@ func GenerateInstaller(variant InstallerVariant, args ...any) (string, error) {
 //	for name, content := range scripts {
 //	    // name: "setup.sh", content: "#!/usr/bin/env bash\n..."
 //	}
-func GenerateAll(args ...any) (map[string]string, error) {
-	cfg, err := normalizeInstallerArgs(args...)
-	if err != nil {
-		return nil, err
+func GenerateAll(args ...any) core.Result {
+	cfgResult := normalizeInstallerArgs(args...)
+	if !cfgResult.OK {
+		return cfgResult
 	}
+	cfg := cfgResult.Value.(InstallerConfig)
 
-	if err := validateInstallerVersion(cfg.Version); err != nil {
-		return nil, coreerr.E("installers.GenerateAll", "version is not a safe release identifier", err)
+	valid := validateInstallerVersion(cfg.Version)
+	if !valid.OK {
+		return core.Fail(core.E("installers.GenerateAll", "version is not a safe release identifier", core.NewError(valid.Error())))
 	}
 
 	out := make(map[string]string, len(installerVariantOrder))
 
 	for _, variant := range installerVariantOrder {
 		entry := variantTemplates[variant]
-		script, err := GenerateInstaller(variant, cfg)
-		if err != nil {
-			return nil, coreerr.E("installers.GenerateAll", "failed to generate variant "+string(variant), err)
+		script := GenerateInstaller(variant, cfg)
+		if !script.OK {
+			return core.Fail(core.E("installers.GenerateAll", "failed to generate variant "+string(variant), core.NewError(script.Error())))
 		}
-		out[entry.output] = script
+		out[entry.output] = script.Value.(string)
 	}
 
-	return out, nil
+	return core.Ok(out)
 }
 
-func normalizeInstallerArgs(args ...any) (InstallerConfig, error) {
+func normalizeInstallerArgs(args ...any) core.Result {
 	switch len(args) {
 	case 1:
 		switch cfg := args[0].(type) {
 		case InstallerConfig:
-			return normalizeInstallerConfig(cfg), nil
+			return core.Ok(normalizeInstallerConfig(cfg))
 		case *InstallerConfig:
 			if cfg == nil {
-				return normalizeInstallerConfig(InstallerConfig{}), nil
+				return core.Ok(normalizeInstallerConfig(InstallerConfig{}))
 			}
-			return normalizeInstallerConfig(*cfg), nil
+			return core.Ok(normalizeInstallerConfig(*cfg))
 		default:
-			return InstallerConfig{}, coreerr.E("installers.normalizeInstallerArgs", "expected InstallerConfig or *InstallerConfig", nil)
+			return core.Fail(core.E("installers.normalizeInstallerArgs", "expected InstallerConfig or *InstallerConfig", nil))
 		}
 	case 2:
 		version, ok := args[0].(string)
 		if !ok {
-			return InstallerConfig{}, coreerr.E("installers.normalizeInstallerArgs", "version must be a string", nil)
+			return core.Fail(core.E("installers.normalizeInstallerArgs", "version must be a string", nil))
 		}
 		repo, ok := args[1].(string)
 		if !ok {
-			return InstallerConfig{}, coreerr.E("installers.normalizeInstallerArgs", "repo must be a string", nil)
+			return core.Fail(core.E("installers.normalizeInstallerArgs", "repo must be a string", nil))
 		}
-		return normalizeInstallerConfig(InstallerConfig{
+		return core.Ok(normalizeInstallerConfig(InstallerConfig{
 			Version:    version,
 			Repo:       repo,
 			BinaryName: defaultInstallerBinaryName(repo),
-		}), nil
+		}))
 	default:
-		return InstallerConfig{}, coreerr.E("installers.normalizeInstallerArgs", "expected either InstallerConfig or version/repo arguments", nil)
+		return core.Fail(core.E("installers.normalizeInstallerArgs", "expected either InstallerConfig or version/repo arguments", nil))
 	}
 }
 
@@ -257,19 +260,19 @@ func canonicalVariant(variant InstallerVariant) InstallerVariant {
 	return normalized
 }
 
-func validateInstallerVersion(version string) error {
+func validateInstallerVersion(version string) core.Result {
 	trimmed := core.Trim(version)
 	if trimmed == "" {
-		return nil
+		return core.Ok(nil)
 	}
 	if version != trimmed {
-		return coreerr.E("installers.validateInstallerVersion", "version contains unsupported whitespace", nil)
+		return core.Fail(core.E("installers.validateInstallerVersion", "version contains unsupported whitespace", nil))
 	}
 	if !safeInstallerVersion.MatchString(version) {
-		return coreerr.E("installers.validateInstallerVersion", "version contains unsupported characters", nil)
+		return core.Fail(core.E("installers.validateInstallerVersion", "version contains unsupported characters", nil))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func trimTrailingSlashes(value string) string {

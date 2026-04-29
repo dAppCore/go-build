@@ -9,7 +9,7 @@ func ExampleSDK_ValidateSpec() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
-	_, _ = subject.ValidateSpec(ctx)
+	_ = subject.ValidateSpec(ctx)
 	core.Println("SDK_ValidateSpec")
 	// Output: SDK_ValidateSpec
 }

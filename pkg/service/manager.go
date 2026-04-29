@@ -1,15 +1,16 @@
 package service
 
 import (
+	core "dappco.re/go"
 	nativeservice "github.com/kardianos/service"
 )
 
 // Manager wraps OS service manager operations.
 type Manager interface {
-	Install(cfg Config) error
-	Start(cfg Config) error
-	Stop(cfg Config) error
-	Uninstall(cfg Config) error
+	Install(cfg Config) core.Result
+	Start(cfg Config) core.Result
+	Stop(cfg Config) core.Result
+	Uninstall(cfg Config) core.Result
 }
 
 // NewManager returns the default OS service manager implementation.
@@ -27,48 +28,43 @@ type nativeController interface {
 	Uninstall() error
 }
 
-type noopProgram struct{}
-
-func (noopProgram) Start(nativeservice.Service) error { return nil }
-func (noopProgram) Stop(nativeservice.Service) error  { return nil }
-
 var newNativeService = func(program nativeservice.Interface, cfg *nativeservice.Config) (nativeController, error) {
 	return nativeservice.New(program, cfg)
 }
 
-func (m *OSManager) Install(cfg Config) error {
-	controller, err := m.serviceFor(cfg)
-	if err != nil {
-		return err
+func (m *OSManager) Install(cfg Config) core.Result {
+	controller := m.serviceFor(cfg)
+	if !controller.OK {
+		return controller
 	}
-	return controller.Install()
+	return core.ResultOf(nil, controller.Value.(nativeController).Install())
 }
 
-func (m *OSManager) Start(cfg Config) error {
-	controller, err := m.serviceFor(cfg)
-	if err != nil {
-		return err
+func (m *OSManager) Start(cfg Config) core.Result {
+	controller := m.serviceFor(cfg)
+	if !controller.OK {
+		return controller
 	}
-	return controller.Start()
+	return core.ResultOf(nil, controller.Value.(nativeController).Start())
 }
 
-func (m *OSManager) Stop(cfg Config) error {
-	controller, err := m.serviceFor(cfg)
-	if err != nil {
-		return err
+func (m *OSManager) Stop(cfg Config) core.Result {
+	controller := m.serviceFor(cfg)
+	if !controller.OK {
+		return controller
 	}
-	return controller.Stop()
+	return core.ResultOf(nil, controller.Value.(nativeController).Stop())
 }
 
-func (m *OSManager) Uninstall(cfg Config) error {
-	controller, err := m.serviceFor(cfg)
-	if err != nil {
-		return err
+func (m *OSManager) Uninstall(cfg Config) core.Result {
+	controller := m.serviceFor(cfg)
+	if !controller.OK {
+		return controller
 	}
-	return controller.Uninstall()
+	return core.ResultOf(nil, controller.Value.(nativeController).Uninstall())
 }
 
-func (m *OSManager) serviceFor(cfg Config) (nativeController, error) {
+func (m *OSManager) serviceFor(cfg Config) core.Result {
 	cfg = cfg.Normalized()
 
 	serviceConfig := &nativeservice.Config{
@@ -89,7 +85,7 @@ func (m *OSManager) serviceFor(cfg Config) (nativeController, error) {
 		},
 	}
 
-	return newNativeService(noopProgram{}, serviceConfig)
+	return core.ResultOf(newNativeService(nil, serviceConfig))
 }
 
 func copyEnv(values map[string]string) map[string]string {

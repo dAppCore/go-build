@@ -7,7 +7,7 @@ import (
 
 // --- v0.9.0 generated usage examples ---
 func ExampleLoadProjectConfig() {
-	_, _ = LoadProjectConfig(coreio.NewMemoryMedium(), core.Path(core.TempDir(), "go-build-compliance"))
+	_ = LoadProjectConfig(coreio.NewMemoryMedium(), core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("LoadProjectConfig")
 	// Output: LoadProjectConfig
 }

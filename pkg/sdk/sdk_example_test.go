@@ -65,7 +65,7 @@ func ExampleSDK_GenerateWithStatus() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
-	_, _ = subject.GenerateWithStatus(ctx)
+	_ = subject.GenerateWithStatus(ctx)
 	core.Println("SDK_GenerateWithStatus")
 	// Output: SDK_GenerateWithStatus
 }
@@ -83,7 +83,7 @@ func ExampleSDK_GenerateLanguageWithStatus() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
-	_, _ = subject.GenerateLanguageWithStatus(ctx, "go")
+	_ = subject.GenerateLanguageWithStatus(ctx, "go")
 	core.Println("SDK_GenerateLanguageWithStatus")
 	// Output: SDK_GenerateLanguageWithStatus
 }

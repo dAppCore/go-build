@@ -9,7 +9,6 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 const (
@@ -59,11 +58,11 @@ type ExportedConfig struct {
 }
 
 // ResolveConfig loads service defaults for the project in projectDir.
-func ResolveConfig(projectDir string) (Config, error) {
+func ResolveConfig(projectDir string) core.Result {
 	if projectDir == "" {
 		wd := core.Getwd()
 		if !wd.OK {
-			return Config{}, coreerr.E("service.ResolveConfig", "failed to get working directory", resultError(wd))
+			return core.Fail(core.E("service.ResolveConfig", "failed to get working directory", core.NewError(wd.Error())))
 		}
 		projectDir = wd.Value.(string)
 	}
@@ -71,10 +70,11 @@ func ResolveConfig(projectDir string) (Config, error) {
 	projectDir = core.PathJoin(projectDir)
 	cfg := DefaultConfig(projectDir)
 
-	buildCfg, err := build.LoadConfig(io.Local, projectDir)
-	if err != nil {
-		return Config{}, coreerr.E("service.ResolveConfig", "failed to load build config", err)
+	loaded := build.LoadConfig(io.Local, projectDir)
+	if !loaded.OK {
+		return core.Fail(core.E("service.ResolveConfig", "failed to load build config", core.NewError(loaded.Error())))
 	}
+	buildCfg := loaded.Value.(*build.BuildConfig)
 	if buildCfg != nil {
 		rawName := firstNonEmpty(buildCfg.Project.Binary, buildCfg.Project.Name, cfg.Name)
 		cfg.Name = normaliseServiceName(rawName)
@@ -84,7 +84,7 @@ func ResolveConfig(projectDir string) (Config, error) {
 		}
 	}
 
-	return cfg.Normalized(), nil
+	return core.Ok(cfg.Normalized())
 }
 
 // DefaultConfig returns the default daemon and service manager settings.
@@ -200,28 +200,28 @@ func (cfg Config) Normalized() Config {
 }
 
 // ResolveNativeFormat maps an explicit format or the current platform to a native service type.
-func ResolveNativeFormat(format string) (NativeFormat, error) {
+func ResolveNativeFormat(format string) core.Result {
 	format = core.Trim(core.Lower(format))
 	switch format {
 	case "":
 		switch runtime.GOOS {
 		case "linux":
-			return NativeFormatSystemd, nil
+			return core.Ok(NativeFormatSystemd)
 		case "darwin":
-			return NativeFormatLaunchd, nil
+			return core.Ok(NativeFormatLaunchd)
 		case "windows":
-			return NativeFormatWindows, nil
+			return core.Ok(NativeFormatWindows)
 		default:
-			return "", coreerr.E("service.ResolveNativeFormat", "unsupported platform: "+runtime.GOOS, nil)
+			return core.Fail(core.E("service.ResolveNativeFormat", "unsupported platform: "+runtime.GOOS, nil))
 		}
 	case string(NativeFormatSystemd):
-		return NativeFormatSystemd, nil
+		return core.Ok(NativeFormatSystemd)
 	case string(NativeFormatLaunchd), "plist":
-		return NativeFormatLaunchd, nil
+		return core.Ok(NativeFormatLaunchd)
 	case string(NativeFormatWindows), "windows-service", "powershell":
-		return NativeFormatWindows, nil
+		return core.Ok(NativeFormatWindows)
 	default:
-		return "", coreerr.E("service.ResolveNativeFormat", "unsupported native service format: "+format, nil)
+		return core.Fail(core.E("service.ResolveNativeFormat", "unsupported native service format: "+format, nil))
 	}
 }
 
@@ -349,11 +349,4 @@ func trimHyphens(value string) string {
 		value = core.TrimSuffix(value, "-")
 	}
 	return value
-}
-
-func resultError(result core.Result) error {
-	if err, ok := result.Value.(error); ok {
-		return err
-	}
-	return core.NewError(result.Error())
 }

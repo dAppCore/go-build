@@ -39,8 +39,8 @@ set -eu
 	fi
 fi
 `
-	if err := ax.WriteFile(ax.Join(binDir, "docker"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "docker"), []byte(script), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -58,16 +58,12 @@ func TestDocker_DockerBuilderDetectGood(t *testing.T) {
 
 	t.Run("detects Dockerfile", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "Dockerfile"), []byte("FROM alpine\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "Dockerfile"), []byte("FROM alpine\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewDockerBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -76,16 +72,12 @@ func TestDocker_DockerBuilderDetectGood(t *testing.T) {
 
 	t.Run("detects Containerfile", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "Containerfile"), []byte("FROM alpine\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "Containerfile"), []byte("FROM alpine\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewDockerBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -96,10 +88,7 @@ func TestDocker_DockerBuilderDetectGood(t *testing.T) {
 		dir := t.TempDir()
 
 		builder := NewDockerBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -109,16 +98,12 @@ func TestDocker_DockerBuilderDetectGood(t *testing.T) {
 	t.Run("returns false for non-Docker project", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create a Go project instead
-		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewDockerBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -127,16 +112,12 @@ func TestDocker_DockerBuilderDetectGood(t *testing.T) {
 
 	t.Run("does not match docker-compose.yml", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "docker-compose.yml"), []byte("version: '3'\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "docker-compose.yml"), []byte("version: '3'\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewDockerBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -146,20 +127,16 @@ func TestDocker_DockerBuilderDetectGood(t *testing.T) {
 	t.Run("does not match Dockerfile in subdirectory", func(t *testing.T) {
 		dir := t.TempDir()
 		subDir := ax.Join(dir, "subdir")
-		if err := ax.MkdirAll(subDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(subDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err := ax.WriteFile(ax.Join(subDir, "Dockerfile"), []byte("FROM alpine\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(subDir, "Dockerfile"), []byte("FROM alpine\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewDockerBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -173,10 +150,7 @@ func TestDocker_DockerBuilderInterfaceGood(t *testing.T) {
 	if !stdlibAssertEqual("docker", builder.Name()) {
 		t.Fatalf("want %v, got %v", "docker", builder.Name())
 	}
-	detected, err := builder.Detect(nil, t.TempDir())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	detected := requireCPPBool(t, builder.Detect(nil, t.TempDir()))
 	if detected {
 		t.Fatal("expected empty temp directory not to be detected")
 	}
@@ -186,16 +160,13 @@ func TestDocker_DockerBuilderResolveDockerCliGood(t *testing.T) {
 	builder := NewDockerBuilder()
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "docker")
-	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("PATH", "")
 
-	command, err := builder.resolveDockerCli(fallbackPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	command := requireCPPString(t, builder.resolveDockerCli(fallbackPath))
 	if !stdlibAssertEqual(fallbackPath, command) {
 		t.Fatalf("want %v, got %v", fallbackPath, command)
 	}
@@ -206,12 +177,12 @@ func TestDocker_DockerBuilderResolveDockerCliBad(t *testing.T) {
 	builder := NewDockerBuilder()
 	t.Setenv("PATH", "")
 
-	_, err := builder.resolveDockerCli(ax.Join(t.TempDir(), "missing-docker"))
-	if err == nil {
+	result := builder.resolveDockerCli(ax.Join(t.TempDir(), "missing-docker"))
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "docker CLI not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "docker CLI not found")
+	if !stdlibAssertContains(result.Error(), "docker CLI not found") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "docker CLI not found")
 	}
 
 }
@@ -226,8 +197,8 @@ func TestDocker_DockerBuilderBuildGood(t *testing.T) {
 	t.Setenv("PATH", binDir+string(core.PathListSeparator)+core.Getenv("PATH"))
 
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine:latest\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine:latest\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	outputDir := t.TempDir()
@@ -249,10 +220,7 @@ func TestDocker_DockerBuilderBuildGood(t *testing.T) {
 		{OS: "linux", Arch: "arm64"},
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg, targets)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -267,14 +235,11 @@ func TestDocker_DockerBuilderBuildGood(t *testing.T) {
 	if !stdlibAssertEqual("amd64", artifacts[0].Arch) {
 		t.Fatalf("want %v, got %v", "amd64", artifacts[0].Arch)
 	}
-	if _, err := ax.Stat(expectedPath); err != nil {
+	if result := ax.Stat(expectedPath); !result.OK {
 		t.Fatalf("expected file to exist: %v", expectedPath)
 	}
 
-	logContent, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	logContent := requireBuilderBytes(t, ax.ReadFile(logPath))
 
 	log := string(logContent)
 	buildxCount := len(core.Split(log, "buildx build")) - 1
@@ -297,10 +262,7 @@ func TestDocker_DockerBuilderBuildGood(t *testing.T) {
 		t.Fatalf("expected %v to contain %v", log, "FOO=bar")
 	}
 
-	artifacts, err = builder.Build(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts = requireCPPArtifacts(t, builder.Build(context.Background(), cfg, nil))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -324,11 +286,11 @@ func TestDocker_DockerBuilderBuild_ResolvesRelativeDockerfileGood(t *testing.T) 
 
 	projectDir := t.TempDir()
 	dockerfilePath := ax.Join(projectDir, "dockerfiles", "Dockerfile.app")
-	if err := ax.MkdirAll(ax.Dir(dockerfilePath), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Dir(dockerfilePath), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(dockerfilePath, []byte("FROM alpine:latest\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(dockerfilePath, []byte("FROM alpine:latest\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	outputDir := t.TempDir()
@@ -345,21 +307,15 @@ func TestDocker_DockerBuilderBuild_ResolvesRelativeDockerfileGood(t *testing.T) 
 		Image:      "owner/repo",
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}}))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
-	if _, err := ax.Stat(ax.Join(outputDir, "owner_repo.tar")); err != nil {
+	if result := ax.Stat(ax.Join(outputDir, "owner_repo.tar")); !result.OK {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "owner_repo.tar"))
 	}
 
-	logContent, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	logContent := requireBuilderBytes(t, ax.ReadFile(logPath))
 
 	log := string(logContent)
 	if !stdlibAssertContains(log, "-f") {
@@ -381,8 +337,8 @@ func TestDocker_DockerBuilderBuild_Containerfile_Good(t *testing.T) {
 	t.Setenv("PATH", binDir+string(core.PathListSeparator)+core.Getenv("PATH"))
 
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine:latest\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine:latest\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	outputDir := t.TempDir()
@@ -394,14 +350,11 @@ func TestDocker_DockerBuilderBuild_Containerfile_Good(t *testing.T) {
 		Image:      "owner/repo",
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}}))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
-	if _, err := ax.Stat(ax.Join(outputDir, "owner_repo.tar")); err != nil {
+	if result := ax.Stat(ax.Join(outputDir, "owner_repo.tar")); !result.OK {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "owner_repo.tar"))
 	}
 
@@ -417,8 +370,8 @@ func TestDocker_DockerBuilderBuild_Load_Good(t *testing.T) {
 	t.Setenv("PATH", binDir+string(core.PathListSeparator)+core.Getenv("PATH"))
 
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(projectDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	outputDir := t.TempDir()
@@ -439,10 +392,7 @@ func TestDocker_DockerBuilderBuild_Load_Good(t *testing.T) {
 		{OS: "linux", Arch: "amd64"},
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg, targets)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -455,16 +405,11 @@ func TestDocker_DockerBuilderBuild_Load_Good(t *testing.T) {
 	if !stdlibAssertEqual("amd64", artifacts[0].Arch) {
 		t.Fatalf("want %v, got %v", "amd64", artifacts[0].Arch)
 	}
-	if info, err := ax.Stat(outputDir); err != nil {
-		t.Fatalf("expected directory to exist: %v", outputDir)
-	} else if !info.IsDir() {
+	if !coreio.Local.IsDir(outputDir) {
 		t.Fatalf("expected directory to exist: %v", outputDir)
 	}
 
-	logContent, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	logContent := requireBuilderBytes(t, ax.ReadFile(logPath))
 
 	log := string(logContent)
 	if !stdlibAssertContains(log, "buildx build") {
@@ -541,7 +486,7 @@ func TestDocker_DockerBuilder_Detect_Good(t *core.T) {
 	subject := &DockerBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -551,7 +496,7 @@ func TestDocker_DockerBuilder_Detect_Bad(t *core.T) {
 	subject := &DockerBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(coreio.NewMemoryMedium(), "")
+		_ = subject.Detect(coreio.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -561,7 +506,7 @@ func TestDocker_DockerBuilder_Detect_Ugly(t *core.T) {
 	subject := &DockerBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -573,7 +518,7 @@ func TestDocker_DockerBuilder_Build_Good(t *core.T) {
 	subject := &DockerBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -585,7 +530,7 @@ func TestDocker_DockerBuilder_Build_Bad(t *core.T) {
 	subject := &DockerBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -597,7 +542,7 @@ func TestDocker_DockerBuilder_Build_Ugly(t *core.T) {
 	subject := &DockerBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

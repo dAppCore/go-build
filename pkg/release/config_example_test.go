@@ -3,7 +3,6 @@ package release
 import (
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
-	yaml "gopkg.in/yaml.v3"
 )
 
 // --- v0.9.0 generated usage examples ---
@@ -15,19 +14,19 @@ func ExampleConfig_PublishersIter() {
 }
 
 func ExampleLoadConfig() {
-	_, _ = LoadConfig(core.Path(core.TempDir(), "go-build-compliance"))
+	_ = LoadConfig(core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("LoadConfig")
 	// Output: LoadConfig
 }
 
 func ExampleLoadConfigWithMedium() {
-	_, _ = LoadConfigWithMedium(coreio.NewMemoryMedium(), core.Path(core.TempDir(), "go-build-compliance"))
+	_ = LoadConfigWithMedium(coreio.NewMemoryMedium(), core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("LoadConfigWithMedium")
 	// Output: LoadConfigWithMedium
 }
 
 func ExampleLoadConfigAtPath() {
-	_, _ = LoadConfigAtPath(coreio.NewMemoryMedium(), core.Path(core.TempDir(), "go-build-compliance"))
+	_ = LoadConfigAtPath(coreio.NewMemoryMedium(), core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("LoadConfigAtPath")
 	// Output: LoadConfigAtPath
 }
@@ -38,20 +37,10 @@ func ExampleDefaultConfig() {
 	// Output: DefaultConfig
 }
 
-func ExampleTargetConfig_MarshalYAML() {
+func ExampleTargetConfig() {
 	subject := TargetConfig{OS: "linux", Arch: "amd64"}
-	value, _ := subject.MarshalYAML()
-	core.Println(value.(map[string]string)["arch"])
+	core.Println(subject.Arch)
 	// Output: amd64
-}
-
-func ExampleTargetConfig_UnmarshalYAML() {
-	node := &yaml.Node{}
-	_ = node.Encode(map[string]string{releaseTargetOSField: "linux", "arch": "amd64"})
-	var subject TargetConfig
-	_ = subject.UnmarshalYAML(node)
-	core.Println(subject.OS)
-	// Output: linux
 }
 
 func ExampleScaffoldConfig() {

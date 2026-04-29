@@ -53,9 +53,7 @@ esac
 mkdir -p "$dir"
 printf 'linuxkit image\n' > "$dir/$name$ext"
 `
-	if err := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755))
 
 }
 
@@ -67,7 +65,7 @@ set -eu
 
 log_file="${DOCKER_LOG:-}"
 
-log() {
+record() {
 	if [ -n "$log_file" ]; then
 		printf '%s\n' "$1" >> "$log_file"
 	fi
@@ -76,37 +74,35 @@ log() {
 case "${1:-}" in
 	build)
 		shift
-		log "docker build $*"
+		record "docker build $*"
 		;;
 	image)
 		shift
 		case "${1:-}" in
 			load)
 				shift
-				log "docker image load $*"
+				record "docker image load $*"
 				echo "Loaded image: imported:latest"
 				;;
 			tag)
 				shift
-				log "docker image tag $*"
+				record "docker image tag $*"
 				;;
 			push)
 				shift
-				log "docker image push $*"
+				record "docker image push $*"
 				;;
 			*)
-				log "docker image $*"
+				record "docker image $*"
 				;;
 		esac
 		;;
 	*)
-		log "docker $*"
+		record "docker $*"
 		;;
 esac
 `
-	if err := ax.WriteFile(ax.Join(binDir, "docker"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(binDir, "docker"), []byte(script), 0o755))
 
 }
 
@@ -137,9 +133,9 @@ func TestBuildCmd_buildPwaCommandAcceptsPathGood(t *testing.T) {
 	defer func() { runLocalPwaBuild = original }()
 
 	calledPath := ""
-	runLocalPwaBuild = func(ctx context.Context, projectDir string) error {
+	runLocalPwaBuild = func(ctx context.Context, projectDir string) core.Result {
 		calledPath = projectDir
-		return nil
+		return core.Ok(nil)
 	}
 
 	opts := core.NewOptions(core.Option{Key: buildPathOptionKey, Value: "/tmp/pwa"})
@@ -165,32 +161,22 @@ func TestBuildCmd_runBuildImage_Good(t *testing.T) {
 
 	outputDir := t.TempDir()
 
-	err := runBuildImage(ImageBuildRequest{
+	requireBuildCmdOK(t, runBuildImage(ImageBuildRequest{
 		Context:   context.Background(),
 		Base:      "core-minimal",
 		Format:    "oci,apple",
 		OutputDir: outputDir,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if _, err := ax.Stat(ax.Join(outputDir, "core-minimal.tar")); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "core-minimal.tar"))
-	}
-	if _, err := ax.Stat(ax.Join(outputDir, "core-minimal.aci")); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "core-minimal.aci"))
-	}
+	}))
+	requireBuildCmdOK(t, ax.Stat(ax.Join(outputDir, "core-minimal.tar")))
+	requireBuildCmdOK(t, ax.Stat(ax.Join(outputDir, "core-minimal.aci")))
 
 	t.Setenv("PATH", "/definitely-missing")
-	err = runBuildImage(ImageBuildRequest{
+	requireBuildCmdOK(t, runBuildImage(ImageBuildRequest{
 		Context:   context.Background(),
 		Base:      "core-minimal",
 		Format:    "oci,apple",
 		OutputDir: outputDir,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 
 }
 
@@ -201,9 +187,7 @@ func TestBuildCmd_resolveImmutableImageVersion_Good(t *testing.T) {
 		runGit(t, dir, "init")
 		runGit(t, dir, "config", "user.email", "test@example.com")
 		runGit(t, dir, "config", "user.name", "Test User")
-		if err := ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireBuildCmdOK(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644))
 
 		runGit(t, dir, "add", ".")
 		runGit(t, dir, "commit", "-m", "feat: initial commit")
@@ -222,9 +206,7 @@ func TestBuildCmd_resolveImmutableImageVersion_Good(t *testing.T) {
 		runGit(t, dir, "init")
 		runGit(t, dir, "config", "user.email", "test@example.com")
 		runGit(t, dir, "config", "user.name", "Test User")
-		if err := ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireBuildCmdOK(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644))
 
 		runGit(t, dir, "add", ".")
 		runGit(t, dir, "commit", "-m", "feat: initial commit")
@@ -242,16 +224,12 @@ func TestBuildCmd_resolveImmutableImageVersion_Good(t *testing.T) {
 		runGit(t, dir, "init")
 		runGit(t, dir, "config", "user.email", "test@example.com")
 		runGit(t, dir, "config", "user.name", "Test User")
-		if err := ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireBuildCmdOK(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644))
 
 		runGit(t, dir, "add", ".")
 		runGit(t, dir, "commit", "-m", "feat: initial commit")
 		runGit(t, dir, "tag", "v1.4.2")
-		if err := ax.WriteFile(ax.Join(dir, "CHANGELOG.md"), []byte("more\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireBuildCmdOK(t, ax.WriteFile(ax.Join(dir, "CHANGELOG.md"), []byte("more\n"), 0o644))
 
 		runGit(t, dir, "add", ".")
 		runGit(t, dir, "commit", "-m", "feat: follow-up work")
@@ -274,15 +252,9 @@ func TestBuildCmd_allImageArtifactsExist_RequiresMatchingCacheMetadata_Good(t *t
 		Packages: []string{"git", "task"},
 		Mounts:   []string{"/workspace"},
 	}
-	if err := ax.WriteFile(ax.Join(outputDir, "core-dev.tar"), []byte("oci image"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(outputDir, "core-dev.aci"), []byte("apple image"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := writeImageBuildCacheMetadata(io.Local, outputDir, imageName, cfg, "v1.2.3"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(outputDir, "core-dev.tar"), []byte("oci image"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(outputDir, "core-dev.aci"), []byte("apple image"), 0o644))
+	requireBuildCmdOK(t, writeImageBuildCacheMetadata(io.Local, outputDir, imageName, cfg, "v1.2.3"))
 	if !(allImageArtifactsExist(io.Local, builder, outputDir, imageName, cfg, "v1.2.3")) {
 		t.Fatal("expected true")
 	}
@@ -295,9 +267,7 @@ func TestBuildCmd_allImageArtifactsExist_RequiresMatchingCacheMetadata_Good(t *t
 	if allImageArtifactsExist(io.Local, builder, outputDir, imageName, changedCfg, "v1.2.3") {
 		t.Fatal("expected false")
 	}
-	if err := io.Local.Delete(imageBuildCacheMetadataPath(outputDir, imageName)); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, io.Local.Delete(imageBuildCacheMetadataPath(outputDir, imageName)))
 	if allImageArtifactsExist(io.Local, builder, outputDir, imageName, cfg, "v1.2.3") {
 		t.Fatal("expected false")
 	}
@@ -314,15 +284,9 @@ func TestBuildCmd_allImageArtifactsExist_ValidatesVersionlessCacheMetadata_Good(
 		Packages: []string{"git", "task"},
 		Mounts:   []string{"/workspace"},
 	}
-	if err := ax.WriteFile(ax.Join(outputDir, "core-dev.tar"), []byte("oci image"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(outputDir, "core-dev.aci"), []byte("apple image"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := writeImageBuildCacheMetadata(io.Local, outputDir, imageName, cfg, ""); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(outputDir, "core-dev.tar"), []byte("oci image"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(outputDir, "core-dev.aci"), []byte("apple image"), 0o644))
+	requireBuildCmdOK(t, writeImageBuildCacheMetadata(io.Local, outputDir, imageName, cfg, ""))
 	if !(allImageArtifactsExist(io.Local, builder, outputDir, imageName, cfg, "")) {
 		t.Fatal("expected true")
 	}
@@ -339,20 +303,15 @@ func TestBuildCmd_retainVersionedImageArtifacts_Good(t *testing.T) {
 	outputDir := t.TempDir()
 	tarPath := ax.Join(outputDir, "core-dev.tar")
 	aciPath := ax.Join(outputDir, "core-dev.aci")
-	if err := ax.WriteFile(tarPath, []byte("oci image"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(aciPath, []byte("apple image"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(tarPath, []byte("oci image"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(aciPath, []byte("apple image"), 0o644))
 
-	versionedPaths, err := retainVersionedImageArtifacts(io.Local, []build.Artifact{
+	versionedPathsResult := retainVersionedImageArtifacts(io.Local, []build.Artifact{
 		{Path: tarPath},
 		{Path: aciPath},
 	}, "v1.2.3")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, versionedPathsResult)
+	versionedPaths := versionedPathsResult.Value.([]string)
 
 	expected := []string{
 		ax.Join(outputDir, "core-dev-1.2.3.tar"),
@@ -363,9 +322,7 @@ func TestBuildCmd_retainVersionedImageArtifacts_Good(t *testing.T) {
 	}
 
 	for _, path := range expected {
-		if _, err := ax.Stat(path); err != nil {
-			t.Fatalf("expected file to exist: %v", path)
-		}
+		requireBuildCmdOK(t, ax.Stat(path))
 
 	}
 }
@@ -379,22 +336,14 @@ func TestBuildCmd_publishOCIImageArchive_Good(t *testing.T) {
 
 	projectDir := t.TempDir()
 	artifactPath := ax.Join(projectDir, "core-dev.tar")
-	if err := ax.WriteFile(artifactPath, []byte("oci image"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(artifactPath, []byte("oci image"), 0o644))
 
-	ref, err := publishOCIImageArchive(context.Background(), projectDir, artifactPath, "ghcr.io/dappcore", "core-dev", "v1.2.3")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	ref := requireBuildCmdString(t, publishOCIImageArchive(context.Background(), projectDir, artifactPath, "ghcr.io/dappcore", "core-dev", "v1.2.3"))
 	if !stdlibAssertEqual("ghcr.io/dappcore/core-dev:1.2.3", ref) {
 		t.Fatalf("want %v, got %v", "ghcr.io/dappcore/core-dev:1.2.3", ref)
 	}
 
-	logContent, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	logContent := requireBuildCmdBytes(t, ax.ReadFile(logPath))
 	if !stdlibAssertContains(string(logContent), "docker image load --input "+artifactPath) {
 		t.Fatalf("expected %v to contain %v", string(logContent), "docker image load --input "+artifactPath)
 	}

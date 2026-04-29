@@ -19,20 +19,21 @@ import (
 )
 
 // runBuildSDK handles the `core build sdk` command.
-func runBuildSDK(ctx context.Context, specPath, lang, version string, dryRun bool, skipUnavailable bool) error {
-	projectDir, err := ax.Getwd()
-	if err != nil {
-		return coreerr.E("build.SDK", "failed to get working directory", err)
+func runBuildSDK(ctx context.Context, specPath, lang, version string, dryRun bool, skipUnavailable bool) core.Result {
+	projectDirResult := ax.Getwd()
+	if !projectDirResult.OK {
+		return core.Fail(coreerr.E("build.SDK", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
 
-	return runBuildSDKInDir(ctx, projectDir, specPath, lang, version, dryRun, skipUnavailable)
+	return runBuildSDKInDir(ctx, projectDirResult.Value.(string), specPath, lang, version, dryRun, skipUnavailable)
 }
 
-func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool, skipUnavailable bool) error {
-	config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
-	if err != nil {
-		return coreerr.E("build.SDK", "failed to load sdk config", err)
+func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool, skipUnavailable bool) core.Result {
+	configResult := sdkcfg.LoadProjectConfig(io.Local, projectDir)
+	if !configResult.OK {
+		return core.Fail(coreerr.E("build.SDK", "failed to load sdk config", core.NewError(configResult.Error())))
 	}
+	config := configResult.Value.(*sdk.Config)
 	if specPath != "" {
 		config.Spec = specPath
 	}
@@ -53,11 +54,12 @@ func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version s
 	cli.Blank()
 
 	// Validate the spec before generating anything.
-	detectedSpec, err := s.ValidateSpec(ctx)
-	if err != nil {
-		cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
-		return err
+	detectedSpecResult := s.ValidateSpec(ctx)
+	if !detectedSpecResult.OK {
+		cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), detectedSpecResult.Error())
+		return detectedSpecResult
 	}
+	detectedSpec := detectedSpecResult.Value.(string)
 	cli.Print("  %s %s\n", i18n.T("common.label.spec"), buildTargetStyle.Render(detectedSpec))
 
 	if dryRun {
@@ -68,16 +70,17 @@ func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version s
 		}
 		cli.Blank()
 		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("cmd.build.label.ok")), i18n.T("cmd.build.sdk.would_generate"))
-		return nil
+		return core.Ok(nil)
 	}
 
 	if lang != "" {
 		// Generate single language
-		result, err := s.GenerateLanguageWithStatus(ctx, lang)
-		if err != nil {
-			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
-			return err
+		resultResult := s.GenerateLanguageWithStatus(ctx, lang)
+		if !resultResult.OK {
+			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), resultResult.Error())
+			return resultResult
 		}
+		result := resultResult.Value.(sdk.LanguageResult)
 		if result.Skipped {
 			cli.Print("  %s %s\n", "Skipped:", buildTargetStyle.Render(result.Language))
 		} else {
@@ -85,11 +88,12 @@ func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version s
 		}
 	} else {
 		// Generate all
-		results, err := s.GenerateWithStatus(ctx)
-		if err != nil {
-			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
-			return err
+		resultsResult := s.GenerateWithStatus(ctx)
+		if !resultsResult.OK {
+			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), resultsResult.Error())
+			return resultsResult
 		}
+		results := resultsResult.Value.([]sdk.LanguageResult)
 		generated := make([]string, 0, len(results))
 		skipped := make([]string, 0)
 		for _, result := range results {
@@ -110,5 +114,5 @@ func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version s
 
 	cli.Blank()
 	cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.sdk.complete"))
-	return nil
+	return core.Ok(nil)
 }

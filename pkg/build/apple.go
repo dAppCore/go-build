@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"encoding/xml"
+	"io/fs"
 	"net/url"
 	"sort"
 	"strconv"
@@ -13,7 +14,6 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 const (
@@ -269,13 +269,13 @@ func (cfg AppleConfig) Resolve() AppleOptions {
 	return options
 }
 
-func validateAppleBuildOptions(options AppleOptions) error {
+func validateAppleBuildOptions(options AppleOptions) core.Result {
 	if options.Sign && core.Trim(options.CertIdentity) == "" {
-		return coreerr.E("build.validateAppleBuildOptions", "signing identity is required when sign is enabled", nil)
+		return core.Fail(core.E("build.validateAppleBuildOptions", "signing identity is required when sign is enabled", nil))
 	}
 
 	if options.Notarise {
-		if _, err := notariseAuthArgs(NotariseConfig{
+		authArgs := notariseAuthArgs(NotariseConfig{
 			AppPath:        "",
 			APIKeyID:       options.APIKeyID,
 			APIKeyIssuerID: options.APIKeyIssuerID,
@@ -283,71 +283,76 @@ func validateAppleBuildOptions(options AppleOptions) error {
 			TeamID:         options.TeamID,
 			AppleID:        options.AppleID,
 			Password:       options.Password,
-		}); err != nil {
-			return coreerr.E("build.validateAppleBuildOptions", "invalid notarisation credentials", err)
+		})
+		if !authArgs.OK {
+			return core.Fail(core.E("build.validateAppleBuildOptions", "invalid notarisation credentials", core.NewError(authArgs.Error())))
 		}
 	}
 
 	if options.TestFlight || options.AppStore {
-		if err := validateAppStoreConnectAPIKey(options.APIKeyID, options.APIKeyIssuerID, options.APIKeyPath, "build.validateAppleBuildOptions"); err != nil {
-			return err
+		valid := validateAppStoreConnectAPIKey(options.APIKeyID, options.APIKeyIssuerID, options.APIKeyPath, "build.validateAppleBuildOptions")
+		if !valid.OK {
+			return valid
 		}
 		if core.Trim(options.ProfilePath) == "" {
-			return coreerr.E("build.validateAppleBuildOptions", "profile_path is required for App Store Connect uploads", nil)
+			return core.Fail(core.E("build.validateAppleBuildOptions", "profile_path is required for App Store Connect uploads", nil))
 		}
 		if isDeveloperIDIdentity(options.CertIdentity) {
-			return coreerr.E("build.validateAppleBuildOptions", "TestFlight and App Store uploads require an Apple distribution certificate, not Developer ID", nil)
+			return core.Fail(core.E("build.validateAppleBuildOptions", "TestFlight and App Store uploads require an Apple distribution certificate, not Developer ID", nil))
 		}
 	}
 
 	if options.AppStore {
 		minSystemVersion := firstNonEmpty(options.MinSystemVersion, defaultAppleMinSystemVersion)
 		if compareAppleVersion(minSystemVersion, defaultAppleMinSystemVersion) < 0 {
-			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions require min_system_version 13.0 or newer", nil)
+			return core.Fail(core.E("build.validateAppleBuildOptions", "App Store submissions require min_system_version 13.0 or newer", nil))
 		}
 
 		if core.Trim(firstNonEmpty(options.Category, defaultAppleCategory)) == "" {
-			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions require an application category", nil)
+			return core.Fail(core.E("build.validateAppleBuildOptions", "App Store submissions require an application category", nil))
 		}
 
 		if !core.Contains(core.Lower(options.Copyright), "eupl-1.2") {
-			return coreerr.E("build.validateAppleBuildOptions", "App Store submissions must declare EUPL-1.2 in copyright metadata", nil)
+			return core.Fail(core.E("build.validateAppleBuildOptions", "App Store submissions must declare EUPL-1.2 in copyright metadata", nil))
 		}
 
-		if err := validatePrivacyPolicyURL(options.PrivacyPolicyURL); err != nil {
-			return err
+		valid := validatePrivacyPolicyURL(options.PrivacyPolicyURL)
+		if !valid.OK {
+			return valid
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // BuildApple runs the end-to-end macOS Apple pipeline for a Wails app.
-func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNumber string) (*AppleBuildResult, error) {
+func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNumber string) core.Result {
 	if cfg == nil {
-		return nil, coreerr.E("build.BuildApple", "config is nil", nil)
+		return core.Fail(core.E("build.BuildApple", "config is nil", nil))
 	}
 	if cfg.FS == nil {
 		cfg.FS = io.Local
 	}
 
 	if options.BundleID == "" {
-		return nil, coreerr.E("build.BuildApple", "bundle_id is required for Apple builds", nil)
+		return core.Fail(core.E("build.BuildApple", "bundle_id is required for Apple builds", nil))
 	}
 	if options.Notarise && !options.Sign {
-		return nil, coreerr.E("build.BuildApple", "notarisation requires code signing", nil)
+		return core.Fail(core.E("build.BuildApple", "notarisation requires code signing", nil))
 	}
 	if (options.TestFlight || options.AppStore) && !options.Sign {
-		return nil, coreerr.E("build.BuildApple", "TestFlight and App Store uploads require code signing", nil)
+		return core.Fail(core.E("build.BuildApple", "TestFlight and App Store uploads require code signing", nil))
 	}
-	if err := validateAppleBuildOptions(options); err != nil {
-		return nil, err
+	valid := validateAppleBuildOptions(options)
+	if !valid.OK {
+		return valid
 	}
 
 	name := resolveAppleBundleName(cfg)
 	outputDir := resolveAppleOutputDir(cfg)
-	if err := cfg.FS.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("build.BuildApple", "failed to create Apple output directory", err)
+	created := cfg.FS.EnsureDir(outputDir)
+	if !created.OK {
+		return core.Fail(core.E("build.BuildApple", "failed to create Apple output directory", core.NewError(created.Error())))
 	}
 
 	if buildNumber == "" {
@@ -365,19 +370,21 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 
 	switch options.Arch {
 	case "universal":
-		arm64Dir, err := ax.TempDir("core-build-apple-arm64-*")
-		if err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to create arm64 temp directory", err)
+		arm64Temp := ax.TempDir("core-build-apple-arm64-*")
+		if !arm64Temp.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to create arm64 temp directory", core.NewError(arm64Temp.Error())))
 		}
-		defer func() { _ = ax.RemoveAll(arm64Dir) }()
+		arm64Dir := arm64Temp.Value.(string)
+		defer ax.RemoveAll(arm64Dir)
 
-		amd64Dir, err := ax.TempDir("core-build-apple-amd64-*")
-		if err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to create amd64 temp directory", err)
+		amd64Temp := ax.TempDir("core-build-apple-amd64-*")
+		if !amd64Temp.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to create amd64 temp directory", core.NewError(amd64Temp.Error())))
 		}
-		defer func() { _ = ax.RemoveAll(amd64Dir) }()
+		amd64Dir := amd64Temp.Value.(string)
+		defer ax.RemoveAll(amd64Dir)
 
-		arm64Bundle, err := appleBuildWailsAppFn(ctx, WailsBuildConfig{
+		arm64BundleResult := appleBuildWailsAppFn(ctx, WailsBuildConfig{
 			ProjectDir: cfg.ProjectDir,
 			Name:       name,
 			Arch:       "arm64",
@@ -388,11 +395,12 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			Env:        BuildEnvironment(cfg),
 			DenoBuild:  cfg.DenoBuild,
 		})
-		if err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to build arm64 bundle", err)
+		if !arm64BundleResult.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to build arm64 bundle", core.NewError(arm64BundleResult.Error())))
 		}
+		arm64Bundle := arm64BundleResult.Value.(string)
 
-		amd64Bundle, err := appleBuildWailsAppFn(ctx, WailsBuildConfig{
+		amd64BundleResult := appleBuildWailsAppFn(ctx, WailsBuildConfig{
 			ProjectDir: cfg.ProjectDir,
 			Name:       name,
 			Arch:       "amd64",
@@ -403,17 +411,18 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			Env:        BuildEnvironment(cfg),
 			DenoBuild:  cfg.DenoBuild,
 		})
-		if err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to build amd64 bundle", err)
+		if !amd64BundleResult.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to build amd64 bundle", core.NewError(amd64BundleResult.Error())))
 		}
+		amd64Bundle := amd64BundleResult.Value.(string)
 
 		bundlePath = ax.Join(outputDir, name+".app")
-		if err := appleCreateUniversalFn(arm64Bundle, amd64Bundle, bundlePath); err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to create universal app bundle", err)
+		createdUniversal := appleCreateUniversalFn(arm64Bundle, amd64Bundle, bundlePath)
+		if !createdUniversal.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to create universal app bundle", core.NewError(createdUniversal.Error())))
 		}
 	case "arm64", "amd64":
-		var err error
-		bundlePath, err = appleBuildWailsAppFn(ctx, WailsBuildConfig{
+		bundleResult := appleBuildWailsAppFn(ctx, WailsBuildConfig{
 			ProjectDir: cfg.ProjectDir,
 			Name:       name,
 			Arch:       options.Arch,
@@ -424,11 +433,12 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			Env:        BuildEnvironment(cfg),
 			DenoBuild:  cfg.DenoBuild,
 		})
-		if err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to build app bundle", err)
+		if !bundleResult.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to build app bundle", core.NewError(bundleResult.Error())))
 		}
+		bundlePath = bundleResult.Value.(string)
 	default:
-		return nil, coreerr.E("build.BuildApple", "unsupported Apple arch: "+options.Arch, nil)
+		return core.Fail(core.E("build.BuildApple", "unsupported Apple arch: "+options.Arch, nil))
 	}
 
 	infoPlist := InfoPlist{
@@ -445,14 +455,16 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 		SupportsSecureRestorableState: true,
 	}
 
-	infoPlistPath, err := WriteInfoPlist(cfg.FS, bundlePath, infoPlist)
-	if err != nil {
-		return nil, coreerr.E("build.BuildApple", "failed to write Info.plist", err)
+	infoPlistResult := WriteInfoPlist(cfg.FS, bundlePath, infoPlist)
+	if !infoPlistResult.OK {
+		return core.Fail(core.E("build.BuildApple", "failed to write Info.plist", core.NewError(infoPlistResult.Error())))
 	}
+	infoPlistPath := infoPlistResult.Value.(string)
 
 	if options.ProfilePath != "" {
-		if err := copyPath(cfg.FS, options.ProfilePath, ax.Join(bundlePath, "Contents", "embedded.provisionprofile")); err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to copy provisioning profile", err)
+		copied := copyPath(cfg.FS, options.ProfilePath, ax.Join(bundlePath, "Contents", "embedded.provisionprofile"))
+		if !copied.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to copy provisioning profile", core.NewError(copied.Error())))
 		}
 	}
 
@@ -464,20 +476,22 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 	if options.AppStore || options.TestFlight {
 		entitlements = appStoreEntitlements()
 	}
-	if err := WriteEntitlements(cfg.FS, entitlementsPath, entitlements); err != nil {
-		return nil, coreerr.E("build.BuildApple", "failed to write entitlements", err)
+	entitlementsResult := WriteEntitlements(cfg.FS, entitlementsPath, entitlements)
+	if !entitlementsResult.OK {
+		return core.Fail(core.E("build.BuildApple", "failed to write entitlements", core.NewError(entitlementsResult.Error())))
 	}
 
 	if options.Sign {
-		if err := appleSignFn(ctx, SignConfig{
+		signed := appleSignFn(ctx, SignConfig{
 			AppPath:      bundlePath,
 			Identity:     options.CertIdentity,
 			Entitlements: entitlementsPath,
 			Hardened:     true,
 			Deep:         false,
 			KeychainPath: options.KeychainPath,
-		}); err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to sign app bundle", err)
+		})
+		if !signed.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to sign app bundle", core.NewError(signed.Error())))
 		}
 	}
 
@@ -485,32 +499,34 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 	dmgPath := ""
 	if options.DMG {
 		dmgPath = ax.Join(outputDir, core.Sprintf("%s-%s.dmg", name, normalizeAppleVersion(version)))
-		if err := appleCreateDMGFn(ctx, DMGConfig{
+		createdDMG := appleCreateDMGFn(ctx, DMGConfig{
 			AppPath:    bundlePath,
 			OutputPath: dmgPath,
 			VolumeName: firstNonEmpty(options.DMGVolumeName, name),
 			Background: options.DMGBackground,
 			IconSize:   128,
 			WindowSize: [2]int{640, 480},
-		}); err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to create DMG", err)
+		})
+		if !createdDMG.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to create DMG", core.NewError(createdDMG.Error())))
 		}
 		if options.Sign {
-			if err := appleSignFn(ctx, SignConfig{
+			signed := appleSignFn(ctx, SignConfig{
 				AppPath:      dmgPath,
 				Identity:     options.CertIdentity,
 				Hardened:     false,
 				Deep:         false,
 				KeychainPath: options.KeychainPath,
-			}); err != nil {
-				return nil, coreerr.E("build.BuildApple", "failed to sign DMG", err)
+			})
+			if !signed.OK {
+				return core.Fail(core.E("build.BuildApple", "failed to sign DMG", core.NewError(signed.Error())))
 			}
 		}
 		distributionPath = dmgPath
 	}
 
 	if options.Notarise {
-		if err := appleNotariseFn(ctx, NotariseConfig{
+		notarised := appleNotariseFn(ctx, NotariseConfig{
 			AppPath:        distributionPath,
 			APIKeyID:       options.APIKeyID,
 			APIKeyIssuerID: options.APIKeyIssuerID,
@@ -518,29 +534,32 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			TeamID:         options.TeamID,
 			AppleID:        options.AppleID,
 			Password:       options.Password,
-		}); err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to notarise distribution", err)
+		})
+		if !notarised.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to notarise distribution", core.NewError(notarised.Error())))
 		}
 	}
 
 	if options.TestFlight {
-		if err := appleUploadTestFlightFn(ctx, TestFlightConfig{
+		uploaded := appleUploadTestFlightFn(ctx, TestFlightConfig{
 			AppPath:        bundlePath,
 			APIKeyID:       options.APIKeyID,
 			APIKeyIssuerID: options.APIKeyIssuerID,
 			APIKeyPath:     options.APIKeyPath,
 			CertIdentity:   options.CertIdentity,
-		}); err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to upload TestFlight build", err)
+		})
+		if !uploaded.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to upload TestFlight build", core.NewError(uploaded.Error())))
 		}
 	}
 
 	if options.AppStore {
-		if err := validateAppStorePreflight(cfg.FS, cfg.ProjectDir, bundlePath, options); err != nil {
-			return nil, err
+		preflight := validateAppStorePreflight(cfg.FS, cfg.ProjectDir, bundlePath, options)
+		if !preflight.OK {
+			return preflight
 		}
 
-		if err := appleSubmitAppStoreFn(ctx, AppStoreConfig{
+		submitted := appleSubmitAppStoreFn(ctx, AppStoreConfig{
 			AppPath:        bundlePath,
 			APIKeyID:       options.APIKeyID,
 			APIKeyIssuerID: options.APIKeyIssuerID,
@@ -548,12 +567,13 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			CertIdentity:   options.CertIdentity,
 			Version:        normalizeAppleVersion(version),
 			ReleaseType:    "manual",
-		}); err != nil {
-			return nil, coreerr.E("build.BuildApple", "failed to submit App Store build", err)
+		})
+		if !submitted.OK {
+			return core.Fail(core.E("build.BuildApple", "failed to submit App Store build", core.NewError(submitted.Error())))
 		}
 	}
 
-	return &AppleBuildResult{
+	return core.Ok(&AppleBuildResult{
 		BundlePath:       bundlePath,
 		DMGPath:          dmgPath,
 		DistributionPath: distributionPath,
@@ -561,13 +581,13 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 		EntitlementsPath: entitlementsPath,
 		BuildNumber:      buildNumber,
 		Version:          normalizeAppleVersion(version),
-	}, nil
+	})
 }
 
 // BuildWailsApp builds a single-architecture Wails app bundle for macOS.
-func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) (string, error) {
+func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) core.Result {
 	if cfg.ProjectDir == "" {
-		return "", coreerr.E("build.BuildWailsApp", "project directory is required", nil)
+		return core.Fail(core.E("build.BuildWailsApp", "project directory is required", nil))
 	}
 
 	name := cfg.Name
@@ -575,17 +595,19 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) (string, error) {
 		name = ax.Base(cfg.ProjectDir)
 	}
 	if cfg.Arch == "" {
-		return "", coreerr.E("build.BuildWailsApp", "arch is required", nil)
+		return core.Fail(core.E("build.BuildWailsApp", "arch is required", nil))
 	}
 
-	if err := prepareWailsFrontend(ctx, cfg); err != nil {
-		return "", err
+	prepared := prepareWailsFrontend(ctx, cfg)
+	if !prepared.OK {
+		return prepared
 	}
 
-	wailsCommand, err := resolveWails3Cli()
-	if err != nil {
-		return "", err
+	wailsCommandResult := resolveWails3Cli()
+	if !wailsCommandResult.OK {
+		return wailsCommandResult
 	}
+	wailsCommand := wailsCommandResult.Value.(string)
 
 	args := []string{"build", "-platform", "darwin/" + cfg.Arch}
 
@@ -596,11 +618,11 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) (string, error) {
 
 	ldflags := append([]string{}, cfg.LDFlags...)
 	if cfg.Version != "" && !appleHasVersionLDFlag(ldflags) {
-		versionFlag, err := VersionLinkerFlag(cfg.Version)
-		if err != nil {
-			return "", err
+		versionFlag := VersionLinkerFlag(cfg.Version)
+		if !versionFlag.OK {
+			return versionFlag
 		}
-		ldflags = append(ldflags, versionFlag)
+		ldflags = append(ldflags, versionFlag.Value.(string))
 	}
 	if len(ldflags) > 0 {
 		args = append(args, "-ldflags", core.Join(" ", ldflags...))
@@ -609,55 +631,69 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) (string, error) {
 	env := append([]string{}, cfg.Env...)
 	env = appendEnvIfMissing(env, "CGO_ENABLED", "1")
 
-	output, err := appleCombinedOutput(ctx, cfg.ProjectDir, env, wailsCommand, args...)
-	if err != nil {
-		return "", coreerr.E("build.BuildWailsApp", "wails build failed: "+output, err)
+	output := appleCombinedOutput(ctx, cfg.ProjectDir, env, wailsCommand, args...)
+	if !output.OK {
+		return core.Fail(core.E("build.BuildWailsApp", "wails build failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	sourcePath, err := findBuiltAppBundle(cfg.ProjectDir, name)
-	if err != nil {
-		return "", err
+	sourcePathResult := findBuiltAppBundle(cfg.ProjectDir, name)
+	if !sourcePathResult.OK {
+		return sourcePathResult
 	}
+	sourcePath := sourcePathResult.Value.(string)
 
 	if cfg.OutputDir == "" {
-		return sourcePath, nil
+		return core.Ok(sourcePath)
 	}
 
-	if err := io.Local.EnsureDir(cfg.OutputDir); err != nil {
-		return "", coreerr.E("build.BuildWailsApp", "failed to create Wails output directory", err)
+	created := io.Local.EnsureDir(cfg.OutputDir)
+	if !created.OK {
+		return core.Fail(core.E("build.BuildWailsApp", "failed to create Wails output directory", core.NewError(created.Error())))
 	}
 
 	destPath := ax.Join(cfg.OutputDir, name+".app")
 	if io.Local.Exists(destPath) {
-		if err := io.Local.DeleteAll(destPath); err != nil {
-			return "", coreerr.E("build.BuildWailsApp", "failed to replace existing app bundle", err)
+		deleted := io.Local.DeleteAll(destPath)
+		if !deleted.OK {
+			return core.Fail(core.E("build.BuildWailsApp", "failed to replace existing app bundle", core.NewError(deleted.Error())))
 		}
 	}
-	if err := copyPath(io.Local, sourcePath, destPath); err != nil {
-		return "", coreerr.E("build.BuildWailsApp", "failed to copy built app bundle", err)
+	copied := copyPath(io.Local, sourcePath, destPath)
+	if !copied.OK {
+		return core.Fail(core.E("build.BuildWailsApp", "failed to copy built app bundle", core.NewError(copied.Error())))
 	}
 
-	return destPath, nil
+	return core.Ok(destPath)
 }
 
-func prepareWailsFrontend(ctx context.Context, cfg WailsBuildConfig) error {
-	frontendDir, command, args, err := resolveWailsFrontendBuild(cfg)
-	if err != nil {
-		return err
+func prepareWailsFrontend(ctx context.Context, cfg WailsBuildConfig) core.Result {
+	buildResult := resolveWailsFrontendBuild(cfg)
+	if !buildResult.OK {
+		return buildResult
 	}
+	frontendBuild := buildResult.Value.(wailsFrontendBuild)
+	frontendDir := frontendBuild.dir
+	command := frontendBuild.command
+	args := frontendBuild.args
 	if command == "" {
-		return nil
+		return core.Ok(nil)
 	}
 
-	output, err := appleCombinedOutput(ctx, frontendDir, cfg.Env, command, args...)
-	if err != nil {
-		return coreerr.E("build.prepareWailsFrontend", command+" build failed: "+output, err)
+	output := appleCombinedOutput(ctx, frontendDir, cfg.Env, command, args...)
+	if !output.OK {
+		return core.Fail(core.E("build.prepareWailsFrontend", command+" build failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func resolveWailsFrontendBuild(cfg WailsBuildConfig) (string, string, []string, error) {
+type wailsFrontendBuild struct {
+	dir     string
+	command string
+	args    []string
+}
+
+func resolveWailsFrontendBuild(cfg WailsBuildConfig) core.Result {
 	frontendDir := resolveFrontendDir(io.Local, cfg.ProjectDir)
 	if frontendDir == "" {
 		if DenoRequested(cfg.DenoBuild) {
@@ -666,23 +702,24 @@ func resolveWailsFrontendBuild(cfg WailsBuildConfig) (string, string, []string, 
 				frontendDir = ax.Join(cfg.ProjectDir, "frontend")
 			}
 		} else {
-			return "", "", nil, nil
+			return core.Ok(wailsFrontendBuild{})
 		}
 	}
 
 	if hasDenoConfig(io.Local, frontendDir) || DenoRequested(cfg.DenoBuild) {
-		command, args, err := resolveDenoBuildCommand(cfg)
-		if err != nil {
-			return "", "", nil, err
+		denoBuild := resolveDenoBuildCommand(cfg)
+		if !denoBuild.OK {
+			return denoBuild
 		}
-		return frontendDir, command, args, nil
+		resolved := denoBuild.Value.(commandArgs)
+		return core.Ok(wailsFrontendBuild{dir: frontendDir, command: resolved.command, args: resolved.args})
 	}
 
 	if io.Local.IsFile(ax.Join(frontendDir, "package.json")) {
 		return resolvePackageManagerBuild(frontendDir, detectPackageManager(io.Local, frontendDir))
 	}
 
-	return "", "", nil, nil
+	return core.Ok(wailsFrontendBuild{})
 }
 
 func resolveFrontendDir(filesystem io.Medium, projectDir string) string {
@@ -722,10 +759,11 @@ func findFrontendDir(filesystem io.Medium, dir string, depth int) string {
 		return ""
 	}
 
-	entries, err := filesystem.List(dir)
-	if err != nil {
+	entriesResult := filesystem.List(dir)
+	if !entriesResult.OK {
 		return ""
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -750,32 +788,32 @@ func findFrontendDir(filesystem io.Medium, dir string, depth int) string {
 	return ""
 }
 
-func resolvePackageManagerBuild(frontendDir, packageManager string) (string, string, []string, error) {
+func resolvePackageManagerBuild(frontendDir, packageManager string) core.Result {
 	switch packageManager {
 	case "bun":
-		command, err := resolveBunCli()
-		if err != nil {
-			return "", "", nil, err
+		command := resolveBunCli()
+		if !command.OK {
+			return command
 		}
-		return frontendDir, command, []string{"run", "build"}, nil
+		return core.Ok(wailsFrontendBuild{dir: frontendDir, command: command.Value.(string), args: []string{"run", "build"}})
 	case "pnpm":
-		command, err := resolvePnpmCli()
-		if err != nil {
-			return "", "", nil, err
+		command := resolvePnpmCli()
+		if !command.OK {
+			return command
 		}
-		return frontendDir, command, []string{"run", "build"}, nil
+		return core.Ok(wailsFrontendBuild{dir: frontendDir, command: command.Value.(string), args: []string{"run", "build"}})
 	case "yarn":
-		command, err := resolveYarnCli()
-		if err != nil {
-			return "", "", nil, err
+		command := resolveYarnCli()
+		if !command.OK {
+			return command
 		}
-		return frontendDir, command, []string{"build"}, nil
+		return core.Ok(wailsFrontendBuild{dir: frontendDir, command: command.Value.(string), args: []string{"build"}})
 	default:
-		command, err := resolveNpmCli()
-		if err != nil {
-			return "", "", nil, err
+		command := resolveNpmCli()
+		if !command.OK {
+			return command
 		}
-		return frontendDir, command, []string{"run", "build"}, nil
+		return core.Ok(wailsFrontendBuild{dir: frontendDir, command: command.Value.(string), args: []string{"run", "build"}})
 	}
 }
 
@@ -809,13 +847,14 @@ type packageJSONManifest struct {
 }
 
 func detectDeclaredPackageManager(filesystem io.Medium, dir string) string {
-	content, err := filesystem.Read(ax.Join(dir, "package.json"))
-	if err != nil {
+	content := filesystem.Read(ax.Join(dir, "package.json"))
+	if !content.OK {
 		return ""
 	}
 
 	var manifest packageJSONManifest
-	if err := ax.JSONUnmarshal([]byte(content), &manifest); err != nil {
+	decoded := ax.JSONUnmarshal([]byte(content.Value.(string)), &manifest)
+	if !decoded.OK {
 		return ""
 	}
 
@@ -839,33 +878,39 @@ func normalisePackageManager(value string) string {
 	}
 }
 
-func resolveDenoBuildCommand(cfg WailsBuildConfig) (string, []string, error) {
+type commandArgs struct {
+	command string
+	args    []string
+}
+
+func resolveDenoBuildCommand(cfg WailsBuildConfig) core.Result {
 	override := core.Trim(core.Env("DENO_BUILD"))
 	if override == "" {
 		override = core.Trim(cfg.DenoBuild)
 	}
 	if override != "" {
-		args, err := splitCommandLine(override)
-		if err != nil {
-			return "", nil, coreerr.E("build.resolveDenoBuildCommand", "invalid DENO_BUILD command", err)
+		argsResult := splitCommandLine(override)
+		if !argsResult.OK {
+			return core.Fail(core.E("build.resolveDenoBuildCommand", "invalid DENO_BUILD command", core.NewError(argsResult.Error())))
 		}
+		args := argsResult.Value.([]string)
 		if len(args) == 0 {
-			return "", nil, coreerr.E("build.resolveDenoBuildCommand", "DENO_BUILD command is empty", nil)
+			return core.Fail(core.E("build.resolveDenoBuildCommand", "DENO_BUILD command is empty", nil))
 		}
-		return args[0], args[1:], nil
+		return core.Ok(commandArgs{command: args[0], args: args[1:]})
 	}
 
-	command, err := resolveDenoCli()
-	if err != nil {
-		return "", nil, err
+	command := resolveDenoCli()
+	if !command.OK {
+		return command
 	}
-	return command, []string{"task", "build"}, nil
+	return core.Ok(commandArgs{command: command.Value.(string), args: []string{"task", "build"}})
 }
 
-func splitCommandLine(command string) ([]string, error) {
+func splitCommandLine(command string) core.Result {
 	command = core.Trim(command)
 	if command == "" {
-		return nil, nil
+		return core.Ok([]string(nil))
 	}
 
 	var (
@@ -909,104 +954,109 @@ func splitCommandLine(command string) ([]string, error) {
 		current.WriteRune('\\')
 	}
 	if quote != 0 {
-		return nil, coreerr.E("build.splitCommandLine", "unterminated quote in command", nil)
+		return core.Fail(core.E("build.splitCommandLine", "unterminated quote in command", nil))
 	}
 
 	flush()
-	return args, nil
+	return core.Ok(args)
 }
 
 // CreateUniversal merges two architecture-specific app bundles into a universal app.
-func CreateUniversal(arm64Path, amd64Path, outputPath string) error {
+func CreateUniversal(arm64Path, amd64Path, outputPath string) core.Result {
 	if arm64Path == "" || amd64Path == "" || outputPath == "" {
-		return coreerr.E("build.CreateUniversal", "arm64, amd64, and output paths are required", nil)
+		return core.Fail(core.E("build.CreateUniversal", "arm64, amd64, and output paths are required", nil))
 	}
 
 	if io.Local.Exists(outputPath) {
-		if err := io.Local.DeleteAll(outputPath); err != nil {
-			return coreerr.E("build.CreateUniversal", "failed to replace existing output bundle", err)
+		deleted := io.Local.DeleteAll(outputPath)
+		if !deleted.OK {
+			return core.Fail(core.E("build.CreateUniversal", "failed to replace existing output bundle", core.NewError(deleted.Error())))
 		}
 	}
 
-	if err := io.Local.EnsureDir(ax.Dir(outputPath)); err != nil {
-		return coreerr.E("build.CreateUniversal", "failed to create universal output directory", err)
+	created := io.Local.EnsureDir(ax.Dir(outputPath))
+	if !created.OK {
+		return core.Fail(core.E("build.CreateUniversal", "failed to create universal output directory", core.NewError(created.Error())))
 	}
-	if err := copyPath(io.Local, arm64Path, outputPath); err != nil {
-		return coreerr.E("build.CreateUniversal", "failed to copy arm64 bundle", err)
+	copied := copyPath(io.Local, arm64Path, outputPath)
+	if !copied.OK {
+		return core.Fail(core.E("build.CreateUniversal", "failed to copy arm64 bundle", core.NewError(copied.Error())))
 	}
 
-	lipoCommand, err := resolveLipoCli()
-	if err != nil {
-		return err
+	lipoCommandResult := resolveLipoCli()
+	if !lipoCommandResult.OK {
+		return lipoCommandResult
 	}
+	lipoCommand := lipoCommandResult.Value.(string)
 
 	for _, candidate := range universalMergeCandidates(io.Local, arm64Path, amd64Path) {
 		armCandidate := ax.Join(arm64Path, candidate)
 		amdCandidate := ax.Join(amd64Path, candidate)
 		outputCandidate := ax.Join(outputPath, candidate)
-		output, err := appleCombinedOutput(context.Background(), "", nil, lipoCommand, "-create", "-output", outputCandidate, armCandidate, amdCandidate)
-		if err != nil {
-			return coreerr.E("build.CreateUniversal", "lipo failed for "+candidate+": "+output, err)
+		output := appleCombinedOutput(context.Background(), "", nil, lipoCommand, "-create", "-output", outputCandidate, armCandidate, amdCandidate)
+		if !output.OK {
+			return core.Fail(core.E("build.CreateUniversal", "lipo failed for "+candidate+": "+output.Error(), core.NewError(output.Error())))
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // Sign code-signs an app bundle or Apple artefact.
-func Sign(ctx context.Context, cfg SignConfig) error {
+func Sign(ctx context.Context, cfg SignConfig) core.Result {
 	if cfg.AppPath == "" {
-		return coreerr.E("build.Sign", "app_path is required", nil)
+		return core.Fail(core.E("build.Sign", "app_path is required", nil))
 	}
 	if cfg.Identity == "" {
-		return coreerr.E("build.Sign", "signing identity is required", nil)
+		return core.Fail(core.E("build.Sign", "signing identity is required", nil))
 	}
 
-	codesignCommand, err := resolveCodesignCli()
-	if err != nil {
-		return err
+	codesignCommandResult := resolveCodesignCli()
+	if !codesignCommandResult.OK {
+		return codesignCommandResult
 	}
+	codesignCommand := codesignCommandResult.Value.(string)
 
 	if !io.Local.IsDir(cfg.AppPath) || !core.HasSuffix(cfg.AppPath, ".app") {
-		_, err := appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, cfg.AppPath, cfg.Entitlements)...)
-		if err != nil {
-			return coreerr.E("build.Sign", "codesign failed for "+cfg.AppPath, err)
+		output := appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, cfg.AppPath, cfg.Entitlements)...)
+		if !output.OK {
+			return core.Fail(core.E("build.Sign", "codesign failed for "+cfg.AppPath, core.NewError(output.Error())))
 		}
-		return nil
+		return core.Ok(nil)
 	}
 
 	for _, path := range signFrameworkPaths(cfg.AppPath) {
-		output, err := appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, path, "")...)
-		if err != nil {
-			return coreerr.E("build.Sign", "codesign failed for framework "+path+": "+output, err)
+		output := appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, path, "")...)
+		if !output.OK {
+			return core.Fail(core.E("build.Sign", "codesign failed for framework "+path+": "+output.Error(), core.NewError(output.Error())))
 		}
 	}
 
 	mainBinary := bundleExecutablePath(cfg.AppPath)
 	for _, path := range signHelperBinaryPaths(cfg.AppPath, mainBinary) {
-		output, err := appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, path, "")...)
-		if err != nil {
-			return coreerr.E("build.Sign", "codesign failed for helper binary "+path+": "+output, err)
+		output := appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, path, "")...)
+		if !output.OK {
+			return core.Fail(core.E("build.Sign", "codesign failed for helper binary "+path+": "+output.Error(), core.NewError(output.Error())))
 		}
 	}
 
-	output, err := appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, mainBinary, cfg.Entitlements)...)
-	if err != nil {
-		return coreerr.E("build.Sign", "codesign failed for main binary "+mainBinary+": "+output, err)
+	output := appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, mainBinary, cfg.Entitlements)...)
+	if !output.OK {
+		return core.Fail(core.E("build.Sign", "codesign failed for main binary "+mainBinary+": "+output.Error(), core.NewError(output.Error())))
 	}
 
-	output, err = appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, cfg.AppPath, cfg.Entitlements)...)
-	if err != nil {
-		return coreerr.E("build.Sign", "codesign failed for app bundle "+cfg.AppPath+": "+output, err)
+	output = appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, cfg.AppPath, cfg.Entitlements)...)
+	if !output.OK {
+		return core.Fail(core.E("build.Sign", "codesign failed for app bundle "+cfg.AppPath+": "+output.Error(), core.NewError(output.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // Notarise submits a signed app bundle or DMG to Apple and staples the ticket.
-func Notarise(ctx context.Context, cfg NotariseConfig) error {
+func Notarise(ctx context.Context, cfg NotariseConfig) core.Result {
 	if cfg.AppPath == "" {
-		return coreerr.E("build.Notarise", "app_path is required", nil)
+		return core.Fail(core.E("build.Notarise", "app_path is required", nil))
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -1019,69 +1069,78 @@ func Notarise(ctx context.Context, cfg NotariseConfig) error {
 		defer cancel()
 	}
 
-	authArgs, err := notariseAuthArgs(cfg)
-	if err != nil {
-		return err
+	authArgsResult := notariseAuthArgs(cfg)
+	if !authArgsResult.OK {
+		return authArgsResult
 	}
+	authArgs := authArgsResult.Value.([]string)
 
-	dittoCommand, err := resolveDittocli()
-	if err != nil {
-		return err
+	dittoCommandResult := resolveDittocli()
+	if !dittoCommandResult.OK {
+		return dittoCommandResult
 	}
-	xcrunCommand, err := resolveXcrunCli()
-	if err != nil {
-		return err
+	dittoCommand := dittoCommandResult.Value.(string)
+	xcrunCommandResult := resolveXcrunCli()
+	if !xcrunCommandResult.OK {
+		return xcrunCommandResult
 	}
+	xcrunCommand := xcrunCommandResult.Value.(string)
 
-	tempDir, err := ax.TempDir("core-build-notary-*")
-	if err != nil {
-		return coreerr.E("build.Notarise", "failed to create notarisation temp directory", err)
+	tempDirResult := ax.TempDir("core-build-notary-*")
+	if !tempDirResult.OK {
+		return core.Fail(core.E("build.Notarise", "failed to create notarisation temp directory", core.NewError(tempDirResult.Error())))
 	}
-	defer func() { _ = ax.RemoveAll(tempDir) }()
+	tempDir := tempDirResult.Value.(string)
+	defer ax.RemoveAll(tempDir)
 
 	zipPath := ax.Join(tempDir, ax.Base(cfg.AppPath)+".zip")
-	output, err := appleCombinedOutput(notariseCtx, "", nil, dittoCommand, "-c", "-k", "--keepParent", cfg.AppPath, zipPath)
-	if err != nil {
-		return coreerr.E("build.Notarise", "failed to create notarisation archive: "+output, err)
+	output := appleCombinedOutput(notariseCtx, "", nil, dittoCommand, "-c", "-k", "--keepParent", cfg.AppPath, zipPath)
+	if !output.OK {
+		return core.Fail(core.E("build.Notarise", "failed to create notarisation archive: "+output.Error(), core.NewError(output.Error())))
 	}
 
 	submitArgs := []string{"notarytool", "submit", zipPath, "--wait", "--output-format", "json"}
 	submitArgs = append(submitArgs, authArgs...)
-	output, err = appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, submitArgs...)
-	if err != nil {
-		output = appendNotaryLog(notariseCtx, xcrunCommand, authArgs, output)
-		return coreerr.E("build.Notarise", "notarisation failed: "+output, err)
+	output = appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, submitArgs...)
+	outputText := ""
+	if output.OK {
+		outputText = output.Value.(string)
+	}
+	if !output.OK {
+		outputText = appendNotaryLog(notariseCtx, xcrunCommand, authArgs, output.Error())
+		return core.Fail(core.E("build.Notarise", "notarisation failed: "+outputText, core.NewError(output.Error())))
 	}
 
-	status := parseNotaryStatus(output)
+	status := parseNotaryStatus(outputText)
 	if status != "" && core.Lower(status) != "accepted" {
-		output = appendNotaryLog(notariseCtx, xcrunCommand, authArgs, output)
-		return coreerr.E("build.Notarise", "Apple rejected notarisation request with status "+status+": "+output, nil)
+		outputText = appendNotaryLog(notariseCtx, xcrunCommand, authArgs, outputText)
+		return core.Fail(core.E("build.Notarise", "Apple rejected notarisation request with status "+status+": "+outputText, nil))
 	}
 
-	output, err = appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, "stapler", "staple", cfg.AppPath)
-	if err != nil {
-		return coreerr.E("build.Notarise", "failed to staple notarisation ticket: "+output, err)
+	output = appleCombinedOutput(notariseCtx, "", nil, xcrunCommand, "stapler", "staple", cfg.AppPath)
+	if !output.OK {
+		return core.Fail(core.E("build.Notarise", "failed to staple notarisation ticket: "+output.Error(), core.NewError(output.Error())))
 	}
 
 	if core.HasSuffix(cfg.AppPath, ".app") {
-		spctlCommand, err := resolveSPCTLCli()
-		if err != nil {
-			return err
+		spctlCommandResult := resolveSPCTLCli()
+		if !spctlCommandResult.OK {
+			return spctlCommandResult
 		}
-		output, err = appleCombinedOutput(notariseCtx, "", nil, spctlCommand, "--assess", "--type", "execute", cfg.AppPath)
-		if err != nil {
-			return coreerr.E("build.Notarise", "Gatekeeper assessment failed: "+output, err)
+		spctlCommand := spctlCommandResult.Value.(string)
+		output = appleCombinedOutput(notariseCtx, "", nil, spctlCommand, "--assess", "--type", "execute", cfg.AppPath)
+		if !output.OK {
+			return core.Fail(core.E("build.Notarise", "Gatekeeper assessment failed: "+output.Error(), core.NewError(output.Error())))
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // CreateDMG packages an app bundle into a distributable DMG.
-func CreateDMG(ctx context.Context, cfg DMGConfig) error {
+func CreateDMG(ctx context.Context, cfg DMGConfig) core.Result {
 	if cfg.AppPath == "" || cfg.OutputPath == "" {
-		return coreerr.E("build.CreateDMG", "app_path and output_path are required", nil)
+		return core.Fail(core.E("build.CreateDMG", "app_path and output_path are required", nil))
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -1089,51 +1148,59 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) error {
 
 	cfg = normaliseDMGConfig(cfg)
 
-	tempDir, err := ax.TempDir("core-build-dmg-*")
-	if err != nil {
-		return coreerr.E("build.CreateDMG", "failed to create DMG staging directory", err)
+	tempDirResult := ax.TempDir("core-build-dmg-*")
+	if !tempDirResult.OK {
+		return core.Fail(core.E("build.CreateDMG", "failed to create DMG staging directory", core.NewError(tempDirResult.Error())))
 	}
-	defer func() { _ = ax.RemoveAll(tempDir) }()
+	tempDir := tempDirResult.Value.(string)
+	defer ax.RemoveAll(tempDir)
 
 	stageDir := ax.Join(tempDir, "stage")
 	mountDir := ax.Join(tempDir, "mount")
 	rwDMGPath := ax.Join(tempDir, "staging.dmg")
-	if err := io.Local.EnsureDir(stageDir); err != nil {
-		return coreerr.E("build.CreateDMG", "failed to create DMG stage directory", err)
+	created := io.Local.EnsureDir(stageDir)
+	if !created.OK {
+		return core.Fail(core.E("build.CreateDMG", "failed to create DMG stage directory", core.NewError(created.Error())))
 	}
 
 	appName := ax.Base(cfg.AppPath)
 	stageAppPath := ax.Join(stageDir, appName)
-	if err := copyPath(io.Local, cfg.AppPath, stageAppPath); err != nil {
-		return coreerr.E("build.CreateDMG", "failed to stage app bundle", err)
+	copied := copyPath(io.Local, cfg.AppPath, stageAppPath)
+	if !copied.OK {
+		return core.Fail(core.E("build.CreateDMG", "failed to stage app bundle", core.NewError(copied.Error())))
 	}
 
 	if err := syscall.Symlink("/Applications", ax.Join(stageDir, "Applications")); err != nil {
-		return coreerr.E("build.CreateDMG", "failed to create Applications symlink", err)
+		return core.Fail(core.E("build.CreateDMG", "failed to create Applications symlink", err))
 	}
 
 	if cfg.Background != "" {
 		backgroundDir := ax.Join(stageDir, ".background")
-		if err := io.Local.EnsureDir(backgroundDir); err != nil {
-			return coreerr.E("build.CreateDMG", "failed to create DMG background directory", err)
+		backgroundCreated := io.Local.EnsureDir(backgroundDir)
+		if !backgroundCreated.OK {
+			return core.Fail(core.E("build.CreateDMG", "failed to create DMG background directory", core.NewError(backgroundCreated.Error())))
 		}
-		if err := copyPath(io.Local, cfg.Background, ax.Join(backgroundDir, ax.Base(cfg.Background))); err != nil {
-			return coreerr.E("build.CreateDMG", "failed to stage DMG background", err)
+		backgroundCopied := copyPath(io.Local, cfg.Background, ax.Join(backgroundDir, ax.Base(cfg.Background)))
+		if !backgroundCopied.OK {
+			return core.Fail(core.E("build.CreateDMG", "failed to stage DMG background", core.NewError(backgroundCopied.Error())))
 		}
 	}
 
-	if err := io.Local.EnsureDir(ax.Dir(cfg.OutputPath)); err != nil {
-		return coreerr.E("build.CreateDMG", "failed to create DMG output directory", err)
+	outputCreated := io.Local.EnsureDir(ax.Dir(cfg.OutputPath))
+	if !outputCreated.OK {
+		return core.Fail(core.E("build.CreateDMG", "failed to create DMG output directory", core.NewError(outputCreated.Error())))
 	}
 
-	hdiutilCommand, err := resolveHdiutilCli()
-	if err != nil {
-		return err
+	hdiutilCommandResult := resolveHdiutilCli()
+	if !hdiutilCommandResult.OK {
+		return hdiutilCommandResult
 	}
-	osascriptCommand, err := resolveOsaScriptCli()
-	if err != nil {
-		return err
+	hdiutilCommand := hdiutilCommandResult.Value.(string)
+	osascriptCommandResult := resolveOsaScriptCli()
+	if !osascriptCommandResult.OK {
+		return osascriptCommandResult
 	}
+	osascriptCommand := osascriptCommandResult.Value.(string)
 
 	volumeName := firstNonEmpty(cfg.VolumeName, core.TrimSuffix(appName, ".app"))
 	createArgs := []string{
@@ -1144,21 +1211,20 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) error {
 		"-format", "UDRW",
 		rwDMGPath,
 	}
-	output, err := appleCombinedOutput(ctx, "", nil, hdiutilCommand, createArgs...)
-	if err != nil {
-		return coreerr.E("build.CreateDMG", "hdiutil failed: "+output, err)
+	output := appleCombinedOutput(ctx, "", nil, hdiutilCommand, createArgs...)
+	if !output.OK {
+		return core.Fail(core.E("build.CreateDMG", "hdiutil failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	if err := io.Local.EnsureDir(mountDir); err != nil {
-		return coreerr.E("build.CreateDMG", "failed to create DMG mount directory", err)
+	mountCreated := io.Local.EnsureDir(mountDir)
+	if !mountCreated.OK {
+		return core.Fail(core.E("build.CreateDMG", "failed to create DMG mount directory", core.NewError(mountCreated.Error())))
 	}
 
 	attached := false
 	defer func() {
 		if attached {
-			if err := detachDMG(context.Background(), hdiutilCommand, mountDir); err != nil {
-				return
-			}
+			detachDMG(context.Background(), hdiutilCommand, mountDir)
 		}
 	}()
 
@@ -1170,25 +1236,27 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) error {
 		"-mountpoint", mountDir,
 		rwDMGPath,
 	}
-	output, err = appleCombinedOutput(ctx, "", nil, hdiutilCommand, attachArgs...)
-	if err != nil {
-		return coreerr.E("build.CreateDMG", "failed to mount staging DMG: "+output, err)
+	output = appleCombinedOutput(ctx, "", nil, hdiutilCommand, attachArgs...)
+	if !output.OK {
+		return core.Fail(core.E("build.CreateDMG", "failed to mount staging DMG: "+output.Error(), core.NewError(output.Error())))
 	}
 	attached = true
 
 	scriptPath := ax.Join(tempDir, "layout.applescript")
 	script := buildDMGAppleScript(volumeName, appName, cfg)
-	if err := io.Local.WriteMode(scriptPath, script, 0o644); err != nil {
-		return coreerr.E("build.CreateDMG", "failed to write DMG layout script", err)
+	written := io.Local.WriteMode(scriptPath, script, 0o644)
+	if !written.OK {
+		return core.Fail(core.E("build.CreateDMG", "failed to write DMG layout script", core.NewError(written.Error())))
 	}
 
-	output, err = appleCombinedOutput(ctx, "", nil, osascriptCommand, scriptPath)
-	if err != nil {
-		return coreerr.E("build.CreateDMG", "failed to configure Finder layout: "+output, err)
+	output = appleCombinedOutput(ctx, "", nil, osascriptCommand, scriptPath)
+	if !output.OK {
+		return core.Fail(core.E("build.CreateDMG", "failed to configure Finder layout: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	if err := detachDMG(ctx, hdiutilCommand, mountDir); err != nil {
-		return err
+	detached := detachDMG(ctx, hdiutilCommand, mountDir)
+	if !detached.OK {
+		return detached
 	}
 	attached = false
 
@@ -1199,12 +1267,12 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) error {
 		"-ov",
 		"-o", cfg.OutputPath,
 	}
-	output, err = appleCombinedOutput(ctx, "", nil, hdiutilCommand, convertArgs...)
-	if err != nil {
-		return coreerr.E("build.CreateDMG", "failed to convert DMG: "+output, err)
+	output = appleCombinedOutput(ctx, "", nil, hdiutilCommand, convertArgs...)
+	if !output.OK {
+		return core.Fail(core.E("build.CreateDMG", "failed to convert DMG: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func normaliseDMGConfig(cfg DMGConfig) DMGConfig {
@@ -1296,137 +1364,153 @@ func escapeAppleScriptString(value string) string {
 	return core.Replace(core.Replace(value, `\`, `\\`), `"`, `\"`)
 }
 
-func detachDMG(ctx context.Context, hdiutilCommand, mountDir string) error {
-	output, err := appleCombinedOutput(ctx, "", nil, hdiutilCommand, "detach", mountDir)
-	if err == nil {
-		return nil
+func detachDMG(ctx context.Context, hdiutilCommand, mountDir string) core.Result {
+	output := appleCombinedOutput(ctx, "", nil, hdiutilCommand, "detach", mountDir)
+	if output.OK {
+		return core.Ok(nil)
 	}
 
-	forceOutput, forceErr := appleCombinedOutput(ctx, "", nil, hdiutilCommand, "detach", mountDir, "-force")
-	if forceErr != nil {
-		message := output
-		if forceOutput != "" {
-			message = core.Join("\n", output, forceOutput)
+	forceOutput := appleCombinedOutput(ctx, "", nil, hdiutilCommand, "detach", mountDir, "-force")
+	if !forceOutput.OK {
+		message := output.Error()
+		if forceOutput.Error() != "" {
+			message = core.Join("\n", output.Error(), forceOutput.Error())
 		}
-		return coreerr.E("build.CreateDMG", "failed to detach staging DMG: "+message, forceErr)
+		return core.Fail(core.E("build.CreateDMG", "failed to detach staging DMG: "+message, core.NewError(forceOutput.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // UploadTestFlight uploads a packaged macOS artefact to TestFlight.
-func UploadTestFlight(ctx context.Context, cfg TestFlightConfig) error {
+func UploadTestFlight(ctx context.Context, cfg TestFlightConfig) core.Result {
 	if cfg.AppPath == "" {
-		return coreerr.E("build.UploadTestFlight", "app_path is required", nil)
+		return core.Fail(core.E("build.UploadTestFlight", "app_path is required", nil))
 	}
-	if err := validateAppStoreConnectAPIKey(cfg.APIKeyID, cfg.APIKeyIssuerID, cfg.APIKeyPath, "build.UploadTestFlight"); err != nil {
-		return err
+	valid := validateAppStoreConnectAPIKey(cfg.APIKeyID, cfg.APIKeyIssuerID, cfg.APIKeyPath, "build.UploadTestFlight")
+	if !valid.OK {
+		return valid
 	}
 
-	uploadPath, env, cleanup, err := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyID, cfg.APIKeyPath)
-	if err != nil {
-		return err
+	uploadPackage := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyID, cfg.APIKeyPath)
+	if !uploadPackage.OK {
+		return uploadPackage
 	}
+	upload := uploadPackage.Value.(ascUploadPackage)
+	uploadPath := upload.path
+	env := upload.env
+	cleanup := upload.cleanup
 	defer cleanup()
 
-	xcrunCommand, err := resolveXcrunCli()
-	if err != nil {
-		return err
+	xcrunCommandResult := resolveXcrunCli()
+	if !xcrunCommandResult.OK {
+		return xcrunCommandResult
 	}
+	xcrunCommand := xcrunCommandResult.Value.(string)
 
-	output, err := appleCombinedOutput(ctx, "", env, xcrunCommand,
+	output := appleCombinedOutput(ctx, "", env, xcrunCommand,
 		"altool", "--upload-app", "--type", "macos",
 		"--file", uploadPath,
 		"--apiKey", cfg.APIKeyID,
 		"--apiIssuer", cfg.APIKeyIssuerID,
 	)
-	if err != nil {
-		return coreerr.E("build.UploadTestFlight", "altool upload failed: "+output, err)
+	if !output.OK {
+		return core.Fail(core.E("build.UploadTestFlight", "altool upload failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // SubmitAppStore uploads a packaged macOS artefact for App Store Connect review.
-func SubmitAppStore(ctx context.Context, cfg AppStoreConfig) error {
+func SubmitAppStore(ctx context.Context, cfg AppStoreConfig) core.Result {
 	if cfg.ReleaseType != "" && cfg.ReleaseType != "manual" && cfg.ReleaseType != "automatic" {
-		return coreerr.E("build.SubmitAppStore", "release_type must be manual or automatic", nil)
+		return core.Fail(core.E("build.SubmitAppStore", "release_type must be manual or automatic", nil))
 	}
 	if cfg.AppPath == "" {
-		return coreerr.E("build.SubmitAppStore", "app_path is required", nil)
+		return core.Fail(core.E("build.SubmitAppStore", "app_path is required", nil))
 	}
-	if err := validateAppStoreConnectAPIKey(cfg.APIKeyID, cfg.APIKeyIssuerID, cfg.APIKeyPath, "build.SubmitAppStore"); err != nil {
-		return err
+	valid := validateAppStoreConnectAPIKey(cfg.APIKeyID, cfg.APIKeyIssuerID, cfg.APIKeyPath, "build.SubmitAppStore")
+	if !valid.OK {
+		return valid
 	}
 
-	uploadPath, env, cleanup, err := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyID, cfg.APIKeyPath)
-	if err != nil {
-		return err
+	uploadPackage := packageForASCUpload(ctx, cfg.AppPath, cfg.CertIdentity, cfg.APIKeyID, cfg.APIKeyPath)
+	if !uploadPackage.OK {
+		return uploadPackage
 	}
+	upload := uploadPackage.Value.(ascUploadPackage)
+	uploadPath := upload.path
+	env := upload.env
+	cleanup := upload.cleanup
 	defer cleanup()
 
-	xcrunCommand, err := resolveXcrunCli()
-	if err != nil {
-		return err
+	xcrunCommandResult := resolveXcrunCli()
+	if !xcrunCommandResult.OK {
+		return xcrunCommandResult
 	}
+	xcrunCommand := xcrunCommandResult.Value.(string)
 
-	output, err := appleCombinedOutput(ctx, "", env, xcrunCommand,
+	output := appleCombinedOutput(ctx, "", env, xcrunCommand,
 		"altool", "--upload-app", "--type", "macos",
 		"--file", uploadPath,
 		"--apiKey", cfg.APIKeyID,
 		"--apiIssuer", cfg.APIKeyIssuerID,
 	)
-	if err != nil {
-		return coreerr.E("build.SubmitAppStore", "altool upload failed: "+output, err)
+	if !output.OK {
+		return core.Fail(core.E("build.SubmitAppStore", "altool upload failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // WriteInfoPlist writes the app bundle Info.plist and returns its path.
-func WriteInfoPlist(filesystem io.Medium, appPath string, plist InfoPlist) (string, error) {
+func WriteInfoPlist(filesystem io.Medium, appPath string, plist InfoPlist) core.Result {
 	if filesystem == nil {
 		filesystem = io.Local
 	}
 
 	plistPath := ax.Join(appPath, "Contents", "Info.plist")
-	if err := filesystem.EnsureDir(ax.Dir(plistPath)); err != nil {
-		return "", coreerr.E("build.WriteInfoPlist", "failed to create Info.plist directory", err)
+	created := filesystem.EnsureDir(ax.Dir(plistPath))
+	if !created.OK {
+		return core.Fail(core.E("build.WriteInfoPlist", "failed to create Info.plist directory", core.NewError(created.Error())))
 	}
 
-	content, err := encodePlist(plist.Values())
-	if err != nil {
-		return "", err
+	content := encodePlist(plist.Values())
+	if !content.OK {
+		return content
 	}
-	if err := filesystem.WriteMode(plistPath, content, 0o644); err != nil {
-		return "", coreerr.E("build.WriteInfoPlist", "failed to write Info.plist", err)
+	written := filesystem.WriteMode(plistPath, content.Value.(string), 0o644)
+	if !written.OK {
+		return core.Fail(core.E("build.WriteInfoPlist", "failed to write Info.plist", core.NewError(written.Error())))
 	}
 
-	return plistPath, nil
+	return core.Ok(plistPath)
 }
 
 // WriteEntitlements writes an entitlements plist file.
-func WriteEntitlements(filesystem io.Medium, path string, entitlements Entitlements) error {
+func WriteEntitlements(filesystem io.Medium, path string, entitlements Entitlements) core.Result {
 	if filesystem == nil {
 		filesystem = io.Local
 	}
 	if path == "" {
-		return coreerr.E("build.WriteEntitlements", "entitlements path is required", nil)
+		return core.Fail(core.E("build.WriteEntitlements", "entitlements path is required", nil))
 	}
 
-	if err := filesystem.EnsureDir(ax.Dir(path)); err != nil {
-		return coreerr.E("build.WriteEntitlements", "failed to create entitlements directory", err)
+	created := filesystem.EnsureDir(ax.Dir(path))
+	if !created.OK {
+		return core.Fail(core.E("build.WriteEntitlements", "failed to create entitlements directory", core.NewError(created.Error())))
 	}
 
-	content, err := encodePlist(entitlements.Values())
-	if err != nil {
-		return err
+	content := encodePlist(entitlements.Values())
+	if !content.OK {
+		return content
 	}
-	if err := filesystem.WriteMode(path, content, 0o644); err != nil {
-		return coreerr.E("build.WriteEntitlements", "failed to write entitlements", err)
+	written := filesystem.WriteMode(path, content.Value.(string), 0o644)
+	if !written.OK {
+		return core.Fail(core.E("build.WriteEntitlements", "failed to write entitlements", core.NewError(written.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // Values converts InfoPlist to plist key/value pairs.
@@ -1528,24 +1612,24 @@ func appleHasVersionLDFlag(ldflags []string) bool {
 	return false
 }
 
-func findBuiltAppBundle(projectDir, name string) (string, error) {
+func findBuiltAppBundle(projectDir, name string) core.Result {
 	for _, candidate := range []string{
 		ax.Join(projectDir, "build", "bin", name+".app"),
 		ax.Join(projectDir, "dist", name+".app"),
 		ax.Join(projectDir, name+".app"),
 	} {
 		if io.Local.Exists(candidate) {
-			return candidate, nil
+			return core.Ok(candidate)
 		}
 	}
-	return "", coreerr.E("build.findBuiltAppBundle", "Wails build completed but no .app bundle was found for "+name, nil)
+	return core.Fail(core.E("build.findBuiltAppBundle", "Wails build completed but no .app bundle was found for "+name, nil))
 }
 
 func bundleExecutablePath(appPath string) string {
 	executableName := core.TrimSuffix(ax.Base(appPath), ".app")
 	infoPlistPath := ax.Join(appPath, "Contents", "Info.plist")
-	if content, err := io.Local.Read(infoPlistPath); err == nil {
-		if name := plistStringValue(content, "CFBundleExecutable"); name != "" {
+	if content := io.Local.Read(infoPlistPath); content.OK {
+		if name := plistStringValue(content.Value.(string), "CFBundleExecutable"); name != "" {
 			executableName = name
 		}
 	}
@@ -1570,10 +1654,11 @@ func seedUniversalMergeCandidates(filesystem io.Medium, arm64Path, amd64Path, re
 		currentPath = ax.Join(arm64Path, relativePath)
 	}
 
-	entries, err := filesystem.List(currentPath)
-	if err != nil {
+	entriesResult := filesystem.List(currentPath)
+	if !entriesResult.OK {
 		return
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	for _, entry := range entries {
 		entryRelativePath := entry.Name()
@@ -1598,8 +1683,8 @@ func seedUniversalMergeCandidates(filesystem io.Medium, arm64Path, amd64Path, re
 }
 
 func shouldMergeUniversalPath(filesystem io.Medium, path, relativePath string) bool {
-	info, err := filesystem.Stat(path)
-	if err == nil && info.Mode()&0o111 != 0 {
+	info := filesystem.Stat(path)
+	if info.OK && info.Value.(fs.FileInfo).Mode()&0o111 != 0 {
 		return true
 	}
 
@@ -1639,36 +1724,40 @@ func plistStringValue(content, key string) string {
 	return core.Trim(endParts[0])
 }
 
-func copyPath(filesystem io.Medium, sourcePath, destPath string) error {
+func copyPath(filesystem io.Medium, sourcePath, destPath string) core.Result {
 	if filesystem == nil {
 		filesystem = io.Local
 	}
 
 	if filesystem.IsDir(sourcePath) {
-		if err := filesystem.EnsureDir(destPath); err != nil {
-			return err
+		created := filesystem.EnsureDir(destPath)
+		if !created.OK {
+			return created
 		}
-		entries, err := filesystem.List(sourcePath)
-		if err != nil {
-			return err
+		entriesResult := filesystem.List(sourcePath)
+		if !entriesResult.OK {
+			return entriesResult
 		}
+		entries := entriesResult.Value.([]fs.DirEntry)
 		for _, entry := range entries {
-			if err := copyPath(filesystem, ax.Join(sourcePath, entry.Name()), ax.Join(destPath, entry.Name())); err != nil {
-				return err
+			copied := copyPath(filesystem, ax.Join(sourcePath, entry.Name()), ax.Join(destPath, entry.Name()))
+			if !copied.OK {
+				return copied
 			}
 		}
-		return nil
+		return core.Ok(nil)
 	}
 
-	info, err := filesystem.Stat(sourcePath)
-	if err != nil {
-		return err
+	infoResult := filesystem.Stat(sourcePath)
+	if !infoResult.OK {
+		return infoResult
 	}
-	content, err := filesystem.Read(sourcePath)
-	if err != nil {
-		return err
+	info := infoResult.Value.(fs.FileInfo)
+	content := filesystem.Read(sourcePath)
+	if !content.OK {
+		return content
 	}
-	return filesystem.WriteMode(destPath, content, info.Mode().Perm())
+	return filesystem.WriteMode(destPath, content.Value.(string), info.Mode().Perm())
 }
 
 func signFrameworkPaths(appPath string) []string {
@@ -1677,10 +1766,11 @@ func signFrameworkPaths(appPath string) []string {
 		return nil
 	}
 
-	entries, err := io.Local.List(frameworksDir)
-	if err != nil {
+	entriesResult := io.Local.List(frameworksDir)
+	if !entriesResult.OK {
 		return nil
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	var paths []string
 	for _, entry := range entries {
@@ -1696,10 +1786,11 @@ func signHelperBinaryPaths(appPath, mainBinary string) []string {
 		return nil
 	}
 
-	entries, err := io.Local.List(macOSDir)
-	if err != nil {
+	entriesResult := io.Local.List(macOSDir)
+	if !entriesResult.OK {
 		return nil
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	var paths []string
 	for _, entry := range entries {
@@ -1745,39 +1836,39 @@ func codesignArgs(cfg SignConfig, path string, entitlements string) []string {
 	return args
 }
 
-func notariseAuthArgs(cfg NotariseConfig) ([]string, error) {
+func notariseAuthArgs(cfg NotariseConfig) core.Result {
 	if cfg.APIKeyID != "" {
 		if cfg.APIKeyIssuerID == "" || cfg.APIKeyPath == "" {
-			return nil, coreerr.E("build.notariseAuthArgs", "api_key_issuer_id and api_key_path are required with api_key_id", nil)
+			return core.Fail(core.E("build.notariseAuthArgs", "api_key_issuer_id and api_key_path are required with api_key_id", nil))
 		}
-		return []string{
+		return core.Ok([]string{
 			"--key", cfg.APIKeyPath,
 			"--key-id", cfg.APIKeyID,
 			"--issuer", cfg.APIKeyIssuerID,
-		}, nil
+		})
 	}
 
 	if cfg.AppleID == "" || cfg.Password == "" || cfg.TeamID == "" {
-		return nil, coreerr.E("build.notariseAuthArgs", "team_id, apple_id, and password are required when API key auth is not configured", nil)
+		return core.Fail(core.E("build.notariseAuthArgs", "team_id, apple_id, and password are required when API key auth is not configured", nil))
 	}
 
-	return []string{
+	return core.Ok([]string{
 		"--apple-id", cfg.AppleID,
 		"--password", cfg.Password,
 		"--team-id", cfg.TeamID,
-	}, nil
+	})
 }
 
-func validateAppStoreConnectAPIKey(apiKeyID, apiKeyIssuerID, apiKeyPath, op string) error {
+func validateAppStoreConnectAPIKey(apiKeyID, apiKeyIssuerID, apiKeyPath, op string) core.Result {
 	switch {
 	case core.Trim(apiKeyID) == "":
-		return coreerr.E(op, "api_key_id is required for App Store Connect uploads", nil)
+		return core.Fail(core.E(op, "api_key_id is required for App Store Connect uploads", nil))
 	case core.Trim(apiKeyIssuerID) == "":
-		return coreerr.E(op, "api_key_issuer_id is required for App Store Connect uploads", nil)
+		return core.Fail(core.E(op, "api_key_issuer_id is required for App Store Connect uploads", nil))
 	case core.Trim(apiKeyPath) == "":
-		return coreerr.E(op, "api_key_path is required for App Store Connect uploads", nil)
+		return core.Fail(core.E(op, "api_key_path is required for App Store Connect uploads", nil))
 	default:
-		return nil
+		return core.Ok(nil)
 	}
 }
 
@@ -1785,35 +1876,37 @@ func isDeveloperIDIdentity(identity string) bool {
 	return core.Contains(core.Lower(identity), "developer id")
 }
 
-func validateAppStorePreflight(filesystem io.Medium, projectDir, bundlePath string, options AppleOptions) error {
+func validateAppStorePreflight(filesystem io.Medium, projectDir, bundlePath string, options AppleOptions) core.Result {
 	if filesystem == nil {
 		filesystem = io.Local
 	}
 
-	if err := validateAppStoreMetadata(filesystem, projectDir, options.MetadataPath); err != nil {
-		return err
+	metadata := validateAppStoreMetadata(filesystem, projectDir, options.MetadataPath)
+	if !metadata.OK {
+		return metadata
 	}
-	if err := scanBundleForPrivateAPIUsage(filesystem, bundlePath); err != nil {
-		return err
+	scanned := scanBundleForPrivateAPIUsage(filesystem, bundlePath)
+	if !scanned.OK {
+		return scanned
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func validateAppStoreMetadata(filesystem io.Medium, projectDir, configuredPath string) error {
+func validateAppStoreMetadata(filesystem io.Medium, projectDir, configuredPath string) core.Result {
 	metadataPath := resolveAppStoreMetadataPath(filesystem, projectDir, configuredPath)
 	if metadataPath == "" {
-		return coreerr.E("build.validateAppStoreMetadata", "App Store submissions require metadata_path or a standard metadata directory (.core/apple/appstore, .core/appstore, or appstore)", nil)
+		return core.Fail(core.E("build.validateAppStoreMetadata", "App Store submissions require metadata_path or a standard metadata directory (.core/apple/appstore, .core/appstore, or appstore)", nil))
 	}
 
 	if !hasAppStoreDescription(filesystem, metadataPath) {
-		return coreerr.E("build.validateAppStoreMetadata", "App Store submissions require a description file in metadata_path", nil)
+		return core.Fail(core.E("build.validateAppStoreMetadata", "App Store submissions require a description file in metadata_path", nil))
 	}
 	if !hasAppStoreScreenshots(filesystem, metadataPath) {
-		return coreerr.E("build.validateAppStoreMetadata", "App Store submissions require at least one screenshot in metadata_path/screenshots", nil)
+		return core.Fail(core.E("build.validateAppStoreMetadata", "App Store submissions require at least one screenshot in metadata_path/screenshots", nil))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func resolveAppStoreMetadataPath(filesystem io.Medium, projectDir, configuredPath string) string {
@@ -1855,10 +1948,11 @@ func hasAppStoreScreenshots(filesystem io.Medium, metadataPath string) bool {
 		return false
 	}
 
-	entries, err := filesystem.List(screenshotsDir)
-	if err != nil {
+	entriesResult := filesystem.List(screenshotsDir)
+	if !entriesResult.OK {
 		return false
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -1877,10 +1971,10 @@ func hasAppStoreScreenshots(filesystem io.Medium, metadataPath string) bool {
 	return false
 }
 
-func validatePrivacyPolicyURL(raw string) error {
+func validatePrivacyPolicyURL(raw string) core.Result {
 	value := core.Trim(raw)
 	if value == "" {
-		return coreerr.E("build.validatePrivacyPolicyURL", "App Store submissions require privacy_policy_url (for example https://lthn.ai/privacy)", nil)
+		return core.Fail(core.E("build.validatePrivacyPolicyURL", "App Store submissions require privacy_policy_url (for example https://lthn.ai/privacy)", nil))
 	}
 
 	normalised := value
@@ -1890,33 +1984,33 @@ func validatePrivacyPolicyURL(raw string) error {
 
 	parsed, err := url.Parse(normalised)
 	if err != nil {
-		return coreerr.E("build.validatePrivacyPolicyURL", "privacy_policy_url must be a valid URL", err)
+		return core.Fail(core.E("build.validatePrivacyPolicyURL", "privacy_policy_url must be a valid URL", err))
 	}
 	if core.Trim(parsed.Host) == "" || parsed.Path == "" || parsed.Path == "/" {
-		return coreerr.E("build.validatePrivacyPolicyURL", "privacy_policy_url must include a host and non-root path", nil)
+		return core.Fail(core.E("build.validatePrivacyPolicyURL", "privacy_policy_url must include a host and non-root path", nil))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func scanBundleForPrivateAPIUsage(filesystem io.Medium, bundlePath string) error {
+func scanBundleForPrivateAPIUsage(filesystem io.Medium, bundlePath string) core.Result {
 	if bundlePath == "" {
-		return coreerr.E("build.scanBundleForPrivateAPIUsage", "bundle path is required", nil)
+		return core.Fail(core.E("build.scanBundleForPrivateAPIUsage", "bundle path is required", nil))
 	}
 
 	for _, root := range privateAPIScanRoots(bundlePath) {
 		for _, path := range collectBundleFiles(filesystem, root) {
-			content, err := filesystem.Read(path)
-			if err != nil {
+			content := filesystem.Read(path)
+			if !content.OK {
 				continue
 			}
-			if indicator := detectPrivateAPIIndicator(content); indicator != "" {
-				return coreerr.E("build.scanBundleForPrivateAPIUsage", "private API usage detected in "+path+": "+indicator, nil)
+			if indicator := detectPrivateAPIIndicator(content.Value.(string)); indicator != "" {
+				return core.Fail(core.E("build.scanBundleForPrivateAPIUsage", "private API usage detected in "+path+": "+indicator, nil))
 			}
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func privateAPIScanRoots(bundlePath string) []string {
@@ -1934,10 +2028,11 @@ func collectBundleFiles(filesystem io.Medium, root string) []string {
 		return []string{root}
 	}
 
-	entries, err := filesystem.List(root)
-	if err != nil {
+	entriesResult := filesystem.List(root)
+	if !entriesResult.OK {
 		return nil
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	var paths []string
 	for _, entry := range entries {
@@ -2072,95 +2167,114 @@ func appendNotaryLog(ctx context.Context, xcrunCommand string, authArgs []string
 
 	logArgs := []string{"notarytool", notaryToolLogCommand, requestID}
 	logArgs = append(logArgs, authArgs...)
-	logOutput, err := appleCombinedOutput(ctx, "", nil, xcrunCommand, logArgs...)
-	if err != nil || logOutput == "" {
+	logOutput := appleCombinedOutput(ctx, "", nil, xcrunCommand, logArgs...)
+	if !logOutput.OK || logOutput.Value.(string) == "" {
 		return output
 	}
 
-	return core.Join("\n", output, logOutput)
+	return core.Join("\n", output, logOutput.Value.(string))
 }
 
-func packageForASCUpload(ctx context.Context, appPath, certIdentity, apiKeyID, apiKeyPath string) (string, []string, func(), error) {
+type ascUploadPackage struct {
+	path    string
+	env     []string
+	cleanup func()
+}
+
+func packageForASCUpload(ctx context.Context, appPath, certIdentity, apiKeyID, apiKeyPath string) core.Result {
 	if core.HasSuffix(appPath, ".pkg") {
-		env, cleanup, err := prepareASCAPIKeyEnv(apiKeyID, apiKeyPath)
-		if err != nil {
-			return "", nil, nil, err
+		envResult := prepareASCAPIKeyEnv(apiKeyID, apiKeyPath)
+		if !envResult.OK {
+			return envResult
 		}
-		return appPath, env, cleanup, nil
+		env := envResult.Value.(ascAPIKeyEnv)
+		return core.Ok(ascUploadPackage{path: appPath, env: env.env, cleanup: env.cleanup})
 	}
 
 	if !core.HasSuffix(appPath, ".app") {
-		return "", nil, nil, coreerr.E("build.packageForASCUpload", "App Store Connect uploads require a .app or .pkg input", nil)
+		return core.Fail(core.E("build.packageForASCUpload", "App Store Connect uploads require a .app or .pkg input", nil))
 	}
 
 	outputPath := ax.Join(ax.Dir(appPath), core.TrimSuffix(ax.Base(appPath), ".app")+".pkg")
-	if err := createDistributionPackage(ctx, appPath, certIdentity, outputPath); err != nil {
-		return "", nil, nil, err
+	created := createDistributionPackage(ctx, appPath, certIdentity, outputPath)
+	if !created.OK {
+		return created
 	}
 
-	env, cleanup, err := prepareASCAPIKeyEnv(apiKeyID, apiKeyPath)
-	if err != nil {
-		return "", nil, nil, err
+	envResult := prepareASCAPIKeyEnv(apiKeyID, apiKeyPath)
+	if !envResult.OK {
+		return envResult
 	}
+	env := envResult.Value.(ascAPIKeyEnv)
 
-	return outputPath, env, cleanup, nil
+	return core.Ok(ascUploadPackage{path: outputPath, env: env.env, cleanup: env.cleanup})
 }
 
-func prepareASCAPIKeyEnv(apiKeyID, apiKeyPath string) ([]string, func(), error) {
+type ascAPIKeyEnv struct {
+	env     []string
+	cleanup func()
+}
+
+func prepareASCAPIKeyEnv(apiKeyID, apiKeyPath string) core.Result {
 	if apiKeyPath == "" {
-		return nil, func() {}, nil
+		return core.Ok(ascAPIKeyEnv{cleanup: func() {}})
 	}
 
 	expectedName := core.Sprintf("AuthKey_%s.p8", apiKeyID)
 	if expectedName == "AuthKey_.p8" || ax.Base(apiKeyPath) == expectedName {
-		return []string{"API_PRIVATE_KEYS_DIR=" + ax.Dir(apiKeyPath)}, func() {}, nil
+		return core.Ok(ascAPIKeyEnv{env: []string{"API_PRIVATE_KEYS_DIR=" + ax.Dir(apiKeyPath)}, cleanup: func() {}})
 	}
 
-	content, err := io.Local.Read(apiKeyPath)
-	if err != nil {
-		return nil, nil, coreerr.E("build.prepareASCAPIKeyEnv", "failed to read App Store Connect API key", err)
+	content := io.Local.Read(apiKeyPath)
+	if !content.OK {
+		return core.Fail(core.E("build.prepareASCAPIKeyEnv", "failed to read App Store Connect API key", core.NewError(content.Error())))
 	}
 
-	tempDir, err := ax.TempDir("core-build-asc-key-*")
-	if err != nil {
-		return nil, nil, coreerr.E("build.prepareASCAPIKeyEnv", "failed to create App Store Connect key staging directory", err)
+	tempDirResult := ax.TempDir("core-build-asc-key-*")
+	if !tempDirResult.OK {
+		return core.Fail(core.E("build.prepareASCAPIKeyEnv", "failed to create App Store Connect key staging directory", core.NewError(tempDirResult.Error())))
 	}
+	tempDir := tempDirResult.Value.(string)
 
 	stagedPath := ax.Join(tempDir, expectedName)
-	if err := io.Local.WriteMode(stagedPath, content, 0o600); err != nil {
-		if cleanupErr := ax.RemoveAll(tempDir); cleanupErr != nil {
-			return nil, nil, coreerr.E("build.prepareASCAPIKeyEnv", "failed to clean up App Store Connect key staging directory", cleanupErr)
+	written := io.Local.WriteMode(stagedPath, content.Value.(string), 0o600)
+	if !written.OK {
+		cleaned := ax.RemoveAll(tempDir)
+		if !cleaned.OK {
+			return core.Fail(core.E("build.prepareASCAPIKeyEnv", "failed to clean up App Store Connect key staging directory", core.NewError(cleaned.Error())))
 		}
-		return nil, nil, coreerr.E("build.prepareASCAPIKeyEnv", "failed to stage App Store Connect API key", err)
+		return core.Fail(core.E("build.prepareASCAPIKeyEnv", "failed to stage App Store Connect API key", core.NewError(written.Error())))
 	}
 
-	return []string{"API_PRIVATE_KEYS_DIR=" + tempDir}, func() {
-		if err := ax.RemoveAll(tempDir); err != nil {
-			return
-		}
-	}, nil
+	return core.Ok(ascAPIKeyEnv{
+		env: []string{"API_PRIVATE_KEYS_DIR=" + tempDir},
+		cleanup: func() {
+			ax.RemoveAll(tempDir)
+		},
+	})
 }
 
-func createDistributionPackage(ctx context.Context, appPath, certIdentity, outputPath string) error {
-	productbuildCommand, err := resolveProductbuildCli()
-	if err != nil {
-		return err
+func createDistributionPackage(ctx context.Context, appPath, certIdentity, outputPath string) core.Result {
+	productbuildCommandResult := resolveProductbuildCli()
+	if !productbuildCommandResult.OK {
+		return productbuildCommandResult
 	}
+	productbuildCommand := productbuildCommandResult.Value.(string)
 
 	args := []string{"--component", appPath, "/Applications", outputPath}
 	if certIdentity != "" {
 		args = append([]string{"--sign", certIdentity}, args...)
 	}
 
-	output, err := appleCombinedOutput(ctx, "", nil, productbuildCommand, args...)
-	if err != nil {
-		return coreerr.E("build.createDistributionPackage", "productbuild failed: "+output, err)
+	output := appleCombinedOutput(ctx, "", nil, productbuildCommand, args...)
+	if !output.OK {
+		return core.Fail(core.E("build.createDistributionPackage", "productbuild failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func encodePlist(values map[string]any) (string, error) {
+func encodePlist(values map[string]any) core.Result {
 	keys := make([]string, 0, len(values))
 	for key := range values {
 		keys = append(keys, key)
@@ -2175,7 +2289,7 @@ func encodePlist(values map[string]any) (string, error) {
 	for _, key := range keys {
 		buf.WriteString("<key>")
 		if err := xml.EscapeText(buf, []byte(key)); err != nil {
-			return "", coreerr.E("build.encodePlist", "failed to encode plist key", err)
+			return core.Fail(core.E("build.encodePlist", "failed to encode plist key", err))
 		}
 		buf.WriteString("</key>")
 
@@ -2183,7 +2297,7 @@ func encodePlist(values map[string]any) (string, error) {
 		case string:
 			buf.WriteString("<string>")
 			if err := xml.EscapeText(buf, []byte(value)); err != nil {
-				return "", coreerr.E("build.encodePlist", "failed to encode plist string value", err)
+				return core.Fail(core.E("build.encodePlist", "failed to encode plist string value", err))
 			}
 			buf.WriteString("</string>")
 		case bool:
@@ -2197,12 +2311,12 @@ func encodePlist(values map[string]any) (string, error) {
 			buf.WriteString(strconv.Itoa(value))
 			buf.WriteString("</integer>")
 		default:
-			return "", coreerr.E("build.encodePlist", "unsupported plist value type", nil)
+			return core.Fail(core.E("build.encodePlist", "unsupported plist value type", nil))
 		}
 	}
 
 	buf.WriteString("</dict></plist>")
-	return buf.String(), nil
+	return core.Ok(buf.String())
 }
 
 func appendEnvIfMissing(env []string, key, value string) []string {
@@ -2215,7 +2329,7 @@ func appendEnvIfMissing(env []string, key, value string) []string {
 	return append(env, prefix+value)
 }
 
-func resolveWails3Cli() (string, error) {
+func resolveWails3Cli() core.Result {
 	paths := []string{
 		"/usr/local/bin/wails3",
 		"/opt/homebrew/bin/wails3",
@@ -2223,9 +2337,9 @@ func resolveWails3Cli() (string, error) {
 	if home := core.Env("HOME"); home != "" {
 		paths = append(paths, ax.Join(home, "go", "bin", "wails3"))
 	}
-	command, err := appleResolveCommand("wails3", paths...)
-	if err == nil {
-		return command, nil
+	command := appleResolveCommand("wails3", paths...)
+	if command.OK {
+		return command
 	}
 
 	fallbacks := []string{
@@ -2235,113 +2349,113 @@ func resolveWails3Cli() (string, error) {
 	if home := core.Env("HOME"); home != "" {
 		fallbacks = append(fallbacks, ax.Join(home, "go", "bin", "wails"))
 	}
-	command, fallbackErr := appleResolveCommand("wails", fallbacks...)
-	if fallbackErr != nil {
-		return "", coreerr.E("build.resolveWails3Cli", "wails3 CLI not found. Install Wails v3 or expose it on PATH.", err)
+	fallback := appleResolveCommand("wails", fallbacks...)
+	if !fallback.OK {
+		return core.Fail(core.E("build.resolveWails3Cli", "wails3 CLI not found. Install Wails v3 or expose it on PATH.", core.NewError(command.Error())))
 	}
-	return command, nil
+	return fallback
 }
 
-func resolveDenoCli() (string, error) {
-	command, err := appleResolveCommand("deno", "/usr/local/bin/deno", "/opt/homebrew/bin/deno")
-	if err != nil {
-		return "", coreerr.E("build.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", err)
+func resolveDenoCli() core.Result {
+	command := appleResolveCommand("deno", "/usr/local/bin/deno", "/opt/homebrew/bin/deno")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveNpmCli() (string, error) {
-	command, err := appleResolveCommand("npm", "/usr/local/bin/npm", "/opt/homebrew/bin/npm")
-	if err != nil {
-		return "", coreerr.E("build.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", err)
+func resolveNpmCli() core.Result {
+	command := appleResolveCommand("npm", "/usr/local/bin/npm", "/opt/homebrew/bin/npm")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveBunCli() (string, error) {
-	command, err := appleResolveCommand("bun", "/usr/local/bin/bun", "/opt/homebrew/bin/bun")
-	if err != nil {
-		return "", coreerr.E("build.resolveBunCli", "bun CLI not found. Install it from https://bun.sh/", err)
+func resolveBunCli() core.Result {
+	command := appleResolveCommand("bun", "/usr/local/bin/bun", "/opt/homebrew/bin/bun")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveBunCli", "bun CLI not found. Install it from https://bun.sh/", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolvePnpmCli() (string, error) {
-	command, err := appleResolveCommand("pnpm", "/usr/local/bin/pnpm", "/opt/homebrew/bin/pnpm")
-	if err != nil {
-		return "", coreerr.E("build.resolvePnpmCli", "pnpm CLI not found. Install it from https://pnpm.io/installation", err)
+func resolvePnpmCli() core.Result {
+	command := appleResolveCommand("pnpm", "/usr/local/bin/pnpm", "/opt/homebrew/bin/pnpm")
+	if !command.OK {
+		return core.Fail(core.E("build.resolvePnpmCli", "pnpm CLI not found. Install it from https://pnpm.io/installation", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveYarnCli() (string, error) {
-	command, err := appleResolveCommand("yarn", "/usr/local/bin/yarn", "/opt/homebrew/bin/yarn")
-	if err != nil {
-		return "", coreerr.E("build.resolveYarnCli", "yarn CLI not found. Install it from https://yarnpkg.com/getting-started/install", err)
+func resolveYarnCli() core.Result {
+	command := appleResolveCommand("yarn", "/usr/local/bin/yarn", "/opt/homebrew/bin/yarn")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveYarnCli", "yarn CLI not found. Install it from https://yarnpkg.com/getting-started/install", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveLipoCli() (string, error) {
-	command, err := appleResolveCommand("lipo", "/usr/bin/lipo", "/usr/local/bin/lipo", "/opt/homebrew/bin/lipo")
-	if err != nil {
-		return "", coreerr.E("build.resolveLipoCli", "lipo not found. Install Xcode Command Line Tools.", err)
+func resolveLipoCli() core.Result {
+	command := appleResolveCommand("lipo", "/usr/bin/lipo", "/usr/local/bin/lipo", "/opt/homebrew/bin/lipo")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveLipoCli", "lipo not found. Install Xcode Command Line Tools.", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveCodesignCli() (string, error) {
-	command, err := appleResolveCommand("codesign", "/usr/bin/codesign", "/usr/local/bin/codesign", "/opt/homebrew/bin/codesign")
-	if err != nil {
-		return "", coreerr.E("build.resolveCodesignCli", "codesign not found. Install Xcode Command Line Tools.", err)
+func resolveCodesignCli() core.Result {
+	command := appleResolveCommand("codesign", "/usr/bin/codesign", "/usr/local/bin/codesign", "/opt/homebrew/bin/codesign")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveCodesignCli", "codesign not found. Install Xcode Command Line Tools.", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveDittocli() (string, error) {
-	command, err := appleResolveCommand("ditto", "/usr/bin/ditto", "/usr/local/bin/ditto", "/opt/homebrew/bin/ditto")
-	if err != nil {
-		return "", coreerr.E("build.resolveDittocli", "ditto not found. Install Xcode Command Line Tools.", err)
+func resolveDittocli() core.Result {
+	command := appleResolveCommand("ditto", "/usr/bin/ditto", "/usr/local/bin/ditto", "/opt/homebrew/bin/ditto")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveDittocli", "ditto not found. Install Xcode Command Line Tools.", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveXcrunCli() (string, error) {
-	command, err := appleResolveCommand("xcrun", "/usr/bin/xcrun", "/usr/local/bin/xcrun", "/opt/homebrew/bin/xcrun")
-	if err != nil {
-		return "", coreerr.E("build.resolveXcrunCli", "xcrun not found. Install Xcode Command Line Tools.", err)
+func resolveXcrunCli() core.Result {
+	command := appleResolveCommand("xcrun", "/usr/bin/xcrun", "/usr/local/bin/xcrun", "/opt/homebrew/bin/xcrun")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveXcrunCli", "xcrun not found. Install Xcode Command Line Tools.", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveSPCTLCli() (string, error) {
-	command, err := appleResolveCommand("spctl", "/usr/sbin/spctl", "/usr/local/bin/spctl", "/opt/homebrew/bin/spctl")
-	if err != nil {
-		return "", coreerr.E("build.resolveSPCTLCli", "spctl not found on this system.", err)
+func resolveSPCTLCli() core.Result {
+	command := appleResolveCommand("spctl", "/usr/sbin/spctl", "/usr/local/bin/spctl", "/opt/homebrew/bin/spctl")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveSPCTLCli", "spctl not found on this system.", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveHdiutilCli() (string, error) {
-	command, err := appleResolveCommand("hdiutil", "/usr/bin/hdiutil", "/usr/local/bin/hdiutil", "/opt/homebrew/bin/hdiutil")
-	if err != nil {
-		return "", coreerr.E("build.resolveHdiutilCli", "hdiutil not found. macOS disk image tools are required.", err)
+func resolveHdiutilCli() core.Result {
+	command := appleResolveCommand("hdiutil", "/usr/bin/hdiutil", "/usr/local/bin/hdiutil", "/opt/homebrew/bin/hdiutil")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveHdiutilCli", "hdiutil not found. macOS disk image tools are required.", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveOsaScriptCli() (string, error) {
-	command, err := appleResolveCommand("osascript", "/usr/bin/osascript", "/usr/local/bin/osascript", "/opt/homebrew/bin/osascript")
-	if err != nil {
-		return "", coreerr.E("build.resolveOsaScriptCli", "osascript not found. Finder automation is required for DMG layout.", err)
+func resolveOsaScriptCli() core.Result {
+	command := appleResolveCommand("osascript", "/usr/bin/osascript", "/usr/local/bin/osascript", "/opt/homebrew/bin/osascript")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveOsaScriptCli", "osascript not found. Finder automation is required for DMG layout.", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }
 
-func resolveProductbuildCli() (string, error) {
-	command, err := appleResolveCommand("productbuild", "/usr/bin/productbuild", "/usr/local/bin/productbuild", "/opt/homebrew/bin/productbuild")
-	if err != nil {
-		return "", coreerr.E("build.resolveProductbuildCli", "productbuild not found. Install Xcode Command Line Tools.", err)
+func resolveProductbuildCli() core.Result {
+	command := appleResolveCommand("productbuild", "/usr/bin/productbuild", "/usr/local/bin/productbuild", "/opt/homebrew/bin/productbuild")
+	if !command.OK {
+		return core.Fail(core.E("build.resolveProductbuildCli", "productbuild not found. Install Xcode Command Line Tools.", core.NewError(command.Error())))
 	}
-	return command, nil
+	return command
 }

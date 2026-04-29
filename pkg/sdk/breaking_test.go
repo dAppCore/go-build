@@ -7,6 +7,15 @@ import (
 	"dappco.re/go/build/internal/ax"
 )
 
+func requireSDKDiff(t *testing.T, basePath, revPath string) *DiffResult {
+	t.Helper()
+	result := Diff(basePath, revPath)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*DiffResult)
+}
+
 // --- Breaking Change Detection Tests (oasdiff integration) ---
 
 func TestBreaking_DiffAddEndpointNonBreakingGood(t *testing.T) {
@@ -50,17 +59,14 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(base), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(revision), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if result.Breaking {
 		t.Fatal("adding endpoints should not be breaking")
 	}
@@ -114,17 +120,14 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(base), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(revision), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if !(result.Breaking) {
 		t.Fatal("removing endpoints should be breaking")
 	}
@@ -172,17 +175,14 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(base), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(revision), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if !(result.Breaking) {
 		t.Fatal("adding required parameter should be breaking")
 	}
@@ -227,17 +227,14 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(base), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(revision), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if result.Breaking {
 		t.Fatal("adding optional parameter should not be breaking")
 	}
@@ -298,17 +295,14 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(base), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(revision), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if !(result.Breaking) {
 		t.Fatal("changing response schema type should be breaking")
 	}
@@ -349,17 +343,14 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(base), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(revision), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if !(result.Breaking) {
 		t.Fatal("removing HTTP method should be breaking")
 	}
@@ -397,17 +388,14 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte(spec), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(spec), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(spec), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(spec), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if result.Breaking {
 		t.Fatal("identical specs should not be breaking")
 	}
@@ -426,21 +414,21 @@ func TestBreaking_DiffNonExistentBaseBad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
+	if result := ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
 info:
   title: Test API
   version: "1.0.0"
 paths: {}
-`), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	_, err := Diff(ax.Join(tmpDir, "nonexistent.yaml"), revPath)
-	if err == nil {
+	result := Diff(ax.Join(tmpDir, "nonexistent.yaml"), revPath)
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "failed to load base spec") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "failed to load base spec")
+	if !stdlibAssertContains(result.Error(), "failed to load base spec") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "failed to load base spec")
 	}
 
 }
@@ -449,21 +437,21 @@ func TestBreaking_DiffNonExistentRevisionBad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	basePath := ax.Join(tmpDir, "base.yaml")
-	if err := ax.WriteFile(basePath, []byte(`openapi: "3.0.0"
+	if result := ax.WriteFile(basePath, []byte(`openapi: "3.0.0"
 info:
   title: Test API
   version: "1.0.0"
 paths: {}
-`), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	_, err := Diff(basePath, ax.Join(tmpDir, "nonexistent.yaml"))
-	if err == nil {
+	result := Diff(basePath, ax.Join(tmpDir, "nonexistent.yaml"))
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "failed to load revision spec") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "failed to load revision spec")
+	if !stdlibAssertContains(result.Error(), "failed to load revision spec") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "failed to load revision spec")
 	}
 
 }
@@ -473,26 +461,26 @@ func TestBreaking_DiffInvalidYAMLBad(t *testing.T) {
 
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte("not: valid: openapi: spec: {{{{"), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte("not: valid: openapi: spec: {{{{"), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
+	if result := ax.WriteFile(revPath, []byte(`openapi: "3.0.0"
 info:
   title: Test API
   version: "1.0.0"
 paths: {}
-`), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	_, err := Diff(basePath, revPath)
-	if err == nil {
+	result := Diff(basePath, revPath)
+	if result.OK {
 		t.Fatal("expected error")
-
-		// --- DiffExitCode Tests ---
 	}
 
 }
+
+// --- DiffExitCode Tests ---
 
 func TestBreaking_DiffExitCode_Good(t *testing.T) {
 	tests := []struct {
@@ -584,17 +572,14 @@ paths:
 `
 		basePath := ax.Join(tmpDir, "base.yaml")
 		revPath := ax.Join(tmpDir, "rev.yaml")
-		if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(basePath, []byte(base), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(revPath, []byte(revision), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		result, err := Diff(basePath, revPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireSDKDiff(t, basePath, revPath)
 		if !(result.Breaking) {
 			t.Fatal("expected true")
 		}
@@ -634,17 +619,14 @@ paths: {}
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(base), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(revision), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if !(result.Breaking) {
 
 		// Changes should contain human-readable descriptions from oasdiff
@@ -706,17 +688,14 @@ paths:
 `
 	basePath := ax.Join(tmpDir, "base.yaml")
 	revPath := ax.Join(tmpDir, "rev.yaml")
-	if err := ax.WriteFile(basePath, []byte(base), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(base), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(revision), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(revision), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if !(result.Breaking) {
 
 		// Should detect: removed POST, removed DELETE, and possibly added required param
@@ -765,17 +744,14 @@ func TestBreaking_DiffJSONSpecsGood(t *testing.T) {
 }`
 	basePath := ax.Join(tmpDir, "base.json")
 	revPath := ax.Join(tmpDir, "rev.json")
-	if err := ax.WriteFile(basePath, []byte(baseJSON), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(basePath, []byte(baseJSON), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(revPath, []byte(revJSON), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(revPath, []byte(revJSON), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKDiff(t, basePath, revPath)
 	if result.Breaking {
 		t.Fatal("adding endpoint in JSON format should not be breaking")
 	}

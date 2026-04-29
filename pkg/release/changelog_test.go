@@ -8,6 +8,40 @@ import (
 	"dappco.re/go/build/internal/ax"
 )
 
+func requireChangelogOK(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requireChangelogString(t *testing.T, result core.Result) string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
+}
+
+func requireChangelogStrings(t *testing.T, result core.Result) []string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]string)
+}
+
+func requireChangelogFailure(t *testing.T, result core.Result) error {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	if failure, ok := result.Value.(error); ok {
+		return failure
+	}
+	return core.NewError(result.Error())
+}
+
 func TestChangelog_ParseConventionalCommitGood(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -333,14 +367,13 @@ func createChangelogCommit(t *testing.T, dir, message string) {
 
 	// Create or modify a file
 	filePath := ax.Join(dir, "changelog_test.txt")
-	content, _ := ax.ReadFile(filePath)
-	content = append(content, []byte(message+"\n")...)
-	if err := ax.WriteFile(filePath, content, 0644); err != nil {
-		t.Fatalf("unexpected error: %v",
-
-			// Stage and commit
-			err)
+	content := []byte{}
+	existing := ax.ReadFile(filePath)
+	if existing.OK {
+		content = existing.Value.([]byte)
 	}
+	content = append(content, []byte(message+"\n")...)
+	requireChangelogOK(t, ax.WriteFile(filePath, content, 0644))
 
 	runGit(t, dir, "add", ".")
 	runGit(t, dir, "commit", "-m", message)
@@ -358,10 +391,7 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: add new feature")
 		createChangelogCommit(t, dir, "fix: resolve bug")
 
-		changelog, err := Generate(dir, "", "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, Generate(dir, "", "HEAD"))
 		if !stdlibAssertContains(changelog, "## HEAD") {
 			t.Fatalf("expected %v to contain %v", changelog, "## HEAD")
 		}
@@ -388,10 +418,7 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "fix: bug fix")
 		createChangelogTag(t, dir, "v1.1.0")
 
-		changelog, err := Generate(dir, "v1.0.0", "v1.1.0")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, Generate(dir, "v1.0.0", "v1.1.0"))
 		if !stdlibAssertContains(changelog, "## v1.1.0") {
 			t.Fatalf("expected %v to contain %v", changelog, "## v1.1.0")
 		}
@@ -415,10 +442,7 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "Update README")
 		createChangelogCommit(t, dir, "Merge branch main")
 
-		changelog, err := Generate(dir, "", "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, Generate(dir, "", "HEAD"))
 		if !stdlibAssertContains(changelog, "No notable changes") {
 			t.Fatalf("expected %v to contain %v", changelog, "No notable changes")
 		}
@@ -431,10 +455,7 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogTag(t, dir, "v1.0.0")
 		createChangelogCommit(t, dir, "feat: new feature")
 
-		changelog, err := Generate(dir, "", "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, Generate(dir, "", "HEAD"))
 		if !stdlibAssertContains(changelog, "new feature") {
 			t.Fatalf("expected %v to contain %v", changelog, "new feature")
 		}
@@ -449,10 +470,7 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		createChangelogCommit(t, dir, "feat!: breaking API change")
 		createChangelogCommit(t, dir, "feat: normal feature")
 
-		changelog, err := Generate(dir, "", "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, Generate(dir, "", "HEAD"))
 		if !stdlibAssertContains(changelog, "### BREAKING CHANGES") {
 			t.Fatalf("expected %v to contain %v", changelog, "### BREAKING CHANGES")
 		}
@@ -466,10 +484,7 @@ func TestChangelog_Generate_Good(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat(api): add endpoint")
 
-		changelog, err := Generate(dir, "", "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, Generate(dir, "", "HEAD"))
 		if !stdlibAssertContains(changelog, "**api**:") {
 			t.Fatalf("expected %v to contain %v", changelog, "**api**:")
 		}
@@ -481,10 +496,7 @@ func TestChangelog_Generate_Bad(t *testing.T) {
 	t.Run("returns error for non-git directory", func(t *testing.T) {
 		dir := t.TempDir()
 
-		_, err := Generate(dir, "", "HEAD")
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireChangelogFailure(t, Generate(dir, "", "HEAD"))
 
 	})
 
@@ -495,12 +507,9 @@ func TestChangelog_Generate_Bad(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err := GenerateWithContext(ctx, dir, "", "HEAD")
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !core.Is(err, context.Canceled) {
-			t.Fatalf("expected error %v to be %v", err, context.Canceled)
+		err := requireChangelogFailure(t, GenerateWithContext(ctx, dir, "", "HEAD"))
+		if !stdlibAssertContains(err.Error(), context.Canceled.Error()) {
+			t.Fatalf("expected error %v to contain %v", err, context.Canceled)
 		}
 
 	})
@@ -517,10 +526,7 @@ func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 			Include: []string{"feat"},
 		}
 
-		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, GenerateWithConfig(dir, "", "HEAD", cfg))
 		if !stdlibAssertContains(changelog, "new feature") {
 			t.Fatalf("expected %v to contain %v", changelog, "new feature")
 		}
@@ -543,10 +549,7 @@ func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 			Exclude: []string{"chore"},
 		}
 
-		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, GenerateWithConfig(dir, "", "HEAD", cfg))
 		if !stdlibAssertContains(changelog, "new feature") {
 			t.Fatalf("expected %v to contain %v", changelog, "new feature")
 		}
@@ -570,10 +573,7 @@ func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 			Exclude: []string{"perf"},
 		}
 
-		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, GenerateWithConfig(dir, "", "HEAD", cfg))
 		if !stdlibAssertContains(changelog, "new feature") {
 			t.Fatalf("expected %v to contain %v", changelog, "new feature")
 		}
@@ -597,10 +597,7 @@ func TestChangelog_GenerateWithConfig_Good(t *testing.T) {
 			Use:     "conventional",
 		}
 
-		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, GenerateWithConfig(dir, "", "HEAD", cfg))
 		if !stdlibAssertContains(changelog, "new feature") {
 			t.Fatalf("expected %v to contain %v", changelog, "new feature")
 		}
@@ -621,10 +618,7 @@ func TestChangelog_GetCommitsGood(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: second")
 		createChangelogCommit(t, dir, "feat: third")
 
-		commits, err := getCommitsWithContext(context.Background(), dir, "", "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		commits := requireChangelogStrings(t, getCommitsWithContext(context.Background(), dir, "", "HEAD"))
 		if len(commits) != 3 {
 			t.Fatalf("want len %v, got %v", 3, len(commits))
 		}
@@ -638,10 +632,7 @@ func TestChangelog_GetCommitsGood(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: second")
 		createChangelogCommit(t, dir, "feat: third")
 
-		commits, err := getCommitsWithContext(context.Background(), dir, "v1.0.0", "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		commits := requireChangelogStrings(t, getCommitsWithContext(context.Background(), dir, "v1.0.0", "HEAD"))
 		if len(commits) != 2 {
 			t.Fatalf("want len %v, got %v", 2, len(commits))
 		}
@@ -654,10 +645,7 @@ func TestChangelog_GetCommitsGood(t *testing.T) {
 		// Merge commits are excluded by --no-merges flag
 		// We can verify by checking the count matches expected
 
-		commits, err := getCommitsWithContext(context.Background(), dir, "", "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		commits := requireChangelogStrings(t, getCommitsWithContext(context.Background(), dir, "", "HEAD"))
 		if len(commits) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(commits))
 		}
@@ -672,10 +660,7 @@ func TestChangelog_GetCommitsGood(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: only commit")
 		createChangelogTag(t, dir, "v1.0.0")
 
-		commits, err := getCommitsWithContext(context.Background(), dir, "v1.0.0", "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		commits := requireChangelogStrings(t, getCommitsWithContext(context.Background(), dir, "v1.0.0", "HEAD"))
 		if !stdlibAssertEmpty(commits) {
 			t.Fatalf("expected empty, got %v", commits)
 		}
@@ -688,20 +673,14 @@ func TestChangelog_GetCommitsBad(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: commit")
 
-		_, err := getCommitsWithContext(context.Background(), dir, "nonexistent-tag", "HEAD")
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireChangelogFailure(t, getCommitsWithContext(context.Background(), dir, "nonexistent-tag", "HEAD"))
 
 	})
 
 	t.Run("returns error for non-git directory", func(t *testing.T) {
 		dir := t.TempDir()
 
-		_, err := getCommitsWithContext(context.Background(), dir, "", "HEAD")
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireChangelogFailure(t, getCommitsWithContext(context.Background(), dir, "", "HEAD"))
 
 	})
 }
@@ -714,10 +693,7 @@ func TestChangelog_GetPreviousTagGood(t *testing.T) {
 		createChangelogCommit(t, dir, "feat: second")
 		createChangelogTag(t, dir, "v1.1.0")
 
-		tag, err := getPreviousTagWithContext(context.Background(), dir, "v1.1.0")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		tag := requireChangelogString(t, getPreviousTagWithContext(context.Background(), dir, "v1.1.0"))
 		if !stdlibAssertEqual("v1.0.0", tag) {
 			t.Fatalf("want %v, got %v", "v1.0.0", tag)
 		}
@@ -730,10 +706,7 @@ func TestChangelog_GetPreviousTagGood(t *testing.T) {
 		createChangelogTag(t, dir, "v1.0.0")
 		createChangelogCommit(t, dir, "feat: second")
 
-		tag, err := getPreviousTagWithContext(context.Background(), dir, "HEAD")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		tag := requireChangelogString(t, getPreviousTagWithContext(context.Background(), dir, "HEAD"))
 		if !stdlibAssertEqual("v1.0.0", tag) {
 			t.Fatalf("want %v, got %v", "v1.0.0", tag)
 		}
@@ -748,10 +721,7 @@ func TestChangelog_GetPreviousTagBad(t *testing.T) {
 		createChangelogTag(t, dir, "v1.0.0")
 
 		// v1.0.0^ has no tag before it
-		_, err := getPreviousTagWithContext(context.Background(), dir, "v1.0.0")
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireChangelogFailure(t, getPreviousTagWithContext(context.Background(), dir, "v1.0.0"))
 
 	})
 
@@ -759,10 +729,7 @@ func TestChangelog_GetPreviousTagBad(t *testing.T) {
 		dir := setupChangelogGitRepo(t)
 		createChangelogCommit(t, dir, "feat: commit")
 
-		_, err := getPreviousTagWithContext(context.Background(), dir, "nonexistent")
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireChangelogFailure(t, getPreviousTagWithContext(context.Background(), dir, "nonexistent"))
 
 	})
 }
@@ -841,10 +808,7 @@ func TestChangelog_GenerateWithConfig_Bad(t *testing.T) {
 			Include: []string{"feat"},
 		}
 
-		_, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireChangelogFailure(t, GenerateWithConfig(dir, "", "HEAD", cfg))
 
 	})
 }
@@ -859,10 +823,7 @@ func TestChangelog_GenerateWithConfigEdgeCasesUgly(t *testing.T) {
 		}
 
 		// Pass empty toRef
-		changelog, err := GenerateWithConfig(dir, "", "", cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, GenerateWithConfig(dir, "", "", cfg))
 		if !stdlibAssertContains(changelog, "## HEAD") {
 			t.Fatalf("expected %v to contain %v", changelog, "## HEAD")
 		}
@@ -878,10 +839,7 @@ func TestChangelog_GenerateWithConfigEdgeCasesUgly(t *testing.T) {
 		}
 
 		// No tags exist, should still work
-		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, GenerateWithConfig(dir, "", "HEAD", cfg))
 		if !stdlibAssertContains(changelog, "first") {
 			t.Fatalf("expected %v to contain %v", changelog, "first")
 		}
@@ -899,10 +857,7 @@ func TestChangelog_GenerateWithConfigEdgeCasesUgly(t *testing.T) {
 		}
 
 		// Use explicit fromRef
-		changelog, err := GenerateWithConfig(dir, "v1.0.0", "HEAD", cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, GenerateWithConfig(dir, "v1.0.0", "HEAD", cfg))
 		if !stdlibAssertContains(changelog, "new feature") {
 			t.Fatalf("expected %v to contain %v", changelog, "new feature")
 		}
@@ -921,10 +876,7 @@ func TestChangelog_GenerateWithConfigEdgeCasesUgly(t *testing.T) {
 			Include: []string{"feat"},
 		}
 
-		changelog, err := GenerateWithConfig(dir, "", "HEAD", cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		changelog := requireChangelogString(t, GenerateWithConfig(dir, "", "HEAD", cfg))
 		if !stdlibAssertContains(changelog, "conventional commit") {
 			t.Fatalf("expected %v to contain %v", changelog, "conventional commit")
 		}
@@ -939,7 +891,7 @@ func TestChangelog_GenerateWithConfigEdgeCasesUgly(t *testing.T) {
 func TestChangelog_Generate_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Generate(core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent")
+		_ = Generate(core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -950,7 +902,7 @@ func TestChangelog_GenerateWithContext_Good(t *core.T) {
 	cancel()
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = GenerateWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent")
+		_ = GenerateWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -961,7 +913,7 @@ func TestChangelog_GenerateWithContext_Bad(t *core.T) {
 	cancel()
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = GenerateWithContext(ctx, "", "", "")
+		_ = GenerateWithContext(ctx, "", "", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -972,7 +924,7 @@ func TestChangelog_GenerateWithContext_Ugly(t *core.T) {
 	cancel()
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = GenerateWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent")
+		_ = GenerateWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -981,7 +933,7 @@ func TestChangelog_GenerateWithContext_Ugly(t *core.T) {
 func TestChangelog_GenerateWithConfig_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = GenerateWithConfig(core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
+		_ = GenerateWithConfig(core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -992,7 +944,7 @@ func TestChangelog_GenerateWithConfigWithContext_Good(t *core.T) {
 	cancel()
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = GenerateWithConfigWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
+		_ = GenerateWithConfigWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1003,7 +955,7 @@ func TestChangelog_GenerateWithConfigWithContext_Bad(t *core.T) {
 	cancel()
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = GenerateWithConfigWithContext(ctx, "", "", "", nil)
+		_ = GenerateWithConfigWithContext(ctx, "", "", "", nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1014,7 +966,7 @@ func TestChangelog_GenerateWithConfigWithContext_Ugly(t *core.T) {
 	cancel()
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = GenerateWithConfigWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
+		_ = GenerateWithConfigWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

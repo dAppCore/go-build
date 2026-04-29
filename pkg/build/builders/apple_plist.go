@@ -57,23 +57,25 @@ func GenerateAppleInfoPlist(cfg *build.Config, options AppleOptions, buildNumber
 }
 
 // WriteAppleInfoPlist writes Contents/Info.plist for appPath.
-func WriteAppleInfoPlist(filesystem coreio.Medium, appPath string, cfg *build.Config, options AppleOptions, buildNumber string) (string, error) {
+func WriteAppleInfoPlist(filesystem coreio.Medium, appPath string, cfg *build.Config, options AppleOptions, buildNumber string) core.Result {
 	if filesystem == nil {
 		filesystem = coreio.Local
 	}
 	if appPath == "" {
-		return "", coreerr.E("AppleBuilder.WriteInfoPlist", "app path is required", nil)
+		return core.Fail(coreerr.E("AppleBuilder.WriteInfoPlist", "app path is required", nil))
 	}
 
 	plist := GenerateAppleInfoPlist(cfg, options, buildNumber)
 	path := ax.Join(appPath, "Contents", "Info.plist")
-	if err := filesystem.EnsureDir(ax.Dir(path)); err != nil {
-		return "", coreerr.E("AppleBuilder.WriteInfoPlist", "failed to create Info.plist directory", err)
+	created := filesystem.EnsureDir(ax.Dir(path))
+	if !created.OK {
+		return core.Fail(coreerr.E("AppleBuilder.WriteInfoPlist", "failed to create Info.plist directory", core.NewError(created.Error())))
 	}
-	if err := filesystem.WriteMode(path, encodeApplePlist(plist.Values()), 0o644); err != nil {
-		return "", coreerr.E("AppleBuilder.WriteInfoPlist", "failed to write Info.plist", err)
+	written := filesystem.WriteMode(path, encodeApplePlist(plist.Values()), 0o644)
+	if !written.OK {
+		return core.Fail(coreerr.E("AppleBuilder.WriteInfoPlist", "failed to write Info.plist", core.NewError(written.Error())))
 	}
-	return path, nil
+	return core.Ok(path)
 }
 
 // Values converts the plist metadata to Apple Info.plist keys.
@@ -106,20 +108,22 @@ func DefaultAppleEntitlements() AppleEntitlements {
 }
 
 // WriteAppleEntitlements writes a macOS entitlements plist.
-func WriteAppleEntitlements(filesystem coreio.Medium, path string, entitlements AppleEntitlements) error {
+func WriteAppleEntitlements(filesystem coreio.Medium, path string, entitlements AppleEntitlements) core.Result {
 	if filesystem == nil {
 		filesystem = coreio.Local
 	}
 	if path == "" {
-		return coreerr.E("AppleBuilder.WriteEntitlements", "entitlements path is required", nil)
+		return core.Fail(coreerr.E("AppleBuilder.WriteEntitlements", "entitlements path is required", nil))
 	}
-	if err := filesystem.EnsureDir(ax.Dir(path)); err != nil {
-		return coreerr.E("AppleBuilder.WriteEntitlements", "failed to create entitlements directory", err)
+	created := filesystem.EnsureDir(ax.Dir(path))
+	if !created.OK {
+		return core.Fail(coreerr.E("AppleBuilder.WriteEntitlements", "failed to create entitlements directory", core.NewError(created.Error())))
 	}
-	if err := filesystem.WriteMode(path, encodeApplePlist(entitlements.Values()), 0o644); err != nil {
-		return coreerr.E("AppleBuilder.WriteEntitlements", "failed to write entitlements", err)
+	written := filesystem.WriteMode(path, encodeApplePlist(entitlements.Values()), 0o644)
+	if !written.OK {
+		return core.Fail(coreerr.E("AppleBuilder.WriteEntitlements", "failed to write entitlements", core.NewError(written.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 // Values converts entitlements to Apple entitlement keys.
@@ -132,13 +136,14 @@ func (entitlements AppleEntitlements) Values() map[string]any {
 }
 
 // WriteXcodeCloudConfig writes the AppleBuilder Xcode Cloud script templates.
-func (b *AppleBuilder) WriteXcodeCloudConfig(filesystem coreio.Medium, projectDir string, cfg *build.Config, options AppleOptions) ([]string, error) {
+func (b *AppleBuilder) WriteXcodeCloudConfig(filesystem coreio.Medium, projectDir string, cfg *build.Config, options AppleOptions) core.Result {
 	if filesystem == nil {
 		filesystem = coreio.Local
 	}
 	baseDir := ax.Join(projectDir, ".xcode-cloud", "ci_scripts")
-	if err := filesystem.EnsureDir(baseDir); err != nil {
-		return nil, coreerr.E("AppleBuilder.WriteXcodeCloudConfig", "failed to create Xcode Cloud scripts directory", err)
+	created := filesystem.EnsureDir(baseDir)
+	if !created.OK {
+		return core.Fail(coreerr.E("AppleBuilder.WriteXcodeCloudConfig", "failed to create Xcode Cloud scripts directory", core.NewError(created.Error())))
 	}
 
 	name := "App"
@@ -157,12 +162,13 @@ func (b *AppleBuilder) WriteXcodeCloudConfig(filesystem coreio.Medium, projectDi
 	paths := make([]string, 0, len(ordered))
 	for _, name := range ordered {
 		path := ax.Join(baseDir, name)
-		if err := filesystem.WriteMode(path, scripts[name], 0o755); err != nil {
-			return nil, coreerr.E("AppleBuilder.WriteXcodeCloudConfig", "failed to write "+name, err)
+		written := filesystem.WriteMode(path, scripts[name], 0o755)
+		if !written.OK {
+			return core.Fail(coreerr.E("AppleBuilder.WriteXcodeCloudConfig", "failed to write "+name, core.NewError(written.Error())))
 		}
 		paths = append(paths, path)
 	}
-	return paths, nil
+	return core.Ok(paths)
 }
 
 func encodeApplePlist(values map[string]any) string {

@@ -1,8 +1,12 @@
 package publishers
 
-import "context"
+import (
+	"context"
 
-func (p *LinuxKitPublisher) publishRaw(ctx context.Context, release *Release, artifactPath string) error {
+	"dappco.re/go"
+)
+
+func (p *LinuxKitPublisher) publishRaw(ctx context.Context, release *Release, artifactPath string) core.Result {
 	_ = ctx
 	return p.publishLocalLinuxKitArtifact(release, artifactPath, "raw")
 }

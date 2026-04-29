@@ -9,19 +9,36 @@ import (
 	"dappco.re/go/io"
 )
 
+func requireWorkflowOK(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requireWorkflowString(t *testing.T, result core.Result) string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
+}
+
+func requireWorkflowError(t *testing.T, result core.Result) string {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	return result.Error()
+}
+
 func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	t.Run("writes the embedded template to the default path", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		err := WriteReleaseWorkflow(fs, "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, WriteReleaseWorkflow(fs, ""))
 
-		content, err := fs.Read(DefaultReleaseWorkflowPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireWorkflowString(t, fs.Read(DefaultReleaseWorkflowPath))
 
 		template, err := releaseWorkflowTemplate.ReadFile("templates/release.yml")
 		if err != nil {
@@ -37,15 +54,9 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	t.Run("writes to a custom path", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		err := WriteReleaseWorkflow(fs, "custom/workflow.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, WriteReleaseWorkflow(fs, "custom/workflow.yml"))
 
-		content, err := fs.Read("custom/workflow.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireWorkflowString(t, fs.Read("custom/workflow.yml"))
 		if stdlibAssertEmpty(content) {
 			t.Fatal("expected non-empty")
 		}
@@ -55,15 +66,9 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	t.Run("trims surrounding whitespace from the output path", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		err := WriteReleaseWorkflow(fs, "  ci  ")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, WriteReleaseWorkflow(fs, "  ci  "))
 
-		content, err := fs.Read("ci/release.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireWorkflowString(t, fs.Read("ci/release.yml"))
 		if stdlibAssertEmpty(content) {
 			t.Fatal("expected non-empty")
 		}
@@ -73,15 +78,9 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	t.Run("writes release.yml for a bare directory-style path", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		err := WriteReleaseWorkflow(fs, "ci")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, WriteReleaseWorkflow(fs, "ci"))
 
-		content, err := fs.Read("ci/release.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireWorkflowString(t, fs.Read("ci/release.yml"))
 		if stdlibAssertEmpty(content) {
 			t.Fatal("expected non-empty")
 		}
@@ -91,19 +90,11 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	t.Run("writes release.yml inside an existing directory", func(t *testing.T) {
 		projectDir := t.TempDir()
 		outputDir := ax.Join(projectDir, "ci")
-		if err := ax.MkdirAll(outputDir, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, ax.MkdirAll(outputDir, 0o755))
 
-		err := WriteReleaseWorkflow(io.Local, outputDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, WriteReleaseWorkflow(io.Local, outputDir))
 
-		content, err := io.Local.Read(ax.Join(outputDir, DefaultReleaseWorkflowFileName))
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireWorkflowString(t, io.Local.Read(ax.Join(outputDir, DefaultReleaseWorkflowFileName)))
 
 		template, err := releaseWorkflowTemplate.ReadFile("templates/release.yml")
 		if err != nil {
@@ -118,15 +109,9 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	t.Run("writes release.yml for directory-style output paths", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		err := WriteReleaseWorkflow(fs, "ci/")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, WriteReleaseWorkflow(fs, "ci/"))
 
-		content, err := fs.Read("ci/release.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireWorkflowString(t, fs.Read("ci/release.yml"))
 		if stdlibAssertEmpty(content) {
 			t.Fatal("expected non-empty")
 		}
@@ -137,15 +122,9 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		projectDir := t.TempDir()
 		path := ax.Join(projectDir, ".github", "workflows", "release.yml")
 
-		err := WriteReleaseWorkflow(io.Local, path)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, WriteReleaseWorkflow(io.Local, path))
 
-		content, err := io.Local.Read(path)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireWorkflowString(t, io.Local.Read(path))
 
 		template, err := releaseWorkflowTemplate.ReadFile("templates/release.yml")
 		if err != nil {
@@ -160,12 +139,9 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 
 func TestWorkflow_WriteReleaseWorkflow_Bad(t *testing.T) {
 	t.Run("rejects a nil filesystem medium", func(t *testing.T) {
-		err := WriteReleaseWorkflow(nil, "")
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "filesystem medium is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "filesystem medium is required")
+		err := requireWorkflowError(t, WriteReleaseWorkflow(nil, ""))
+		if !stdlibAssertContains(err, "filesystem medium is required") {
+			t.Fatalf("expected %v to contain %v", err, "filesystem medium is required")
 		}
 
 	})
@@ -181,9 +157,7 @@ func TestWorkflow_ReleaseWorkflowPath_Good(t *testing.T) {
 func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
-		if err := fs.EnsureDir("/tmp/project/ci"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path := ResolveReleaseWorkflowOutputPathWithMedium(fs, "/tmp/project", "ci")
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
@@ -284,10 +258,7 @@ func TestWorkflow_ResolveReleaseWorkflowPath_Good(t *testing.T) {
 
 func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	t.Run("uses the conventional path when both inputs are empty", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "", ""))
 		if !stdlibAssertEqual("/tmp/project/.github/workflows/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/.github/workflows/release.yml", path)
 		}
@@ -295,10 +266,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts path as the primary input", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -306,10 +274,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts bare directory-style path as the primary input", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -317,10 +282,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts current-directory-prefixed directory-style path as the primary input", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "./ci", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "./ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -328,10 +290,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the conventional workflows directory as the primary input", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", ".github/workflows", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", ".github/workflows", ""))
 		if !stdlibAssertEqual("/tmp/project/.github/workflows/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/.github/workflows/release.yml", path)
 		}
@@ -339,10 +298,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts current-directory-prefixed workflows directories as the primary input", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "./.github/workflows", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "./.github/workflows", ""))
 		if !stdlibAssertEqual("/tmp/project/.github/workflows/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/.github/workflows/release.yml", path)
 		}
@@ -350,10 +306,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("keeps nested extensionless paths as files", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release", path)
 		}
@@ -361,10 +314,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the current directory as the primary input", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", ".", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", ".", ""))
 		if !stdlibAssertEqual("/tmp/project/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/release.yml", path)
 		}
@@ -372,10 +322,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts output as an alias for path", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml"))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -383,10 +330,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("trims surrounding whitespace from inputs", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "  ci  ", "  ")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "  ci  ", "  "))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -394,10 +338,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts matching path and output values", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci/release.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci/release.yml"))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -405,10 +346,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts matching directory-style path and output values", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/", "ci/")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPath("/tmp/project", "ci/", "ci/"))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -418,15 +356,9 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Good(t *testing.T) {
 
 func TestWorkflow_ResolveReleaseWorkflowInputPath_Bad(t *testing.T) {
 	t.Run("rejects conflicting path and output values", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ops/release.yml")
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertEmpty(path) {
-			t.Fatalf("expected empty, got %v", path)
-		}
-		if !stdlibAssertContains(err.Error(), "path and output specify different locations") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "path and output specify different locations")
+		err := requireWorkflowError(t, ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ops/release.yml"))
+		if !stdlibAssertContains(err, "path and output specify different locations") {
+			t.Fatalf("expected %v to contain %v", err, "path and output specify different locations")
 		}
 
 	})
@@ -435,14 +367,9 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Bad(t *testing.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
-		if err := fs.EnsureDir("/tmp/project/ci"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
-		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -452,10 +379,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats a bare directory-style path as a workflow directory", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -465,10 +389,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats a current-directory-prefixed directory-style path as a workflow directory", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "./ci", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "./ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -478,10 +399,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats the conventional workflows directory as a workflow directory", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", ".github/workflows", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", ".github/workflows", ""))
 		if !stdlibAssertEqual("/tmp/project/.github/workflows/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/.github/workflows/release.yml", path)
 		}
@@ -491,10 +409,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats current-directory-prefixed workflows directories as workflow directories", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "./.github/workflows", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "./.github/workflows", ""))
 		if !stdlibAssertEqual("/tmp/project/.github/workflows/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/.github/workflows/release.yml", path)
 		}
@@ -504,10 +419,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("keeps a file path unchanged when the target is not a directory", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci/release.yml", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci/release.yml", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -516,14 +428,9 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 
 	t.Run("normalizes matching directory aliases", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
-		if err := fs.EnsureDir("/tmp/project/ci"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
-		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "ci/")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "ci/"))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -532,14 +439,9 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 
 	t.Run("trims surrounding whitespace before resolving", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
-		if err := fs.EnsureDir("/tmp/project/ci"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
-		path, err := ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "  ci  ", "  ")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "  ci  ", "  "))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -551,10 +453,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	t.Run("accepts the preferred path input", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci", "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci", "", "", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -564,10 +463,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	t.Run("accepts the workflowPath alias", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "ci", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "ci", "", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -577,10 +473,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	t.Run("accepts the workflow_path alias", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "ci", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -590,10 +483,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	t.Run("accepts the workflow-path alias", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
 
-		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "", "ci")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "", "ci"))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -602,14 +492,9 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 
 	t.Run("normalises matching aliases", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
-		if err := fs.EnsureDir("/tmp/project/ci"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
-		path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/", "./ci", "ci", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/", "./ci", "ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "/tmp/project/ci/release.yml", path)
 		}
@@ -620,25 +505,16 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Bad(t *testing.T) {
 	fs := io.NewMemoryMedium()
 
-	path, err := ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/release.yml", "ops/release.yml", "", "")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertEmpty(path) {
-		t.Fatalf("expected empty, got %v", path)
-	}
-	if !stdlibAssertContains(err.Error(), "path aliases specify different locations") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "path aliases specify different locations")
+	err := requireWorkflowError(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/release.yml", "ops/release.yml", "", ""))
+	if !stdlibAssertContains(err, "path aliases specify different locations") {
+		t.Fatalf("expected %v to contain %v", err, "path aliases specify different locations")
 	}
 
 }
 
 func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 	t.Run("accepts the preferred output path", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPath("ci/release.yml", "", ""))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -646,10 +522,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the snake_case output path alias", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPath("", "ci/release.yml", ""))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -657,10 +530,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the hyphenated output path alias", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPathAliases("", "ci/release.yml", "", "", "", "", "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliases("", "ci/release.yml", "", "", "", "", "", "", ""))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -668,10 +538,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the legacy output alias", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml"))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -679,10 +546,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 	})
 
 	t.Run("trims surrounding whitespace from aliases", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPath("  ci/release.yml  ", "  ", "  ")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPath("  ci/release.yml  ", "  ", "  "))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -690,10 +554,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 	})
 
 	t.Run("accepts matching aliases", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPath("ci/release.yml", "ci/release.yml", "ci/release.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPath("ci/release.yml", "ci/release.yml", "ci/release.yml"))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -701,10 +562,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 	})
 
 	t.Run("normalises equivalent path aliases", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPath("ci/release.yml", "./ci/release.yml", "ci/release.yml")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPath("ci/release.yml", "./ci/release.yml", "ci/release.yml"))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -713,25 +571,16 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPath_Good(t *testing.T) {
 }
 
 func TestWorkflow_ResolveReleaseWorkflowOutputPath_Bad(t *testing.T) {
-	path, err := ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops/release.yml", "")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertEmpty(path) {
-		t.Fatalf("expected empty, got %v", path)
-	}
-	if !stdlibAssertContains(err.Error(), "output aliases specify different locations") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "output aliases specify different locations")
+	err := requireWorkflowError(t, ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops/release.yml", ""))
+	if !stdlibAssertContains(err, "output aliases specify different locations") {
+		t.Fatalf("expected %v to contain %v", err, "output aliases specify different locations")
 	}
 
 }
 
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Good(t *testing.T) {
 	t.Run("accepts workflowOutputPath aliases", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "ci/release.yml", "", "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "ci/release.yml", "", "", "", ""))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -739,10 +588,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the hyphenated workflowOutputPath alias", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "", "ci/release.yml", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "", "ci/release.yml", "", ""))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -750,10 +596,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the workflow_output alias", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "ci/release.yml", "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "ci/release.yml", "", "", ""))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -761,10 +604,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the workflow-output alias", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "", "ci/release.yml", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliases("", "", "", "", "", "", "ci/release.yml", "", ""))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -772,10 +612,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("normalises matching workflow output aliases", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "./ci/release.yml", "ci/release.yml", "", "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "./ci/release.yml", "ci/release.yml", "", "", "", ""))
 		if !stdlibAssertEqual("ci/release.yml", path) {
 			t.Fatalf("want %v, got %v", "ci/release.yml", path)
 		}
@@ -787,15 +624,10 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testi
 	projectDir := t.TempDir()
 	absolutePath := ax.Join(projectDir, "ci", "release.yml")
 	absoluteDirectory := ax.Join(projectDir, "ops")
-	if err := ax.MkdirAll(absoluteDirectory, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireWorkflowOK(t, ax.MkdirAll(absoluteDirectory, 0o755))
 
 	t.Run("accepts the preferred output path", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", "", "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", "", "", "", ""))
 		if !stdlibAssertEqual(absolutePath, path) {
 			t.Fatalf("want %v, got %v", absolutePath, path)
 		}
@@ -803,10 +635,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testi
 	})
 
 	t.Run("accepts an absolute workflow output alias equivalent to the project path", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "", "", "", "", absolutePath, "", "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "", "", "", "", absolutePath, "", "", "", ""))
 		if !stdlibAssertEqual(absolutePath, path) {
 			t.Fatalf("want %v, got %v", absolutePath, path)
 		}
@@ -814,10 +643,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testi
 	})
 
 	t.Run("accepts matching relative and absolute aliases", func(t *testing.T) {
-		path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", "", "", "", absolutePath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", "", "", "", absolutePath))
 		if !stdlibAssertEqual(absolutePath, path) {
 			t.Fatalf("want %v, got %v", absolutePath, path)
 		}
@@ -826,14 +652,9 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testi
 
 	t.Run("treats an existing absolute directory as a workflow directory", func(t *testing.T) {
 		fs := io.NewMemoryMedium()
-		if err := fs.EnsureDir(absoluteDirectory); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireWorkflowOK(t, fs.EnsureDir(absoluteDirectory))
 
-		path, err := ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(fs, projectDir, "", "", "", "", absoluteDirectory, "", "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(fs, projectDir, "", "", "", "", absoluteDirectory, "", "", "", ""))
 		if !stdlibAssertEqual(ax.Join(absoluteDirectory, DefaultReleaseWorkflowFileName), path) {
 			t.Fatalf("want %v, got %v", ax.Join(absoluteDirectory, DefaultReleaseWorkflowFileName), path)
 		}
@@ -844,29 +665,17 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testi
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Bad(t *testing.T) {
 	projectDir := t.TempDir()
 
-	path, err := ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", "", "", "", ax.Join(projectDir, "ops", "release.yml"))
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertEmpty(path) {
-		t.Fatalf("expected empty, got %v", path)
-	}
-	if !stdlibAssertContains(err.Error(), "output aliases specify different locations") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "output aliases specify different locations")
+	err := requireWorkflowError(t, ResolveReleaseWorkflowOutputPathAliasesInProject(projectDir, "ci/release.yml", "", "", "", "", "", "", "", ax.Join(projectDir, "ops", "release.yml")))
+	if !stdlibAssertContains(err, "output aliases specify different locations") {
+		t.Fatalf("expected %v to contain %v", err, "output aliases specify different locations")
 	}
 
 }
 
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Bad(t *testing.T) {
-	path, err := ResolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "", "ops/release.yml", "", "", "", "")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertEmpty(path) {
-		t.Fatalf("expected empty, got %v", path)
-	}
-	if !stdlibAssertContains(err.Error(), "output aliases specify different locations") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "output aliases specify different locations")
+	err := requireWorkflowError(t, ResolveReleaseWorkflowOutputPathAliases("ci/release.yml", "", "", "", "ops/release.yml", "", "", "", ""))
+	if !stdlibAssertContains(err, "output aliases specify different locations") {
+		t.Fatalf("expected %v to contain %v", err, "output aliases specify different locations")
 	}
 
 }
@@ -938,7 +747,7 @@ func TestWorkflow_ResolveReleaseWorkflowPath_Ugly(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPath_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowInputPath(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowInputPath(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -947,7 +756,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Ugly(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowInputPathWithMedium(io.NewMemoryMedium(), "", "", "")
+		_ = ResolveReleaseWorkflowInputPathWithMedium(io.NewMemoryMedium(), "", "", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -956,7 +765,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Bad(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowInputPathWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowInputPathWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -965,7 +774,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Ugly(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowInputPathAliases(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowInputPathAliases(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -974,7 +783,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Ugly(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowOutputPath_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowOutputPath(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowOutputPath(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -983,7 +792,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPath_Ugly(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowOutputPathAliases(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowOutputPathAliases(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -992,7 +801,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Ugly(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowOutputPathAliasesInProject(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowOutputPathAliasesInProject(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1001,7 +810,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Ugly(t *core.
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1010,7 +819,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Goo
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.NewMemoryMedium(), "", "", "", "", "", "", "", "", "", "")
+		_ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.NewMemoryMedium(), "", "", "", "", "", "", "", "", "", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1019,7 +828,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Bad
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

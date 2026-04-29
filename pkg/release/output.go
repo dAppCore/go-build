@@ -40,7 +40,7 @@ func resolveReleaseOutputRoot(projectDir string, cfg *Config, output coreio.Medi
 	return outputDir
 }
 
-func mirrorReleaseArtifacts(source, destination coreio.Medium, sourceRoot, destinationRoot string, artifacts []build.Artifact) ([]build.Artifact, error) {
+func mirrorReleaseArtifacts(source, destination coreio.Medium, sourceRoot, destinationRoot string, artifacts []build.Artifact) core.Result {
 	if source == nil {
 		source = coreio.Local
 	}
@@ -50,14 +50,19 @@ func mirrorReleaseArtifacts(source, destination coreio.Medium, sourceRoot, desti
 
 	mirrored := make([]build.Artifact, 0, len(artifacts))
 	for _, artifact := range artifacts {
-		relativePath, err := ax.Rel(sourceRoot, artifact.Path)
-		if err != nil || relativePath == "" || core.HasPrefix(relativePath, "..") {
+		relativePathResult := ax.Rel(sourceRoot, artifact.Path)
+		relativePath := ""
+		if relativePathResult.OK {
+			relativePath = relativePathResult.Value.(string)
+		}
+		if relativePath == "" || core.HasPrefix(relativePath, "..") {
 			relativePath = ax.Base(artifact.Path)
 		}
 
 		destinationPath := joinReleasePath(destinationRoot, relativePath)
-		if err := copyReleaseMediumPath(source, artifact.Path, destination, destinationPath); err != nil {
-			return nil, coreerr.E("release.mirrorReleaseArtifacts", "failed to mirror artifact "+artifact.Path, err)
+		copied := copyReleaseMediumPath(source, artifact.Path, destination, destinationPath)
+		if !copied.OK {
+			return core.Fail(coreerr.E("release.mirrorReleaseArtifacts", "failed to mirror artifact "+artifact.Path, core.NewError(copied.Error())))
 		}
 
 		mirrored = append(mirrored, build.Artifact{
@@ -68,7 +73,7 @@ func mirrorReleaseArtifacts(source, destination coreio.Medium, sourceRoot, desti
 		})
 	}
 
-	return mirrored, nil
+	return core.Ok(mirrored)
 }
 
 func joinReleasePath(root, path string) string {
@@ -95,7 +100,7 @@ func mediumEquals(left, right coreio.Medium) bool {
 	return reflect.ValueOf(left).Interface() == reflect.ValueOf(right).Interface()
 }
 
-func copyReleaseMediumPath(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) error {
+func copyReleaseMediumPath(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) core.Result {
 	if source.IsDir(sourcePath) {
 		return copyReleaseMediumDir(source, sourcePath, destination, destinationPath)
 	}
@@ -103,47 +108,53 @@ func copyReleaseMediumPath(source coreio.Medium, sourcePath string, destination 
 	return copyReleaseMediumFile(source, sourcePath, destination, destinationPath)
 }
 
-func copyReleaseMediumDir(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) error {
-	if err := destination.EnsureDir(destinationPath); err != nil {
-		return coreerr.E("release.copyReleaseMediumDir", "failed to create destination directory", err)
+func copyReleaseMediumDir(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) core.Result {
+	created := destination.EnsureDir(destinationPath)
+	if !created.OK {
+		return core.Fail(coreerr.E("release.copyReleaseMediumDir", "failed to create destination directory", core.NewError(created.Error())))
 	}
 
-	entries, err := source.List(sourcePath)
-	if err != nil {
-		return coreerr.E("release.copyReleaseMediumDir", "failed to list source directory", err)
+	entriesResult := source.List(sourcePath)
+	if !entriesResult.OK {
+		return core.Fail(coreerr.E("release.copyReleaseMediumDir", "failed to list source directory", core.NewError(entriesResult.Error())))
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	for _, entry := range entries {
 		childSourcePath := ax.Join(sourcePath, entry.Name())
 		childDestinationPath := ax.Join(destinationPath, entry.Name())
-		if err := copyReleaseMediumPath(source, childSourcePath, destination, childDestinationPath); err != nil {
-			return err
+		copied := copyReleaseMediumPath(source, childSourcePath, destination, childDestinationPath)
+		if !copied.OK {
+			return copied
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func copyReleaseMediumFile(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) error {
-	file, err := source.Open(sourcePath)
-	if err != nil {
-		return coreerr.E("release.copyReleaseMediumFile", "failed to open source file", err)
+func copyReleaseMediumFile(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) core.Result {
+	fileResult := source.Open(sourcePath)
+	if !fileResult.OK {
+		return core.Fail(coreerr.E("release.copyReleaseMediumFile", "failed to open source file", core.NewError(fileResult.Error())))
 	}
-	defer func() { _ = file.Close() }()
+	file := fileResult.Value.(core.FsFile)
+	defer file.Close()
 
-	content, err := stdio.ReadAll(file)
-	if err != nil {
-		return coreerr.E("release.copyReleaseMediumFile", "failed to read source file", err)
+	content, readFailure := stdio.ReadAll(file)
+	if readFailure != nil {
+		return core.Fail(coreerr.E("release.copyReleaseMediumFile", "failed to read source file", readFailure))
 	}
 
 	mode := fs.FileMode(0o644)
-	if info, err := source.Stat(sourcePath); err == nil {
-		mode = info.Mode()
+	infoResult := source.Stat(sourcePath)
+	if infoResult.OK {
+		mode = infoResult.Value.(fs.FileInfo).Mode()
 	}
 
-	if err := destination.WriteMode(destinationPath, string(content), mode); err != nil {
-		return coreerr.E("release.copyReleaseMediumFile", "failed to write destination file", err)
+	written := destination.WriteMode(destinationPath, string(content), mode)
+	if !written.OK {
+		return core.Fail(coreerr.E("release.copyReleaseMediumFile", "failed to write destination file", core.NewError(written.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }

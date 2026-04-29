@@ -23,40 +23,26 @@ func TestBuildCmd_AddInstallersCommand_Good(t *testing.T) {
 
 func TestBuildCmd_runBuildInstallersInDir_GeneratesAll_Good(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := io.Local.EnsureDir(ax.Join(projectDir, ".core")); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := io.Local.Write(ax.Join(projectDir, ".core", "build.yaml"), `version: 1
+	requireBuildCmdOK(t, io.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	requireBuildCmdOK(t, io.Local.Write(ax.Join(projectDir, ".core", "build.yaml"), `version: 1
 project:
   binary: corex
-`); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := io.Local.Write(ax.Join(projectDir, ".core", "release.yaml"), `version: 1
+`))
+	requireBuildCmdOK(t, io.Local.Write(ax.Join(projectDir, ".core", "release.yaml"), `version: 1
 project:
   repository: dappcore/core
-`); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`))
 
-	err := runBuildInstallersInDir(context.Background(), projectDir, "", "v1.2.3", "", "", "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, runBuildInstallersInDir(context.Background(), projectDir, "", "v1.2.3", "", "", ""))
 
 	outputDir := ax.Join(projectDir, "dist", "installers")
 	expected := []string{"setup.sh", "ci.sh", "php.sh", "go.sh", "agent.sh", "dev.sh"}
 	for _, name := range expected {
-		if _, err := ax.Stat(ax.Join(outputDir, name)); err != nil {
-			t.Fatalf("expected file to exist: %v", ax.Join(outputDir, name))
-		}
+		requireBuildCmdOK(t, ax.Stat(ax.Join(outputDir, name)))
 
 	}
 
-	content, err := io.Local.Read(ax.Join(outputDir, "setup.sh"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireBuildCmdString(t, io.Local.Read(ax.Join(outputDir, "setup.sh")))
 	if !stdlibAssertContains(content, "corex") {
 		t.Fatalf("expected %v to contain %v", content, "corex")
 	}
@@ -70,10 +56,7 @@ project:
 		t.Fatalf("expected %v to contain %v", content, "https://lthn.sh/setup.sh")
 	}
 
-	devContent, err := io.Local.Read(ax.Join(outputDir, "dev.sh"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	devContent := requireBuildCmdString(t, io.Local.Read(ax.Join(outputDir, "dev.sh")))
 	if !stdlibAssertContains(devContent, `DEV_IMAGE_VERSION="${VERSION#v}"`) {
 		t.Fatalf("expected %v to contain %v", devContent, `DEV_IMAGE_VERSION="${VERSION#v}"`)
 	}
@@ -86,13 +69,8 @@ project:
 func TestBuildCmd_runBuildInstallersInDir_GeneratesSingleVariant_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
-	err := runBuildInstallersInDir(context.Background(), projectDir, "ci", "v1.2.3", "out/installers", "dappcore/core", "core")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if _, err := ax.Stat(ax.Join(projectDir, "out", "installers", "ci.sh")); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "out", "installers", "ci.sh"))
-	}
+	requireBuildCmdOK(t, runBuildInstallersInDir(context.Background(), projectDir, "ci", "v1.2.3", "out/installers", "dappcore/core", "core"))
+	requireBuildCmdOK(t, ax.Stat(ax.Join(projectDir, "out", "installers", "ci.sh")))
 	if ax.Exists(ax.Join(projectDir, "out", "installers", "setup.sh")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "out", "installers", "setup.sh"))
 	}
@@ -106,23 +84,17 @@ func TestBuildCmd_runBuildInstallersInDir_UsesResolvedVersion_Good(t *testing.T)
 	t.Cleanup(func() {
 		resolveInstallersVersion = originalVersionResolver
 	})
-	resolveInstallersVersion = func(ctx context.Context, dir string) (string, error) {
+	resolveInstallersVersion = func(ctx context.Context, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return "v9.9.9", nil
+		return core.Ok("v9.9.9")
 	}
 
-	err := runBuildInstallersInDir(context.Background(), projectDir, "setup.sh", "", "", "dappcore/core", "core")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, runBuildInstallersInDir(context.Background(), projectDir, "setup.sh", "", "", "dappcore/core", "core"))
 
-	content, err := io.Local.Read(ax.Join(projectDir, "dist", "installers", "setup.sh"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, "dist", "installers", "setup.sh")))
 	if !stdlibAssertContains(content, "v9.9.9") {
 		t.Fatalf("expected %v to contain %v", content, "v9.9.9")
 	}
@@ -139,28 +111,22 @@ func TestBuildCmd_runBuildInstallersInDir_UsesGitRemoteWhenReleaseConfigMissing_
 		detectInstallersRepository = originalDetectRepository
 	})
 
-	loadInstallersReleaseConfig = func(dir string) (*release.Config, error) {
+	loadInstallersReleaseConfig = func(dir string) core.Result {
 		cfg := release.DefaultConfig()
 		cfg.SetProjectDir(dir)
-		return cfg, nil
+		return core.Ok(cfg)
 	}
-	detectInstallersRepository = func(ctx context.Context, dir string) (string, error) {
+	detectInstallersRepository = func(ctx context.Context, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return "host-uk/core-build", nil
+		return core.Ok("host-uk/core-build")
 	}
 
-	err := runBuildInstallersInDir(context.Background(), projectDir, "agentic", "v1.2.3", "", "", "core")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, runBuildInstallersInDir(context.Background(), projectDir, "agentic", "v1.2.3", "", "", "core"))
 
-	content, err := io.Local.Read(ax.Join(projectDir, "dist", "installers", "agent.sh"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, "dist", "installers", "agent.sh")))
 	if !stdlibAssertContains(content, "host-uk/core-build") {
 		t.Fatalf("expected %v to contain %v", content, "host-uk/core-build")
 	}
@@ -170,12 +136,9 @@ func TestBuildCmd_runBuildInstallersInDir_UsesGitRemoteWhenReleaseConfigMissing_
 func TestBuildCmd_runBuildInstallersInDir_UnknownVariant_Bad(t *testing.T) {
 	projectDir := t.TempDir()
 
-	err := runBuildInstallersInDir(context.Background(), projectDir, "bogus", "v1.2.3", "", "dappcore/core", "core")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "unknown installer variant") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "unknown installer variant")
+	message := requireBuildCmdError(t, runBuildInstallersInDir(context.Background(), projectDir, "bogus", "v1.2.3", "", "dappcore/core", "core"))
+	if !stdlibAssertContains(message, "unknown installer variant") {
+		t.Fatalf("expected %v to contain %v", message, "unknown installer variant")
 	}
 
 }
@@ -183,12 +146,9 @@ func TestBuildCmd_runBuildInstallersInDir_UnknownVariant_Bad(t *testing.T) {
 func TestBuildCmd_runBuildInstallersInDir_RejectsUnsafeVersion_Bad(t *testing.T) {
 	projectDir := t.TempDir()
 
-	err := runBuildInstallersInDir(context.Background(), projectDir, "ci", "v1.2.3 --bad", "", "dappcore/core", "core")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "invalid installer version") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "invalid installer version")
+	message := requireBuildCmdError(t, runBuildInstallersInDir(context.Background(), projectDir, "ci", "v1.2.3 --bad", "", "dappcore/core", "core"))
+	if !stdlibAssertContains(message, "invalid installer version") {
+		t.Fatalf("expected %v to contain %v", message, "invalid installer version")
 	}
 
 }
@@ -203,30 +163,24 @@ func TestBuildCmd_runBuildInstallersInDir_MissingRepository_Bad(t *testing.T) {
 		detectInstallersRepository = originalDetectRepository
 	})
 
-	loadInstallersReleaseConfig = func(dir string) (*release.Config, error) {
+	loadInstallersReleaseConfig = func(dir string) core.Result {
 		cfg := release.DefaultConfig()
 		cfg.SetProjectDir(dir)
-		return cfg, nil
+		return core.Ok(cfg)
 	}
-	detectInstallersRepository = func(ctx context.Context, dir string) (string, error) {
-		return "", core.NewError("test error")
+	detectInstallersRepository = func(ctx context.Context, dir string) core.Result {
+		return core.Fail(core.NewError("test error"))
 	}
 
-	err := runBuildInstallersInDir(context.Background(), projectDir, "ci", "v1.2.3", "", "", "core")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "use --repo") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "use --repo")
+	message := requireBuildCmdError(t, runBuildInstallersInDir(context.Background(), projectDir, "ci", "v1.2.3", "", "", "core"))
+	if !stdlibAssertContains(message, "use --repo") {
+		t.Fatalf("expected %v to contain %v", message, "use --repo")
 	}
 
 }
 
 func TestBuild_GenerateInstallerWrappersGood(t *testing.T) {
-	script, err := build.GenerateInstaller(build.VariantCI, "v1.2.3", "dappcore/core")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	script := requireBuildCmdString(t, build.GenerateInstaller(build.VariantCI, "v1.2.3", "dappcore/core"))
 	if !stdlibAssertContains(script, "dappcore/core") {
 		t.Fatalf("expected %v to contain %v", script, "dappcore/core")
 	}
@@ -240,18 +194,12 @@ func TestBuild_GenerateInstallerWrappersGood(t *testing.T) {
 		t.Fatalf("want %v, got %v", build.VariantAgent, build.VariantAgentic)
 	}
 
-	agenticScript, err := build.GenerateInstaller(build.VariantAgentic, "v1.2.3", "dappcore/core")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	agenticScript := requireBuildCmdString(t, build.GenerateInstaller(build.VariantAgentic, "v1.2.3", "dappcore/core"))
 	if !stdlibAssertContains(agenticScript, "dappcore/core") {
 		t.Fatalf("expected %v to contain %v", agenticScript, "dappcore/core")
 	}
 
-	scripts, err := build.GenerateAll("v1.2.3", "dappcore/core")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	scripts := requireBuildCmdStringMap(t, build.GenerateAll("v1.2.3", "dappcore/core"))
 	if !stdlibAssertContains(scripts["setup.sh"], "dappcore/core") {
 		t.Fatalf("expected %v to contain %v", scripts["setup.sh"], "dappcore/core")
 	}

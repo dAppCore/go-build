@@ -6,13 +6,13 @@ import (
 
 // --- v0.9.0 generated usage examples ---
 func ExampleDiff() {
-	_, _ = Diff(core.Path(core.TempDir(), "go-build-compliance"), core.Path(core.TempDir(), "go-build-compliance"))
+	_ = Diff(core.Path(core.TempDir(), "go-build-compliance"), core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("Diff")
 	// Output: Diff
 }
 
 func ExampleDiffWithOptions() {
-	_, _ = DiffWithOptions(core.Path(core.TempDir(), "go-build-compliance"), core.Path(core.TempDir(), "go-build-compliance"), DiffOptions{})
+	_ = DiffWithOptions(core.Path(core.TempDir(), "go-build-compliance"), core.Path(core.TempDir(), "go-build-compliance"), DiffOptions{})
 	core.Println("DiffWithOptions")
 	// Output: DiffWithOptions
 }

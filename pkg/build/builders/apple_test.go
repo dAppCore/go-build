@@ -17,16 +17,16 @@ type recordingAppleRunner struct {
 	calls []process.RunOptions
 }
 
-func (runner *recordingAppleRunner) Run(ctx context.Context, opts process.RunOptions) (string, error) {
+func (runner *recordingAppleRunner) Run(ctx context.Context, opts process.RunOptions) core.Result {
 	runner.calls = append(runner.calls, opts)
-	return "ok", nil
+	return core.Ok("ok")
 }
 
 func TestAppleBuilder_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist", "apple")
-	if err := ax.WriteFile(ax.Join(projectDir, "wails.json"), []byte(`{"name":"Core"}`+"\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "wails.json"), []byte(`{"name":"Core"}`+"\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	todo := core.NewBuffer()
@@ -53,24 +53,26 @@ func TestAppleBuilder_Good(t *testing.T) {
 		}),
 	)
 
-	detected, err := builder.Detect(coreio.Local, projectDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	detectResult := builder.Detect(coreio.Local, projectDir)
+	if !detectResult.OK {
+		t.Fatalf("unexpected error: %v", detectResult.Error())
 	}
+	detected := detectResult.Value.(bool)
 	if !(detected) {
 		t.Fatal("expected true")
 	}
 
-	artifacts, err := builder.Build(context.Background(), &build.Config{
+	buildResult := builder.Build(context.Background(), &build.Config{
 		FS:         coreio.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "Core",
 		Version:    "v1.2.3",
 	}, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !buildResult.OK {
+		t.Fatalf("unexpected error: %v", buildResult.Error())
 	}
+	artifacts := buildResult.Value.([]build.Artifact)
 	if !stdlibAssertEqual(1, len(artifacts)) {
 		t.Fatalf("want %v, got %v", 1, len(artifacts))
 	}
@@ -78,10 +80,11 @@ func TestAppleBuilder_Good(t *testing.T) {
 		t.Fatalf("want %v, got %v", ax.Join(outputDir, "Core.dmg"), artifacts[0].Path)
 	}
 
-	infoPlist, err := ax.ReadFile(ax.Join(outputDir, "Core.app", "Contents", "Info.plist"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	infoPlistResult := ax.ReadFile(ax.Join(outputDir, "Core.app", "Contents", "Info.plist"))
+	if !infoPlistResult.OK {
+		t.Fatalf("unexpected error: %v", infoPlistResult.Error())
 	}
+	infoPlist := infoPlistResult.Value.([]byte)
 	if !stdlibAssertContains(string(infoPlist), "<key>CFBundleIdentifier</key>") {
 		t.Fatalf("expected Info.plist to contain bundle identifier key")
 	}
@@ -89,10 +92,11 @@ func TestAppleBuilder_Good(t *testing.T) {
 		t.Fatalf("expected Info.plist to contain bundle id")
 	}
 
-	entitlements, err := ax.ReadFile(ax.Join(outputDir, "Core.entitlements.plist"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	entitlementsResult := ax.ReadFile(ax.Join(outputDir, "Core.entitlements.plist"))
+	if !entitlementsResult.OK {
+		t.Fatalf("unexpected error: %v", entitlementsResult.Error())
 	}
+	entitlements := entitlementsResult.Value.([]byte)
 	if !stdlibAssertContains(string(entitlements), "com.apple.security.app-sandbox") {
 		t.Fatalf("expected entitlements to contain app sandbox")
 	}
@@ -120,38 +124,39 @@ func TestAppleBuilder_Good(t *testing.T) {
 }
 
 func TestAppleBuilder_Bad(t *testing.T) {
-	if err := ValidateAppleOptions(AppleOptions{}); err == nil {
+	result := ValidateAppleOptions(AppleOptions{})
+	if result.OK {
 		t.Fatal("expected missing bundle ID error")
 	}
 
-	err := ValidateAppleOptions(AppleOptions{
+	result = ValidateAppleOptions(AppleOptions{
 		BundleID: "ai.lthn.core",
 		Sign:     true,
 	})
-	if err == nil {
+	if result.OK {
 		t.Fatal("expected missing signing identity error")
 	}
-	if !stdlibAssertContains(err.Error(), "signing identity") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "signing identity")
+	if !stdlibAssertContains(result.Error(), "signing identity") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "signing identity")
 	}
 
-	err = ValidateAppleOptions(AppleOptions{
+	result = ValidateAppleOptions(AppleOptions{
 		BundleID: "ai.lthn.core",
 		Notarise: true,
 	})
-	if err == nil {
+	if result.OK {
 		t.Fatal("expected missing notarisation credentials error")
 	}
-	if !stdlibAssertContains(err.Error(), "notarisation") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "notarisation")
+	if !stdlibAssertContains(result.Error(), "notarisation") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "notarisation")
 	}
 }
 
 func TestAppleBuilder_Ugly(t *testing.T) {
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist", "apple")
-	if err := ax.WriteFile(ax.Join(projectDir, "wails.json"), []byte(`{"name":"Core"}`+"\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "wails.json"), []byte(`{"name":"Core"}`+"\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	todo := core.NewBuffer()
@@ -166,16 +171,17 @@ func TestAppleBuilder_Ugly(t *testing.T) {
 		}),
 	)
 
-	artifacts, err := builder.Build(context.Background(), &build.Config{
+	result := builder.Build(context.Background(), &build.Config{
 		FS:         coreio.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "Core",
 		Version:    "v1.2.3",
 	}, []build.Target{{OS: "darwin", Arch: "arm64"}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
+	artifacts := result.Value.([]build.Artifact)
 	if !stdlibAssertEqual(ax.Join(outputDir, "Core.app"), artifacts[0].Path) {
 		t.Fatalf("want %v, got %v", ax.Join(outputDir, "Core.app"), artifacts[0].Path)
 	}
@@ -191,10 +197,10 @@ func TestAppleBuilder_Ugly(t *testing.T) {
 func TestApple_AppleCommandRunnerFunc_Run_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) (string, error) { return "ok", nil })
+	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) core.Result { return core.Ok("ok") })
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, process.RunOptions{})
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -203,10 +209,10 @@ func TestApple_AppleCommandRunnerFunc_Run_Good(t *core.T) {
 func TestApple_AppleCommandRunnerFunc_Run_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) (string, error) { return "ok", nil })
+	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) core.Result { return core.Ok("ok") })
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, process.RunOptions{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -215,10 +221,10 @@ func TestApple_AppleCommandRunnerFunc_Run_Bad(t *core.T) {
 func TestApple_AppleCommandRunnerFunc_Run_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) (string, error) { return "ok", nil })
+	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) core.Result { return core.Ok("ok") })
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, process.RunOptions{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -230,7 +236,7 @@ func TestApple_GoProcessAppleRunner_Run_Good(t *core.T) {
 	subject := GoProcessAppleRunner{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, process.RunOptions{})
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -242,7 +248,7 @@ func TestApple_GoProcessAppleRunner_Run_Bad(t *core.T) {
 	subject := GoProcessAppleRunner{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, process.RunOptions{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -254,7 +260,7 @@ func TestApple_GoProcessAppleRunner_Run_Ugly(t *core.T) {
 	subject := GoProcessAppleRunner{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, process.RunOptions{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -456,7 +462,7 @@ func TestApple_AppleBuilder_Detect_Good(t *core.T) {
 	subject := &AppleBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -466,7 +472,7 @@ func TestApple_AppleBuilder_Detect_Bad(t *core.T) {
 	subject := &AppleBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(coreio.NewMemoryMedium(), "")
+		_ = subject.Detect(coreio.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -476,7 +482,7 @@ func TestApple_AppleBuilder_Detect_Ugly(t *core.T) {
 	subject := &AppleBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -488,7 +494,7 @@ func TestApple_AppleBuilder_Build_Good(t *core.T) {
 	subject := &AppleBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -500,7 +506,7 @@ func TestApple_AppleBuilder_Build_Bad(t *core.T) {
 	subject := &AppleBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -512,7 +518,7 @@ func TestApple_AppleBuilder_Build_Ugly(t *core.T) {
 	subject := &AppleBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -525,7 +531,7 @@ func TestApple_AppleBuilder_BuildWailsMacOS_Good(t *core.T) {
 	cfg := &build.Config{ProjectDir: t.TempDir()}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.BuildWailsMacOS(ctx, coreio.NewMemoryMedium(), cfg, core.Path(t.TempDir(), "go-build-compliance"), "agent", "amd64")
+		_ = subject.BuildWailsMacOS(ctx, coreio.NewMemoryMedium(), cfg, core.Path(t.TempDir(), "go-build-compliance"), "agent", "amd64")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -538,7 +544,7 @@ func TestApple_AppleBuilder_BuildWailsMacOS_Bad(t *core.T) {
 	cfg := &build.Config{ProjectDir: t.TempDir()}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.BuildWailsMacOS(ctx, coreio.NewMemoryMedium(), cfg, "", "", "")
+		_ = subject.BuildWailsMacOS(ctx, coreio.NewMemoryMedium(), cfg, "", "", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -551,7 +557,7 @@ func TestApple_AppleBuilder_BuildWailsMacOS_Ugly(t *core.T) {
 	cfg := &build.Config{ProjectDir: t.TempDir()}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.BuildWailsMacOS(ctx, coreio.NewMemoryMedium(), cfg, core.Path(t.TempDir(), "go-build-compliance"), "agent", "amd64")
+		_ = subject.BuildWailsMacOS(ctx, coreio.NewMemoryMedium(), cfg, core.Path(t.TempDir(), "go-build-compliance"), "agent", "amd64")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

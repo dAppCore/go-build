@@ -32,31 +32,35 @@ while [ "$#" -gt 0 ]; do
 done
 printf '{"openapi":"3.1.0"}\n' > "$output_path"
 `
-	if err := ax.WriteFile(phpPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(phpPath, []byte(script), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	return phpPath
 }
 
+func requireSDKDetectSpec(t *testing.T, sdk *SDK) string {
+	t.Helper()
+	result := sdk.DetectSpec()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
+}
+
 func TestDetect_DetectSpecConfigPathGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := ax.Join(tmpDir, "api", "spec.yaml")
-	err := ax.MkdirAll(ax.Dir(specPath), 0755)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Dir(specPath), 0755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err = ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	sdk := New(tmpDir, &Config{Spec: "api/spec.yaml"})
-	got, err := sdk.DetectSpec()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := requireSDKDetectSpec(t, sdk)
 	if !stdlibAssertEqual(specPath, got) {
 		t.Fatalf("want %v, got %v", specPath, got)
 	}
@@ -66,16 +70,12 @@ func TestDetect_DetectSpecConfigPathGood(t *testing.T) {
 func TestDetect_DetectSpecCommonPathGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := ax.Join(tmpDir, "openapi.yaml")
-	err := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	sdk := New(tmpDir, nil)
-	got, err := sdk.DetectSpec()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := requireSDKDetectSpec(t, sdk)
 	if !stdlibAssertEqual(specPath, got) {
 		t.Fatalf("want %v, got %v", specPath, got)
 	}
@@ -85,16 +85,12 @@ func TestDetect_DetectSpecCommonPathGood(t *testing.T) {
 func TestDetect_DetectSpecCommonYAMLPathGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := ax.Join(tmpDir, "openapi.yml")
-	err := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	sdk := New(tmpDir, nil)
-	got, err := sdk.DetectSpec()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := requireSDKDetectSpec(t, sdk)
 	if !stdlibAssertEqual(specPath, got) {
 		t.Fatalf("want %v, got %v", specPath, got)
 	}
@@ -104,18 +100,15 @@ func TestDetect_DetectSpecCommonYAMLPathGood(t *testing.T) {
 func TestDetect_DetectSpecDocsOpenAPIPathGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := ax.Join(tmpDir, "docs", "openapi.yaml")
-	if err := ax.MkdirAll(ax.Dir(specPath), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Dir(specPath), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(specPath, []byte("openapi: 3.0.0"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	sdk := New(tmpDir, nil)
-	got, err := sdk.DetectSpec()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := requireSDKDetectSpec(t, sdk)
 	if !stdlibAssertEqual(specPath, got) {
 		t.Fatalf("want %v, got %v", specPath, got)
 	}
@@ -125,12 +118,12 @@ func TestDetect_DetectSpecDocsOpenAPIPathGood(t *testing.T) {
 func TestDetect_DetectSpecNotFoundBad(t *testing.T) {
 	tmpDir := t.TempDir()
 	sdk := New(tmpDir, nil)
-	_, err := sdk.DetectSpec()
-	if err == nil {
+	result := sdk.DetectSpec()
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "no OpenAPI spec found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "no OpenAPI spec found")
+	if !stdlibAssertContains(result.Error(), "no OpenAPI spec found") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "no OpenAPI spec found")
 	}
 
 }
@@ -138,12 +131,12 @@ func TestDetect_DetectSpecNotFoundBad(t *testing.T) {
 func TestDetect_DetectSpecConfigNotFoundBad(t *testing.T) {
 	tmpDir := t.TempDir()
 	sdk := New(tmpDir, &Config{Spec: "non-existent.yaml"})
-	_, err := sdk.DetectSpec()
-	if err == nil {
+	result := sdk.DetectSpec()
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "configured spec not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "configured spec not found")
+	if !stdlibAssertContains(result.Error(), "configured spec not found") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "configured spec not found")
 	}
 
 }
@@ -169,30 +162,29 @@ func TestDetect_ContainsScrambleGood(t *testing.T) {
 func TestDetect_DetectScrambleBad(t *testing.T) {
 	t.Run("no composer.json", func(t *testing.T) {
 		sdk := New(t.TempDir(), nil)
-		_, err := sdk.detectScramble()
-		if err == nil {
+		result := sdk.detectScramble()
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertContains(err.Error(), "no composer.json") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "no composer.json")
+		if !stdlibAssertContains(result.Error(), "no composer.json") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "no composer.json")
 		}
 
 	})
 
 	t.Run("no scramble in composer.json", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		err := ax.WriteFile(ax.Join(tmpDir, "composer.json"), []byte(`{}`), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(tmpDir, "composer.json"), []byte(`{}`), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		sdk := New(tmpDir, nil)
-		_, err = sdk.detectScramble()
-		if err == nil {
+		result := sdk.detectScramble()
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertContains(err.Error(), "scramble not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "scramble not found")
+		if !stdlibAssertContains(result.Error(), "scramble not found") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "scramble not found")
 		}
 
 	})
@@ -200,9 +192,8 @@ func TestDetect_DetectScrambleBad(t *testing.T) {
 
 func TestDetect_DetectSpecScrambleGood(t *testing.T) {
 	tmpDir := t.TempDir()
-	err := ax.WriteFile(ax.Join(tmpDir, "composer.json"), []byte(`{"require":{"dedoc/scramble":"^0.1"}}`), 0o644)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(tmpDir, "composer.json"), []byte(`{"require":{"dedoc/scramble":"^0.1"}}`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	phpDir := t.TempDir()
@@ -210,18 +201,16 @@ func TestDetect_DetectSpecScrambleGood(t *testing.T) {
 	t.Setenv("PATH", phpDir)
 
 	sdk := New(tmpDir, nil)
-	got, err := sdk.DetectSpec()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := requireSDKDetectSpec(t, sdk)
 	if !stdlibAssertEqual(ax.Join(tmpDir, "api.json"), got) {
 		t.Fatalf("want %v, got %v", ax.Join(tmpDir, "api.json"), got)
 	}
 
-	data, err := ax.ReadFile(got)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	dataResult := ax.ReadFile(got)
+	if !dataResult.OK {
+		t.Fatalf("unexpected error: %v", dataResult.Error())
 	}
+	data := dataResult.Value.([]byte)
 	if !stdlibAssertContains(string(data), `"openapi":"3.1.0"`) {
 		t.Fatalf("expected %v to contain %v", string(data), `"openapi":"3.1.0"`)
 	}
@@ -230,11 +219,11 @@ func TestDetect_DetectSpecScrambleGood(t *testing.T) {
 
 func TestDetect_DetectSpecScrambleOverwritesExistingSpecGood(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(tmpDir, "composer.json"), []byte(`{"require":{"dedoc/scramble":"^0.1"}}`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(tmpDir, "composer.json"), []byte(`{"require":{"dedoc/scramble":"^0.1"}}`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(tmpDir, "api.json"), []byte(`{"openapi":"3.0.0","info":{"title":"stale"}}`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(tmpDir, "api.json"), []byte(`{"openapi":"3.0.0","info":{"title":"stale"}}`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	phpDir := t.TempDir()
@@ -242,18 +231,16 @@ func TestDetect_DetectSpecScrambleOverwritesExistingSpecGood(t *testing.T) {
 	t.Setenv("PATH", phpDir)
 
 	sdk := New(tmpDir, nil)
-	got, err := sdk.DetectSpec()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := requireSDKDetectSpec(t, sdk)
 	if !stdlibAssertEqual(ax.Join(tmpDir, "api.json"), got) {
 		t.Fatalf("want %v, got %v", ax.Join(tmpDir, "api.json"), got)
 	}
 
-	data, err := ax.ReadFile(got)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	dataResult := ax.ReadFile(got)
+	if !dataResult.OK {
+		t.Fatalf("unexpected error: %v", dataResult.Error())
 	}
+	data := dataResult.Value.([]byte)
 	if stdlibAssertContains(string(data), "stale") {
 		t.Fatalf("expected %v not to contain %v", string(data), "stale")
 	}
@@ -268,7 +255,7 @@ func TestDetect_SDK_DetectSpec_Good(t *core.T) {
 	subject := &SDK{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.DetectSpec()
+		_ = subject.DetectSpec()
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -278,7 +265,7 @@ func TestDetect_SDK_DetectSpec_Bad(t *core.T) {
 	subject := &SDK{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.DetectSpec()
+		_ = subject.DetectSpec()
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -288,7 +275,7 @@ func TestDetect_SDK_DetectSpec_Ugly(t *core.T) {
 	subject := &SDK{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.DetectSpec()
+		_ = subject.DetectSpec()
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

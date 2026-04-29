@@ -10,38 +10,38 @@ import (
 )
 
 type stubManager struct {
-	install func(buildservice.Config) error
-	start   func(buildservice.Config) error
-	stop    func(buildservice.Config) error
-	remove  func(buildservice.Config) error
+	install func(buildservice.Config) core.Result
+	start   func(buildservice.Config) core.Result
+	stop    func(buildservice.Config) core.Result
+	remove  func(buildservice.Config) core.Result
 }
 
-func (s stubManager) Install(cfg buildservice.Config) error {
+func (s stubManager) Install(cfg buildservice.Config) core.Result {
 	if s.install != nil {
 		return s.install(cfg)
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func (s stubManager) Start(cfg buildservice.Config) error {
+func (s stubManager) Start(cfg buildservice.Config) core.Result {
 	if s.start != nil {
 		return s.start(cfg)
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func (s stubManager) Stop(cfg buildservice.Config) error {
+func (s stubManager) Stop(cfg buildservice.Config) core.Result {
 	if s.stop != nil {
 		return s.stop(cfg)
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func (s stubManager) Uninstall(cfg buildservice.Config) error {
+func (s stubManager) Uninstall(cfg buildservice.Config) core.Result {
 	if s.remove != nil {
 		return s.remove(cfg)
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func TestAddServiceCommands_RegistersSubcommandsGood(t *testing.T) {
@@ -84,19 +84,19 @@ func TestRunServiceInstall_UsesManagerGood(t *testing.T) {
 		serviceManager = originalManager
 	})
 
-	serviceGetwd = func() (string, error) { return projectDir, nil }
-	resolveServiceCfg = func(projectDir string) (buildservice.Config, error) {
-		return buildservice.Config{
+	serviceGetwd = func() core.Result { return core.Ok(projectDir) }
+	resolveServiceCfg = func(projectDir string) core.Result {
+		return core.Ok(buildservice.Config{
 			Name:       "core-build",
 			ProjectDir: projectDir,
 			APIAddr:    "127.0.0.1:9101",
 			HealthAddr: "127.0.0.1:9102",
-		}, nil
+		})
 	}
 
 	called := false
 	serviceManager = stubManager{
-		install: func(cfg buildservice.Config) error {
+		install: func(cfg buildservice.Config) core.Result {
 			called = true
 			if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
 				t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
@@ -105,14 +105,11 @@ func TestRunServiceInstall_UsesManagerGood(t *testing.T) {
 				t.Fatalf("want %v, got %v", "core-build", cfg.Name)
 			}
 
-			return nil
+			return core.Ok(nil)
 		},
 	}
 
-	err := runServiceInstall(serviceRequest{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireServiceCmdOK(t, runServiceInstall(serviceRequest{}))
 	if !(called) {
 		t.Fatal("expected true")
 	}
@@ -131,28 +128,22 @@ func TestRunServiceExport_WritesFileGood(t *testing.T) {
 		exportService = originalExport
 	})
 
-	serviceGetwd = func() (string, error) { return projectDir, nil }
-	resolveServiceCfg = func(projectDir string) (buildservice.Config, error) {
-		return buildservice.Config{Name: "core-build", ProjectDir: projectDir}, nil
+	serviceGetwd = func() core.Result { return core.Ok(projectDir) }
+	resolveServiceCfg = func(projectDir string) core.Result {
+		return core.Ok(buildservice.Config{Name: "core-build", ProjectDir: projectDir})
 	}
-	exportService = func(cfg buildservice.Config, format string) (buildservice.ExportedConfig, error) {
-		return buildservice.ExportedConfig{
+	exportService = func(cfg buildservice.Config, format string) core.Result {
+		return core.Ok(buildservice.ExportedConfig{
 			Format:   buildservice.NativeFormatSystemd,
 			Filename: "core-build.service",
 			Content:  "[Unit]\nDescription=Core Build\n",
-		}, nil
+		})
 	}
 
 	outputPath := core.PathJoin("dist", "core-build.service")
-	err := runServiceExport(serviceRequest{Output: outputPath})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireServiceCmdOK(t, runServiceExport(serviceRequest{Output: outputPath}))
 
-	content, readErr := ax.ReadFile(core.PathJoin(projectDir, outputPath))
-	if readErr != nil {
-		t.Fatalf("unexpected error: %v", readErr)
-	}
+	content := requireServiceCmdBytes(t, ax.ReadFile(core.PathJoin(projectDir, outputPath)))
 	if !stdlibAssertEqual("[Unit]\nDescription=Core Build\n", string(content)) {
 		t.Fatalf("want %v, got %v", "[Unit]\nDescription=Core Build\n", string(content))
 	}
@@ -171,25 +162,22 @@ func TestRunServiceRun_InvokesDaemonGood(t *testing.T) {
 		runDaemon = originalRun
 	})
 
-	serviceGetwd = func() (string, error) { return projectDir, nil }
-	resolveServiceCfg = func(projectDir string) (buildservice.Config, error) {
-		return buildservice.Config{Name: "core-build", ProjectDir: projectDir}, nil
+	serviceGetwd = func() core.Result { return core.Ok(projectDir) }
+	resolveServiceCfg = func(projectDir string) core.Result {
+		return core.Ok(buildservice.Config{Name: "core-build", ProjectDir: projectDir})
 	}
 
 	called := false
-	runDaemon = func(ctx context.Context, cfg buildservice.Config) error {
+	runDaemon = func(ctx context.Context, cfg buildservice.Config) core.Result {
 		called = true
 		if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
 			t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
 		}
 
-		return nil
+		return core.Ok(nil)
 	}
 
-	err := runServiceRun(context.Background(), serviceRequest{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireServiceCmdOK(t, runServiceRun(context.Background(), serviceRequest{}))
 	if !(called) {
 		t.Fatal("expected true")
 	}
@@ -199,9 +187,9 @@ func TestRunServiceRun_InvokesDaemonGood(t *testing.T) {
 func TestApplyServiceOverrides_BadDuration(t *testing.T) {
 	cfg := buildservice.Config{ProjectDir: t.TempDir()}
 
-	err := applyServiceOverrides(&cfg, serviceRequest{WatchInterval: "not-a-duration"})
-	if err == nil {
-		t.Fatal("expected error")
+	message := requireServiceCmdError(t, applyServiceOverrides(&cfg, serviceRequest{WatchInterval: "not-a-duration"}))
+	if !stdlibAssertContains(message, "not-a-duration") {
+		t.Fatalf("expected %v to contain %v", message, "not-a-duration")
 	}
 
 }
@@ -218,22 +206,19 @@ func TestRunServiceInstall_BubblesManagerErrorBad(t *testing.T) {
 		serviceManager = originalManager
 	})
 
-	serviceGetwd = func() (string, error) { return projectDir, nil }
-	resolveServiceCfg = func(projectDir string) (buildservice.Config, error) {
-		return buildservice.Config{Name: "core-build", ProjectDir: projectDir}, nil
+	serviceGetwd = func() core.Result { return core.Ok(projectDir) }
+	resolveServiceCfg = func(projectDir string) core.Result {
+		return core.Ok(buildservice.Config{Name: "core-build", ProjectDir: projectDir})
 	}
 	serviceManager = stubManager{
-		install: func(buildservice.Config) error {
-			return core.NewError("boom")
+		install: func(buildservice.Config) core.Result {
+			return core.Fail(core.NewError("boom"))
 		},
 	}
 
-	err := runServiceInstall(serviceRequest{})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "boom") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "boom")
+	message := requireServiceCmdError(t, runServiceInstall(serviceRequest{}))
+	if !stdlibAssertContains(message, "boom") {
+		t.Fatalf("expected %v to contain %v", message, "boom")
 	}
 
 }

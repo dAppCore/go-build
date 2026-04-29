@@ -14,6 +14,24 @@ var validConfig = InstallerConfig{
 	BinaryName: "core",
 }
 
+func requireGeneratedInstaller(t *testing.T, variant InstallerVariant, cfg InstallerConfig) string {
+	t.Helper()
+	result := GenerateInstaller(variant, cfg)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
+}
+
+func requireGeneratedInstallers(t *testing.T, cfg InstallerConfig) map[string]string {
+	t.Helper()
+	result := GenerateAll(cfg)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(map[string]string)
+}
+
 // TestInstaller_GenerateInstaller_Good verifies that each known variant produces a non-empty
 // shell script containing the expected shebang, binary name, version, and repo strings.
 func TestInstaller_GenerateInstaller_Good(t *testing.T) {
@@ -29,10 +47,11 @@ func TestInstaller_GenerateInstaller_Good(t *testing.T) {
 	for _, variant := range allVariants {
 		v := variant // capture range variable
 		t.Run(string(v), func(t *testing.T) {
-			script, err := GenerateInstaller(v, validConfig)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			result := GenerateInstaller(v, validConfig)
+			if !result.OK {
+				t.Fatalf("unexpected error: %v", result.Error())
 			}
+			script := result.Value.(string)
 			if stdlibAssertEmpty(script) {
 				t.Fatal("expected non-empty")
 			}
@@ -57,15 +76,16 @@ func TestInstaller_GenerateInstaller_Good(t *testing.T) {
 }
 
 func TestInstaller_GenerateInstaller_CustomScriptBaseURL_Good(t *testing.T) {
-	script, err := GenerateInstaller(VariantFull, InstallerConfig{
+	result := GenerateInstaller(VariantFull, InstallerConfig{
 		Version:       "v1.2.3",
 		Repo:          "dappcore/core",
 		BinaryName:    "core",
 		ScriptBaseURL: "https://downloads.example.com/",
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
+	script := result.Value.(string)
 	if !stdlibAssertContains(script, "https://downloads.example.com/setup.sh") {
 		t.Fatalf("expected %v to contain %v", script, "https://downloads.example.com/setup.sh")
 	}
@@ -76,10 +96,11 @@ func TestInstaller_GenerateInstaller_CustomScriptBaseURL_Good(t *testing.T) {
 }
 
 func TestInstaller_GenerateInstaller_AgenticAlias_Good(t *testing.T) {
-	script, err := GenerateInstaller("agentic", validConfig)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := GenerateInstaller("agentic", validConfig)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
+	script := result.Value.(string)
 	if stdlibAssertEmpty(script) {
 		t.Fatal("expected non-empty")
 	}
@@ -90,10 +111,11 @@ func TestInstaller_GenerateInstaller_AgenticAlias_Good(t *testing.T) {
 }
 
 func TestInstaller_GenerateInstaller_DevVariantUsesVersionedImage_Good(t *testing.T) {
-	script, err := GenerateInstaller(VariantDev, validConfig)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := GenerateInstaller(VariantDev, validConfig)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
+	script := result.Value.(string)
 	if !stdlibAssertContains(script, `DEV_IMAGE_VERSION="${VERSION#v}"`) {
 		t.Fatalf("expected %v to contain %v", script, `DEV_IMAGE_VERSION="${VERSION#v}"`)
 	}
@@ -110,68 +132,55 @@ func TestInstaller_GenerateInstaller_DevVariantUsesVersionedImage_Good(t *testin
 
 func TestInstaller_GenerateInstaller_Bad(t *testing.T) {
 	t.Run("unknown variant returns error", func(t *testing.T) {
-		script, err := GenerateInstaller("nonexistent", validConfig)
-		if err == nil {
+		result := GenerateInstaller("nonexistent", validConfig)
+		if result.OK {
 			t.Fatal("expected error")
-		}
-		if !stdlibAssertEmpty(script) {
-			t.Fatalf("expected empty, got %v", script)
 		}
 
 	})
 
 	t.Run("empty variant string returns error", func(t *testing.T) {
-		script, err := GenerateInstaller("", validConfig)
-		if err == nil {
+		result := GenerateInstaller("", validConfig)
+		if result.OK {
 			t.Fatal("expected error")
-		}
-		if !stdlibAssertEmpty(script) {
-			t.Fatalf("expected empty, got %v", script)
 		}
 
 	})
 
 	t.Run("unsafe version returns error", func(t *testing.T) {
-		script, err := GenerateInstaller(VariantCI, InstallerConfig{
+		result := GenerateInstaller(VariantCI, InstallerConfig{
 			Version:    "v1.2.3\n--flag",
 			Repo:       "dappcore/core",
 			BinaryName: "core",
 		})
-		if err == nil {
+		if result.OK {
 			t.Fatal("expected error")
-		}
-		if !stdlibAssertEmpty(
-
-			// TestInstaller_GenerateInstaller_Ugly verifies that empty config fields are rendered without
-			// panicking — the template may produce incomplete scripts but must not error.
-			script) {
-			t.Fatalf("expected empty, got %v", script)
 		}
 
 	})
 
 	t.Run("version with spaces returns error", func(t *testing.T) {
-		script, err := GenerateInstaller(VariantCI, InstallerConfig{
+		result := GenerateInstaller(VariantCI, InstallerConfig{
 			Version:    " v1.2.3 ",
 			Repo:       "dappcore/core",
 			BinaryName: "core",
 		})
-		if err == nil {
+		if result.OK {
 			t.Fatal("expected error")
-		}
-		if !stdlibAssertEmpty(script) {
-			t.Fatalf("expected empty, got %v", script)
 		}
 	})
 }
 
+// TestInstaller_GenerateInstaller_Ugly verifies that empty config fields are rendered without
+// panicking — the template may produce incomplete scripts but must not error.
 func TestInstaller_GenerateInstaller_Ugly(t *testing.T) {
 	t.Run("empty Version renders without error", func(t *testing.T) {
 		cfg := InstallerConfig{Version: "", Repo: "dappcore/core", BinaryName: "core"}
-		script, err := GenerateInstaller(VariantFull, cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := GenerateInstaller(VariantFull, cfg)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
+		script := result.Value.(string)
 		if stdlibAssertEmpty(script) {
 			t.Fatal("expected non-empty")
 		}
@@ -180,10 +189,11 @@ func TestInstaller_GenerateInstaller_Ugly(t *testing.T) {
 
 	t.Run("empty Repo renders without error", func(t *testing.T) {
 		cfg := InstallerConfig{Version: "v1.0.0", Repo: "", BinaryName: "core"}
-		script, err := GenerateInstaller(VariantCI, cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := GenerateInstaller(VariantCI, cfg)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
+		script := result.Value.(string)
 		if stdlibAssertEmpty(script) {
 			t.Fatal("expected non-empty")
 		}
@@ -192,10 +202,11 @@ func TestInstaller_GenerateInstaller_Ugly(t *testing.T) {
 
 	t.Run("empty BinaryName renders without error", func(t *testing.T) {
 		cfg := InstallerConfig{Version: "v1.0.0", Repo: "dappcore/core", BinaryName: ""}
-		script, err := GenerateInstaller(VariantAgent, cfg)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := GenerateInstaller(VariantAgent, cfg)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
+		script := result.Value.(string)
 		if stdlibAssertEmpty(script) {
 			t.Fatal("expected non-empty")
 		}
@@ -203,10 +214,11 @@ func TestInstaller_GenerateInstaller_Ugly(t *testing.T) {
 	})
 
 	t.Run("fully empty config renders without error", func(t *testing.T) {
-		script, err := GenerateInstaller(VariantDev, InstallerConfig{})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := GenerateInstaller(VariantDev, InstallerConfig{})
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
+		script := result.Value.(string)
 		if stdlibAssertEmpty(script) {
 			t.Fatal("expected non-empty")
 		}
@@ -221,18 +233,11 @@ func TestInstaller_GenerateInstaller_QuotesValues(t *testing.T) {
 		BinaryName: "core's tool",
 	}
 
-	script, err := GenerateInstaller(VariantCI, cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	script := requireGeneratedInstaller(t, VariantCI, cfg)
 	if !stdlibAssertContains(script, "BINARY_NAME='core'\"'\"'s tool'") {
 		t.Fatalf("expected %v to contain %v", script, "BINARY_NAME='core'\"'\"'s tool'")
 	}
-	if !stdlibAssertContains(
-
-		// TestInstaller_GenerateAll_Good verifies that GenerateAll returns one entry per variant
-		// and that each script is a non-empty bash script.
-		script, "VERSION='v1.2.3-beta+1'") {
+	if !stdlibAssertContains(script, "VERSION='v1.2.3-beta+1'") {
 		t.Fatalf("expected %v to contain %v", script, "VERSION='v1.2.3-beta+1'")
 	}
 	if !stdlibAssertContains(script, "REPO='dappcore/core'") {
@@ -242,10 +247,7 @@ func TestInstaller_GenerateInstaller_QuotesValues(t *testing.T) {
 }
 
 func TestInstaller_GenerateAll_Good(t *testing.T) {
-	scripts, err := GenerateAll(validConfig)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	scripts := requireGeneratedInstallers(t, validConfig)
 
 	expectedOutputs := []string{
 		"setup.sh",
@@ -290,16 +292,13 @@ func TestInstaller_Variants_Good(t *testing.T) {
 }
 
 func TestInstaller_GenerateAll_Bad_UnsafeVersion(t *testing.T) {
-	scripts, err := GenerateAll(InstallerConfig{
+	result := GenerateAll(InstallerConfig{
 		Version:    "v1.2.3 && echo unsafe",
 		Repo:       "dappcore/core",
 		BinaryName: "core",
 	})
-	if err == nil {
+	if result.OK {
 		t.Fatal("expected error")
-	}
-	if !stdlibAssertNil(scripts) {
-		t.Fatalf("expected nil, got %v", scripts)
 	}
 
 }
@@ -381,7 +380,7 @@ func TestInstaller_OutputName_Ugly(t *core.T) {
 func TestInstaller_GenerateAll_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = GenerateAll()
+		_ = GenerateAll()
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -390,7 +389,7 @@ func TestInstaller_GenerateAll_Bad(t *core.T) {
 func TestInstaller_GenerateAll_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = GenerateAll()
+		_ = GenerateAll()
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

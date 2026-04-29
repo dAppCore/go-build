@@ -27,13 +27,13 @@ func ExampleJoin() {
 }
 
 func ExampleAbs() {
-	_, _ = Abs(core.Path(core.TempDir(), "go-build-compliance"))
+	_ = Abs(core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("Abs")
 	// Output: Abs
 }
 
 func ExampleRel() {
-	_, _ = Rel("agent", "linux")
+	_ = Rel("agent", "linux")
 	core.Println("Rel")
 	// Output: Rel
 }
@@ -69,25 +69,25 @@ func ExampleFromSlash() {
 }
 
 func ExampleGetwd() {
-	_, _ = Getwd()
+	_ = Getwd()
 	core.Println("Getwd")
 	// Output: Getwd
 }
 
 func ExampleTempDir() {
-	_, _ = TempDir("agent")
+	_ = TempDir("agent")
 	core.Println("TempDir")
 	// Output: TempDir
 }
 
 func ExampleMkdirTemp() {
-	_, _ = MkdirTemp("agent")
+	_ = MkdirTemp("agent")
 	core.Println("MkdirTemp")
 	// Output: MkdirTemp
 }
 
 func ExampleReadFile() {
-	_, _ = ReadFile(core.Path(core.TempDir(), "go-build-compliance"))
+	_ = ReadFile(core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("ReadFile")
 	// Output: ReadFile
 }
@@ -123,25 +123,25 @@ func ExampleRemoveAll() {
 }
 
 func ExampleStat() {
-	_, _ = Stat(core.Path(core.TempDir(), "go-build-compliance"))
+	_ = Stat(core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("Stat")
 	// Output: Stat
 }
 
 func ExampleReadDir() {
-	_, _ = ReadDir(core.Path(core.TempDir(), "go-build-compliance"))
+	_ = ReadDir(core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("ReadDir")
 	// Output: ReadDir
 }
 
 func ExampleOpen() {
-	_, _ = Open(core.Path(core.TempDir(), "go-build-compliance"))
+	_ = Open(core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("Open")
 	// Output: Open
 }
 
 func ExampleCreate() {
-	_, _ = Create(core.Path(core.TempDir(), "go-build-compliance"))
+	_ = Create(core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("Create")
 	// Output: Create
 }
@@ -189,7 +189,7 @@ func ExampleGeteuid() {
 }
 
 func ExampleJSONMarshal() {
-	_, _ = JSONMarshal("agent")
+	_ = JSONMarshal("agent")
 	core.Println("JSONMarshal")
 	// Output: JSONMarshal
 }
@@ -201,13 +201,13 @@ func ExampleJSONUnmarshal() {
 }
 
 func ExampleLookPath() {
-	_, _ = LookPath("agent")
+	_ = LookPath("agent")
 	core.Println("LookPath")
 	// Output: LookPath
 }
 
 func ExampleResolveCommand() {
-	_, _ = ResolveCommand("agent")
+	_ = ResolveCommand("agent")
 	core.Println("ResolveCommand")
 	// Output: ResolveCommand
 }
@@ -215,7 +215,7 @@ func ExampleResolveCommand() {
 func ExampleRun() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = Run(ctx, "dappcore-command-not-found")
+	_ = Run(ctx, "dappcore-command-not-found")
 	core.Println("Run")
 	// Output: Run
 }
@@ -223,7 +223,7 @@ func ExampleRun() {
 func ExampleRunDir() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = RunDir(ctx, core.Path(core.TempDir(), "go-build-compliance"), "dappcore-command-not-found")
+	_ = RunDir(ctx, core.Path(core.TempDir(), "go-build-compliance"), "dappcore-command-not-found")
 	core.Println("RunDir")
 	// Output: RunDir
 }
@@ -263,7 +263,7 @@ func ExampleExecWithWriters() {
 func ExampleCombinedOutput() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = CombinedOutput(ctx, core.Path(core.TempDir(), "go-build-compliance"), []string{"agent"}, "dappcore-command-not-found")
+	_ = CombinedOutput(ctx, core.Path(core.TempDir(), "go-build-compliance"), []string{"agent"}, "dappcore-command-not-found")
 	core.Println("CombinedOutput")
 	// Output: CombinedOutput
 }
@@ -280,7 +280,7 @@ func ExampleReadlink() {
 	dir := core.TempDir()
 	link := Join(dir, "go-build-compliance-link")
 	_ = syscall.Symlink("target", link)
-	_, _ = Readlink(link)
+	_ = Readlink(link)
 	core.Println("Readlink")
 	// Output: Readlink
 }

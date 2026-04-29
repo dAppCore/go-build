@@ -17,25 +17,102 @@ import (
 	"github.com/Snider/Borg/pkg/compress"
 )
 
-func archiveRequireNoError(t *testing.T, err error) {
+func archiveRequireNoError(t *testing.T, err any) {
 	t.Helper()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	switch value := err.(type) {
+	case nil:
+		return
+	case core.Result:
+		if !value.OK {
+			t.Fatalf("unexpected error: %v", value.Error())
+		}
+	case error:
+		if value != nil {
+			t.Fatalf("unexpected error: %v", value)
+		}
+	default:
+		t.Fatalf("unexpected error value: %v", value)
 	}
 }
 
-func archiveAssertNoError(t *testing.T, err error) {
+func archiveAssertNoError(t *testing.T, err any) {
 	t.Helper()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	archiveRequireNoError(t, err)
 }
 
-func archiveAssertError(t *testing.T, err error) {
+func archiveAssertError(t *testing.T, err any) {
 	t.Helper()
-	if err == nil {
+	switch value := err.(type) {
+	case core.Result:
+		if value.OK {
+			t.Fatal("expected error")
+		}
+	case error:
+		if value == nil {
+			t.Fatal("expected error")
+		}
+	default:
 		t.Fatal("expected error")
 	}
+}
+
+func archiveResultError(t *testing.T, result core.Result) string {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	return result.Error()
+}
+
+func archiveRequireArtifact(t *testing.T, result core.Result) Artifact {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(Artifact)
+}
+
+func archiveRequireArtifacts(t *testing.T, result core.Result) []Artifact {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	if result.Value == nil {
+		return nil
+	}
+	return result.Value.([]Artifact)
+}
+
+func archiveRequireFormat(t *testing.T, result core.Result) ArchiveFormat {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(ArchiveFormat)
+}
+
+func archiveRequireBytes(t *testing.T, result core.Result) []byte {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]byte)
+}
+
+func archiveRequireFileInfo(t *testing.T, result core.Result) stdfs.FileInfo {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(stdfs.FileInfo)
+}
+
+func archiveRequireFile(t *testing.T, result core.Result) core.FsFile {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(core.FsFile)
 }
 
 func archiveAssertEqual(t *testing.T, want, got any) {
@@ -68,7 +145,7 @@ func archiveAssertNil(t *testing.T, value any) {
 
 func archiveAssertFileExists(t *testing.T, path string) {
 	t.Helper()
-	if _, err := ax.Stat(path); err != nil {
+	if result := ax.Stat(path); !result.OK {
 		t.Fatalf("expected file to exist: %v", path)
 	}
 }
@@ -138,8 +215,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		result, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, Archive(fs, artifact))
 
 		// Verify archive was created
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.tar.gz")
@@ -163,8 +239,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		result, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, Archive(fs, artifact))
 
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64_v1.2.3.tar.gz")
 		archiveAssertEqual(t, expectedPath, result.Path)
@@ -180,8 +255,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "arm64",
 		}
 
-		result, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, Archive(fs, artifact))
 
 		expectedPath := ax.Join(outputDir, "myapp_darwin_arm64.tar.gz")
 		archiveAssertEqual(t, expectedPath, result.Path)
@@ -199,8 +273,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		result, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, Archive(fs, artifact))
 
 		// Windows archives should strip .exe from archive name
 		expectedPath := ax.Join(outputDir, "myapp_windows_amd64.zip")
@@ -220,8 +293,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Checksum: "abc123",
 		}
 
-		result, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, Archive(fs, artifact))
 		archiveAssertEqual(t, "abc123", result.Checksum)
 	})
 
@@ -234,8 +306,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		result, err := ArchiveXZ(fs, artifact)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, ArchiveXZ(fs, artifact))
 
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.tar.xz")
 		archiveAssertEqual(t, expectedPath, result.Path)
@@ -253,8 +324,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "arm64",
 		}
 
-		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, ArchiveWithFormat(fs, artifact, ArchiveFormatXZ))
 
 		expectedPath := ax.Join(outputDir, "myapp_darwin_arm64.tar.xz")
 		archiveAssertEqual(t, expectedPath, result.Path)
@@ -272,8 +342,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, ArchiveWithFormat(fs, artifact, ArchiveFormatXZ))
 
 		// Windows should still get .zip regardless of format
 		expectedPath := ax.Join(outputDir, "myapp_windows_amd64.zip")
@@ -292,8 +361,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatZip)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, ArchiveWithFormat(fs, artifact, ArchiveFormatZip))
 
 		expectedPath := ax.Join(outputDir, "myapp_linux_amd64.zip")
 		archiveAssertEqual(t, expectedPath, result.Path)
@@ -311,8 +379,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "arm64",
 		}
 
-		result, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, Archive(fs, artifact))
 
 		expectedPath := ax.Join(outputDir, "Core_darwin_arm64.tar.gz")
 		archiveAssertEqual(t, expectedPath, result.Path)
@@ -331,8 +398,7 @@ func TestArchive_Archive_Good(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		result, err := ArchiveWithFormat(fs, artifact, ArchiveFormatZip)
-		archiveRequireNoError(t, err)
+		result := archiveRequireArtifact(t, ArchiveWithFormat(fs, artifact, ArchiveFormatZip))
 
 		expectedPath := ax.Join(outputDir, "bundle_linux_amd64.zip")
 		archiveAssertEqual(t, expectedPath, result.Path)
@@ -345,38 +411,33 @@ func TestArchive_Archive_Good(t *testing.T) {
 
 func TestArchive_ParseArchiveFormat_Good(t *testing.T) {
 	t.Run("defaults to gzip when empty", func(t *testing.T) {
-		format, err := ParseArchiveFormat("")
-		archiveRequireNoError(t, err)
+		format := archiveRequireFormat(t, ParseArchiveFormat(""))
 		archiveAssertEqual(t, ArchiveFormatGzip, format)
 	})
 
 	t.Run("accepts xz aliases", func(t *testing.T) {
 		for _, input := range []string{"xz", "txz", "tar.xz", "tar-xz"} {
-			format, err := ParseArchiveFormat(input)
-			archiveRequireNoError(t, err)
+			format := archiveRequireFormat(t, ParseArchiveFormat(input))
 			archiveAssertEqual(t, ArchiveFormatXZ, format)
 		}
 	})
 
 	t.Run("accepts zip", func(t *testing.T) {
-		format, err := ParseArchiveFormat("zip")
-		archiveRequireNoError(t, err)
+		format := archiveRequireFormat(t, ParseArchiveFormat("zip"))
 		archiveAssertEqual(t, ArchiveFormatZip, format)
 	})
 
 	t.Run("accepts gzip aliases", func(t *testing.T) {
 		for _, input := range []string{"gz", "gzip", "tgz", "tar.gz", "tar-gz"} {
-			format, err := ParseArchiveFormat(input)
-			archiveRequireNoError(t, err)
+			format := archiveRequireFormat(t, ParseArchiveFormat(input))
 			archiveAssertEqual(t, ArchiveFormatGzip, format)
 		}
 	})
 
 	t.Run("rejects unsupported formats", func(t *testing.T) {
-		format, err := ParseArchiveFormat("bzip2")
-		archiveAssertError(t, err)
-		archiveAssertEmpty(t, format)
-		archiveAssertContains(t, err.Error(), "unsupported archive format")
+		result := ParseArchiveFormat("bzip2")
+		archiveAssertError(t, result)
+		archiveAssertContains(t, result.Error(), "unsupported archive format")
 	})
 }
 
@@ -389,10 +450,9 @@ func TestArchive_Archive_Bad(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		result, err := Archive(fs, artifact)
-		archiveAssertError(t, err)
-		archiveAssertContains(t, err.Error(), "artifact path is empty")
-		archiveAssertEmpty(t, result.Path)
+		result := Archive(fs, artifact)
+		archiveAssertError(t, result)
+		archiveAssertContains(t, result.Error(), "artifact path is empty")
 	})
 
 	t.Run("returns error for non-existent file", func(t *testing.T) {
@@ -402,10 +462,9 @@ func TestArchive_Archive_Bad(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		result, err := Archive(fs, artifact)
-		archiveAssertError(t, err)
-		archiveAssertContains(t, err.Error(), "source file not found")
-		archiveAssertEmpty(t, result.Path)
+		result := Archive(fs, artifact)
+		archiveAssertError(t, result)
+		archiveAssertContains(t, result.Error(), "source file not found")
 	})
 
 }
@@ -448,8 +507,7 @@ func TestArchive_ArchiveAll_Good(t *testing.T) {
 			})
 		}
 
-		results, err := ArchiveAll(fs, artifacts)
-		archiveRequireNoError(t, err)
+		results := archiveRequireArtifacts(t, ArchiveAll(fs, artifacts))
 		archiveRequireLen(t, results, 4)
 
 		// Verify all archives were created
@@ -461,14 +519,12 @@ func TestArchive_ArchiveAll_Good(t *testing.T) {
 	})
 
 	t.Run("returns nil for empty slice", func(t *testing.T) {
-		results, err := ArchiveAll(fs, []Artifact{})
-		archiveAssertNoError(t, err)
+		results := archiveRequireArtifacts(t, ArchiveAll(fs, []Artifact{}))
 		archiveAssertNil(t, results)
 	})
 
 	t.Run("returns nil for nil slice", func(t *testing.T) {
-		results, err := ArchiveAll(fs, nil)
-		archiveAssertNoError(t, err)
+		results := archiveRequireArtifacts(t, ArchiveAll(fs, nil))
 		archiveAssertNil(t, results)
 	})
 }
@@ -483,11 +539,9 @@ func TestArchive_ArchiveAll_Bad(t *testing.T) {
 			{Path: "/nonexistent/binary", OS: "linux", Arch: "arm64"}, // This will fail
 		}
 
-		results, err := ArchiveAll(fs, artifacts)
-		archiveAssertError(t, err)
-		// Should have the first successful result
-		archiveRequireLen(t, results, 1)
-		archiveAssertFileExists(t, results[0].Path)
+		result := ArchiveAll(fs, artifacts)
+		archiveAssertError(t, result)
+		archiveAssertContains(t, result.Error(), "failed to archive")
 	})
 }
 
@@ -544,8 +598,7 @@ func TestArchive_RoundTripGood(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip-app", "linux", "amd64")
 
 		// Read original content
-		originalContent, err := ax.ReadFile(binaryPath)
-		archiveRequireNoError(t, err)
+		originalContent := archiveRequireBytes(t, ax.ReadFile(binaryPath))
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -554,8 +607,7 @@ func TestArchive_RoundTripGood(t *testing.T) {
 		}
 
 		// Create archive
-		archiveArtifact, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		archiveArtifact := archiveRequireArtifact(t, Archive(fs, artifact))
 		archiveAssertFileExists(t, archiveArtifact.Path)
 
 		// Extract and verify content matches
@@ -566,8 +618,7 @@ func TestArchive_RoundTripGood(t *testing.T) {
 	t.Run("tar.xz round trip preserves content", func(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip-xz", "linux", "arm64")
 
-		originalContent, err := ax.ReadFile(binaryPath)
-		archiveRequireNoError(t, err)
+		originalContent := archiveRequireBytes(t, ax.ReadFile(binaryPath))
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -575,8 +626,7 @@ func TestArchive_RoundTripGood(t *testing.T) {
 			Arch: "arm64",
 		}
 
-		archiveArtifact, err := ArchiveXZ(fs, artifact)
-		archiveRequireNoError(t, err)
+		archiveArtifact := archiveRequireArtifact(t, ArchiveXZ(fs, artifact))
 		archiveAssertFileExists(t, archiveArtifact.Path)
 
 		extractedContent := extractTarXzFile(t, archiveArtifact.Path, "roundtrip-xz")
@@ -586,8 +636,7 @@ func TestArchive_RoundTripGood(t *testing.T) {
 	t.Run("zip round trip preserves content", func(t *testing.T) {
 		binaryPath, _ := setupArchiveTestFile(t, "roundtrip.exe", "windows", "amd64")
 
-		originalContent, err := ax.ReadFile(binaryPath)
-		archiveRequireNoError(t, err)
+		originalContent := archiveRequireBytes(t, ax.ReadFile(binaryPath))
 
 		artifact := Artifact{
 			Path: binaryPath,
@@ -595,8 +644,7 @@ func TestArchive_RoundTripGood(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		archiveArtifact, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		archiveArtifact := archiveRequireArtifact(t, Archive(fs, artifact))
 		archiveAssertFileExists(t, archiveArtifact.Path)
 
 		extractedContent := extractZipFile(t, archiveArtifact.Path, "roundtrip.exe")
@@ -612,8 +660,7 @@ func TestArchive_RoundTripGood(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		archiveArtifact, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		archiveArtifact := archiveRequireArtifact(t, Archive(fs, artifact))
 
 		// Extract and verify permissions are preserved
 		mode := extractTarGzFileMode(t, archiveArtifact.Path, "perms-app")
@@ -640,8 +687,7 @@ func TestArchive_RoundTripGood(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		archiveArtifact, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		archiveArtifact := archiveRequireArtifact(t, Archive(fs, artifact))
 
 		extractedContent := extractTarGzFile(t, archiveArtifact.Path, "large-app")
 		archiveAssertEqual(t, largeContent, extractedContent)
@@ -666,13 +712,10 @@ func TestArchive_RoundTripGood(t *testing.T) {
 			Arch: "amd64",
 		}
 
-		archiveArtifact, err := Archive(fs, artifact)
-		archiveRequireNoError(t, err)
+		archiveArtifact := archiveRequireArtifact(t, Archive(fs, artifact))
 
-		originalInfo, err := ax.Stat(binaryPath)
-		archiveRequireNoError(t, err)
-		archiveInfo, err := ax.Stat(archiveArtifact.Path)
-		archiveRequireNoError(t, err)
+		originalInfo := archiveRequireFileInfo(t, ax.Stat(binaryPath))
+		archiveInfo := archiveRequireFileInfo(t, ax.Stat(archiveArtifact.Path))
 
 		// Compressed archive should be smaller than original
 		archiveAssertLess(t, archiveInfo.Size(), originalInfo.Size())
@@ -683,8 +726,7 @@ func TestArchive_RoundTripGood(t *testing.T) {
 func extractTarGzFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
-	file, err := ax.Open(archivePath)
-	archiveRequireNoError(t, err)
+	file := archiveRequireFile(t, ax.Open(archivePath))
 	defer func() { _ = file.Close() }()
 
 	gzReader, err := gzip.NewReader(file)
@@ -712,8 +754,7 @@ func extractTarGzFile(t *testing.T, archivePath, fileName string) []byte {
 func extractTarGzFileMode(t *testing.T, archivePath, fileName string) stdfs.FileMode {
 	t.Helper()
 
-	file, err := ax.Open(archivePath)
-	archiveRequireNoError(t, err)
+	file := archiveRequireFile(t, ax.Open(archivePath))
 	defer func() { _ = file.Close() }()
 
 	gzReader, err := gzip.NewReader(file)
@@ -739,8 +780,7 @@ func extractTarGzFileMode(t *testing.T, archivePath, fileName string) stdfs.File
 func extractTarXzFile(t *testing.T, archivePath, fileName string) []byte {
 	t.Helper()
 
-	xzData, err := ax.ReadFile(archivePath)
-	archiveRequireNoError(t, err)
+	xzData := archiveRequireBytes(t, ax.ReadFile(archivePath))
 
 	tarData, err := compress.Decompress(xzData)
 	archiveRequireNoError(t, err)
@@ -790,8 +830,7 @@ func extractZipFile(t *testing.T, archivePath, fileName string) []byte {
 func verifyTarGzContent(t *testing.T, archivePath, expectedName string) {
 	t.Helper()
 
-	file, err := ax.Open(archivePath)
-	archiveRequireNoError(t, err)
+	file := archiveRequireFile(t, ax.Open(archivePath))
 	defer func() { _ = file.Close() }()
 
 	gzReader, err := gzip.NewReader(file)
@@ -826,8 +865,7 @@ func verifyTarXzContent(t *testing.T, archivePath, expectedName string) {
 	t.Helper()
 
 	// Read the xz-compressed file
-	xzData, err := ax.ReadFile(archivePath)
-	archiveRequireNoError(t, err)
+	xzData := archiveRequireBytes(t, ax.ReadFile(archivePath))
 
 	// Decompress with the deferred Borg API.
 	tarData, err := compress.Decompress(xzData)
@@ -849,7 +887,7 @@ func verifyTarXzContent(t *testing.T, archivePath, expectedName string) {
 func TestArchive_ParseArchiveFormat_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ParseArchiveFormat("")
+		_ = ParseArchiveFormat("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -858,7 +896,7 @@ func TestArchive_ParseArchiveFormat_Bad(t *core.T) {
 func TestArchive_ParseArchiveFormat_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ParseArchiveFormat("agent")
+		_ = ParseArchiveFormat("agent")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -867,7 +905,7 @@ func TestArchive_ParseArchiveFormat_Ugly(t *core.T) {
 func TestArchive_Archive_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Archive(io_interface.NewMemoryMedium(), Artifact{})
+		_ = Archive(io_interface.NewMemoryMedium(), Artifact{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -876,7 +914,7 @@ func TestArchive_Archive_Ugly(t *core.T) {
 func TestArchive_ArchiveXZ_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveXZ(io_interface.NewMemoryMedium(), Artifact{})
+		_ = ArchiveXZ(io_interface.NewMemoryMedium(), Artifact{})
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -885,7 +923,7 @@ func TestArchive_ArchiveXZ_Good(t *core.T) {
 func TestArchive_ArchiveXZ_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveXZ(io_interface.NewMemoryMedium(), Artifact{})
+		_ = ArchiveXZ(io_interface.NewMemoryMedium(), Artifact{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -894,7 +932,7 @@ func TestArchive_ArchiveXZ_Bad(t *core.T) {
 func TestArchive_ArchiveXZ_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveXZ(io_interface.NewMemoryMedium(), Artifact{})
+		_ = ArchiveXZ(io_interface.NewMemoryMedium(), Artifact{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -903,7 +941,7 @@ func TestArchive_ArchiveXZ_Ugly(t *core.T) {
 func TestArchive_ArchiveWithFormat_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveWithFormat(io_interface.NewMemoryMedium(), Artifact{}, ArchiveFormat("linux"))
+		_ = ArchiveWithFormat(io_interface.NewMemoryMedium(), Artifact{}, ArchiveFormat("linux"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -912,7 +950,7 @@ func TestArchive_ArchiveWithFormat_Good(t *core.T) {
 func TestArchive_ArchiveWithFormat_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveWithFormat(io_interface.NewMemoryMedium(), Artifact{}, ArchiveFormat("linux"))
+		_ = ArchiveWithFormat(io_interface.NewMemoryMedium(), Artifact{}, ArchiveFormat("linux"))
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -921,7 +959,7 @@ func TestArchive_ArchiveWithFormat_Bad(t *core.T) {
 func TestArchive_ArchiveWithFormat_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveWithFormat(io_interface.NewMemoryMedium(), Artifact{}, ArchiveFormat("linux"))
+		_ = ArchiveWithFormat(io_interface.NewMemoryMedium(), Artifact{}, ArchiveFormat("linux"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -930,7 +968,7 @@ func TestArchive_ArchiveWithFormat_Ugly(t *core.T) {
 func TestArchive_ArchiveAll_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveAll(io_interface.NewMemoryMedium(), nil)
+		_ = ArchiveAll(io_interface.NewMemoryMedium(), nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -939,7 +977,7 @@ func TestArchive_ArchiveAll_Ugly(t *core.T) {
 func TestArchive_ArchiveAllXZ_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveAllXZ(io_interface.NewMemoryMedium(), nil)
+		_ = ArchiveAllXZ(io_interface.NewMemoryMedium(), nil)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -948,7 +986,7 @@ func TestArchive_ArchiveAllXZ_Good(t *core.T) {
 func TestArchive_ArchiveAllXZ_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveAllXZ(io_interface.NewMemoryMedium(), nil)
+		_ = ArchiveAllXZ(io_interface.NewMemoryMedium(), nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -957,7 +995,7 @@ func TestArchive_ArchiveAllXZ_Bad(t *core.T) {
 func TestArchive_ArchiveAllXZ_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveAllXZ(io_interface.NewMemoryMedium(), nil)
+		_ = ArchiveAllXZ(io_interface.NewMemoryMedium(), nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -966,7 +1004,7 @@ func TestArchive_ArchiveAllXZ_Ugly(t *core.T) {
 func TestArchive_ArchiveAllWithFormat_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveAllWithFormat(io_interface.NewMemoryMedium(), nil, ArchiveFormat("linux"))
+		_ = ArchiveAllWithFormat(io_interface.NewMemoryMedium(), nil, ArchiveFormat("linux"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -975,7 +1013,7 @@ func TestArchive_ArchiveAllWithFormat_Good(t *core.T) {
 func TestArchive_ArchiveAllWithFormat_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveAllWithFormat(io_interface.NewMemoryMedium(), nil, ArchiveFormat("linux"))
+		_ = ArchiveAllWithFormat(io_interface.NewMemoryMedium(), nil, ArchiveFormat("linux"))
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -984,7 +1022,7 @@ func TestArchive_ArchiveAllWithFormat_Bad(t *core.T) {
 func TestArchive_ArchiveAllWithFormat_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ArchiveAllWithFormat(io_interface.NewMemoryMedium(), nil, ArchiveFormat("linux"))
+		_ = ArchiveAllWithFormat(io_interface.NewMemoryMedium(), nil, ArchiveFormat("linux"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

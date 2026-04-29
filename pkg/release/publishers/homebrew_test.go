@@ -240,10 +240,7 @@ func TestHomebrew_HomebrewPublisherRenderTemplateGood(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/homebrew/formula.rb.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/homebrew/formula.rb.tmpl", data))
 		if !stdlibAssertContains(result, "class MyApp < Formula") {
 			t.Fatalf("expected %v to contain %v", result, "class MyApp < Formula")
 		}
@@ -283,12 +280,9 @@ func TestHomebrew_HomebrewPublisherRenderTemplateBad(t *testing.T) {
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := homebrewTemplateData{}
-		_, err := p.renderTemplate(io.Local, "templates/homebrew/nonexistent.tmpl", data)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read template") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		err := requirePublisherError(t, p.renderTemplate(io.Local, "templates/homebrew/nonexistent.tmpl", data))
+		if !stdlibAssertContains(err, "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
 
 	})
@@ -311,13 +305,11 @@ func TestHomebrew_HomebrewPublisherDryRunPublishGood(t *testing.T) {
 			Tap: "owner/homebrew-tap",
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Homebrew Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Homebrew Publish")
 		}
@@ -356,13 +348,11 @@ func TestHomebrew_HomebrewPublisherDryRunPublishGood(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/path") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/path")
 		}
@@ -384,13 +374,11 @@ func TestHomebrew_HomebrewPublisherDryRunPublishGood(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/path") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/path")
 		}
@@ -413,13 +401,11 @@ func TestHomebrew_HomebrewPublisherDryRunPublishGood(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: dist/homebrew") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/homebrew")
 		}
@@ -439,12 +425,9 @@ func TestHomebrew_HomebrewPublisherPublishBad(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "homebrew"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "tap is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "tap is required")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "tap is required") {
+			t.Fatalf("expected %v to contain %v", err, "tap is required")
 		}
 
 	})
@@ -473,13 +456,8 @@ func TestHomebrew_HomebrewPublisherPublishBad(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "myapp"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if _, err := ax.Stat(ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb")); err != nil {
-			t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb"))
-		}
+		requirePublisherOK(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		requirePublisherOK(t, ax.Stat(ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb")))
 
 	})
 }

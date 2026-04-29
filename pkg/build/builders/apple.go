@@ -79,14 +79,14 @@ type DMGConfig = AppleDMGConfig
 
 // AppleCommandRunner records or executes a go-process command invocation.
 type AppleCommandRunner interface {
-	Run(ctx context.Context, opts process.RunOptions) (string, error)
+	Run(ctx context.Context, opts process.RunOptions) core.Result
 }
 
 // AppleCommandRunnerFunc adapts a function to AppleCommandRunner.
-type AppleCommandRunnerFunc func(ctx context.Context, opts process.RunOptions) (string, error)
+type AppleCommandRunnerFunc func(ctx context.Context, opts process.RunOptions) core.Result
 
 // Run implements AppleCommandRunner.
-func (fn AppleCommandRunnerFunc) Run(ctx context.Context, opts process.RunOptions) (string, error) {
+func (fn AppleCommandRunnerFunc) Run(ctx context.Context, opts process.RunOptions) core.Result {
 	return fn(ctx, opts)
 }
 
@@ -96,7 +96,7 @@ func (fn AppleCommandRunnerFunc) Run(ctx context.Context, opts process.RunOption
 type GoProcessAppleRunner struct{}
 
 // Run executes opts through go-process.
-func (GoProcessAppleRunner) Run(ctx context.Context, opts process.RunOptions) (string, error) {
+func (GoProcessAppleRunner) Run(ctx context.Context, opts process.RunOptions) core.Result {
 	return process.RunWithOptions(ctx, opts)
 }
 
@@ -174,17 +174,17 @@ func (b *AppleBuilder) Name() string {
 }
 
 // Detect checks whether dir looks like a Wails macOS app project.
-func (b *AppleBuilder) Detect(fs coreio.Medium, dir string) (bool, error) {
+func (b *AppleBuilder) Detect(fs coreio.Medium, dir string) core.Result {
 	if fs == nil {
 		fs = coreio.Local
 	}
-	return build.IsWailsProject(fs, dir), nil
+	return core.Ok(build.IsWailsProject(fs, dir))
 }
 
 // Build runs the Apple build pipeline skeleton.
-func (b *AppleBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+func (b *AppleBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return nil, coreerr.E("AppleBuilder.Build", "config is nil", nil)
+		return core.Fail(coreerr.E("AppleBuilder.Build", "config is nil", nil))
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -193,41 +193,48 @@ func (b *AppleBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	filesystem := ensureBuildFilesystem(cfg)
 	artifactFilesystem := build.ResolveOutputMedium(cfg)
 	options := b.options()
-	if err := ValidateAppleOptions(options); err != nil {
-		return nil, err
+	valid := ValidateAppleOptions(options)
+	if !valid.OK {
+		return valid
 	}
 
 	outputDir := resolveAppleBuilderOutputDir(cfg, artifactFilesystem)
-	if err := artifactFilesystem.EnsureDir(outputDir); err != nil {
-		return nil, coreerr.E("AppleBuilder.Build", "failed to create Apple output directory", err)
+	created := artifactFilesystem.EnsureDir(outputDir)
+	if !created.OK {
+		return core.Fail(coreerr.E("AppleBuilder.Build", "failed to create Apple output directory", core.NewError(created.Error())))
 	}
 
 	name := resolveAppleBuilderName(cfg)
 	buildNumber := firstNonEmptyApple(options.BuildNumber, "1")
 	if options.XcodeCloud {
-		if _, err := b.WriteXcodeCloudConfig(artifactFilesystem, cfg.ProjectDir, cfg, options); err != nil {
-			return nil, err
+		written := b.WriteXcodeCloudConfig(artifactFilesystem, cfg.ProjectDir, cfg, options)
+		if !written.OK {
+			return written
 		}
 	}
 
 	targetArch := resolveAppleBuilderArch(options, targets)
-	bundlePath, err := b.buildBundle(ctx, filesystem, artifactFilesystem, cfg, outputDir, name, targetArch)
-	if err != nil {
-		return nil, err
+	bundleResult := b.buildBundle(ctx, filesystem, artifactFilesystem, cfg, outputDir, name, targetArch)
+	if !bundleResult.OK {
+		return bundleResult
 	}
+	bundlePath := bundleResult.Value.(string)
 
-	if _, err := WriteAppleInfoPlist(artifactFilesystem, bundlePath, cfg, options, buildNumber); err != nil {
-		return nil, err
+	plist := WriteAppleInfoPlist(artifactFilesystem, bundlePath, cfg, options, buildNumber)
+	if !plist.OK {
+		return plist
 	}
 
 	entitlementsPath := resolveAppleEntitlementsPath(cfg, outputDir, name, options)
-	if err := WriteAppleEntitlements(artifactFilesystem, entitlementsPath, DefaultAppleEntitlements()); err != nil {
-		return nil, err
+	entitlements := WriteAppleEntitlements(artifactFilesystem, entitlementsPath, DefaultAppleEntitlements())
+	if !entitlements.OK {
+		return entitlements
 	}
 
 	if options.Sign {
-		if err := b.signAppleArtifact(ctx, cfg, bundlePath, entitlementsPath, options); err != nil {
-			return nil, err
+		signed := b.signAppleArtifact(ctx, cfg, bundlePath, entitlementsPath, options)
+		if !signed.OK {
+			return signed
 		}
 	}
 
@@ -242,61 +249,68 @@ func (b *AppleBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 		if dmgConfig.VolumeName == "" {
 			dmgConfig.VolumeName = name
 		}
-		if err := b.CreateDMG(ctx, artifactFilesystem, bundlePath, dmgConfig); err != nil {
-			return nil, err
+		createdDMG := b.CreateDMG(ctx, artifactFilesystem, bundlePath, dmgConfig)
+		if !createdDMG.OK {
+			return createdDMG
 		}
 		distributionPath = dmgPath
 	}
 
 	if options.notariseEnabled() {
-		if err := b.Notarise(ctx, distributionPath, options); err != nil {
-			return nil, err
+		notarised := b.Notarise(ctx, distributionPath, options)
+		if !notarised.OK {
+			return notarised
 		}
 	}
 
 	if options.TestFlight {
-		if err := b.uploadTestFlight(ctx, cfg, bundlePath, options); err != nil {
-			return nil, err
+		uploaded := b.uploadTestFlight(ctx, cfg, bundlePath, options)
+		if !uploaded.OK {
+			return uploaded
 		}
 	}
 
-	return []build.Artifact{{
+	return core.Ok([]build.Artifact{{
 		Path: distributionPath,
 		OS:   "darwin",
 		Arch: targetArch,
-	}}, nil
+	}})
 }
 
-func (b *AppleBuilder) buildBundle(ctx context.Context, sourceFS, artifactFS coreio.Medium, cfg *build.Config, outputDir, name, arch string) (string, error) {
+func (b *AppleBuilder) buildBundle(ctx context.Context, sourceFS, artifactFS coreio.Medium, cfg *build.Config, outputDir, name, arch string) core.Result {
 	switch arch {
 	case "universal":
-		arm64Path, err := b.BuildWailsMacOS(ctx, artifactFS, cfg, ax.Join(outputDir, "arm64"), name, "arm64")
-		if err != nil {
-			return "", err
+		arm64 := b.BuildWailsMacOS(ctx, artifactFS, cfg, ax.Join(outputDir, "arm64"), name, "arm64")
+		if !arm64.OK {
+			return arm64
 		}
-		amd64Path, err := b.BuildWailsMacOS(ctx, artifactFS, cfg, ax.Join(outputDir, "amd64"), name, "amd64")
-		if err != nil {
-			return "", err
+		arm64Path := arm64.Value.(string)
+		amd64 := b.BuildWailsMacOS(ctx, artifactFS, cfg, ax.Join(outputDir, "amd64"), name, "amd64")
+		if !amd64.OK {
+			return amd64
 		}
+		amd64Path := amd64.Value.(string)
 		outputPath := ax.Join(outputDir, name+".app")
-		if err := b.CreateUniversal(ctx, sourceFS, artifactFS, arm64Path, amd64Path, outputPath, name); err != nil {
-			return "", err
+		universal := b.CreateUniversal(ctx, sourceFS, artifactFS, arm64Path, amd64Path, outputPath, name)
+		if !universal.OK {
+			return universal
 		}
-		return outputPath, nil
+		return core.Ok(outputPath)
 	case "arm64", "amd64":
 		return b.BuildWailsMacOS(ctx, artifactFS, cfg, outputDir, name, arch)
 	default:
-		return "", coreerr.E("AppleBuilder.Build", "unsupported Apple arch: "+arch, nil)
+		return core.Fail(coreerr.E("AppleBuilder.Build", "unsupported Apple arch: "+arch, nil))
 	}
 }
 
 // BuildWailsMacOS records the Wails macOS build invocation and creates a placeholder .app bundle.
-func (b *AppleBuilder) BuildWailsMacOS(ctx context.Context, filesystem coreio.Medium, cfg *build.Config, outputDir, name, arch string) (string, error) {
+func (b *AppleBuilder) BuildWailsMacOS(ctx context.Context, filesystem coreio.Medium, cfg *build.Config, outputDir, name, arch string) core.Result {
 	if filesystem == nil {
 		filesystem = coreio.Local
 	}
-	if err := filesystem.EnsureDir(outputDir); err != nil {
-		return "", coreerr.E("AppleBuilder.BuildWailsMacOS", "failed to create Wails output directory", err)
+	created := filesystem.EnsureDir(outputDir)
+	if !created.OK {
+		return core.Fail(coreerr.E("AppleBuilder.BuildWailsMacOS", "failed to create Wails output directory", core.NewError(created.Error())))
 	}
 
 	args := []string{"build", "-platform", "darwin/" + arch}
@@ -309,34 +323,38 @@ func (b *AppleBuilder) BuildWailsMacOS(ctx context.Context, filesystem coreio.Me
 
 	// TODO(#484): this requires macOS with Wails and Xcode tooling. The skeleton
 	// records the go-process invocation instead of executing it in sandbox.
-	if err := b.runExternal(ctx, "wails-build", process.RunOptions{
+	ran := b.runExternal(ctx, "wails-build", process.RunOptions{
 		Command: "wails3",
 		Args:    args,
 		Dir:     cfg.ProjectDir,
 		Env:     build.BuildEnvironment(cfg, "GOOS=darwin", "GOARCH="+arch, "CGO_ENABLED=1"),
-	}); err != nil {
-		return "", err
+	})
+	if !ran.OK {
+		return ran
 	}
 
 	bundlePath := ax.Join(outputDir, name+".app")
-	if err := createAppleBundleSkeleton(filesystem, bundlePath, name, arch); err != nil {
-		return "", err
+	createdBundle := createAppleBundleSkeleton(filesystem, bundlePath, name, arch)
+	if !createdBundle.OK {
+		return createdBundle
 	}
-	return bundlePath, nil
+	return core.Ok(bundlePath)
 }
 
 // CreateUniversal records the lipo invocation and creates a placeholder universal .app bundle.
-func (b *AppleBuilder) CreateUniversal(ctx context.Context, _ coreio.Medium, artifactFS coreio.Medium, arm64Path, amd64Path, outputPath, name string) error {
+func (b *AppleBuilder) CreateUniversal(ctx context.Context, _ coreio.Medium, artifactFS coreio.Medium, arm64Path, amd64Path, outputPath, name string) core.Result {
 	if artifactFS == nil {
 		artifactFS = coreio.Local
 	}
 	if artifactFS.Exists(outputPath) {
-		if err := artifactFS.DeleteAll(outputPath); err != nil {
-			return coreerr.E("AppleBuilder.CreateUniversal", "failed to replace universal app bundle", err)
+		deleted := artifactFS.DeleteAll(outputPath)
+		if !deleted.OK {
+			return core.Fail(coreerr.E("AppleBuilder.CreateUniversal", "failed to replace universal app bundle", core.NewError(deleted.Error())))
 		}
 	}
-	if err := build.CopyMediumPath(artifactFS, arm64Path, artifactFS, outputPath); err != nil {
-		return coreerr.E("AppleBuilder.CreateUniversal", "failed to copy arm64 app bundle", err)
+	copied := build.CopyMediumPath(artifactFS, arm64Path, artifactFS, outputPath)
+	if !copied.OK {
+		return core.Fail(coreerr.E("AppleBuilder.CreateUniversal", "failed to copy arm64 app bundle", core.NewError(copied.Error())))
 	}
 
 	armBinary := ax.Join(arm64Path, "Contents", "MacOS", name)
@@ -351,7 +369,7 @@ func (b *AppleBuilder) CreateUniversal(ctx context.Context, _ coreio.Medium, art
 	})
 }
 
-func (b *AppleBuilder) signAppleArtifact(ctx context.Context, cfg *build.Config, appPath, entitlementsPath string, options AppleOptions) error {
+func (b *AppleBuilder) signAppleArtifact(ctx context.Context, cfg *build.Config, appPath, entitlementsPath string, options AppleOptions) core.Result {
 	args := []string{
 		"--sign", options.signingIdentity(),
 		"--timestamp",
@@ -369,7 +387,7 @@ func (b *AppleBuilder) signAppleArtifact(ctx context.Context, cfg *build.Config,
 	})
 }
 
-func (b *AppleBuilder) uploadTestFlight(ctx context.Context, cfg *build.Config, appPath string, options AppleOptions) error {
+func (b *AppleBuilder) uploadTestFlight(ctx context.Context, cfg *build.Config, appPath string, options AppleOptions) core.Result {
 	keyID := firstNonEmptyApple(options.TestFlightKeyID, options.APIKeyID)
 	issuerID := firstNonEmptyApple(options.TestFlightIssuerID, options.APIKeyIssuerID)
 	keyPath := firstNonEmptyApple(options.TestFlightKeyPath, options.APIKeyPath, options.TestFlightPrivateKey)
@@ -389,19 +407,19 @@ func (b *AppleBuilder) uploadTestFlight(ctx context.Context, cfg *build.Config, 
 	})
 }
 
-func (b *AppleBuilder) runExternal(ctx context.Context, step string, opts process.RunOptions) error {
+func (b *AppleBuilder) runExternal(ctx context.Context, step string, opts process.RunOptions) core.Result {
 	b.printTODO(step, opts)
 	if firstNonEmptyApple(b.hostOS, runtime.GOOS) != "darwin" {
-		return nil
+		return core.Ok(nil)
 	}
 	if b.runner == nil {
-		return nil
+		return core.Ok(nil)
 	}
-	_, err := b.runner.Run(ctx, opts)
-	if err != nil {
-		return coreerr.E("AppleBuilder.runExternal", "stubbed "+step+" invocation failed", err)
+	ran := b.runner.Run(ctx, opts)
+	if !ran.OK {
+		return core.Fail(coreerr.E("AppleBuilder.runExternal", "stubbed "+step+" invocation failed", core.NewError(ran.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func (b *AppleBuilder) printTODO(step string, opts process.RunOptions) {
@@ -487,21 +505,21 @@ func (options AppleOptions) notarisationProfile() string {
 }
 
 // ValidateAppleOptions checks the minimum Apple pipeline option contract.
-func ValidateAppleOptions(options AppleOptions) error {
+func ValidateAppleOptions(options AppleOptions) core.Result {
 	options = options.withDefaults()
 
 	if core.Trim(options.BundleID) == "" {
-		return coreerr.E("AppleBuilder.ValidateOptions", "bundle ID is required", nil)
+		return core.Fail(coreerr.E("AppleBuilder.ValidateOptions", "bundle ID is required", nil))
 	}
 
 	switch options.Arch {
 	case "universal", "arm64", "amd64":
 	default:
-		return coreerr.E("AppleBuilder.ValidateOptions", "arch must be universal, arm64, or amd64", nil)
+		return core.Fail(coreerr.E("AppleBuilder.ValidateOptions", "arch must be universal, arm64, or amd64", nil))
 	}
 
 	if options.Sign && core.Trim(options.signingIdentity()) == "" {
-		return coreerr.E("AppleBuilder.ValidateOptions", "signing identity is required when signing is enabled", nil)
+		return core.Fail(coreerr.E("AppleBuilder.ValidateOptions", "signing identity is required when signing is enabled", nil))
 	}
 
 	if options.notariseEnabled() {
@@ -511,7 +529,7 @@ func ValidateAppleOptions(options AppleOptions) error {
 			core.Trim(options.AppleID) != "" &&
 			core.Trim(firstNonEmptyApple(options.AppPassword, options.Password)) != ""
 		if !hasProfile && !hasAPIKey && !hasAppleID {
-			return coreerr.E("AppleBuilder.ValidateOptions", "notarisation requires a notarytool profile, API key, or Apple ID credentials", nil)
+			return core.Fail(coreerr.E("AppleBuilder.ValidateOptions", "notarisation requires a notarytool profile, API key, or Apple ID credentials", nil))
 		}
 	}
 
@@ -520,11 +538,11 @@ func ValidateAppleOptions(options AppleOptions) error {
 		issuerID := firstNonEmptyApple(options.TestFlightIssuerID, options.APIKeyIssuerID)
 		keyPath := firstNonEmptyApple(options.TestFlightKeyPath, options.APIKeyPath, options.TestFlightPrivateKey)
 		if keyID == "" || issuerID == "" || keyPath == "" {
-			return coreerr.E("AppleBuilder.ValidateOptions", "TestFlight upload requires key id, issuer id, and key path", nil)
+			return core.Fail(coreerr.E("AppleBuilder.ValidateOptions", "TestFlight upload requires key id, issuer id, and key path", nil))
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func resolveAppleBuilderOutputDir(cfg *build.Config, artifactFilesystem coreio.Medium) string {
@@ -575,27 +593,28 @@ func resolveAppleEntitlementsPath(cfg *build.Config, outputDir, name string, opt
 	return ax.Join(cfg.ProjectDir, options.EntitlementsPath)
 }
 
-func createAppleBundleSkeleton(filesystem coreio.Medium, bundlePath, name, arch string) error {
+func createAppleBundleSkeleton(filesystem coreio.Medium, bundlePath, name, arch string) core.Result {
 	if filesystem == nil {
 		filesystem = coreio.Local
 	}
 
 	macosDir := ax.Join(bundlePath, "Contents", "MacOS")
 	resourcesDir := ax.Join(bundlePath, "Contents", "Resources")
-	if err := filesystem.EnsureDir(macosDir); err != nil {
-		return coreerr.E("AppleBuilder.createBundleSkeleton", "failed to create Contents/MacOS", err)
+	if created := filesystem.EnsureDir(macosDir); !created.OK {
+		return core.Fail(coreerr.E("AppleBuilder.createBundleSkeleton", "failed to create Contents/MacOS", core.NewError(created.Error())))
 	}
-	if err := filesystem.EnsureDir(resourcesDir); err != nil {
-		return coreerr.E("AppleBuilder.createBundleSkeleton", "failed to create Contents/Resources", err)
+	if created := filesystem.EnsureDir(resourcesDir); !created.OK {
+		return core.Fail(coreerr.E("AppleBuilder.createBundleSkeleton", "failed to create Contents/Resources", core.NewError(created.Error())))
 	}
 
 	executable := ax.Join(macosDir, name)
 	content := "#!/usr/bin/env sh\n" +
 		"echo \"AppleBuilder skeleton placeholder for " + name + " (" + arch + ")\"\n"
-	if err := filesystem.WriteMode(executable, content, 0o755); err != nil {
-		return coreerr.E("AppleBuilder.createBundleSkeleton", "failed to write placeholder executable", err)
+	written := filesystem.WriteMode(executable, content, 0o755)
+	if !written.OK {
+		return core.Fail(coreerr.E("AppleBuilder.createBundleSkeleton", "failed to write placeholder executable", core.NewError(written.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func firstNonEmptyApple(values ...string) string {

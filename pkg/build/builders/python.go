@@ -34,16 +34,16 @@ func (b *PythonBuilder) Name() string {
 // Detect checks if this builder can handle the project in the given directory.
 //
 // ok, err := b.Detect(io.Local, ".")
-func (b *PythonBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return build.IsPythonProject(fs, dir), nil
+func (b *PythonBuilder) Detect(fs io.Medium, dir string) core.Result {
+	return core.Ok(build.IsPythonProject(fs, dir))
 }
 
 // Build packages the Python project into a deterministic zip bundle per target.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-func (b *PythonBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+func (b *PythonBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return nil, coreerr.E("PythonBuilder.Build", "config is nil", nil)
+		return core.Fail(coreerr.E("PythonBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
@@ -53,20 +53,23 @@ func (b *PythonBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	if outputDir == "" {
 		outputDir = defaultOutputDir(cfg)
 	}
-	if err := ensureOutputDir(filesystem, outputDir, "PythonBuilder.Build"); err != nil {
-		return nil, err
+	created := ensureOutputDir(filesystem, outputDir, "PythonBuilder.Build")
+	if !created.OK {
+		return created
 	}
 
 	var artifacts []build.Artifact
 	for _, target := range targets {
-		platformDir, err := ensurePlatformDir(filesystem, outputDir, target, "PythonBuilder.Build")
-		if err != nil {
-			return artifacts, err
+		platformDirResult := ensurePlatformDir(filesystem, outputDir, target, "PythonBuilder.Build")
+		if !platformDirResult.OK {
+			return platformDirResult
 		}
+		platformDir := platformDirResult.Value.(string)
 
 		bundlePath := ax.Join(platformDir, b.bundleName(cfg)+".zip")
-		if err := b.bundleProject(filesystem, cfg.ProjectDir, outputDir, bundlePath); err != nil {
-			return artifacts, err
+		bundled := b.bundleProject(filesystem, cfg.ProjectDir, outputDir, bundlePath)
+		if !bundled.OK {
+			return bundled
 		}
 
 		artifacts = append(artifacts, build.Artifact{
@@ -76,7 +79,7 @@ func (b *PythonBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 		})
 	}
 
-	return artifacts, nil
+	return core.Ok(artifacts)
 }
 
 // bundleName returns the bundle filename stem.
@@ -91,7 +94,7 @@ func (b *PythonBuilder) bundleName(cfg *build.Config) string {
 }
 
 // bundleProject creates a zip bundle containing the Python project tree.
-func (b *PythonBuilder) bundleProject(fs io.Medium, projectDir, outputDir, bundlePath string) error {
+func (b *PythonBuilder) bundleProject(fs io.Medium, projectDir, outputDir, bundlePath string) core.Result {
 	exclude := func(path string) bool {
 		return b.isExcludedPath(path, outputDir, bundlePath)
 	}

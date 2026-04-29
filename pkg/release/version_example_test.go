@@ -6,7 +6,7 @@ import (
 
 // --- v0.9.0 generated usage examples ---
 func ExampleDetermineVersion() {
-	_, _ = DetermineVersion(core.Path(core.TempDir(), "go-build-compliance"))
+	_ = DetermineVersion(core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("DetermineVersion")
 	// Output: DetermineVersion
 }
@@ -14,7 +14,7 @@ func ExampleDetermineVersion() {
 func ExampleDetermineVersionWithContext() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = DetermineVersionWithContext(ctx, core.Path(core.TempDir(), "go-build-compliance"))
+	_ = DetermineVersionWithContext(ctx, core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("DetermineVersionWithContext")
 	// Output: DetermineVersionWithContext
 }
@@ -38,7 +38,7 @@ func ExampleIncrementMajor() {
 }
 
 func ExampleParseVersion() {
-	_, _, _, _, _, _ = ParseVersion("v1.2.3")
+	_ = ParseVersion("v1.2.3")
 	core.Println("ParseVersion")
 	// Output: ParseVersion
 }

@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"dappco.re/go"
-	coreerr "dappco.re/go/log"
 	"github.com/oasdiff/kin-openapi/openapi3"
 	"github.com/oasdiff/oasdiff/checker"
 	"github.com/oasdiff/oasdiff/diff"
@@ -35,31 +34,31 @@ type DiffOptions struct {
 // Diff compares two OpenAPI specs and detects breaking changes.
 //
 // result, err := sdk.Diff("docs/openapi.v1.yaml", "docs/openapi.yaml")
-func Diff(basePath, revisionPath string) (*DiffResult, error) {
+func Diff(basePath, revisionPath string) core.Result {
 	return DiffWithOptions(basePath, revisionPath, DiffOptions{MinimumLevel: checker.ERR})
 }
 
 // DiffWithOptions compares two OpenAPI specs and includes changes at or above
 // the requested severity level.
-func DiffWithOptions(basePath, revisionPath string, opts DiffOptions) (*DiffResult, error) {
+func DiffWithOptions(basePath, revisionPath string, opts DiffOptions) core.Result {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
 
 	// Load specs
 	baseSpec, err := load.NewSpecInfo(loader, load.NewSource(basePath))
 	if err != nil {
-		return nil, coreerr.E("sdk.Diff", "failed to load base spec", err)
+		return core.Fail(core.E("sdk.Diff", "failed to load base spec", err))
 	}
 
 	revSpec, err := load.NewSpecInfo(loader, load.NewSource(revisionPath))
 	if err != nil {
-		return nil, coreerr.E("sdk.Diff", "failed to load revision spec", err)
+		return core.Fail(core.E("sdk.Diff", "failed to load revision spec", err))
 	}
 
 	// Compute diff with operations sources map for better error reporting
 	diffResult, operationsSources, err := diff.GetWithOperationsSourcesMap(diff.NewConfig(), baseSpec, revSpec)
 	if err != nil {
-		return nil, coreerr.E("sdk.Diff", "failed to compute diff", err)
+		return core.Fail(core.E("sdk.Diff", "failed to compute diff", err))
 	}
 
 	// Check for breaking changes
@@ -93,15 +92,15 @@ func DiffWithOptions(basePath, revisionPath string, opts DiffOptions) (*DiffResu
 
 	result.Summary = diffSummary(result, resolveDiffLevel(opts.MinimumLevel))
 
-	return result, nil
+	return core.Ok(result)
 }
 
 // DiffExitCode returns the exit code for CI integration.
 // 0 = no breaking changes, 1 = breaking changes, 2 = error.
 //
 // os.Exit(sdk.DiffExitCode(sdk.Diff("old.yaml", "new.yaml")))
-func DiffExitCode(result *DiffResult, err error) int {
-	if err != nil {
+func DiffExitCode(result *DiffResult, failure any) int {
+	if failure != nil {
 		return 2
 	}
 	if result == nil {

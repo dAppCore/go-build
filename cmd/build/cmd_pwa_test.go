@@ -13,10 +13,7 @@ func TestPwa_FindManifestURLGood(t *testing.T) {
 	t.Run("accepts a standard manifest link", func(t *testing.T) {
 		htmlContent := `<html><head><link rel="manifest" href="/manifest.json"></head></html>`
 
-		got, err := findManifestURL(htmlContent, "https://example.test/app/")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		got := requireBuildCmdString(t, findManifestURL(htmlContent, "https://example.test/app/"))
 		if !stdlibAssertEqual("https://example.test/manifest.json", got) {
 			t.Fatalf("want %v, got %v", "https://example.test/manifest.json", got)
 		}
@@ -26,10 +23,7 @@ func TestPwa_FindManifestURLGood(t *testing.T) {
 	t.Run("accepts case-insensitive tokenised rel values", func(t *testing.T) {
 		htmlContent := `<html><head><link rel="Manifest icon" href="manifest.json"></head></html>`
 
-		got, err := findManifestURL(htmlContent, "https://example.test/app/")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		got := requireBuildCmdString(t, findManifestURL(htmlContent, "https://example.test/app/"))
 		if !stdlibAssertEqual("https://example.test/app/manifest.json", got) {
 			t.Fatalf("want %v, got %v", "https://example.test/app/manifest.json", got)
 		}
@@ -41,15 +35,14 @@ func TestPwa_FindManifestURLBad(t *testing.T) {
 	t.Run("returns an error when no manifest link exists", func(t *testing.T) {
 		htmlContent := `<html><head><link rel="icon" href="/icon.png"></head></html>`
 
-		got, err := findManifestURL(htmlContent, "https://example.test/app/")
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		result := findManifestURL(htmlContent, "https://example.test/app/")
+		message := requireBuildCmdError(t, result)
+		got, _ := result.Value.(string)
 		if !stdlibAssertEmpty(got) {
 			t.Fatalf("expected empty, got %v", got)
 		}
-		if !stdlibAssertContains(err.Error(), "pwa.findManifestURL") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "pwa.findManifestURL")
+		if !stdlibAssertContains(message, "pwa.findManifestURL") {
+			t.Fatalf("expected %v to contain %v", message, "pwa.findManifestURL")
 		}
 
 	})
@@ -72,10 +65,9 @@ func TestPwa_ExtractHTMLMetadataAndAssetsGood(t *testing.T) {
   </body>
 </html>`
 
-	metadata, assets, err := extractHTMLMetadataAndAssets(htmlContent, "https://example.test/app/")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	extracted := requireBuildCmdPWAExtraction(t, extractHTMLMetadataAndAssets(htmlContent, "https://example.test/app/"))
+	metadata := extracted.Metadata
+	assets := extracted.Assets
 	if !stdlibAssertEqual("Example App", metadata.DisplayName) {
 		t.Fatalf("want %v, got %v", "Example App", metadata.DisplayName)
 	}
@@ -138,22 +130,14 @@ func TestPwa_DownloadPWA_DownloadsHTMLAndManifestAssetsGood(t *testing.T) {
 	defer server.Close()
 
 	destDir := t.TempDir()
-	if err := downloadPWA(context.Background(), server.URL+"/app", destDir); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, downloadPWA(context.Background(), server.URL+"/app", destDir))
 
-	indexBody, err := ax.ReadFile(ax.Join(destDir, "index.html"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	indexBody := requireBuildCmdBytes(t, ax.ReadFile(ax.Join(destDir, "index.html")))
 	if !stdlibAssertContains(string(indexBody), "<title>Example App</title>") {
 		t.Fatalf("expected %v to contain %v", string(indexBody), "<title>Example App</title>")
 	}
 
-	manifestBody, err := ax.ReadFile(ax.Join(destDir, "manifest.json"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	manifestBody := requireBuildCmdBytes(t, ax.ReadFile(ax.Join(destDir, "manifest.json")))
 	if !stdlibAssertContains(string(manifestBody), `"name": "Manifest App"`) {
 		t.Fatalf("expected %v to contain %v", string(manifestBody), `"name": "Manifest App"`)
 	}
@@ -174,23 +158,19 @@ func TestPwa_DownloadPWA_DownloadsHTMLAndManifestAssetsGood(t *testing.T) {
 
 func TestPwa_ResolvePWAAppConfig_UsesLocalMetadataGood(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := ax.WriteString(ax.Join(projectDir, "index.html"), `<!doctype html>
+	requireBuildCmdOK(t, ax.WriteString(ax.Join(projectDir, "index.html"), `<!doctype html>
 <html>
   <head>
     <title>Fallback Title</title>
     <meta name="description" content="HTML description">
     <link rel="manifest" href="/manifest.json">
   </head>
-</html>`, 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteString(ax.Join(projectDir, "manifest.json"), `{
+</html>`, 0o644))
+	requireBuildCmdOK(t, ax.WriteString(ax.Join(projectDir, "manifest.json"), `{
   "name": "Manifest App",
   "description": "Manifest description",
   "icons": [{"src": "/icon.png"}]
-}`, 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+}`, 0o644))
 
 	cfg := resolvePWAAppConfig(projectDir)
 	if !stdlibAssertEqual("manifest-app", cfg.ModuleName) {

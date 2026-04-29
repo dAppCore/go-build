@@ -8,7 +8,6 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 var defaultBuilderResolver BuilderResolver
@@ -206,8 +205,8 @@ func WithVersionResolver(resolver VersionResolver) RunOption {
 // Run executes the build pipeline and mirrors produced artifacts into the
 // configured output medium.
 //
-//	artifacts, err := build.Run(build.WithOutput(io.Local))
-func Run(opts ...RunOption) ([]Artifact, error) {
+//	result := build.Run(build.WithOutput(io.Local))
+func Run(opts ...RunOption) core.Result {
 	cfg := DefaultRunConfig()
 	for _, opt := range opts {
 		if opt != nil {
@@ -222,11 +221,11 @@ func Run(opts ...RunOption) ([]Artifact, error) {
 
 	projectDir := cfg.ProjectDir
 	if projectDir == "" {
-		var err error
-		projectDir, err = ax.Getwd()
-		if err != nil {
-			return nil, coreerr.E("build.Run", "failed to get working directory", err)
+		wd := ax.Getwd()
+		if !wd.OK {
+			return core.Fail(core.E("build.Run", "failed to get working directory", core.NewError(wd.Error())))
 		}
+		projectDir = wd.Value.(string)
 	}
 	projectDir = ax.Clean(projectDir)
 
@@ -237,11 +236,12 @@ func Run(opts ...RunOption) ([]Artifact, error) {
 
 	destinationRoot := resolveRunOutputRoot(projectDir, cfg.OutputDir, output)
 
-	stageRoot, err := ax.MkdirTemp("core-build-*")
-	if err != nil {
-		return nil, coreerr.E("build.Run", "failed to create build staging directory", err)
+	stage := ax.MkdirTemp("core-build-*")
+	if !stage.OK {
+		return core.Fail(core.E("build.Run", "failed to create build staging directory", core.NewError(stage.Error())))
 	}
-	defer func() { _ = ax.RemoveAll(stageRoot) }()
+	stageRoot := stage.Value.(string)
+	defer ax.RemoveAll(stageRoot)
 
 	stageOutputDir := ax.Join(stageRoot, "dist")
 
@@ -259,7 +259,7 @@ func Run(opts ...RunOption) ([]Artifact, error) {
 		ResolveVersion: cfg.ResolveVersion,
 	}
 
-	plan, err := pipeline.Plan(ctx, PipelineRequest{
+	planResult := pipeline.Plan(ctx, PipelineRequest{
 		ProjectDir:    projectDir,
 		ConfigPath:    cfg.ConfigPath,
 		BuildConfig:   cfg.BuildConfig,
@@ -282,16 +282,18 @@ func Run(opts ...RunOption) ([]Artifact, error) {
 		Targets:       append([]Target(nil), cfg.Targets...),
 		Version:       cfg.Version,
 	})
-	if err != nil {
-		return nil, err
+	if !planResult.OK {
+		return planResult
 	}
+	plan := planResult.Value.(*PipelinePlan)
 
-	result, err := pipeline.Run(ctx, plan)
-	if err != nil {
-		return nil, err
+	result := pipeline.Run(ctx, plan)
+	if !result.OK {
+		return result
 	}
+	pipelineResult := result.Value.(*PipelineResult)
 
-	return mirrorArtifacts(coreio.Local, output, stageOutputDir, destinationRoot, result.Artifacts)
+	return mirrorArtifacts(coreio.Local, output, stageOutputDir, destinationRoot, pipelineResult.Artifacts)
 }
 
 func resolveRunOutputRoot(projectDir, outputDir string, output coreio.Medium) string {
@@ -324,7 +326,7 @@ func mediumEquals(left, right coreio.Medium) bool {
 	return reflect.ValueOf(left).Interface() == reflect.ValueOf(right).Interface()
 }
 
-func mirrorArtifacts(source, destination coreio.Medium, sourceRoot, destinationRoot string, artifacts []Artifact) ([]Artifact, error) {
+func mirrorArtifacts(source, destination coreio.Medium, sourceRoot, destinationRoot string, artifacts []Artifact) core.Result {
 	if source == nil {
 		source = coreio.Local
 	}
@@ -334,14 +336,19 @@ func mirrorArtifacts(source, destination coreio.Medium, sourceRoot, destinationR
 
 	mirrored := make([]Artifact, 0, len(artifacts))
 	for _, artifact := range artifacts {
-		relativePath, err := ax.Rel(sourceRoot, artifact.Path)
-		if err != nil || relativePath == "" || core.HasPrefix(relativePath, "..") {
+		relativePathResult := ax.Rel(sourceRoot, artifact.Path)
+		relativePath := ""
+		if relativePathResult.OK {
+			relativePath = relativePathResult.Value.(string)
+		}
+		if !relativePathResult.OK || relativePath == "" || core.HasPrefix(relativePath, "..") {
 			relativePath = ax.Base(artifact.Path)
 		}
 
 		destinationPath := joinOutputPath(destinationRoot, relativePath)
-		if err := copyMediumPath(source, artifact.Path, destination, destinationPath); err != nil {
-			return nil, coreerr.E("build.Run", "failed to mirror artifact "+artifact.Path, err)
+		copied := copyMediumPath(source, artifact.Path, destination, destinationPath)
+		if !copied.OK {
+			return core.Fail(core.E("build.Run", "failed to mirror artifact "+artifact.Path, core.NewError(copied.Error())))
 		}
 
 		mirroredArtifact := artifact
@@ -349,7 +356,7 @@ func mirrorArtifacts(source, destination coreio.Medium, sourceRoot, destinationR
 		mirrored = append(mirrored, mirroredArtifact)
 	}
 
-	return mirrored, nil
+	return core.Ok(mirrored)
 }
 
 func joinOutputPath(root, path string) string {
@@ -362,11 +369,12 @@ func joinOutputPath(root, path string) string {
 	return ax.Join(root, path)
 }
 
-func copyMediumPath(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) error {
-	info, err := source.Stat(sourcePath)
-	if err != nil {
-		return err
+func copyMediumPath(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) core.Result {
+	infoResult := source.Stat(sourcePath)
+	if !infoResult.OK {
+		return infoResult
 	}
+	info := infoResult.Value.(fs.FileInfo)
 
 	if info.IsDir() {
 		return copyMediumDir(source, sourcePath, destination, destinationPath)
@@ -375,36 +383,40 @@ func copyMediumPath(source coreio.Medium, sourcePath string, destination coreio.
 	return copyMediumFile(source, sourcePath, destination, destinationPath, info.Mode())
 }
 
-func copyMediumDir(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) error {
-	if err := destination.EnsureDir(destinationPath); err != nil {
-		return err
+func copyMediumDir(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) core.Result {
+	created := destination.EnsureDir(destinationPath)
+	if !created.OK {
+		return created
 	}
 
-	entries, err := source.List(sourcePath)
-	if err != nil {
-		return err
+	entriesResult := source.List(sourcePath)
+	if !entriesResult.OK {
+		return entriesResult
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	for _, entry := range entries {
 		childSourcePath := ax.Join(sourcePath, entry.Name())
 		childDestinationPath := ax.Join(destinationPath, entry.Name())
-		if err := copyMediumPath(source, childSourcePath, destination, childDestinationPath); err != nil {
-			return err
+		copied := copyMediumPath(source, childSourcePath, destination, childDestinationPath)
+		if !copied.OK {
+			return copied
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func copyMediumFile(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string, mode fs.FileMode) error {
-	if err := destination.EnsureDir(ax.Dir(destinationPath)); err != nil {
-		return err
+func copyMediumFile(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string, mode fs.FileMode) core.Result {
+	created := destination.EnsureDir(ax.Dir(destinationPath))
+	if !created.OK {
+		return created
 	}
 
-	content, err := source.Read(sourcePath)
-	if err != nil {
-		return err
+	content := source.Read(sourcePath)
+	if !content.OK {
+		return content
 	}
 
-	return destination.WriteMode(destinationPath, content, mode)
+	return destination.WriteMode(destinationPath, content.Value.(string), mode)
 }

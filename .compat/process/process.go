@@ -27,61 +27,66 @@ type Program struct {
 	Path string
 }
 
-func (p *Program) Find() error {
+func (p *Program) Find() core.Result {
 	target := p.Path
 	if target == "" {
 		target = p.Name
 	}
 	if target == "" {
-		return core.NewError("program name is empty")
+		return core.Fail(core.NewError("program name is empty"))
 	}
 	found := core.App{}.Find(target, target)
 	if !found.OK {
-		return resultError(found)
+		return found
 	}
 	p.Path = found.Value.(*core.App).Path
-	return nil
+	return core.Ok(nil)
 }
 
-func (p *Program) Run(ctx context.Context, args ...string) (string, error) {
+func (p *Program) Run(ctx context.Context, args ...string) core.Result {
 	return p.RunDir(ctx, "", args...)
 }
 
-func (p *Program) RunDir(ctx context.Context, dir string, args ...string) (string, error) {
+func (p *Program) RunDir(ctx context.Context, dir string, args ...string) core.Result {
 	if ctx == nil {
-		return "", core.NewError("command context is required")
+		return core.Fail(core.NewError("command context is required"))
 	}
 	binary := p.Path
 	if binary == "" {
 		binary = p.Name
 	}
 	if binary == "" {
-		return "", core.NewError("program name is empty")
+		return core.Fail(core.NewError("program name is empty"))
 	}
-	resolved, err := resolveExecutable(binary)
-	if err != nil {
-		return "", err
+	resolved := resolveExecutable(binary)
+	if !resolved.OK {
+		return resolved
 	}
+	path := resolved.Value.(string)
 	out := core.NewBuffer()
-	cmd := &core.Cmd{Path: resolved, Args: append([]string{resolved}, args...), Dir: dir, Stdout: out, Stderr: out}
-	err = runCommand(ctx, cmd)
-	return trimRightSpace(out.String()), err
+	cmd := &core.Cmd{Path: path, Args: append([]string{path}, args...), Dir: dir, Stdout: out, Stderr: out}
+	run := runCommand(ctx, cmd)
+	if !run.OK {
+		return core.Fail(core.E("process.RunDir", trimRightSpace(out.String()), core.NewError(run.Error())))
+	}
+	return core.Ok(trimRightSpace(out.String()))
 }
 
-func RunWithOptions(ctx context.Context, opts RunOptions) (string, error) {
+func RunWithOptions(ctx context.Context, opts RunOptions) core.Result {
 	if ctx == nil {
-		return "", core.NewError("command context is required")
+		return core.Fail(core.NewError("command context is required"))
 	}
 	if opts.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opts.Timeout)
 		defer cancel()
 	}
-	resolved, err := resolveExecutable(opts.Command)
-	if err != nil {
-		return "", err
+	resolved := resolveExecutable(opts.Command)
+	if !resolved.OK {
+		return resolved
 	}
-	cmd := &core.Cmd{Path: resolved, Args: append([]string{resolved}, opts.Args...)}
+	path := resolved.Value.(string)
+	cmd := &core.Cmd{Path: path, Args: append([]string{path}, opts.Args...)}
 	cmd.Dir = opts.Dir
 	if len(opts.Env) > 0 {
 		cmd.Env = append(core.Environ(), opts.Env...)
@@ -94,8 +99,11 @@ func RunWithOptions(ctx context.Context, opts RunOptions) (string, error) {
 		cmd.Stdout = out
 		cmd.Stderr = out
 	}
-	err = runCommand(ctx, cmd)
-	return trimRightSpace(out.String()), err
+	run := runCommand(ctx, cmd)
+	if !run.OK {
+		return core.Fail(core.E("process.RunWithOptions", trimRightSpace(out.String()), core.NewError(run.Error())))
+	}
+	return core.Ok(trimRightSpace(out.String()))
 }
 
 type DaemonOptions struct {
@@ -113,29 +121,29 @@ func NewDaemon(opts DaemonOptions) *Daemon {
 	return &Daemon{options: opts}
 }
 
-func (d *Daemon) Start() error {
+func (d *Daemon) Start() core.Result {
 	if d == nil || d.options.PIDFile == "" {
-		return nil
+		return core.Ok(nil)
 	}
 	written := core.WriteFile(d.options.PIDFile, []byte("0\n"), 0o644)
 	if !written.OK {
-		return resultError(written)
+		return written
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func (d *Daemon) Stop() error {
+func (d *Daemon) Stop() core.Result {
 	if d == nil || d.options.PIDFile == "" {
-		return nil
+		return core.Ok(nil)
 	}
 	removed := core.Remove(d.options.PIDFile)
 	if !removed.OK {
-		err := resultError(removed)
-		if !core.IsNotExist(err) {
-			return err
+		if err, ok := removed.Value.(error); ok && core.IsNotExist(err) {
+			return core.Ok(nil)
 		}
+		return removed
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func (d *Daemon) SetReady(ready bool) {
@@ -144,23 +152,23 @@ func (d *Daemon) SetReady(ready bool) {
 	}
 }
 
-func resolveExecutable(name string) (string, error) {
+func resolveExecutable(name string) core.Result {
 	if name == "" {
-		return "", core.NewError("program name is empty")
+		return core.Fail(core.NewError("program name is empty"))
 	}
 	if core.Contains(name, "/") || core.Contains(name, "\\") {
-		return name, nil
+		return core.Ok(name)
 	}
 	found := core.App{}.Find(name, name)
 	if !found.OK {
-		return "", resultError(found)
+		return found
 	}
-	return found.Value.(*core.App).Path, nil
+	return core.Ok(found.Value.(*core.App).Path)
 }
 
-func runCommand(ctx context.Context, cmd *core.Cmd) error {
+func runCommand(ctx context.Context, cmd *core.Cmd) core.Result {
 	if err := cmd.Start(); err != nil {
-		return err
+		return core.Fail(err)
 	}
 	done := make(chan error, 1)
 	go func() {
@@ -168,17 +176,17 @@ func runCommand(ctx context.Context, cmd *core.Cmd) error {
 	}()
 	select {
 	case err := <-done:
-		return err
+		return core.ResultOf(nil, err)
 	case <-ctx.Done():
 		if cmd.Process != nil {
 			killErr := cmd.Process.Kill()
 			<-done
 			if killErr != nil {
-				return killErr
+				return core.Fail(killErr)
 			}
-			return ctx.Err()
+			return core.Fail(ctx.Err())
 		}
-		return ctx.Err()
+		return core.Fail(ctx.Err())
 	}
 }
 
@@ -191,11 +199,4 @@ func trimRightSpace(value string) string {
 		value = value[:len(value)-size]
 	}
 	return value
-}
-
-func resultError(result core.Result) error {
-	if err, ok := result.Value.(error); ok {
-		return err
-	}
-	return core.NewError(result.Error())
 }

@@ -8,7 +8,7 @@ import (
 func ExamplePublish() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = Publish(ctx, &Config{}, true)
+	_ = Publish(ctx, &Config{}, true)
 	core.Println("Publish")
 	// Output: Publish
 }
@@ -16,7 +16,7 @@ func ExamplePublish() {
 func ExampleRun() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = Run(ctx, &Config{}, true)
+	_ = Run(ctx, &Config{}, true)
 	core.Println("Run")
 	// Output: Run
 }

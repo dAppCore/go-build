@@ -79,11 +79,11 @@ var discoveryMarkerPaths = []string{
 // For example, a Wails project returns [wails, go] since it has both wails.json and go.mod.
 //
 // types, err := build.Discover(io.Local, "/home/user/my-project") // → [go]
-func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
+func Discover(fs io.Medium, dir string) core.Result {
 	var detected []ProjectType
 
 	if configuredType, ok := configuredProjectType(fs, dir); ok {
-		return []ProjectType{configuredType}, nil
+		return core.Ok([]ProjectType{configuredType})
 	}
 
 	appendType := func(projectType ProjectType, ok bool) {
@@ -97,22 +97,23 @@ func Discover(fs io.Medium, dir string) ([]ProjectType, error) {
 		appendType(rule.projectType, rule.matches(fs, dir))
 	}
 
-	return detected, nil
+	return core.Ok(detected)
 }
 
 // PrimaryType returns the most specific project type detected in the directory.
 // Returns empty string if no project type is detected.
 //
 // pt, err := build.PrimaryType(io.Local, ".") // → "go"
-func PrimaryType(fs io.Medium, dir string) (ProjectType, error) {
-	types, err := Discover(fs, dir)
-	if err != nil {
-		return "", err
+func PrimaryType(fs io.Medium, dir string) core.Result {
+	typesResult := Discover(fs, dir)
+	if !typesResult.OK {
+		return typesResult
 	}
+	types := typesResult.Value.([]ProjectType)
 	if len(types) == 0 {
-		return "", nil
+		return core.Ok(ProjectType(""))
 	}
-	return types[0], nil
+	return core.Ok(types[0])
 }
 
 // IsGoProject checks if the directory contains a Go project (go.mod, go.work, or wails.json).
@@ -213,12 +214,12 @@ func HasSubtreeNpm(fs io.Medium, dir string) bool {
 	}
 
 	// Depth 1: list immediate subdirectories
-	entries, err := fs.List(dir)
-	if err != nil {
+	entriesResult := fs.List(dir)
+	if !entriesResult.OK {
 		return false
 	}
 
-	for _, entry := range entries {
+	for _, entry := range entriesResult.Value.([]core.FsDirEntry) {
 		if !entry.IsDir() {
 			continue
 		}
@@ -235,11 +236,11 @@ func HasSubtreeNpm(fs io.Medium, dir string) bool {
 		}
 
 		// Depth 2: list subdirectories of subdir
-		subEntries, err := fs.List(subdir)
-		if err != nil {
+		subEntriesResult := fs.List(subdir)
+		if !subEntriesResult.OK {
 			continue
 		}
-		for _, subEntry := range subEntries {
+		for _, subEntry := range subEntriesResult.Value.([]core.FsDirEntry) {
 			if !subEntry.IsDir() {
 				continue
 			}
@@ -365,11 +366,12 @@ type DiscoveryResult struct {
 //
 //	result, err := build.DiscoverFull(io.Local, ".")
 //	if result.HasFrontend { ... }
-func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
-	types, err := Discover(fs, dir)
-	if err != nil {
-		return nil, err
+func DiscoverFull(fs io.Medium, dir string) core.Result {
+	typesResult := Discover(fs, dir)
+	if !typesResult.OK {
+		return typesResult
 	}
+	types := typesResult.Value.([]ProjectType)
 
 	result := &DiscoveryResult{
 		Types:   types,
@@ -453,7 +455,7 @@ func DiscoverFull(fs io.Medium, dir string) (*DiscoveryResult, error) {
 	result.SuggestedStack = SuggestStack(types)
 	result.PrimaryStackSuggestion = resolvePrimaryStackSuggestion(result)
 
-	return result, nil
+	return core.Ok(result)
 }
 
 func discoverHostOS() string {
@@ -517,10 +519,11 @@ func configuredProjectType(fs io.Medium, dir string) (ProjectType, bool) {
 		return "", false
 	}
 
-	cfg, err := LoadConfig(fs, dir)
-	if err != nil || cfg == nil {
+	cfgResult := LoadConfig(fs, dir)
+	if !cfgResult.OK || cfgResult.Value == nil {
 		return "", false
 	}
+	cfg := cfgResult.Value.(*BuildConfig)
 
 	projectType, ok := parseProjectType(cfg.Build.Type)
 	if !ok {
@@ -596,12 +599,12 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 	if fs == nil {
 		return false
 	}
-	entries, err := fs.List(dir)
-	if err != nil {
+	entriesResult := fs.List(dir)
+	if !entriesResult.OK {
 		return false
 	}
 
-	for _, entry := range entries {
+	for _, entry := range entriesResult.Value.([]core.FsDirEntry) {
 		if !entry.IsDir() {
 			continue
 		}
@@ -615,11 +618,11 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 			return true
 		}
 
-		subEntries, err := fs.List(subdir)
-		if err != nil {
+		subEntriesResult := fs.List(subdir)
+		if !subEntriesResult.OK {
 			continue
 		}
-		for _, subEntry := range subEntries {
+		for _, subEntry := range subEntriesResult.Value.([]core.FsDirEntry) {
 			if !subEntry.IsDir() {
 				continue
 			}
@@ -653,12 +656,12 @@ func findMkDocsConfigInSubtree(fs io.Medium, dir string, depth int) string {
 		return ""
 	}
 
-	entries, err := fs.List(dir)
-	if err != nil {
+	entriesResult := fs.List(dir)
+	if !entriesResult.OK {
 		return ""
 	}
 
-	for _, entry := range entries {
+	for _, entry := range entriesResult.Value.([]core.FsDirEntry) {
 		if !entry.IsDir() {
 			continue
 		}
@@ -704,12 +707,12 @@ func hasSubtreeManifest(fs io.Medium, dir string, depth int, match func(io.Mediu
 		return false
 	}
 
-	entries, err := fs.List(dir)
-	if err != nil {
+	entriesResult := fs.List(dir)
+	if !entriesResult.OK {
 		return false
 	}
 
-	for _, entry := range entries {
+	for _, entry := range entriesResult.Value.([]core.FsDirEntry) {
 		if !entry.IsDir() {
 			continue
 		}
@@ -857,12 +860,12 @@ func hasYAMLInDir(fs io.Medium, dir string) bool {
 		return false
 	}
 
-	entries, err := fs.List(dir)
-	if err != nil {
+	entriesResult := fs.List(dir)
+	if !entriesResult.OK {
 		return false
 	}
 
-	for _, entry := range entries {
+	for _, entry := range entriesResult.Value.([]core.FsDirEntry) {
 		if entry.IsDir() {
 			continue
 		}
@@ -882,12 +885,12 @@ func detectDistroVersion(fs io.Medium) string {
 	}
 
 	for _, path := range []string{"/etc/os-release", "/usr/lib/os-release"} {
-		content, err := fs.Read(path)
-		if err != nil {
+		content := fs.Read(path)
+		if !content.OK {
 			continue
 		}
 
-		if distro := parseOSReleaseDistro(content); distro != "" {
+		if distro := parseOSReleaseDistro(content.Value.(string)); distro != "" {
 			return distro
 		}
 	}

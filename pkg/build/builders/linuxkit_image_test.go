@@ -16,8 +16,8 @@ func setupFakeLinuxKitImageToolchain(t *testing.T, binDir string) {
 	dockerScript := `#!/bin/sh
 exit 0
 `
-	if err := ax.WriteFile(ax.Join(binDir, "docker"), []byte(dockerScript), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "docker"), []byte(dockerScript), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	script := `#!/bin/sh
@@ -65,8 +65,8 @@ esac
 mkdir -p "$dir"
 printf 'linuxkit image\n' > "$dir/$name$ext"
 `
-	if err := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -127,15 +127,16 @@ func TestLinuxKitImage_RenderTemplateUsesImmutableServiceImageGood(t *testing.T)
 		t.Fatal("expected true")
 	}
 
-	rendered, err := builder.renderTemplate(baseImage, build.LinuxKitConfig{
+	renderResult := builder.renderTemplate(baseImage, build.LinuxKitConfig{
 		Base:     "core-dev",
 		Mounts:   []string{"/workspace"},
 		Formats:  []string{"oci"},
 		Packages: []string{"gh"},
 	}, "v1.2.3", "core-build-linuxkit/core-dev:test")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !renderResult.OK {
+		t.Fatalf("unexpected error: %v", renderResult.Error())
 	}
+	rendered := renderResult.Value.(string)
 	if !stdlibAssertContains(rendered, `image: "core-build-linuxkit/core-dev:test"`) {
 		t.Fatalf("expected %v to contain %v", rendered, `image: "core-build-linuxkit/core-dev:test"`)
 	}
@@ -155,14 +156,15 @@ func TestLinuxKitImage_RenderTemplateRestoresDefaultWorkspaceMountGood(t *testin
 		t.Fatal("expected true")
 	}
 
-	rendered, err := builder.renderTemplate(baseImage, build.LinuxKitConfig{
+	renderResult := builder.renderTemplate(baseImage, build.LinuxKitConfig{
 		Base:    "core-dev",
 		Mounts:  []string{""},
 		Formats: []string{"oci"},
 	}, "v1.2.3", "core-build-linuxkit/core-dev:test")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !renderResult.OK {
+		t.Fatalf("unexpected error: %v", renderResult.Error())
 	}
+	rendered := renderResult.Value.(string)
 	if !stdlibAssertContains(rendered, "binds:") {
 		t.Fatalf("expected %v to contain %v", rendered, "binds:")
 	}
@@ -199,17 +201,14 @@ func TestLinuxKitImage_LinuxKitImageBuilderBuildGood(t *testing.T) {
 		},
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg))
 	if len(artifacts) != 2 {
 		t.Fatalf("want len %v, got %v", 2, len(artifacts))
 	}
-	if _, err := ax.Stat(ax.Join(outputDir, "core-dev.tar")); err != nil {
+	if result := ax.Stat(ax.Join(outputDir, "core-dev.tar")); !result.OK {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "core-dev.tar"))
 	}
-	if _, err := ax.Stat(ax.Join(outputDir, "core-dev.aci")); err != nil {
+	if result := ax.Stat(ax.Join(outputDir, "core-dev.aci")); !result.OK {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "core-dev.aci"))
 	}
 	if ax.Exists(ax.Join(outputDir, ".core-dev-linuxkit.yml")) {
@@ -342,7 +341,7 @@ func TestLinuxkitImage_LinuxKitImageBuilder_Build_Good(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil)
+		_ = subject.Build(ctx, nil)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -354,7 +353,7 @@ func TestLinuxkitImage_LinuxKitImageBuilder_Build_Bad(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil)
+		_ = subject.Build(ctx, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -366,7 +365,7 @@ func TestLinuxkitImage_LinuxKitImageBuilder_Build_Ugly(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil)
+		_ = subject.Build(ctx, nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

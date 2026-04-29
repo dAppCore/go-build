@@ -8,7 +8,6 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	io_interface "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 //go:embed templates/release.yml
@@ -31,9 +30,9 @@ const DefaultReleaseWorkflowFileName = "release.yml"
 // build.WriteReleaseWorkflow(io.Local, ".github/workflows")                       // writes .github/workflows/release.yml
 // build.WriteReleaseWorkflow(io.Local, "ci/release.yml")                          // writes ./ci/release.yml under the project root
 // build.WriteReleaseWorkflow(io.Local, "/tmp/repo/.github/workflows/release.yml") // writes the absolute path unchanged
-func WriteReleaseWorkflow(filesystem io_interface.Medium, outputPath string) error {
+func WriteReleaseWorkflow(filesystem io_interface.Medium, outputPath string) core.Result {
 	if filesystem == nil {
-		return coreerr.E("build.WriteReleaseWorkflow", "filesystem medium is required", nil)
+		return core.Fail(core.E("build.WriteReleaseWorkflow", "filesystem medium is required", nil))
 	}
 
 	outputPath = cleanWorkflowInput(outputPath)
@@ -47,18 +46,20 @@ func WriteReleaseWorkflow(filesystem io_interface.Medium, outputPath string) err
 
 	content, err := releaseWorkflowTemplate.ReadFile("templates/release.yml")
 	if err != nil {
-		return coreerr.E("build.WriteReleaseWorkflow", "failed to read embedded workflow template", err)
+		return core.Fail(core.E("build.WriteReleaseWorkflow", "failed to read embedded workflow template", err))
 	}
 
-	if err := filesystem.EnsureDir(ax.Dir(outputPath)); err != nil {
-		return coreerr.E("build.WriteReleaseWorkflow", "failed to create release workflow directory", err)
+	created := filesystem.EnsureDir(ax.Dir(outputPath))
+	if !created.OK {
+		return core.Fail(core.E("build.WriteReleaseWorkflow", "failed to create release workflow directory", core.NewError(created.Error())))
 	}
 
-	if err := filesystem.Write(outputPath, string(content)); err != nil {
-		return coreerr.E("build.WriteReleaseWorkflow", "failed to write release workflow", err)
+	written := filesystem.Write(outputPath, string(content))
+	if !written.OK {
+		return core.Fail(core.E("build.WriteReleaseWorkflow", "failed to write release workflow", core.NewError(written.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // ReleaseWorkflowPath joins a project directory with the conventional workflow path.
@@ -122,7 +123,7 @@ func ResolveReleaseWorkflowPath(projectDir, outputPath string) string {
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "")        // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "", "ci/release.yml")        // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPath("/tmp/project", "ci/release.yml", "ci.yml")  // error
-func ResolveReleaseWorkflowInputPath(projectDir, pathInput, outputPathInput string) (string, error) {
+func ResolveReleaseWorkflowInputPath(projectDir, pathInput, outputPathInput string) core.Result {
 	return resolveReleaseWorkflowInputPathPair(
 		pathInput,
 		outputPathInput,
@@ -139,7 +140,7 @@ func ResolveReleaseWorkflowInputPath(projectDir, pathInput, outputPathInput stri
 //
 // build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "ci", "") // /tmp/project/ci/release.yml when /tmp/project/ci exists
 // build.ResolveReleaseWorkflowInputPathWithMedium(io.Local, "/tmp/project", "./ci", "") // /tmp/project/ci/release.yml
-func ResolveReleaseWorkflowInputPathWithMedium(filesystem io_interface.Medium, projectDir, pathInput, outputPathInput string) (string, error) {
+func ResolveReleaseWorkflowInputPathWithMedium(filesystem io_interface.Medium, projectDir, pathInput, outputPathInput string) core.Result {
 	return resolveReleaseWorkflowInputPathPair(
 		pathInput,
 		outputPathInput,
@@ -158,7 +159,7 @@ func ResolveReleaseWorkflowInputPathWithMedium(filesystem io_interface.Medium, p
 // build.ResolveReleaseWorkflowInputPathAliases(io.Local, "/tmp/project", "", "ci", "", "")  // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPathAliases(io.Local, "/tmp/project", "", "", "ci", "")  // /tmp/project/ci/release.yml
 // build.ResolveReleaseWorkflowInputPathAliases(io.Local, "/tmp/project", "", "", "", "ci")  // /tmp/project/ci/release.yml
-func ResolveReleaseWorkflowInputPathAliases(filesystem io_interface.Medium, projectDir, pathInput, workflowPathInput, workflowPathSnakeInput, workflowPathHyphenInput string) (string, error) {
+func ResolveReleaseWorkflowInputPathAliases(filesystem io_interface.Medium, projectDir, pathInput, workflowPathInput, workflowPathSnakeInput, workflowPathHyphenInput string) core.Result {
 	return resolveReleaseWorkflowInputPathAliasSet(
 		filesystem,
 		projectDir,
@@ -177,7 +178,7 @@ const releaseWorkflowPathAlias = "pa" + "th"
 // ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")        // "ci/release.yml"
 // ResolveReleaseWorkflowOutputPath("", "", "ci/release.yml")        // "ci/release.yml"
 // ResolveReleaseWorkflowOutputPath("ci/release.yml", "ops.yml", "") // error
-func ResolveReleaseWorkflowOutputPath(outputPathInput, outputPathSnakeInput, legacyOutputInput string) (string, error) {
+func ResolveReleaseWorkflowOutputPath(outputPathInput, outputPathSnakeInput, legacyOutputInput string) core.Result {
 	return ResolveReleaseWorkflowOutputPathAliases(
 		outputPathInput,
 		"",
@@ -208,7 +209,7 @@ func ResolveReleaseWorkflowOutputPathAliases(
 	workflowOutputHyphenInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput string,
-) (string, error) {
+) core.Result {
 	return resolveReleaseWorkflowOutputAliasSet(
 		outputPathInput,
 		outputPathHyphenInput,
@@ -239,7 +240,7 @@ func ResolveReleaseWorkflowOutputPathAliasesInProject(
 	workflowOutputHyphenInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput string,
-) (string, error) {
+) core.Result {
 	return ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 		nil,
 		projectDir,
@@ -273,7 +274,7 @@ func ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 	workflowOutputHyphenInput,
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput string,
-) (string, error) {
+) core.Result {
 	return resolveReleaseWorkflowOutputAliasSetInProject(
 		filesystem,
 		projectDir,
@@ -293,7 +294,7 @@ func ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 // resolveReleaseWorkflowInputPathPair resolves the workflow path from the path
 // and output aliases, rejecting conflicting values and preferring explicit
 // inputs over the default.
-func resolveReleaseWorkflowInputPathPair(pathInput, outputPathInput string, resolve func(string) string, errorName string) (string, error) {
+func resolveReleaseWorkflowInputPathPair(pathInput, outputPathInput string, resolve func(string) string, errorName string) core.Result {
 	pathInput = cleanWorkflowInput(pathInput)
 	outputPathInput = cleanWorkflowInput(outputPathInput)
 
@@ -301,20 +302,20 @@ func resolveReleaseWorkflowInputPathPair(pathInput, outputPathInput string, reso
 		resolvedPath := resolve(pathInput)
 		resolvedOutput := resolve(outputPathInput)
 		if resolvedPath != resolvedOutput {
-			return "", coreerr.E(errorName, "path and output specify different locations", nil)
+			return core.Fail(core.E(errorName, "path and output specify different locations", nil))
 		}
-		return resolvedPath, nil
+		return core.Ok(resolvedPath)
 	}
 
 	if pathInput != "" {
-		return resolve(pathInput), nil
+		return core.Ok(resolve(pathInput))
 	}
 
 	if outputPathInput != "" {
-		return resolve(outputPathInput), nil
+		return core.Ok(resolve(outputPathInput))
 	}
 
-	return resolve(""), nil
+	return core.Ok(resolve(""))
 }
 
 // resolveReleaseWorkflowOutputAliasSet resolves a workflow output alias set by
@@ -331,7 +332,7 @@ func resolveReleaseWorkflowOutputAliasSet(
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput,
 	errorName string,
-) (string, error) {
+) core.Result {
 	values := []string{
 		normalizeWorkflowOutputAlias(outputPathInput),
 		normalizeWorkflowOutputAlias(outputPathHyphenInput),
@@ -354,11 +355,11 @@ func resolveReleaseWorkflowOutputAliasSet(
 			continue
 		}
 		if resolved != value {
-			return "", coreerr.E(errorName, "output aliases specify different locations", nil)
+			return core.Fail(core.E(errorName, "output aliases specify different locations", nil))
 		}
 	}
 
-	return resolved, nil
+	return core.Ok(resolved)
 }
 
 // resolveReleaseWorkflowOutputAliasSetInProject resolves workflow output aliases
@@ -376,7 +377,7 @@ func resolveReleaseWorkflowOutputAliasSetInProject(
 	workflowOutputPathSnakeInput,
 	workflowOutputPathHyphenInput,
 	errorName string,
-) (string, error) {
+) core.Result {
 	values := []string{
 		cleanWorkflowInput(outputPathInput),
 		cleanWorkflowInput(outputPathHyphenInput),
@@ -402,11 +403,11 @@ func resolveReleaseWorkflowOutputAliasSetInProject(
 		}
 
 		if resolved != candidate {
-			return "", coreerr.E(errorName, "output aliases specify different locations", nil)
+			return core.Fail(core.E(errorName, "output aliases specify different locations", nil))
 		}
 	}
 
-	return resolved, nil
+	return core.Ok(resolved)
 }
 
 // normalizeWorkflowOutputAlias canonicalises a workflow output alias for comparison.
@@ -444,7 +445,7 @@ func resolveReleaseWorkflowInputPath(projectDir, input string, medium io_interfa
 
 // resolveReleaseWorkflowInputPathAliasSet resolves a workflow path from a set
 // of aliases and rejects conflicting values.
-func resolveReleaseWorkflowInputPathAliasSet(filesystem io_interface.Medium, projectDir, fieldLabel, primaryInput, secondaryInput, tertiaryInput, quaternaryInput, errorName string) (string, error) {
+func resolveReleaseWorkflowInputPathAliasSet(filesystem io_interface.Medium, projectDir, fieldLabel, primaryInput, secondaryInput, tertiaryInput, quaternaryInput, errorName string) core.Result {
 	values := []string{
 		cleanWorkflowInput(primaryInput),
 		cleanWorkflowInput(secondaryInput),
@@ -465,11 +466,11 @@ func resolveReleaseWorkflowInputPathAliasSet(filesystem io_interface.Medium, pro
 		}
 
 		if resolved != candidate {
-			return "", coreerr.E(errorName, fieldLabel+" aliases specify different locations", nil)
+			return core.Fail(core.E(errorName, fieldLabel+" aliases specify different locations", nil))
 		}
 	}
 
-	return resolved, nil
+	return core.Ok(resolved)
 }
 
 // isWorkflowDirectoryPath reports whether a workflow path is explicitly marked

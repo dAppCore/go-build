@@ -2,7 +2,6 @@ package build
 
 import (
 	"dappco.re/go"
-	coreerr "dappco.re/go/log"
 )
 
 // VersionLinkerFlag returns a safe -X linker flag for injecting the build version.
@@ -10,13 +9,14 @@ import (
 // so the resulting ldflags string cannot be split into extra linker options.
 //
 //	flag, err := build.VersionLinkerFlag("v1.2.3")
-func VersionLinkerFlag(version string) (string, error) {
+func VersionLinkerFlag(version string) core.Result {
 	if version == "" {
-		return "", nil
+		return core.Ok("")
 	}
-	if err := ValidateVersionString(version); err != nil {
-		return "", coreerr.E("build.VersionLinkerFlag", "version contains unsupported characters for linker flags", err)
+	valid := ValidateVersionString(version)
+	if !valid.OK {
+		return core.Fail(core.E("build.VersionLinkerFlag", "version contains unsupported characters for linker flags", core.NewError(valid.Error())))
 	}
 
-	return core.Sprintf("-X main.version=%s", version), nil
+	return core.Ok(core.Sprintf("-X main.version=%s", version))
 }

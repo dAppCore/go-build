@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	core "dappco.re/go"
 	"github.com/gin-gonic/gin"
 )
 
@@ -69,7 +70,7 @@ type Engine struct {
 	wsHandler http.HandlerFunc
 }
 
-func New(opts ...Option) (*Engine, error) {
+func New(opts ...Option) core.Result {
 	engine := &Engine{router: gin.New()}
 	for _, opt := range opts {
 		opt(engine)
@@ -77,7 +78,7 @@ func New(opts ...Option) (*Engine, error) {
 	if engine.wsPath != "" && engine.wsHandler != nil {
 		engine.router.GET(engine.wsPath, gin.WrapF(engine.wsHandler))
 	}
-	return engine, nil
+	return core.Ok(engine)
 }
 
 func (e *Engine) Register(group RouteGroup) {
@@ -87,9 +88,9 @@ func (e *Engine) Register(group RouteGroup) {
 	group.RegisterRoutes(e.router.Group(group.BasePath()))
 }
 
-func (e *Engine) Serve(ctx context.Context) error {
+func (e *Engine) Serve(ctx context.Context) core.Result {
 	if e == nil {
-		return nil
+		return core.Ok(nil)
 	}
 	server := &http.Server{Addr: e.addr, Handler: e.router}
 	errCh := make(chan error, 1)
@@ -97,11 +98,11 @@ func (e *Engine) Serve(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		if err := server.Shutdown(context.Background()); err != nil {
-			return err
+			return core.Fail(err)
 		}
-		return ctx.Err()
+		return core.Fail(ctx.Err())
 	case err := <-errCh:
-		return err
+		return core.ResultOf(nil, err)
 	}
 }
 

@@ -8,6 +8,14 @@ import (
 	"github.com/oasdiff/oasdiff/checker"
 )
 
+func requireSDKDiffResult(t *testing.T, result core.Result) *DiffResult {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*DiffResult)
+}
+
 func TestDiff_NoBreakingGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -46,10 +54,7 @@ paths:
 	_ = ax.WriteFile(basePath, []byte(baseSpec), 0644)
 	_ = ax.WriteFile(revPath, []byte(revSpec), 0644)
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("Diff failed: %v", err)
-	}
+	result := requireSDKDiffResult(t, Diff(basePath, revPath))
 	if result.Breaking {
 		t.Error("expected no breaking changes for adding endpoint")
 	}
@@ -93,10 +98,7 @@ paths:
 	_ = ax.WriteFile(basePath, []byte(baseSpec), 0644)
 	_ = ax.WriteFile(revPath, []byte(revSpec), 0644)
 
-	result, err := Diff(basePath, revPath)
-	if err != nil {
-		t.Fatalf("Diff failed: %v", err)
-	}
+	result := requireSDKDiffResult(t, Diff(basePath, revPath))
 	if !result.Breaking {
 		t.Error("expected breaking change for removed endpoint")
 	}
@@ -150,10 +152,7 @@ paths:
 	_ = ax.WriteFile(basePath, []byte(baseSpec), 0644)
 	_ = ax.WriteFile(revPath, []byte(revSpec), 0644)
 
-	result, err := DiffWithOptions(basePath, revPath, DiffOptions{MinimumLevel: checker.WARN})
-	if err != nil {
-		t.Fatalf("DiffWithOptions failed: %v", err)
-	}
+	result := requireSDKDiffResult(t, DiffWithOptions(basePath, revPath, DiffOptions{MinimumLevel: checker.WARN}))
 	if result.Breaking {
 		t.Error("expected warning-only change for endpoint deprecation")
 	}
@@ -169,7 +168,7 @@ paths:
 func TestDiff_Diff_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Diff(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Diff(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -178,7 +177,7 @@ func TestDiff_Diff_Good(t *core.T) {
 func TestDiff_Diff_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Diff("", "")
+		_ = Diff("", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -187,7 +186,7 @@ func TestDiff_Diff_Bad(t *core.T) {
 func TestDiff_Diff_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Diff(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Diff(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -196,7 +195,7 @@ func TestDiff_Diff_Ugly(t *core.T) {
 func TestDiff_DiffWithOptions_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = DiffWithOptions(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), DiffOptions{})
+		_ = DiffWithOptions(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), DiffOptions{})
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -205,7 +204,7 @@ func TestDiff_DiffWithOptions_Good(t *core.T) {
 func TestDiff_DiffWithOptions_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = DiffWithOptions("", "", DiffOptions{})
+		_ = DiffWithOptions("", "", DiffOptions{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -214,7 +213,7 @@ func TestDiff_DiffWithOptions_Bad(t *core.T) {
 func TestDiff_DiffWithOptions_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = DiffWithOptions(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), DiffOptions{})
+		_ = DiffWithOptions(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), DiffOptions{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

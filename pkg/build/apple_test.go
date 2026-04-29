@@ -9,10 +9,50 @@ import (
 	"dappco.re/go/io"
 )
 
+func requireAppleString(t *testing.T, result core.Result) string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
+}
+
+func requireAppleBytes(t *testing.T, result core.Result) []byte {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]byte)
+}
+
+func requireAppleBuildResult(t *testing.T, result core.Result) *AppleBuildResult {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*AppleBuildResult)
+}
+
+func requireAppleStrings(t *testing.T, result core.Result) []string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]string)
+}
+
+func requireAppleASCPackage(t *testing.T, result core.Result) ascUploadPackage {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(ascUploadPackage)
+}
+
 func TestApple_WriteInfoPlist_Good(t *testing.T) {
 	appPath := ax.Join(t.TempDir(), "Core.app")
 
-	path, err := WriteInfoPlist(io.Local, appPath, InfoPlist{
+	path := requireAppleString(t, WriteInfoPlist(io.Local, appPath, InfoPlist{
 		BundleID:                      "ai.lthn.core",
 		BundleName:                    "Core",
 		BundleDisplayName:             "Core by Lethean",
@@ -24,15 +64,9 @@ func TestApple_WriteInfoPlist_Good(t *testing.T) {
 		Executable:                    "Core",
 		HighResCapable:                true,
 		SupportsSecureRestorableState: true,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireAppleString(t, io.Local.Read(path))
 	if !stdlibAssertContains(content, "<key>CFBundleIdentifier</key>") {
 		t.Fatalf("expected %v to contain %v", content, "<key>CFBundleIdentifier</key>")
 	}
@@ -64,32 +98,30 @@ func TestApple_CreateUniversal_Good(t *testing.T) {
 		appleCombinedOutput = oldCombined
 	})
 
-	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
-		return name, nil
+	appleResolveCommand = func(name string, fallbackPaths ...string) core.Result {
+		return core.Ok(name)
 	}
-	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
 		if !stdlibAssertEqual("lipo", command) {
 			t.Fatalf("want %v, got %v", "lipo", command)
 		}
 		if !stdlibAssertEqual([]string{"-create", "-output", ax.Join(outputPath, "Contents", "MacOS", "Core"), ax.Join(arm64Path, "Contents", "MacOS", "Core"), ax.Join(amd64Path, "Contents", "MacOS", "Core")}, args) {
 			t.Fatalf("want %v, got %v", []string{"-create", "-output", ax.Join(outputPath, "Contents", "MacOS", "Core"), ax.Join(arm64Path, "Contents", "MacOS", "Core"), ax.Join(amd64Path, "Contents", "MacOS", "Core")}, args)
 		}
-		if err := ax.WriteFile(ax.Join(outputPath, "Contents", "MacOS", "Core"), []byte("universal"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := ax.WriteFile(ax.Join(outputPath, "Contents", "MacOS", "Core"), []byte("universal"), 0o755)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		return "", nil
+		return core.Ok("")
 	}
 
-	err := CreateUniversal(arm64Path, amd64Path, outputPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := CreateUniversal(arm64Path, amd64Path, outputPath)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	content, err := ax.ReadFile(ax.Join(outputPath, "Contents", "MacOS", "Core"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireAppleBytes(t, ax.ReadFile(ax.Join(outputPath, "Contents", "MacOS", "Core")))
 	if !stdlibAssertEqual("universal", string(content)) {
 		t.Fatalf("want %v, got %v", "universal", string(content))
 	}
@@ -119,10 +151,10 @@ func TestApple_CreateUniversal_MergesHelpersAndFrameworks_Good(t *testing.T) {
 	})
 
 	var mergedOutputs []string
-	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
-		return name, nil
+	appleResolveCommand = func(name string, fallbackPaths ...string) core.Result {
+		return core.Ok(name)
 	}
-	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
 		if !stdlibAssertEqual("lipo", command) {
 			t.Fatalf("want %v, got %v", "lipo", command)
 		}
@@ -137,26 +169,24 @@ func TestApple_CreateUniversal_MergesHelpersAndFrameworks_Good(t *testing.T) {
 		}
 
 		mergedOutputs = append(mergedOutputs, args[2])
-		if err := ax.WriteFile(args[2], []byte("universal"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := ax.WriteFile(args[2], []byte("universal"), 0o755)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		return "", nil
+		return core.Ok("")
 	}
 
-	err := CreateUniversal(arm64Path, amd64Path, outputPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := CreateUniversal(arm64Path, amd64Path, outputPath)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 	if !stdlibAssertEqual([]string{ax.Join(outputPath, "Contents", "Frameworks", "Example.framework", "Example"), ax.Join(outputPath, "Contents", "Frameworks", "libSupport.dylib"), ax.Join(outputPath, "Contents", "MacOS", "Core"), ax.Join(outputPath, "Contents", "MacOS", "Core Helper")}, mergedOutputs) {
 		t.Fatalf("want %v, got %v", []string{ax.Join(outputPath, "Contents", "Frameworks", "Example.framework", "Example"), ax.Join(outputPath, "Contents", "Frameworks", "libSupport.dylib"), ax.Join(outputPath, "Contents", "MacOS", "Core"), ax.Join(outputPath, "Contents", "MacOS", "Core Helper")}, mergedOutputs)
 	}
 
 	for _, path := range mergedOutputs {
-		content, readErr := ax.ReadFile(path)
-		if readErr != nil {
-			t.Fatalf("unexpected error: %v", readErr)
-		}
+		content := requireAppleBytes(t, ax.ReadFile(path))
 		if !stdlibAssertEqual("universal", string(content)) {
 			t.Fatalf("want %v, got %v", "universal", string(content))
 		}
@@ -215,11 +245,13 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 	outputPath := ax.Join(projectDir, "dist", "Core.dmg")
 
 	writeDummyAppBundle(t, appPath, "Core", "built")
-	if err := io.Local.EnsureDir(ax.Dir(backgroundPath)); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := io.Local.EnsureDir(ax.Dir(backgroundPath))
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(backgroundPath, []byte("background"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(backgroundPath, []byte("background"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	oldResolve := appleResolveCommand
@@ -234,10 +266,10 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 		args    []string
 	}
 
-	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
-		return name, nil
+	appleResolveCommand = func(name string, fallbackPaths ...string) core.Result {
+		return core.Ok(name)
 	}
-	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
 		commands = append(commands, struct {
 			command string
 			args    []string
@@ -264,18 +296,12 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 					t.Fatal("expected true")
 				}
 
-				linkTarget, err := ax.Readlink(ax.Join(stageDir, "Applications"))
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
+				linkTarget := requireAppleString(t, ax.Readlink(ax.Join(stageDir, "Applications")))
 				if !stdlibAssertEqual("/Applications", linkTarget) {
 					t.Fatalf("want %v, got %v", "/Applications", linkTarget)
 				}
 
-				backgroundContent, err := io.Local.Read(ax.Join(stageDir, ".background", "dmg-background.png"))
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
+				backgroundContent := requireAppleString(t, io.Local.Read(ax.Join(stageDir, ".background", "dmg-background.png")))
 				if !stdlibAssertEqual("background", backgroundContent) {
 					t.Fatalf("want %v, got %v", "background", backgroundContent)
 				}
@@ -303,10 +329,7 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 				t.Fatalf("want len %v, got %v", 1, len(args))
 			}
 
-			script, err := io.Local.Read(args[0])
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			script := requireAppleString(t, io.Local.Read(args[0]))
 			if !stdlibAssertContains(script, "set bounds of container window to {100, 100, 740, 580}") {
 				t.Fatalf("expected %v to contain %v", script, "set bounds of container window to {100, 100, 740, 580}")
 			}
@@ -327,10 +350,10 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 			t.Fatalf("unexpected command: %s", command)
 		}
 
-		return "", nil
+		return core.Ok("")
 	}
 
-	err := CreateDMG(context.Background(), DMGConfig{
+	result = CreateDMG(context.Background(), DMGConfig{
 		AppPath:    appPath,
 		OutputPath: outputPath,
 		VolumeName: "Core",
@@ -338,8 +361,8 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 		IconSize:   144,
 		WindowSize: [2]int{640, 480},
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 	if len(commands) != 5 {
 		t.Fatalf("want len %v, got %v", 5, len(commands))
@@ -386,10 +409,10 @@ func TestApple_BuildWailsApp_AddsMLXBuildTag_Good(t *testing.T) {
 		appleCombinedOutput = oldCombined
 	})
 
-	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
-		return name, nil
+	appleResolveCommand = func(name string, fallbackPaths ...string) core.Result {
+		return core.Ok(name)
 	}
-	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
 		if !stdlibAssertEqual("wails3", command) {
 			t.Fatalf("want %v, got %v", "wails3", command)
 		}
@@ -411,20 +434,18 @@ func TestApple_BuildWailsApp_AddsMLXBuildTag_Good(t *testing.T) {
 			t.Fatalf("want %v, got %v", "integration,mlx", args[tagIndex])
 		}
 
-		return "", nil
+		return core.Ok("")
 	}
 
-	result, err := BuildWailsApp(context.Background(), WailsBuildConfig{
+	result := BuildWailsApp(context.Background(), WailsBuildConfig{
 		ProjectDir: projectDir,
 		Name:       "Core",
 		Arch:       "arm64",
 		BuildTags:  []string{"integration"},
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertEqual(bundlePath, result) {
-		t.Fatalf("want %v, got %v", bundlePath, result)
+	bundle := requireAppleString(t, result)
+	if !stdlibAssertEqual(bundlePath, bundle) {
+		t.Fatalf("want %v, got %v", bundlePath, bundle)
 	}
 
 }
@@ -433,11 +454,13 @@ func TestApple_BuildWailsApp_PreBuildsFrontendAndForcesCGO_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	frontendDir := ax.Join(projectDir, "frontend")
 	bundlePath := ax.Join(projectDir, "build", "bin", "Core.app")
-	if err := io.Local.EnsureDir(frontendDir); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := io.Local.EnsureDir(frontendDir)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	oldResolve := appleResolveCommand
@@ -454,10 +477,10 @@ func TestApple_BuildWailsApp_PreBuildsFrontendAndForcesCGO_Good(t *testing.T) {
 		env     []string
 	}
 
-	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
-		return name, nil
+	appleResolveCommand = func(name string, fallbackPaths ...string) core.Result {
+		return core.Ok(name)
 	}
-	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
 		calls = append(calls, struct {
 			dir     string
 			command string
@@ -492,21 +515,19 @@ func TestApple_BuildWailsApp_PreBuildsFrontendAndForcesCGO_Good(t *testing.T) {
 			t.Fatalf("unexpected command: %s", command)
 		}
 
-		return "", nil
+		return core.Ok("")
 	}
 
-	result, err := BuildWailsApp(context.Background(), WailsBuildConfig{
+	result = BuildWailsApp(context.Background(), WailsBuildConfig{
 		ProjectDir: projectDir,
 		Name:       "Core",
 		Arch:       "arm64",
 		OutputDir:  ax.Join(projectDir, "dist"),
 		DenoBuild:  "deno-build --target release",
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertEqual(ax.Join(projectDir, "dist", "Core.app"), result) {
-		t.Fatalf("want %v, got %v", ax.Join(projectDir, "dist", "Core.app"), result)
+	bundle := requireAppleString(t, result)
+	if !stdlibAssertEqual(ax.Join(projectDir, "dist", "Core.app"), bundle) {
+		t.Fatalf("want %v, got %v", ax.Join(projectDir, "dist", "Core.app"), bundle)
 	}
 	if len(calls) != 2 {
 		t.Fatalf("want len %v, got %v", 2, len(calls))
@@ -523,8 +544,9 @@ func TestApple_BuildWailsApp_PreBuildsFrontendAndForcesCGO_Good(t *testing.T) {
 func TestApple_BuildWailsApp_UsesDenoWhenEnabledWithoutManifest_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	bundlePath := ax.Join(projectDir, "build", "bin", "Core.app")
-	if err := ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := ax.WriteFile(ax.Join(projectDir, "package.json"), []byte(`{}`), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("DENO_ENABLE", "true")
@@ -542,10 +564,10 @@ func TestApple_BuildWailsApp_UsesDenoWhenEnabledWithoutManifest_Good(t *testing.
 		args    []string
 	}
 
-	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
-		return name, nil
+	appleResolveCommand = func(name string, fallbackPaths ...string) core.Result {
+		return core.Ok(name)
 	}
-	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
 		calls = append(calls, struct {
 			dir     string
 			command string
@@ -571,19 +593,17 @@ func TestApple_BuildWailsApp_UsesDenoWhenEnabledWithoutManifest_Good(t *testing.
 			t.Fatalf("unexpected command: %s", command)
 		}
 
-		return "", nil
+		return core.Ok("")
 	}
 
-	result, err := BuildWailsApp(context.Background(), WailsBuildConfig{
+	result = BuildWailsApp(context.Background(), WailsBuildConfig{
 		ProjectDir: projectDir,
 		Name:       "Core",
 		Arch:       "arm64",
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertEqual(bundlePath, result) {
-		t.Fatalf("want %v, got %v", bundlePath, result)
+	bundle := requireAppleString(t, result)
+	if !stdlibAssertEqual(bundlePath, bundle) {
+		t.Fatalf("want %v, got %v", bundlePath, bundle)
 	}
 	if len(calls) != 2 {
 		t.Fatalf("want len %v, got %v", 2, len(calls))
@@ -616,40 +636,41 @@ func TestApple_BuildApple_Good(t *testing.T) {
 
 	var builtArches []string
 	var buildEnvs [][]string
-	appleBuildWailsAppFn = func(ctx context.Context, cfg WailsBuildConfig) (string, error) {
+	appleBuildWailsAppFn = func(ctx context.Context, cfg WailsBuildConfig) core.Result {
 		builtArches = append(builtArches, cfg.Arch)
 		buildEnvs = append(buildEnvs, append([]string{}, cfg.Env...))
 		appPath := ax.Join(cfg.OutputDir, cfg.Name+".app")
 		writeDummyAppBundle(t, appPath, cfg.Name, cfg.Arch)
-		return appPath, nil
+		return core.Ok(appPath)
 	}
-	appleCreateUniversalFn = func(arm64Path, amd64Path, outputPath string) error {
-		if err := copyPath(io.Local, arm64Path, outputPath); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+	appleCreateUniversalFn = func(arm64Path, amd64Path, outputPath string) core.Result {
+		result := copyPath(io.Local, arm64Path, outputPath)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		return ax.WriteFile(ax.Join(outputPath, "Contents", "MacOS", "Core"), []byte("universal"), 0o755)
 	}
 
 	var signCalls []SignConfig
-	appleSignFn = func(ctx context.Context, cfg SignConfig) error {
+	appleSignFn = func(ctx context.Context, cfg SignConfig) core.Result {
 		signCalls = append(signCalls, cfg)
-		return nil
+		return core.Ok(nil)
 	}
 
 	var notarisedPath string
-	appleNotariseFn = func(ctx context.Context, cfg NotariseConfig) error {
+	appleNotariseFn = func(ctx context.Context, cfg NotariseConfig) core.Result {
 		notarisedPath = cfg.AppPath
-		return nil
+		return core.Ok(nil)
 	}
 
 	var dmgCall DMGConfig
-	appleCreateDMGFn = func(ctx context.Context, cfg DMGConfig) error {
+	appleCreateDMGFn = func(ctx context.Context, cfg DMGConfig) core.Result {
 		dmgCall = cfg
 		return ax.WriteFile(cfg.OutputPath, []byte("dmg"), 0o644)
 	}
 
-	result, err := BuildApple(context.Background(), &Config{
+	buildResult := requireAppleBuildResult(t, BuildApple(context.Background(), &Config{
 		FS:         io.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
@@ -674,10 +695,7 @@ func TestApple_BuildApple_Good(t *testing.T) {
 		TeamID:       "ABC123DEF4",
 		AppleID:      "dev@example.com",
 		Password:     "app-password",
-	}, "42")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}, "42"))
 	if !stdlibAssertEqual([]string{"arm64", "amd64"}, builtArches) {
 		t.Fatalf("want %v, got %v", []string{"arm64", "amd64"}, builtArches)
 	}
@@ -690,26 +708,26 @@ func TestApple_BuildApple_Good(t *testing.T) {
 	if !stdlibAssertContains(buildEnvs[0], "GOMODCACHE="+ax.Join(outputDir, "cache", "go-mod")) {
 		t.Fatalf("expected %v to contain %v", buildEnvs[0], "GOMODCACHE="+ax.Join(outputDir, "cache", "go-mod"))
 	}
-	if !stdlibAssertEqual(ax.Join(outputDir, "Core.app"), result.BundlePath) {
-		t.Fatalf("want %v, got %v", ax.Join(outputDir, "Core.app"), result.BundlePath)
+	if !stdlibAssertEqual(ax.Join(outputDir, "Core.app"), buildResult.BundlePath) {
+		t.Fatalf("want %v, got %v", ax.Join(outputDir, "Core.app"), buildResult.BundlePath)
 	}
-	if !stdlibAssertEqual(ax.Join(outputDir, "Core-1.2.3.dmg"), result.DMGPath) {
-		t.Fatalf("want %v, got %v", ax.Join(outputDir, "Core-1.2.3.dmg"), result.DMGPath)
+	if !stdlibAssertEqual(ax.Join(outputDir, "Core-1.2.3.dmg"), buildResult.DMGPath) {
+		t.Fatalf("want %v, got %v", ax.Join(outputDir, "Core-1.2.3.dmg"), buildResult.DMGPath)
 	}
-	if !stdlibAssertEqual(result.DMGPath, notarisedPath) {
-		t.Fatalf("want %v, got %v", result.DMGPath, notarisedPath)
+	if !stdlibAssertEqual(buildResult.DMGPath, notarisedPath) {
+		t.Fatalf("want %v, got %v", buildResult.DMGPath, notarisedPath)
 	}
 	if len(signCalls) != 2 {
 		t.Fatalf("want len %v, got %v", 2, len(signCalls))
 	}
-	if !stdlibAssertEqual(result.BundlePath, signCalls[0].AppPath) {
-		t.Fatalf("want %v, got %v", result.BundlePath, signCalls[0].AppPath)
+	if !stdlibAssertEqual(buildResult.BundlePath, signCalls[0].AppPath) {
+		t.Fatalf("want %v, got %v", buildResult.BundlePath, signCalls[0].AppPath)
 	}
-	if !stdlibAssertEqual(result.EntitlementsPath, signCalls[0].Entitlements) {
-		t.Fatalf("want %v, got %v", result.EntitlementsPath, signCalls[0].Entitlements)
+	if !stdlibAssertEqual(buildResult.EntitlementsPath, signCalls[0].Entitlements) {
+		t.Fatalf("want %v, got %v", buildResult.EntitlementsPath, signCalls[0].Entitlements)
 	}
-	if !stdlibAssertEqual(result.DMGPath, signCalls[1].AppPath) {
-		t.Fatalf("want %v, got %v", result.DMGPath, signCalls[1].AppPath)
+	if !stdlibAssertEqual(buildResult.DMGPath, signCalls[1].AppPath) {
+		t.Fatalf("want %v, got %v", buildResult.DMGPath, signCalls[1].AppPath)
 	}
 	if !stdlibAssertEmpty(signCalls[1].Entitlements) {
 		t.Fatalf("expected empty, got %v", signCalls[1].Entitlements)
@@ -717,14 +735,11 @@ func TestApple_BuildApple_Good(t *testing.T) {
 	if signCalls[1].Hardened {
 		t.Fatal("expected false")
 	}
-	if !stdlibAssertEqual(result.DMGPath, dmgCall.OutputPath) {
-		t.Fatalf("want %v, got %v", result.DMGPath, dmgCall.OutputPath)
+	if !stdlibAssertEqual(buildResult.DMGPath, dmgCall.OutputPath) {
+		t.Fatalf("want %v, got %v", buildResult.DMGPath, dmgCall.OutputPath)
 	}
 
-	plistContent, err := io.Local.Read(result.InfoPlistPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	plistContent := requireAppleString(t, io.Local.Read(buildResult.InfoPlistPath))
 	if !stdlibAssertContains(plistContent, "<string>ai.lthn.core</string>") {
 		t.Fatalf("expected %v to contain %v", plistContent, "<string>ai.lthn.core</string>")
 	}
@@ -732,10 +747,7 @@ func TestApple_BuildApple_Good(t *testing.T) {
 		t.Fatalf("expected %v to contain %v", plistContent, "<string>42</string>")
 	}
 
-	entitlementsContent, err := io.Local.Read(result.EntitlementsPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	entitlementsContent := requireAppleString(t, io.Local.Read(buildResult.EntitlementsPath))
 	if !stdlibAssertContains(entitlementsContent, "<key>com.apple.security.app-sandbox</key>") {
 		t.Fatalf("expected %v to contain %v", entitlementsContent, "<key>com.apple.security.app-sandbox</key>")
 	}
@@ -746,26 +758,20 @@ func TestApple_BuildApple_Good(t *testing.T) {
 }
 
 func TestApple_NotariseAuthArgsGood(t *testing.T) {
-	args, err := notariseAuthArgs(NotariseConfig{
+	args := requireAppleStrings(t, notariseAuthArgs(NotariseConfig{
 		APIKeyID:       "KEY123",
 		APIKeyIssuerID: "ISSUER456",
 		APIKeyPath:     "/tmp/AuthKey_KEY123.p8",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual([]string{"--key", "/tmp/AuthKey_KEY123.p8", "--key-id", "KEY123", "--issuer", "ISSUER456"}, args) {
 		t.Fatalf("want %v, got %v", []string{"--key", "/tmp/AuthKey_KEY123.p8", "--key-id", "KEY123", "--issuer", "ISSUER456"}, args)
 	}
 
-	args, err = notariseAuthArgs(NotariseConfig{
+	args = requireAppleStrings(t, notariseAuthArgs(NotariseConfig{
 		TeamID:   "ABC123DEF4",
 		AppleID:  "dev@example.com",
 		Password: "app-password",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !stdlibAssertEqual([]string{"--apple-id", "dev@example.com", "--password", "app-password", "--team-id", "ABC123DEF4"}, args) {
 		t.Fatalf("want %v, got %v", []string{"--apple-id", "dev@example.com", "--password", "app-password", "--team-id", "ABC123DEF4"}, args)
 	}
@@ -780,13 +786,13 @@ func TestApple_Notarise_AppendsNotaryLogOnRejectedStatus_Bad(t *testing.T) {
 		appleCombinedOutput = oldCombined
 	})
 
-	appleResolveCommand = func(name string, fallbackPaths ...string) (string, error) {
-		return name, nil
+	appleResolveCommand = func(name string, fallbackPaths ...string) core.Result {
+		return core.Ok(name)
 	}
-	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
+	appleCombinedOutput = func(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
 		switch command {
 		case "ditto":
-			return "", nil
+			return core.Ok("")
 		case "xcrun":
 			if len(args) < 2 {
 				t.Fatalf("expected %v to be greater than or equal to %v", len(args), 2)
@@ -797,9 +803,9 @@ func TestApple_Notarise_AppendsNotaryLogOnRejectedStatus_Bad(t *testing.T) {
 
 			switch args[1] {
 			case "submit":
-				return `{"id":"request-123","status":"Invalid"}`, nil
+				return core.Ok(`{"id":"request-123","status":"Invalid"}`)
 			case notaryToolLogCommand:
-				return "notary log details", nil
+				return core.Ok("notary log details")
 			default:
 				t.Fatalf("unexpected xcrun invocation: %v", args)
 			}
@@ -807,33 +813,29 @@ func TestApple_Notarise_AppendsNotaryLogOnRejectedStatus_Bad(t *testing.T) {
 			t.Fatalf("unexpected command: %s", command)
 		}
 
-		return "", nil
+		return core.Ok("")
 	}
 
-	err := Notarise(context.Background(), NotariseConfig{
+	result := Notarise(context.Background(), NotariseConfig{
 		AppPath:        ax.Join(t.TempDir(), "Core.app"),
 		APIKeyID:       "KEY123",
 		APIKeyIssuerID: "ISSUER456",
 		APIKeyPath:     "/tmp/AuthKey_KEY123.p8",
 	})
-	if err == nil {
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "status Invalid") {
-		t.Fatalf("expected error %v to contain %v", err, "status Invalid")
+	if !stdlibAssertContains(result.Error(), "status Invalid") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "status Invalid")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "notary log details") {
-		t.Fatalf("expected error %v to contain %v", err, "notary log details")
+	if !stdlibAssertContains(result.Error(), "notary log details") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "notary log details")
 	}
 
 }
 
 func TestApple_BuildApple_AppStorePreflight_Bad(t *testing.T) {
-	_, err := BuildApple(context.Background(), &Config{
+	result := BuildApple(context.Background(), &Config{
 		FS:         io.Local,
 		ProjectDir: t.TempDir(),
 		OutputDir:  ax.Join(t.TempDir(), "dist", "apple"),
@@ -852,19 +854,17 @@ func TestApple_BuildApple_AppStorePreflight_Bad(t *testing.T) {
 		Category:       "public.app-category.developer-tools",
 		Copyright:      "Copyright 2026 Lethean CIC. EUPL-1.2.",
 	}, "42")
-	if err == nil {
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "distribution certificate") {
-		t.Fatalf("expected error %v to contain %v", err, "distribution certificate")
+	if !stdlibAssertContains(result.Error(), "distribution certificate") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "distribution certificate")
 	}
 
 }
 
 func TestApple_BuildApple_TestFlightRequiresDistributionCertificate_Bad(t *testing.T) {
-	_, err := BuildApple(context.Background(), &Config{
+	result := BuildApple(context.Background(), &Config{
 		FS:         io.Local,
 		ProjectDir: t.TempDir(),
 		OutputDir:  ax.Join(t.TempDir(), "dist", "apple"),
@@ -881,13 +881,11 @@ func TestApple_BuildApple_TestFlightRequiresDistributionCertificate_Bad(t *testi
 		APIKeyPath:     "/tmp/AuthKey_KEY123.p8",
 		ProfilePath:    "/tmp/Core.provisionprofile",
 	}, "42")
-	if err == nil {
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "distribution certificate") {
-		t.Fatalf("expected error %v to contain %v", err, "distribution certificate")
+	if !stdlibAssertContains(result.Error(), "distribution certificate") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "distribution certificate")
 	}
 
 }
@@ -896,8 +894,9 @@ func TestApple_BuildApple_AppStorePreflight_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist", "apple")
 	profilePath := ax.Join(projectDir, "Core.provisionprofile")
-	if err := ax.WriteFile(profilePath, []byte("profile"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := ax.WriteFile(profilePath, []byte("profile"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	metadataPath := writeAppStoreMetadata(t, projectDir)
@@ -911,24 +910,24 @@ func TestApple_BuildApple_AppStorePreflight_Good(t *testing.T) {
 		appleSubmitAppStoreFn = oldSubmit
 	})
 
-	appleBuildWailsAppFn = func(ctx context.Context, cfg WailsBuildConfig) (string, error) {
+	appleBuildWailsAppFn = func(ctx context.Context, cfg WailsBuildConfig) core.Result {
 		appPath := ax.Join(cfg.OutputDir, cfg.Name+".app")
 		writeDummyAppBundle(t, appPath, cfg.Name, "safe")
-		return appPath, nil
+		return core.Ok(appPath)
 	}
-	appleSignFn = func(ctx context.Context, cfg SignConfig) error {
-		return nil
+	appleSignFn = func(ctx context.Context, cfg SignConfig) core.Result {
+		return core.Ok(nil)
 	}
 
 	var submitCfg AppStoreConfig
 	var submitCalled bool
-	appleSubmitAppStoreFn = func(ctx context.Context, cfg AppStoreConfig) error {
+	appleSubmitAppStoreFn = func(ctx context.Context, cfg AppStoreConfig) core.Result {
 		submitCalled = true
 		submitCfg = cfg
-		return nil
+		return core.Ok(nil)
 	}
 
-	result, err := BuildApple(context.Background(), &Config{
+	buildResult := requireAppleBuildResult(t, BuildApple(context.Background(), &Config{
 		FS:         io.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
@@ -948,18 +947,15 @@ func TestApple_BuildApple_AppStorePreflight_Good(t *testing.T) {
 		PrivacyPolicyURL: "https://lthn.ai/privacy",
 		Category:         "public.app-category.developer-tools",
 		Copyright:        "Copyright 2026 Lethean CIC. EUPL-1.2.",
-	}, "42")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if stdlibAssertNil(result) {
+	}, "42"))
+	if stdlibAssertNil(buildResult) {
 		t.Fatal("expected non-nil")
 	}
 	if !(submitCalled) {
 		t.Fatal("expected true")
 	}
-	if !stdlibAssertEqual(result.BundlePath, submitCfg.AppPath) {
-		t.Fatalf("want %v, got %v", result.BundlePath, submitCfg.AppPath)
+	if !stdlibAssertEqual(buildResult.BundlePath, submitCfg.AppPath) {
+		t.Fatalf("want %v, got %v", buildResult.BundlePath, submitCfg.AppPath)
 	}
 	if !stdlibAssertEqual("1.2.3", submitCfg.Version) {
 		t.Fatalf("want %v, got %v", "1.2.3", submitCfg.Version)
@@ -971,24 +967,20 @@ func TestApple_BuildApple_AppStorePreflight_Good(t *testing.T) {
 }
 
 func TestApple_ValidatePrivacyPolicyURLBad(t *testing.T) {
-	err := validatePrivacyPolicyURL("")
-	if err == nil {
+	result := validatePrivacyPolicyURL("")
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "privacy_policy_url") {
-		t.Fatalf("expected error %v to contain %v", err, "privacy_policy_url")
+	if !stdlibAssertContains(result.Error(), "privacy_policy_url") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "privacy_policy_url")
 	}
 
-	err = validatePrivacyPolicyURL("https://example.com")
-	if err == nil {
+	result = validatePrivacyPolicyURL("https://example.com")
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "non-root path") {
-		t.Fatalf("expected error %v to contain %v", err, "non-root path")
+	if !stdlibAssertContains(result.Error(), "non-root path") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "non-root path")
 	}
 
 }
@@ -996,21 +988,21 @@ func TestApple_ValidatePrivacyPolicyURLBad(t *testing.T) {
 func TestApple_ValidateAppStoreMetadataBad(t *testing.T) {
 	projectDir := t.TempDir()
 	metadataPath := ax.Join(projectDir, ".core", "apple", "appstore")
-	if err := io.Local.EnsureDir(ax.Join(metadataPath, "screenshots")); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := io.Local.EnsureDir(ax.Join(metadataPath, "screenshots"))
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(metadataPath, "screenshots", "shot.png"), []byte("png"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(ax.Join(metadataPath, "screenshots", "shot.png"), []byte("png"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	err := validateAppStoreMetadata(io.Local, projectDir, metadataPath)
-	if err == nil {
+	result = validateAppStoreMetadata(io.Local, projectDir, metadataPath)
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "description") {
-		t.Fatalf("expected error %v to contain %v", err, "description")
+	if !stdlibAssertContains(result.Error(), "description") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "description")
 	}
 
 }
@@ -1019,85 +1011,74 @@ func TestApple_ScanBundleForPrivateAPIUsageBad(t *testing.T) {
 	appPath := ax.Join(t.TempDir(), "Core.app")
 	writeDummyAppBundle(t, appPath, "Core", "/System/Library/PrivateFrameworks/Example.framework")
 
-	err := scanBundleForPrivateAPIUsage(io.Local, appPath)
-	if err == nil {
+	result := scanBundleForPrivateAPIUsage(io.Local, appPath)
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "private API usage detected") {
-		t.Fatalf("expected error %v to contain %v", err, "private API usage detected")
+	if !stdlibAssertContains(result.Error(), "private API usage detected") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "private API usage detected")
 	}
 
 }
 
 func TestApple_UploadTestFlight_Bad(t *testing.T) {
-	err := UploadTestFlight(context.Background(), TestFlightConfig{
+	result := UploadTestFlight(context.Background(), TestFlightConfig{
 		AppPath:        "build/Core.app",
 		APIKeyID:       "KEY123",
 		APIKeyIssuerID: "ISSUER456",
 	})
-	if err == nil {
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "api_key_path") {
-		t.Fatalf("expected error %v to contain %v", err, "api_key_path")
+	if !stdlibAssertContains(result.Error(), "api_key_path") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "api_key_path")
 	}
 
 }
 
 func TestApple_SubmitAppStore_Bad(t *testing.T) {
-	err := SubmitAppStore(context.Background(), AppStoreConfig{
+	result := SubmitAppStore(context.Background(), AppStoreConfig{
 		AppPath:        "build/Core.app",
 		APIKeyID:       "KEY123",
 		APIKeyIssuerID: "ISSUER456",
 	})
-	if err == nil {
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if err == nil {
-		t.Fatal("expected error")
-	} else if !stdlibAssertContains(err.Error(), "api_key_path") {
-		t.Fatalf("expected error %v to contain %v", err, "api_key_path")
+	if !stdlibAssertContains(result.Error(), "api_key_path") {
+		t.Fatalf("expected error %v to contain %v", result.Error(), "api_key_path")
 	}
 
 }
 
 func TestApple_PackageForASCUpload_StagesAPIKeyWithCanonicalNameGood(t *testing.T) {
 	keyPath := ax.Join(t.TempDir(), "lethean-app-store-key.p8")
-	if err := ax.WriteFile(keyPath, []byte("private-key"), 0o600); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := ax.WriteFile(keyPath, []byte("private-key"), 0o600)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	pkgPath := ax.Join(t.TempDir(), "Core.pkg")
 
-	uploadPath, env, cleanup, err := packageForASCUpload(context.Background(), pkgPath, "", "KEY123", keyPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if stdlibAssertNil(cleanup) {
+	uploadPackage := requireAppleASCPackage(t, packageForASCUpload(context.Background(), pkgPath, "", "KEY123", keyPath))
+	if stdlibAssertNil(uploadPackage.cleanup) {
 		t.Fatal("expected non-nil")
 	}
-	if !stdlibAssertEqual(pkgPath, uploadPath) {
-		t.Fatalf("want %v, got %v", pkgPath, uploadPath)
+	if !stdlibAssertEqual(pkgPath, uploadPackage.path) {
+		t.Fatalf("want %v, got %v", pkgPath, uploadPackage.path)
 	}
-	if len(env) != 1 {
-		t.Fatalf("want len %v, got %v", 1, len(env))
+	if len(uploadPackage.env) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(uploadPackage.env))
 	}
 
-	stagedDir := envDirValue(t, env, "API_PRIVATE_KEYS_DIR")
+	stagedDir := envDirValue(t, uploadPackage.env, "API_PRIVATE_KEYS_DIR")
 	stagedPath := ax.Join(stagedDir, "AuthKey_KEY123.p8")
-	content, err := io.Local.Read(stagedPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireAppleString(t, io.Local.Read(stagedPath))
 	if !stdlibAssertEqual("private-key", content) {
 		t.Fatalf("want %v, got %v", "private-key", content)
 	}
 
-	cleanup()
+	uploadPackage.cleanup()
 	if io.Local.Exists(stagedDir) {
 		t.Fatal("expected false")
 	}
@@ -1107,30 +1088,28 @@ func TestApple_PackageForASCUpload_StagesAPIKeyWithCanonicalNameGood(t *testing.
 func TestApple_PackageForASCUpload_UsesExistingCanonicalKeyPathGood(t *testing.T) {
 	keyDir := t.TempDir()
 	keyPath := ax.Join(keyDir, "AuthKey_KEY123.p8")
-	if err := ax.WriteFile(keyPath, []byte("private-key"), 0o600); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := ax.WriteFile(keyPath, []byte("private-key"), 0o600)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	pkgPath := ax.Join(t.TempDir(), "Core.pkg")
 
-	uploadPath, env, cleanup, err := packageForASCUpload(context.Background(), pkgPath, "", "KEY123", keyPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if stdlibAssertNil(cleanup) {
+	uploadPackage := requireAppleASCPackage(t, packageForASCUpload(context.Background(), pkgPath, "", "KEY123", keyPath))
+	if stdlibAssertNil(uploadPackage.cleanup) {
 		t.Fatal("expected non-nil")
 	}
-	if !stdlibAssertEqual(pkgPath, uploadPath) {
-		t.Fatalf("want %v, got %v", pkgPath, uploadPath)
+	if !stdlibAssertEqual(pkgPath, uploadPackage.path) {
+		t.Fatalf("want %v, got %v", pkgPath, uploadPackage.path)
 	}
-	if len(env) != 1 {
-		t.Fatalf("want len %v, got %v", 1, len(env))
+	if len(uploadPackage.env) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(uploadPackage.env))
 	}
-	if !stdlibAssertEqual(keyDir, envDirValue(t, env, "API_PRIVATE_KEYS_DIR")) {
-		t.Fatalf("want %v, got %v", keyDir, envDirValue(t, env, "API_PRIVATE_KEYS_DIR"))
+	if !stdlibAssertEqual(keyDir, envDirValue(t, uploadPackage.env, "API_PRIVATE_KEYS_DIR")) {
+		t.Fatalf("want %v, got %v", keyDir, envDirValue(t, uploadPackage.env, "API_PRIVATE_KEYS_DIR"))
 	}
 
-	cleanup()
+	uploadPackage.cleanup()
 	if !(io.Local.Exists(keyDir)) {
 		t.Fatal("expected true")
 	}
@@ -1142,11 +1121,12 @@ func TestApple_PackageForASCUpload_UsesExistingCanonicalKeyPathGood(t *testing.T
 
 func writeDummyAppBundle(t *testing.T, appPath, executableName, marker string) {
 	t.Helper()
-	if err := io.Local.EnsureDir(ax.Join(appPath, "Contents", "MacOS")); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := io.Local.EnsureDir(ax.Join(appPath, "Contents", "MacOS"))
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	_, err := WriteInfoPlist(io.Local, appPath, InfoPlist{
+	result = WriteInfoPlist(io.Local, appPath, InfoPlist{
 		BundleID:                      "ai.lthn.core",
 		BundleName:                    executableName,
 		BundleDisplayName:             executableName,
@@ -1158,22 +1138,25 @@ func writeDummyAppBundle(t *testing.T, appPath, executableName, marker string) {
 		HighResCapable:                true,
 		SupportsSecureRestorableState: true,
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(appPath, "Contents", "MacOS", executableName), []byte(marker), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(ax.Join(appPath, "Contents", "MacOS", executableName), []byte(marker), 0o755)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
 
 func writeDummyExecutable(t *testing.T, path, marker string) {
 	t.Helper()
-	if err := io.Local.EnsureDir(ax.Dir(path)); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := io.Local.EnsureDir(ax.Dir(path))
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(path, []byte(marker), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(path, []byte(marker), 0o755)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -1182,14 +1165,17 @@ func writeAppStoreMetadata(t *testing.T, projectDir string) string {
 	t.Helper()
 
 	metadataPath := ax.Join(projectDir, ".core", "apple", "appstore")
-	if err := io.Local.EnsureDir(ax.Join(metadataPath, "screenshots")); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := io.Local.EnsureDir(ax.Join(metadataPath, "screenshots"))
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(metadataPath, "description.txt"), []byte("Core App Store description"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(ax.Join(metadataPath, "description.txt"), []byte("Core App Store description"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(metadataPath, "screenshots", "shot-1.png"), []byte("png"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(ax.Join(metadataPath, "screenshots", "shot-1.png"), []byte("png"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	return metadataPath
@@ -1288,7 +1274,7 @@ func TestApple_BuildApple_Bad(t *core.T) {
 	cancel()
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = BuildApple(ctx, nil, AppleOptions{}, "")
+		_ = BuildApple(ctx, nil, AppleOptions{}, "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1299,7 +1285,7 @@ func TestApple_BuildApple_Ugly(t *core.T) {
 	cancel()
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = BuildApple(ctx, &Config{}, AppleOptions{}, "agent")
+		_ = BuildApple(ctx, &Config{}, AppleOptions{}, "agent")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1310,7 +1296,7 @@ func TestApple_BuildWailsApp_Good(t *core.T) {
 	cancel()
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = BuildWailsApp(ctx, WailsBuildConfig{})
+		_ = BuildWailsApp(ctx, WailsBuildConfig{})
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1321,7 +1307,7 @@ func TestApple_BuildWailsApp_Bad(t *core.T) {
 	cancel()
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = BuildWailsApp(ctx, WailsBuildConfig{})
+		_ = BuildWailsApp(ctx, WailsBuildConfig{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1332,7 +1318,7 @@ func TestApple_BuildWailsApp_Ugly(t *core.T) {
 	cancel()
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = BuildWailsApp(ctx, WailsBuildConfig{})
+		_ = BuildWailsApp(ctx, WailsBuildConfig{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1502,7 +1488,7 @@ func TestApple_SubmitAppStore_Ugly(t *core.T) {
 func TestApple_WriteInfoPlist_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = WriteInfoPlist(io.NewMemoryMedium(), "", InfoPlist{})
+		_ = WriteInfoPlist(io.NewMemoryMedium(), "", InfoPlist{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1511,7 +1497,7 @@ func TestApple_WriteInfoPlist_Bad(t *core.T) {
 func TestApple_WriteInfoPlist_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = WriteInfoPlist(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), InfoPlist{})
+		_ = WriteInfoPlist(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), InfoPlist{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

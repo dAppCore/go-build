@@ -6,6 +6,7 @@ package build
 import (
 	"context"
 
+	core "dappco.re/go"
 	"dappco.re/go/io"
 )
 
@@ -124,12 +125,12 @@ type Config struct {
 // Builder defines the interface for project-specific build implementations.
 //
 // var b build.Builder = builders.NewGoBuilder()
-// artifacts, err := b.Build(ctx, cfg, targets)
+// result := b.Build(ctx, cfg, targets)
 type Builder interface {
 	// Name returns the builder's identifier.
 	Name() string
 	// Detect checks if this builder can handle the project in the given directory.
-	Detect(fs io.Medium, dir string) (bool, error)
+	Detect(fs io.Medium, dir string) core.Result
 	// Build compiles the project for the specified targets.
-	Build(ctx context.Context, cfg *Config, targets []Target) ([]Artifact, error)
+	Build(ctx context.Context, cfg *Config, targets []Target) core.Result
 }

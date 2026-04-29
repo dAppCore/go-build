@@ -22,9 +22,8 @@ func setupGoTestProject(t *testing.T) string {
 
 go 1.21
 `
-	err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0644)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte(goMod), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	// Create a minimal main.go
@@ -34,9 +33,8 @@ func main() {
 	println("hello")
 }
 `
-	err = ax.WriteFile(ax.Join(dir, "main.go"), []byte(mainGo), 0644)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte(mainGo), 0644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	return dir
@@ -83,9 +81,8 @@ if [ -n "$output" ]; then
 fi
 `
 
-	err := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	garbleScript := `#!/bin/sh
@@ -99,9 +96,8 @@ fi
 exec go "$@"
 `
 
-	err = ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -147,9 +143,8 @@ if [ -n "$output" ]; then
 fi
 `
 
-	err := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "go"), []byte(goScript), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -168,9 +163,8 @@ fi
 exec go "$@"
 `
 
-	err := ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "garble"), []byte(garbleScript), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -187,16 +181,12 @@ func TestGo_GoBuilderDetectGood(t *testing.T) {
 	fs := io.Local
 	t.Run("detects Go project with go.mod", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewGoBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -205,16 +195,12 @@ func TestGo_GoBuilderDetectGood(t *testing.T) {
 
 	t.Run("detects Wails project", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewGoBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -224,16 +210,12 @@ func TestGo_GoBuilderDetectGood(t *testing.T) {
 	t.Run("returns false for non-Go project", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create a Node.js project instead
-		err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewGoBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -244,10 +226,7 @@ func TestGo_GoBuilderDetectGood(t *testing.T) {
 		dir := t.TempDir()
 
 		builder := NewGoBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -279,10 +258,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) !=
 
 			// Verify artifact properties
@@ -302,7 +278,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 				// Verify the path is in the expected location
 				runtime.GOARCH, artifact.Arch)
 		}
-		if _, err := ax.Stat(artifact.Path); err != nil {
+		if result := ax.Stat(artifact.Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifact.Path)
 		}
 
@@ -328,10 +304,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			Name:       "fallback",
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, nil))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
@@ -341,7 +314,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 		if !stdlibAssertEqual(runtime.GOARCH, artifacts[0].Arch) {
 			t.Fatalf("want %v, got %v", runtime.GOARCH, artifacts[0].Arch)
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
@@ -357,10 +330,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			Name:       "mutability",
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
@@ -389,10 +359,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: "linux", Arch: "arm64"},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) !=
 
 			// Verify both artifacts were created
@@ -407,7 +374,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			if !stdlibAssertEqual(targets[i].Arch, artifact.Arch) {
 				t.Fatalf("want %v, got %v", targets[i].Arch, artifact.Arch)
 			}
-			if _, err := ax.Stat(artifact.Path); err != nil {
+			if result := ax.Stat(artifact.Path); !result.OK {
 				t.Fatalf("expected file to exist: %v", artifact.Path)
 			}
 
@@ -429,10 +396,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: "windows", Arch: "amd64"},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) !=
 
 			// Verify .exe extension
@@ -442,7 +406,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 		if !(ax.Ext(artifacts[0].Path) == ".exe") {
 			t.Fatal("expected true")
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
@@ -463,10 +427,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) !=
 
 			// Binary should use the project directory base name
@@ -499,10 +460,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
@@ -532,10 +490,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
@@ -566,14 +521,11 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
@@ -603,21 +555,15 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
-		argsContent, err := ax.ReadFile(argsLogPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		argsContent := requireBuilderBytes(t, ax.ReadFile(argsLogPath))
 
 		args := core.Split(core.Trim(string(argsContent)), "\n")
 		if stdlibAssertEmpty(args) {
@@ -633,10 +579,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			t.Fatalf("expected %v to contain %v", args, "-race")
 		}
 
-		envContent, err := ax.ReadFile(envLogPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		envContent := requireBuilderBytes(t, ax.ReadFile(envLogPath))
 
 		envLines := core.Split(core.Trim(string(envContent)), "\n")
 		if !stdlibAssertContains(envLines, "BAR=baz") {
@@ -699,21 +642,15 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 		}
 		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
-		envContent, err := ax.ReadFile(envLogPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		envContent := requireBuilderBytes(t, ax.ReadFile(envLogPath))
 
 		envLines := core.Split(core.Trim(string(envContent)), "\n")
 		if !stdlibAssertContains(envLines, "GOCACHE="+ax.Join(outputDir, "cache", "go-build")) {
@@ -741,21 +678,15 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 		}
 		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
-		content, err := ax.ReadFile(logPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireBuilderBytes(t, ax.ReadFile(logPath))
 
 		args := core.Split(core.Trim(string(content)), "\n")
 		if stdlibAssertEmpty(args) {
@@ -792,21 +723,15 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 		}
 		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
-		argsContent, err := ax.ReadFile(argsLogPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		argsContent := requireBuilderBytes(t, ax.ReadFile(argsLogPath))
 
 		args := core.Split(core.Trim(string(argsContent)), "\n")
 		if stdlibAssertEmpty(args) {
@@ -819,10 +744,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			t.Fatalf("expected %v to contain %v", args, "-X main.version=v1.2.3")
 		}
 
-		envContent, err := ax.ReadFile(envLogPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		envContent := requireBuilderBytes(t, ax.ReadFile(envLogPath))
 
 		envLines := core.Split(core.Trim(string(envContent)), "\n")
 		if !stdlibAssertContains(envLines, "VERSION=v1.2.3") {
@@ -855,21 +777,15 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
-		content, err := ax.ReadFile(logPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireBuilderBytes(t, ax.ReadFile(logPath))
 
 		args := core.Split(core.Trim(string(content)), "\n")
 		if stdlibAssertEmpty(args) {
@@ -920,21 +836,15 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 		}
 		targets := []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
-		content, err := ax.ReadFile(logPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireBuilderBytes(t, ax.ReadFile(logPath))
 
 		args := core.Split(core.Trim(string(content)), "\n")
 		if stdlibAssertEmpty(args) {
@@ -951,14 +861,12 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 	t.Run("builds the configured main package path", func(t *testing.T) {
 		projectDir := setupGoTestProject(t)
-		err := ax.MkdirAll(ax.Join(projectDir, "cmd", "myapp"), 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Join(projectDir, "cmd", "myapp"), 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err = ax.WriteFile(ax.Join(projectDir, "cmd", "myapp", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(projectDir, "cmd", "myapp", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		outputDir := t.TempDir()
@@ -977,18 +885,12 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
 
-		content, err := ax.ReadFile(logPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		content := requireBuilderBytes(t, ax.ReadFile(logPath))
 
 		args := core.Split(core.Trim(string(content)), "\n")
 		if stdlibAssertEmpty(args) {
@@ -1018,19 +920,14 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
-		if info, err := ax.Stat(outputDir); err != nil {
-			t.Fatalf("expected directory to exist: %v", outputDir)
-		} else if !info.IsDir() {
+		if !io.Local.IsDir(outputDir) {
 			t.Fatalf("expected directory to exist: %v", outputDir)
 		}
 
@@ -1049,24 +946,19 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
 
 		expectedDir := ax.Join(projectDir, "dist")
-		if info, err := ax.Stat(expectedDir); err != nil {
-			t.Fatalf("expected directory to exist: %v", expectedDir)
-		} else if !info.IsDir() {
+		if !io.Local.IsDir(expectedDir) {
 			t.Fatalf("expected directory to exist: %v", expectedDir)
 		}
 		if !stdlibAssertContains(artifacts[0].Path, expectedDir) {
 			t.Fatalf("expected %v to contain %v", artifacts[0].Path, expectedDir)
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
@@ -1081,15 +973,12 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 	t.Run("returns error for nil config", func(t *testing.T) {
 		builder := NewGoBuilder()
 
-		artifacts, err := builder.Build(context.Background(), nil, []build.Target{{OS: "linux", Arch: "amd64"}})
-		if err == nil {
+		result := builder.Build(context.Background(), nil, []build.Target{{OS: "linux", Arch: "amd64"}})
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertNil(artifacts) {
-			t.Fatalf("expected nil, got %v", artifacts)
-		}
-		if !stdlibAssertContains(err.Error(), "config is nil") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "config is nil")
+		if !stdlibAssertContains(result.Error(), "config is nil") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "config is nil")
 		}
 
 	})
@@ -1105,10 +994,7 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 			Name:       "test",
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, []build.Target{}))
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
@@ -1118,7 +1004,7 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 		if !stdlibAssertEqual(runtime.GOARCH, artifacts[0].Arch) {
 			t.Fatalf("want %v, got %v", runtime.GOARCH, artifacts[0].Arch)
 		}
-		if _, err := ax.Stat(artifacts[0].Path); err != nil {
+		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
 
@@ -1140,12 +1026,9 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err == nil {
+		result := builder.Build(context.Background(), cfg, targets)
+		if result.OK {
 			t.Fatal("expected error")
-		}
-		if !stdlibAssertEmpty(artifacts) {
-			t.Fatalf("expected empty, got %v", artifacts)
 		}
 
 	})
@@ -1158,17 +1041,12 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 		dir := t.TempDir()
 
 		// Create go.mod
-		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test\n\ngo 1.21"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Create invalid Go code
-				err)
+		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test\n\ngo 1.21"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err = ax.WriteFile(ax.Join(dir, "main.go"), []byte("this is not valid go code"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "main.go"), []byte("this is not valid go code"), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewGoBuilder()
@@ -1182,15 +1060,12 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 			{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err == nil {
+		result := builder.Build(context.Background(), cfg, targets)
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertContains(err.Error(), "go build failed") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "go build failed")
-		}
-		if !stdlibAssertEmpty(artifacts) {
-			t.Fatalf("expected empty, got %v", artifacts)
+		if !stdlibAssertContains(result.Error(), "go build failed") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "go build failed")
 		}
 
 	})
@@ -1217,17 +1092,12 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 			{OS: "linux", Arch: "invalid_arch"},      // This should fail
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, targets)
-		if err ==
-			// Should return error for the failed build
-			nil {
+		result := builder.Build(context.Background(), cfg, targets)
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if len(artifacts) != 1 {
-			t.Fatalf("want len %v, got %v",
-
-				// Should have the successful artifact
-				1, len(artifacts))
+		if stdlibAssertEmpty(result.Error()) {
+			t.Fatal("expected non-empty error")
 		}
 
 	})
@@ -1254,12 +1124,9 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		artifacts, err := builder.Build(ctx, cfg, targets)
-		if err == nil {
+		result := builder.Build(ctx, cfg, targets)
+		if result.OK {
 			t.Fatal("expected error")
-		}
-		if !stdlibAssertEmpty(artifacts) {
-			t.Fatalf("expected empty, got %v", artifacts)
 		}
 
 	})
@@ -1276,15 +1143,12 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 			Version:    "v1.2.3;rm -rf /",
 		}
 
-		artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
-		if err == nil {
+		result := builder.Build(context.Background(), cfg, []build.Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}})
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertEmpty(artifacts) {
-			t.Fatalf("expected empty, got %v", artifacts)
-		}
-		if !stdlibAssertContains(err.Error(), "unsupported characters") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "unsupported characters")
+		if !stdlibAssertContains(result.Error(), "unsupported characters") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "unsupported characters")
 		}
 
 	})
@@ -1294,16 +1158,13 @@ func TestGo_GoBuilderResolveGarbleCliGood(t *testing.T) {
 	t.Run("returns an explicit fallback path when it exists", func(t *testing.T) {
 		builder := NewGoBuilder()
 		garblePath := ax.Join(t.TempDir(), "garble")
-		if err := ax.WriteFile(garblePath, []byte("#!/bin/sh\n"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(garblePath, []byte("#!/bin/sh\n"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		t.Setenv("PATH", t.TempDir())
 
-		command, err := builder.resolveGarbleCli(garblePath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		command := requireCPPString(t, builder.resolveGarbleCli(garblePath))
 		if !stdlibAssertEqual(garblePath, command) {
 			t.Fatalf("want %v, got %v", garblePath, command)
 		}
@@ -1316,15 +1177,12 @@ func TestGo_GoBuilderResolveGarbleCliBad(t *testing.T) {
 		builder := NewGoBuilder()
 		t.Setenv("PATH", t.TempDir())
 
-		command, err := builder.resolveGarbleCli(ax.Join(t.TempDir(), "missing-garble"))
-		if err == nil {
+		result := builder.resolveGarbleCli(ax.Join(t.TempDir(), "missing-garble"))
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertEmpty(command) {
-			t.Fatalf("expected empty, got %v", command)
-		}
-		if !stdlibAssertContains(err.Error(), "garble CLI not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "garble CLI not found")
+		if !stdlibAssertContains(result.Error(), "garble CLI not found") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "garble CLI not found")
 		}
 
 	})
@@ -1378,10 +1236,7 @@ func TestGo_GoBuilderInterfaceGood(t *testing.T) {
 	if !stdlibAssertEqual("go", builder.Name()) {
 		t.Fatalf("want %v, got %v", "go", builder.Name())
 	}
-	detected, err := builder.Detect(nil, t.TempDir())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	detected := requireCPPBool(t, builder.Detect(nil, t.TempDir()))
 	if detected {
 		t.Fatal("expected empty temp directory not to be detected")
 	}
@@ -1458,7 +1313,7 @@ func TestGo_GoBuilder_Detect_Good(t *core.T) {
 	subject := &GoBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1468,7 +1323,7 @@ func TestGo_GoBuilder_Detect_Bad(t *core.T) {
 	subject := &GoBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(io.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1478,7 +1333,7 @@ func TestGo_GoBuilder_Detect_Ugly(t *core.T) {
 	subject := &GoBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1490,7 +1345,7 @@ func TestGo_GoBuilder_Build_Good(t *core.T) {
 	subject := &GoBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1502,7 +1357,7 @@ func TestGo_GoBuilder_Build_Bad(t *core.T) {
 	subject := &GoBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1514,7 +1369,7 @@ func TestGo_GoBuilder_Build_Ugly(t *core.T) {
 	subject := &GoBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

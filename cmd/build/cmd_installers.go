@@ -38,57 +38,61 @@ func AddInstallersCommand(c *core.Core) {
 	c.Command("build/installers", core.Command{
 		Description: "Generate installer scripts",
 		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runBuildInstallers(BuildInstallersRequest{
+			return runBuildInstallers(BuildInstallersRequest{
 				Context:    cmdutil.ContextOrBackground(),
 				Variant:    cmdutil.OptionString(opts, "variant"),
 				Version:    cmdutil.OptionString(opts, "version"),
 				OutputDir:  cmdutil.OptionString(opts, "output"),
 				Repo:       cmdutil.OptionString(opts, "repo"),
 				BinaryName: cmdutil.OptionString(opts, "name", "binary"),
-			}))
+			})
 		},
 	})
 }
 
-func runBuildInstallers(req BuildInstallersRequest) error {
+func runBuildInstallers(req BuildInstallersRequest) core.Result {
 	ctx := req.Context
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	projectDir, err := getInstallersWorkingDir()
-	if err != nil {
-		return coreerr.E("build.runBuildInstallers", "failed to get working directory", err)
+	projectDirResult := getInstallersWorkingDir()
+	if !projectDirResult.OK {
+		return core.Fail(coreerr.E("build.runBuildInstallers", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
 
-	return runBuildInstallersInDir(ctx, projectDir, req.Variant, req.Version, req.OutputDir, req.Repo, req.BinaryName)
+	return runBuildInstallersInDir(ctx, projectDirResult.Value.(string), req.Variant, req.Version, req.OutputDir, req.Repo, req.BinaryName)
 }
 
-func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, outputDir, repo, binaryName string) error {
+func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, outputDir, repo, binaryName string) core.Result {
 	filesystem := io.Local
 
-	buildConfig, err := loadInstallersBuildConfig(filesystem, projectDir)
-	if err != nil {
-		return coreerr.E("build.runBuildInstallers", "failed to load build config", err)
+	buildConfigResult := loadInstallersBuildConfig(filesystem, projectDir)
+	if !buildConfigResult.OK {
+		return core.Fail(coreerr.E("build.runBuildInstallers", "failed to load build config", core.NewError(buildConfigResult.Error())))
 	}
+	buildConfig := buildConfigResult.Value.(*build.BuildConfig)
 
 	installerVersion := core.Trim(version)
 	if installerVersion == "" {
-		installerVersion, err = resolveInstallersVersion(ctx, projectDir)
-		if err != nil {
-			return coreerr.E("build.runBuildInstallers", "failed to determine installer version; use --version to override", err)
+		versionResult := resolveInstallersVersion(ctx, projectDir)
+		if !versionResult.OK {
+			return core.Fail(coreerr.E("build.runBuildInstallers", "failed to determine installer version; use --version to override", core.NewError(versionResult.Error())))
 		}
+		installerVersion = versionResult.Value.(string)
 	}
-	if err := build.ValidateVersionIdentifier(installerVersion); err != nil {
-		return coreerr.E("build.runBuildInstallers", "invalid installer version; use a safe release identifier", err)
+	validVersion := build.ValidateVersionIdentifier(installerVersion)
+	if !validVersion.OK {
+		return core.Fail(coreerr.E("build.runBuildInstallers", "invalid installer version; use a safe release identifier", core.NewError(validVersion.Error())))
 	}
 
 	installerRepo := core.Trim(repo)
 	if installerRepo == "" {
-		installerRepo, err = resolveInstallersRepository(ctx, projectDir)
-		if err != nil {
-			return err
+		repoResult := resolveInstallersRepository(ctx, projectDir)
+		if !repoResult.OK {
+			return repoResult
 		}
+		installerRepo = repoResult.Value.(string)
 	}
 
 	if outputDir == "" {
@@ -97,8 +101,9 @@ func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, 
 		outputDir = ax.Join(projectDir, outputDir)
 	}
 
-	if err := filesystem.EnsureDir(outputDir); err != nil {
-		return coreerr.E("build.runBuildInstallers", "failed to create output directory", err)
+	created := filesystem.EnsureDir(outputDir)
+	if !created.OK {
+		return core.Fail(coreerr.E("build.runBuildInstallers", "failed to create output directory", core.NewError(created.Error())))
 	}
 
 	cfg := buildinstallers.InstallerConfig{
@@ -109,7 +114,7 @@ func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, 
 
 	normalizedVariant, ok := normalizeInstallersVariant(variant)
 	if !ok {
-		return coreerr.E("build.runBuildInstallers", "unknown installer variant: "+core.Trim(variant), nil)
+		return core.Fail(coreerr.E("build.runBuildInstallers", "unknown installer variant: "+core.Trim(variant), nil))
 	}
 
 	cli.Print("%s %s\n", buildHeaderStyle.Render("Installers"), "generating installer scripts")
@@ -119,58 +124,63 @@ func runBuildInstallersInDir(ctx context.Context, projectDir, variant, version, 
 	}
 
 	for _, candidate := range build.InstallerVariants() {
-		if err := writeInstallerVariant(filesystem, projectDir, outputDir, candidate, cfg); err != nil {
-			return err
+		written := writeInstallerVariant(filesystem, projectDir, outputDir, candidate, cfg)
+		if !written.OK {
+			return written
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func writeInstallerVariant(filesystem io.Medium, projectDir, outputDir string, variant build.InstallerVariant, cfg buildinstallers.InstallerConfig) error {
+func writeInstallerVariant(filesystem io.Medium, projectDir, outputDir string, variant build.InstallerVariant, cfg buildinstallers.InstallerConfig) core.Result {
 	scriptName := build.InstallerOutputName(variant)
 	if scriptName == "" {
-		return coreerr.E("build.writeInstallerVariant", "unknown installer variant: "+string(variant), nil)
+		return core.Fail(coreerr.E("build.writeInstallerVariant", "unknown installer variant: "+string(variant), nil))
 	}
 
-	script, err := buildinstallers.GenerateInstaller(variant, cfg)
-	if err != nil {
-		return coreerr.E("build.writeInstallerVariant", "failed to generate "+scriptName, err)
+	scriptResult := buildinstallers.GenerateInstaller(variant, cfg)
+	if !scriptResult.OK {
+		return core.Fail(coreerr.E("build.writeInstallerVariant", "failed to generate "+scriptName, core.NewError(scriptResult.Error())))
 	}
+	script := scriptResult.Value.(string)
 
 	targetPath := ax.Join(outputDir, scriptName)
-	if err := filesystem.WriteMode(targetPath, script, 0o755); err != nil {
-		return coreerr.E("build.writeInstallerVariant", "failed to write "+scriptName, err)
+	written := filesystem.WriteMode(targetPath, script, 0o755)
+	if !written.OK {
+		return core.Fail(coreerr.E("build.writeInstallerVariant", "failed to write "+scriptName, core.NewError(written.Error())))
 	}
 
-	relPath, relErr := ax.Rel(projectDir, targetPath)
-	if relErr != nil {
-		relPath = targetPath
+	relPath := targetPath
+	relPathResult := ax.Rel(projectDir, targetPath)
+	if relPathResult.OK {
+		relPath = relPathResult.Value.(string)
 	}
 	cli.Print("  %s\n", relPath)
 
-	return nil
+	return core.Ok(nil)
 }
 
-func resolveInstallersRepository(ctx context.Context, projectDir string) (string, error) {
-	releaseConfig, err := loadInstallersReleaseConfig(projectDir)
-	if err != nil {
-		return "", coreerr.E("build.resolveInstallersRepository", "failed to load release config", err)
+func resolveInstallersRepository(ctx context.Context, projectDir string) core.Result {
+	releaseConfigResult := loadInstallersReleaseConfig(projectDir)
+	if !releaseConfigResult.OK {
+		return core.Fail(coreerr.E("build.resolveInstallersRepository", "failed to load release config", core.NewError(releaseConfigResult.Error())))
 	}
+	releaseConfig := releaseConfigResult.Value.(*release.Config)
 
 	if releaseConfig != nil {
 		repo := core.Trim(releaseConfig.GetRepository())
 		if repo != "" {
-			return repo, nil
+			return core.Ok(repo)
 		}
 	}
 
-	repo, err := detectInstallersRepository(ctx, projectDir)
-	if err != nil {
-		return "", coreerr.E("build.resolveInstallersRepository", "failed to determine repository; use --repo or configure .core/release.yaml project.repository", err)
+	repoResult := detectInstallersRepository(ctx, projectDir)
+	if !repoResult.OK {
+		return core.Fail(coreerr.E("build.resolveInstallersRepository", "failed to determine repository; use --repo or configure .core/release.yaml project.repository", core.NewError(repoResult.Error())))
 	}
 
-	return repo, nil
+	return repoResult
 }
 
 func normalizeInstallersVariant(value string) (build.InstallerVariant, bool) {

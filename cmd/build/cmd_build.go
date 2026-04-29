@@ -46,7 +46,7 @@ func AddBuildCommands(c *core.Core) {
 				checksumOutputSet,
 			)
 
-			return cmdutil.ResultFromError(runProjectBuild(ProjectBuildRequest{
+			return runProjectBuild(ProjectBuildRequest{
 				Context:           cmdutil.ContextOrBackground(),
 				BuildType:         cmdutil.OptionString(opts, "type"),
 				Version:           cmdutil.OptionString(opts, "version"),
@@ -86,7 +86,7 @@ func AddBuildCommands(c *core.Core) {
 				),
 				Notarize: cmdutil.OptionBool(opts, "notarize"),
 				Verbose:  cmdutil.OptionBool(opts, "verbose", "v"),
-			}))
+			})
 		},
 	})
 
@@ -95,9 +95,9 @@ func AddBuildCommands(c *core.Core) {
 		Action: func(opts core.Options) core.Result {
 			fromPath := cmdutil.OptionString(opts, buildPathOptionKey)
 			if fromPath == "" {
-				return cmdutil.ResultFromError(errPathRequired)
+				return core.Fail(errPathRequired)
 			}
-			return cmdutil.ResultFromError(runBuild(cmdutil.ContextOrBackground(), fromPath))
+			return runBuild(cmdutil.ContextOrBackground(), fromPath)
 		},
 	})
 
@@ -108,11 +108,11 @@ func AddBuildCommands(c *core.Core) {
 			pwaURL := cmdutil.OptionString(opts, "url")
 			switch {
 			case pwaPath != "":
-				return cmdutil.ResultFromError(runLocalPwaBuild(cmdutil.ContextOrBackground(), pwaPath))
+				return runLocalPwaBuild(cmdutil.ContextOrBackground(), pwaPath)
 			case pwaURL != "":
-				return cmdutil.ResultFromError(runPwaBuild(cmdutil.ContextOrBackground(), pwaURL))
+				return runPwaBuild(cmdutil.ContextOrBackground(), pwaURL)
 			default:
-				return cmdutil.ResultFromError(errPWAInputRequired)
+				return core.Fail(errPWAInputRequired)
 			}
 		},
 	})
@@ -120,14 +120,14 @@ func AddBuildCommands(c *core.Core) {
 	c.Command("build/sdk", core.Command{
 		Description: "cmd.build.sdk.long",
 		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runBuildSDK(
+			return runBuildSDK(
 				cmdutil.ContextOrBackground(),
 				cmdutil.OptionString(opts, "spec"),
 				cmdutil.OptionString(opts, "lang"),
 				cmdutil.OptionString(opts, "version"),
 				cmdutil.OptionBool(opts, "dry-run"),
 				cmdutil.OptionBool(opts, "skip-unavailable", "skip_unavailable"),
-			))
+			)
 		},
 	})
 

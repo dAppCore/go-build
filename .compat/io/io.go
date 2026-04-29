@@ -3,28 +3,28 @@ package io
 import (
 	goio "io"
 	"io/fs"
-	"sort"
+	"testing/fstest"
 	"time"
 
 	core "dappco.re/go"
 )
 
 type Medium interface {
-	Read(path string) (string, error)
-	Write(path, content string) error
-	WriteMode(path, content string, mode fs.FileMode) error
-	EnsureDir(path string) error
+	Read(path string) core.Result
+	Write(path, content string) core.Result
+	WriteMode(path, content string, mode fs.FileMode) core.Result
+	EnsureDir(path string) core.Result
 	IsFile(path string) bool
-	Delete(path string) error
-	DeleteAll(path string) error
-	Rename(oldPath, newPath string) error
-	List(path string) ([]fs.DirEntry, error)
-	Stat(path string) (fs.FileInfo, error)
-	Open(path string) (fs.File, error)
-	Create(path string) (goio.WriteCloser, error)
-	Append(path string) (goio.WriteCloser, error)
-	ReadStream(path string) (goio.ReadCloser, error)
-	WriteStream(path string) (goio.WriteCloser, error)
+	Delete(path string) core.Result
+	DeleteAll(path string) core.Result
+	Rename(oldPath, newPath string) core.Result
+	List(path string) core.Result
+	Stat(path string) core.Result
+	Open(path string) core.Result
+	Create(path string) core.Result
+	Append(path string) core.Result
+	ReadStream(path string) core.Result
+	WriteStream(path string) core.Result
 	Exists(path string) bool
 	IsDir(path string) bool
 }
@@ -33,117 +33,117 @@ var Local Medium = localMedium{}
 
 type localMedium struct{}
 
-func (localMedium) Read(path string) (string, error) {
+func (localMedium) Read(path string) core.Result {
 	data := core.ReadFile(path)
 	if !data.OK {
-		return "", resultError(data)
+		return data
 	}
-	return string(data.Value.([]byte)), nil
+	return core.Ok(string(data.Value.([]byte)))
 }
 
-func (m localMedium) Write(path, content string) error {
+func (m localMedium) Write(path, content string) core.Result {
 	return m.WriteMode(path, content, 0o644)
 }
 
-func (localMedium) WriteMode(path, content string, mode fs.FileMode) error {
+func (localMedium) WriteMode(path, content string, mode fs.FileMode) core.Result {
 	created := core.MkdirAll(core.PathDir(path), 0o755)
 	if !created.OK {
-		return resultError(created)
+		return created
 	}
 	written := core.WriteFile(path, []byte(content), mode)
 	if !written.OK {
-		return resultError(written)
+		return written
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func (localMedium) EnsureDir(path string) error {
+func (localMedium) EnsureDir(path string) core.Result {
 	created := core.MkdirAll(path, 0o755)
 	if !created.OK {
-		return resultError(created)
+		return created
 	}
-	return nil
+	return core.Ok(nil)
 }
 func (localMedium) IsFile(path string) bool {
 	info := core.Stat(path)
 	return info.OK && !info.Value.(fs.FileInfo).IsDir()
 }
-func (localMedium) Delete(path string) error {
+func (localMedium) Delete(path string) core.Result {
 	removed := core.Remove(path)
 	if !removed.OK {
-		return resultError(removed)
+		return removed
 	}
-	return nil
+	return core.Ok(nil)
 }
-func (localMedium) DeleteAll(path string) error {
+func (localMedium) DeleteAll(path string) core.Result {
 	removed := core.RemoveAll(path)
 	if !removed.OK {
-		return resultError(removed)
+		return removed
 	}
-	return nil
+	return core.Ok(nil)
 }
-func (localMedium) Rename(oldPath, newPath string) error {
+func (localMedium) Rename(oldPath, newPath string) core.Result {
 	created := core.MkdirAll(core.PathDir(newPath), 0o755)
 	if !created.OK {
-		return resultError(created)
+		return created
 	}
 	renamed := core.Rename(oldPath, newPath)
 	if !renamed.OK {
-		return resultError(renamed)
+		return renamed
 	}
-	return nil
+	return core.Ok(nil)
 }
-func (localMedium) List(path string) ([]fs.DirEntry, error) {
+func (localMedium) List(path string) core.Result {
 	read := core.ReadDir(core.DirFS(path), ".")
 	if !read.OK {
-		return nil, resultError(read)
+		return read
 	}
-	return read.Value.([]core.FsDirEntry), nil
+	return read
 }
-func (localMedium) Stat(path string) (fs.FileInfo, error) {
+func (localMedium) Stat(path string) core.Result {
 	info := core.Stat(path)
 	if !info.OK {
-		return nil, resultError(info)
+		return info
 	}
-	return info.Value.(fs.FileInfo), nil
+	return info
 }
-func (localMedium) Open(path string) (fs.File, error) {
+func (localMedium) Open(path string) core.Result {
 	file := core.Open(path)
 	if !file.OK {
-		return nil, resultError(file)
+		return file
 	}
-	return file.Value.(*core.OSFile), nil
+	return core.Ok(file.Value.(*core.OSFile))
 }
-func (localMedium) Create(path string) (goio.WriteCloser, error) {
+func (localMedium) Create(path string) core.Result {
 	created := core.MkdirAll(core.PathDir(path), 0o755)
 	if !created.OK {
-		return nil, resultError(created)
+		return created
 	}
 	file := core.Create(path)
 	if !file.OK {
-		return nil, resultError(file)
+		return file
 	}
-	return file.Value.(*core.OSFile), nil
+	return core.Ok(file.Value.(*core.OSFile))
 }
-func (localMedium) Append(path string) (goio.WriteCloser, error) {
+func (localMedium) Append(path string) core.Result {
 	created := core.MkdirAll(core.PathDir(path), 0o755)
 	if !created.OK {
-		return nil, resultError(created)
+		return created
 	}
 	file := core.OpenFile(path, core.O_CREATE|core.O_WRONLY|core.O_APPEND, 0o644)
 	if !file.OK {
-		return nil, resultError(file)
+		return file
 	}
-	return file.Value.(*core.OSFile), nil
+	return core.Ok(file.Value.(*core.OSFile))
 }
-func (m localMedium) ReadStream(path string) (goio.ReadCloser, error) {
+func (m localMedium) ReadStream(path string) core.Result {
 	file := core.Open(path)
 	if !file.OK {
-		return nil, resultError(file)
+		return file
 	}
-	return file.Value.(*core.OSFile), nil
+	return core.Ok(file.Value.(*core.OSFile))
 }
-func (m localMedium) WriteStream(path string) (goio.WriteCloser, error) { return m.Create(path) }
+func (m localMedium) WriteStream(path string) core.Result { return m.Create(path) }
 func (localMedium) Exists(path string) bool {
 	return core.Stat(path).OK
 }
@@ -152,16 +152,16 @@ func (localMedium) IsDir(path string) bool {
 	return info.OK && info.Value.(fs.FileInfo).IsDir()
 }
 
-func Copy(source Medium, sourcePath string, destination Medium, destinationPath string) error {
-	content, err := source.Read(sourcePath)
-	if err != nil {
-		return err
+func Copy(source Medium, sourcePath string, destination Medium, destinationPath string) core.Result {
+	content := source.Read(sourcePath)
+	if !content.OK {
+		return content
 	}
 	mode := fs.FileMode(0o644)
-	if info, err := source.Stat(sourcePath); err == nil {
-		mode = info.Mode()
+	if info := source.Stat(sourcePath); info.OK {
+		mode = info.Value.(fs.FileInfo).Mode()
 	}
-	return destination.WriteMode(destinationPath, content, mode)
+	return destination.WriteMode(destinationPath, content.Value.(string), mode)
 }
 
 type MemoryMedium struct {
@@ -191,36 +191,36 @@ func (m *MemoryMedium) normal(path string) string {
 	return path
 }
 
-func (m *MemoryMedium) Read(path string) (string, error) {
+func (m *MemoryMedium) Read(path string) core.Result {
 	file, ok := m.files[m.normal(path)]
 	if !ok {
-		return "", fs.ErrNotExist
+		return core.Fail(fs.ErrNotExist)
 	}
-	return file.content, nil
+	return core.Ok(file.content)
 }
 
-func (m *MemoryMedium) Write(path, content string) error {
+func (m *MemoryMedium) Write(path, content string) core.Result {
 	return m.WriteMode(path, content, 0o644)
 }
 
-func (m *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) error {
+func (m *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) core.Result {
 	path = m.normal(path)
 	if path == "" {
-		return fs.ErrInvalid
+		return core.Fail(fs.ErrInvalid)
 	}
 	m.files[path] = memoryFile{content: content, mode: mode, modTime: time.Now()}
 	m.ensureParents(parentSlash(path))
-	return nil
+	return core.Ok(nil)
 }
 
-func (m *MemoryMedium) EnsureDir(path string) error {
+func (m *MemoryMedium) EnsureDir(path string) core.Result {
 	path = m.normal(path)
 	if path == "" {
-		return nil
+		return core.Ok(nil)
 	}
 	m.dirs[path] = true
 	m.ensureParents(parentSlash(path))
-	return nil
+	return core.Ok(nil)
 }
 
 func (m *MemoryMedium) ensureParents(path string) {
@@ -236,26 +236,26 @@ func (m *MemoryMedium) IsFile(path string) bool {
 	return ok
 }
 
-func (m *MemoryMedium) Delete(path string) error {
+func (m *MemoryMedium) Delete(path string) core.Result {
 	path = m.normal(path)
 	if _, ok := m.files[path]; ok {
 		delete(m.files, path)
-		return nil
+		return core.Ok(nil)
 	}
 	if m.IsDir(path) {
 		prefix := path + "/"
 		for name := range m.files {
 			if core.HasPrefix(name, prefix) {
-				return core.NewError("directory not empty")
+				return core.Fail(core.NewError("directory not empty"))
 			}
 		}
 		delete(m.dirs, path)
-		return nil
+		return core.Ok(nil)
 	}
-	return fs.ErrNotExist
+	return core.Fail(fs.ErrNotExist)
 }
 
-func (m *MemoryMedium) DeleteAll(path string) error {
+func (m *MemoryMedium) DeleteAll(path string) core.Result {
 	path = m.normal(path)
 	prefix := path + "/"
 	for name := range m.files {
@@ -268,20 +268,20 @@ func (m *MemoryMedium) DeleteAll(path string) error {
 			delete(m.dirs, name)
 		}
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func (m *MemoryMedium) Rename(oldPath, newPath string) error {
+func (m *MemoryMedium) Rename(oldPath, newPath string) core.Result {
 	oldPath = m.normal(oldPath)
 	newPath = m.normal(newPath)
 	if file, ok := m.files[oldPath]; ok {
 		delete(m.files, oldPath)
 		m.files[newPath] = file
 		m.ensureParents(parentSlash(newPath))
-		return nil
+		return core.Ok(nil)
 	}
 	if !m.IsDir(oldPath) {
-		return fs.ErrNotExist
+		return core.Fail(fs.ErrNotExist)
 	}
 	oldPrefix := oldPath + "/"
 	for name, file := range m.files {
@@ -297,94 +297,58 @@ func (m *MemoryMedium) Rename(oldPath, newPath string) error {
 		}
 	}
 	m.ensureParents(parentSlash(newPath))
-	return nil
+	return core.Ok(nil)
 }
 
-func (m *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
+func (m *MemoryMedium) List(path string) core.Result {
 	path = m.normal(path)
 	if path != "" && !m.IsDir(path) {
-		return nil, fs.ErrNotExist
+		return core.Fail(fs.ErrNotExist)
 	}
-	prefix := ""
-	if path != "" {
-		prefix = path + "/"
-	}
-	seen := map[string]fs.DirEntry{}
-	for name, file := range m.files {
-		if !core.HasPrefix(name, prefix) {
-			continue
-		}
-		rest := core.TrimPrefix(name, prefix)
-		part := core.Split(rest, "/")[0]
-		if part == rest {
-			seen[part] = dirEntry{info: fileInfo{name: part, size: int64(len(file.content)), mode: file.mode, modTime: file.modTime}}
-		} else if _, ok := seen[part]; !ok {
-			seen[part] = dirEntry{info: fileInfo{name: part, mode: fs.ModeDir | 0o755, isDir: true, modTime: time.Now()}}
-		}
-	}
-	for name := range m.dirs {
-		if !core.HasPrefix(name, prefix) {
-			continue
-		}
-		rest := core.TrimPrefix(name, prefix)
-		part := core.Split(rest, "/")[0]
-		if part != "" {
-			seen[part] = dirEntry{info: fileInfo{name: part, mode: fs.ModeDir | 0o755, isDir: true, modTime: time.Now()}}
-		}
-	}
-	names := make([]string, 0, len(seen))
-	for name := range seen {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	entries := make([]fs.DirEntry, 0, len(names))
-	for _, name := range names {
-		entries = append(entries, seen[name])
-	}
-	return entries, nil
+	entries, err := fs.ReadDir(m.mapFS(), pathOrDot(path))
+	return core.ResultOf(entries, err)
 }
 
-func (m *MemoryMedium) Stat(path string) (fs.FileInfo, error) {
+func (m *MemoryMedium) Stat(path string) core.Result {
 	path = m.normal(path)
 	if file, ok := m.files[path]; ok {
-		return fileInfo{name: core.PathBase(path), size: int64(len(file.content)), mode: file.mode, modTime: file.modTime}, nil
+		return core.Ok(fileInfo{name: core.PathBase(path), size: int64(len(file.content)), mode: file.mode, modTime: file.modTime})
 	}
 	if m.IsDir(path) {
-		return fileInfo{name: core.PathBase(path), mode: fs.ModeDir | 0o755, isDir: true, modTime: time.Now()}, nil
+		return core.Ok(fileInfo{name: core.PathBase(path), mode: fs.ModeDir | 0o755, isDir: true, modTime: time.Now()})
 	}
-	return nil, fs.ErrNotExist
+	return core.Fail(fs.ErrNotExist)
 }
 
-func (m *MemoryMedium) Open(path string) (fs.File, error) {
-	info, err := m.Stat(path)
-	if err != nil {
-		return nil, err
+func (m *MemoryMedium) Open(path string) core.Result {
+	info := m.Stat(path)
+	if !info.OK {
+		return info
 	}
-	if info.IsDir() {
-		return nil, fs.ErrInvalid
+	if info.Value.(fs.FileInfo).IsDir() {
+		return core.Fail(fs.ErrInvalid)
 	}
-	content, _ := m.Read(path)
-	return &memoryOpenFile{reader: core.NewReader(content), info: info}, nil
+	file, err := m.mapFS().Open(m.normal(path))
+	return core.ResultOf(file, err)
 }
 
-func (m *MemoryMedium) Create(path string) (goio.WriteCloser, error) {
-	return &memoryWriter{close: func(content string) error { return m.Write(path, content) }}, nil
+func (m *MemoryMedium) Create(path string) core.Result {
+	return core.Fail(core.NewError("memory stream create is not supported"))
 }
 
-func (m *MemoryMedium) Append(path string) (goio.WriteCloser, error) {
-	existing, _ := m.Read(path)
-	return &memoryWriter{buf: core.NewBufferString(existing), close: func(content string) error { return m.Write(path, content) }}, nil
+func (m *MemoryMedium) Append(path string) core.Result {
+	return core.Fail(core.NewError("memory stream append is not supported"))
 }
 
-func (m *MemoryMedium) ReadStream(path string) (goio.ReadCloser, error) {
-	content, err := m.Read(path)
-	if err != nil {
-		return nil, err
+func (m *MemoryMedium) ReadStream(path string) core.Result {
+	content := m.Read(path)
+	if !content.OK {
+		return content
 	}
-	return goio.NopCloser(core.NewReader(content)), nil
+	return core.Ok(goio.NopCloser(core.NewReader(content.Value.(string))))
 }
 
-func (m *MemoryMedium) WriteStream(path string) (goio.WriteCloser, error) { return m.Create(path) }
+func (m *MemoryMedium) WriteStream(path string) core.Result { return m.Create(path) }
 func (m *MemoryMedium) Exists(path string) bool {
 	path = m.normal(path)
 	return m.IsFile(path) || m.IsDir(path)
@@ -406,6 +370,30 @@ func (m *MemoryMedium) IsDir(path string) bool {
 	return false
 }
 
+func (m *MemoryMedium) mapFS() fstest.MapFS {
+	mapped := fstest.MapFS{}
+	for name, file := range m.files {
+		mapped[name] = &fstest.MapFile{
+			Data:    []byte(file.content),
+			Mode:    file.mode,
+			ModTime: file.modTime,
+		}
+	}
+	for name := range m.dirs {
+		if _, ok := mapped[name]; !ok {
+			mapped[name] = &fstest.MapFile{Mode: fs.ModeDir | 0o755, ModTime: time.Now()}
+		}
+	}
+	return mapped
+}
+
+func pathOrDot(path string) string {
+	if path == "" {
+		return "."
+	}
+	return path
+}
+
 type fileInfo struct {
 	name    string
 	size    int64
@@ -421,53 +409,6 @@ func (i fileInfo) ModTime() time.Time { return i.modTime }
 func (i fileInfo) IsDir() bool        { return i.isDir }
 func (i fileInfo) Sys() any           { return nil }
 
-type dirEntry struct{ info fs.FileInfo }
-
-func (e dirEntry) Name() string               { return e.info.Name() }
-func (e dirEntry) IsDir() bool                { return e.info.IsDir() }
-func (e dirEntry) Type() fs.FileMode          { return e.info.Mode().Type() }
-func (e dirEntry) Info() (fs.FileInfo, error) { return e.info, nil }
-
-type memoryOpenFile struct {
-	reader goio.Reader
-	info   fs.FileInfo
-}
-
-func (f *memoryOpenFile) Read(p []byte) (int, error) { return f.reader.Read(p) }
-func (f *memoryOpenFile) Stat() (fs.FileInfo, error) { return f.info, nil }
-func (f *memoryOpenFile) Close() error               { return nil }
-
-type stringBuffer interface {
-	Write([]byte) (int, error)
-	String() string
-}
-
-type memoryWriter struct {
-	buf   stringBuffer
-	close func(string) error
-}
-
-func (w *memoryWriter) Write(p []byte) (int, error) {
-	if w.buf == nil {
-		w.buf = core.NewBuffer()
-	}
-	return w.buf.Write(p)
-}
-
-func (w *memoryWriter) Close() error {
-	if w.buf == nil {
-		w.buf = core.NewBuffer()
-	}
-	return w.close(w.buf.String())
-}
-
 func parentSlash(path string) string {
 	return core.PathToSlash(core.PathDir(path))
-}
-
-func resultError(result core.Result) error {
-	if err, ok := result.Value.(error); ok {
-		return err
-	}
-	return core.NewError(result.Error())
 }

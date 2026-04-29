@@ -3,74 +3,82 @@ package build
 import core "dappco.re/go"
 
 func TestInstallers_GenerateInstallerScript_Good(t *core.T) {
-	script, err := GenerateInstallerScript(VariantCI, "v1.2.3", "dappcore/core")
-	core.RequireNoError(t, err)
+	result := GenerateInstallerScript(VariantCI, "v1.2.3", "dappcore/core")
+	core.RequireTrue(t, result.OK)
+	script := result.Value.(string)
 	core.AssertContains(t, script, "v1.2.3")
 }
 
 func TestInstallers_GenerateInstallerScript_Bad(t *core.T) {
-	script, err := GenerateInstallerScript(InstallerVariant("missing"), "v1.2.3", "dappcore/core")
-	core.AssertError(t, err)
-	core.AssertEqual(t, "", script)
+	result := GenerateInstallerScript(InstallerVariant("missing"), "v1.2.3", "dappcore/core")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "unknown")
 }
 
 func TestInstallers_GenerateInstallerScript_Ugly(t *core.T) {
-	script, err := GenerateInstallerScript(VariantGo, "v1.2.3", "dappcore/core.git")
-	core.RequireNoError(t, err)
+	result := GenerateInstallerScript(VariantGo, "v1.2.3", "dappcore/core.git")
+	core.RequireTrue(t, result.OK)
+	script := result.Value.(string)
 	core.AssertContains(t, script, "core")
 }
 
 func TestInstallers_GenerateInstaller_Good(t *core.T) {
-	script, err := GenerateInstaller(VariantFull, "v1.2.3", "dappcore/core")
-	core.RequireNoError(t, err)
+	result := GenerateInstaller(VariantFull, "v1.2.3", "dappcore/core")
+	core.RequireTrue(t, result.OK)
+	script := result.Value.(string)
 	core.AssertContains(t, script, "v1.2.3")
 }
 
 func TestInstallers_GenerateInstaller_Bad(t *core.T) {
-	script, err := GenerateInstaller(VariantCI, "bad version!", "dappcore/core")
-	core.AssertError(t, err)
-	core.AssertEqual(t, "", script)
+	result := GenerateInstaller(VariantCI, "bad version!", "dappcore/core")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "version")
 }
 
 func TestInstallers_GenerateInstaller_Ugly(t *core.T) {
-	script, err := GenerateInstaller(VariantAgentic, "v1.2.3", "")
-	core.RequireNoError(t, err)
+	result := GenerateInstaller(VariantAgentic, "v1.2.3", "")
+	core.RequireTrue(t, result.OK)
+	script := result.Value.(string)
 	core.AssertContains(t, script, "v1.2.3")
 }
 
 func TestInstallers_GenerateAllInstallerScripts_Good(t *core.T) {
-	scripts, err := GenerateAllInstallerScripts("v1.2.3", "dappcore/core")
-	core.RequireNoError(t, err)
+	result := GenerateAllInstallerScripts("v1.2.3", "dappcore/core")
+	core.RequireTrue(t, result.OK)
+	scripts := result.Value.(map[string]string)
 	core.AssertContains(t, scripts, "setup.sh")
 }
 
 func TestInstallers_GenerateAllInstallerScripts_Bad(t *core.T) {
-	scripts, err := GenerateAllInstallerScripts("bad version!", "dappcore/core")
-	core.AssertError(t, err)
-	core.AssertNil(t, scripts)
+	result := GenerateAllInstallerScripts("bad version!", "dappcore/core")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "version")
 }
 
 func TestInstallers_GenerateAllInstallerScripts_Ugly(t *core.T) {
-	scripts, err := GenerateAllInstallerScripts("v1.2.3", "")
-	core.RequireNoError(t, err)
+	result := GenerateAllInstallerScripts("v1.2.3", "")
+	core.RequireTrue(t, result.OK)
+	scripts := result.Value.(map[string]string)
 	core.AssertContains(t, scripts, "agent.sh")
 }
 
 func TestInstallers_GenerateAll_Good(t *core.T) {
-	scripts, err := GenerateAll("v1.2.3", "dappcore/core")
-	core.RequireNoError(t, err)
+	result := GenerateAll("v1.2.3", "dappcore/core")
+	core.RequireTrue(t, result.OK)
+	scripts := result.Value.(map[string]string)
 	core.AssertContains(t, scripts, "go.sh")
 }
 
 func TestInstallers_GenerateAll_Bad(t *core.T) {
-	scripts, err := GenerateAll("bad version!", "dappcore/core")
-	core.AssertError(t, err)
-	core.AssertNil(t, scripts)
+	result := GenerateAll("bad version!", "dappcore/core")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "version")
 }
 
 func TestInstallers_GenerateAll_Ugly(t *core.T) {
-	scripts, err := GenerateAll("v1.2.3", "owner/repo.git")
-	core.RequireNoError(t, err)
+	result := GenerateAll("v1.2.3", "owner/repo.git")
+	core.RequireTrue(t, result.OK)
+	scripts := result.Value.(map[string]string)
 	core.AssertContains(t, scripts["ci.sh"], "repo")
 }
 

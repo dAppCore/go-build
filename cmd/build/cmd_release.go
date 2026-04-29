@@ -8,6 +8,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/cmdutil"
+	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/cli/pkg/cli"
 	"dappco.re/go/i18n"
@@ -34,7 +35,7 @@ func registerReleaseCommand(c *core.Core, path string) {
 	c.Command(path, core.Command{
 		Description: "cmd.build.release.long",
 		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runRelease(
+			return runRelease(
 				cmdutil.ContextOrBackground(),
 				resolveReleaseDryRun(
 					cmdutil.OptionBool(opts, "dry-run"),
@@ -48,7 +49,7 @@ func registerReleaseCommand(c *core.Core, path string) {
 				cmdutil.OptionBool(opts, "prerelease"),
 				cmdutil.OptionString(opts, "archive-format"),
 				cmdutil.OptionBool(opts, "apple-testflight", "apple_testflight", "testflight"),
-			))
+			)
 		},
 	})
 }
@@ -56,18 +57,19 @@ func registerReleaseCommand(c *core.Core, path string) {
 // runRelease executes the full release workflow: build + archive + checksum + publish.
 //
 // runRelease(ctx, true, false, "sdk", "v1.2.3", true, false, "xz") // dry run with an SDK-only target
-func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version string, draft, prerelease bool, archiveFormat string, appleTestFlightFlag ...bool) (err error) {
+func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version string, draft, prerelease bool, archiveFormat string, appleTestFlightFlag ...bool) (result core.Result) {
 	if ciMode {
 		defer func() {
-			emitCIErrorAnnotation(err)
+			emitCIErrorAnnotation(result)
 		}()
 	}
 
 	// Get current directory
-	projectDir, err := getReleaseWorkingDir()
-	if err != nil {
-		return coreerr.E("release", "get working directory", err)
+	projectDirResult := getReleaseWorkingDir()
+	if !projectDirResult.OK {
+		return core.Fail(coreerr.E("release", "get working directory", core.NewError(projectDirResult.Error())))
 	}
+	projectDir := projectDirResult.Value.(string)
 
 	target = core.Lower(core.Trim(target))
 	if releaseAppleTestFlightRequested(target, appleTestFlightFlag...) {
@@ -88,24 +90,26 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 			i18n.T("cmd.build.release.error.no_config"),
 		)
 		cli.Print("  %s\n", buildDimStyle.Render(i18n.T("cmd.build.release.hint.create_config")))
-		return coreerr.E("release", "config not found", nil)
+		return core.Fail(coreerr.E("release", "config not found", nil))
 	}
 
 	// Load configuration
-	cfg, err := loadReleaseConfigFn(projectDir)
-	if err != nil {
-		return coreerr.E("release", "load config", err)
+	cfgResult := loadReleaseConfigFn(projectDir)
+	if !cfgResult.OK {
+		return core.Fail(coreerr.E("release", "load config", core.NewError(cfgResult.Error())))
 	}
+	cfg := cfgResult.Value.(*release.Config)
 
 	// Apply CLI overrides
 	if version != "" {
 		if !release.ValidateVersion(version) {
-			return coreerr.E("release", "invalid release version override", nil)
+			return core.Fail(coreerr.E("release", "invalid release version override", nil))
 		}
 		cfg.SetVersion(version)
 	}
-	if err := applyReleaseArchiveFormatOverride(cfg, archiveFormat); err != nil {
-		return err
+	archiveFormatOverride := applyReleaseArchiveFormatOverride(cfg, archiveFormat)
+	if !archiveFormatOverride.OK {
+		return archiveFormatOverride
 	}
 
 	// Apply draft/prerelease overrides to all publishers
@@ -129,10 +133,11 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 
 	switch target {
 	case "release":
-		rel, err := runFullReleaseFn(ctx, cfg, dryRun)
-		if err != nil {
-			return err
+		relResult := runFullReleaseFn(ctx, cfg, dryRun)
+		if !relResult.OK {
+			return relResult
 		}
+		rel := relResult.Value.(*release.Release)
 
 		// Print summary
 		cli.Blank()
@@ -146,39 +151,40 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 			}
 		}
 
-		return nil
+		return core.Ok(nil)
 	case "sdk":
-		result, err := runSDKReleaseFn(ctx, cfg, dryRun)
-		if err != nil {
-			return err
+		sdkResult := runSDKReleaseFn(ctx, cfg, dryRun)
+		if !sdkResult.OK {
+			return sdkResult
 		}
+		sdkRelease := sdkResult.Value.(*release.SDKRelease)
 
 		cli.Blank()
 		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("i18n.done.pass")), "SDK release completed")
-		cli.Print("  %s   %s\n", i18n.Label("version"), buildTargetStyle.Render(result.Version))
-		cli.Print("  %s   %s\n", "output", buildTargetStyle.Render(result.Output))
-		cli.Print("  %s %s\n", "languages", buildTargetStyle.Render(core.Join(", ", result.Languages...)))
-		return nil
+		cli.Print("  %s   %s\n", i18n.Label("version"), buildTargetStyle.Render(sdkRelease.Version))
+		cli.Print("  %s   %s\n", "output", buildTargetStyle.Render(sdkRelease.Output))
+		cli.Print("  %s %s\n", "languages", buildTargetStyle.Render(core.Join(", ", sdkRelease.Languages...)))
+		return core.Ok(nil)
 	default:
-		return coreerr.E("release", "unsupported release target: "+target, nil)
+		return core.Fail(coreerr.E("release", "unsupported release target: "+target, nil))
 	}
 }
 
 // applyReleaseArchiveFormatOverride applies the archive-format CLI override to the release config.
 //
 // applyReleaseArchiveFormatOverride(cfg, "xz") // cfg.Build.ArchiveFormat = "xz"
-func applyReleaseArchiveFormatOverride(cfg *release.Config, archiveFormat string) error {
+func applyReleaseArchiveFormatOverride(cfg *release.Config, archiveFormat string) core.Result {
 	if cfg == nil || archiveFormat == "" {
-		return nil
+		return core.Ok(nil)
 	}
 
-	formatValue, err := resolveArchiveFormat("", archiveFormat)
-	if err != nil {
-		return err
+	formatValue := resolveArchiveFormat("", archiveFormat)
+	if !formatValue.OK {
+		return formatValue
 	}
 
-	cfg.Build.ArchiveFormat = string(formatValue)
-	return nil
+	cfg.Build.ArchiveFormat = string(formatValue.Value.(build.ArchiveFormat))
+	return core.Ok(nil)
 }
 
 func releaseAppleTestFlightRequested(target string, appleTestFlightFlag ...bool) bool {

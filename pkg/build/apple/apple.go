@@ -103,7 +103,7 @@ var (
 // builders registry when the host Core exposes one.
 func Register(c *core.Core) core.Result {
 	if c == nil {
-		return core.Result{Value: coreerr.E("apple.Register", "core is nil", nil), OK: false}
+		return core.Fail(coreerr.E("apple.Register", "core is nil", nil))
 	}
 
 	builder := New()
@@ -115,7 +115,7 @@ func Register(c *core.Core) core.Result {
 		return r
 	}
 
-	return core.Result{Value: builder, OK: true}
+	return core.Ok(builder)
 }
 
 // New constructs an AppleBuilder with functional options.
@@ -200,7 +200,7 @@ func (b *AppleBuilder) Detect(fs coreio.Medium, dir string) core.Result {
 	if fs == nil {
 		fs = coreio.Local
 	}
-	return core.Result{Value: build.IsWailsProject(fs, dir), OK: true}
+	return core.Ok(build.IsWailsProject(fs, dir))
 }
 
 // Build runs the Apple pipeline for the current working directory and returns the .app bundle path.
@@ -209,56 +209,63 @@ func (b *AppleBuilder) Build(ctx context.Context, cfg *AppleOptions) core.Result
 		ctx = context.Background()
 	}
 
-	projectDir, err := getwdFn()
-	if err != nil {
-		return core.Result{Value: err, OK: false}
+	projectDirResult := getwdFn()
+	if !projectDirResult.OK {
+		return projectDirResult
 	}
+	projectDir := projectDirResult.Value.(string)
 
-	buildConfig, err := loadConfigFn(coreio.Local, projectDir)
-	if err != nil {
-		return core.Result{Value: err, OK: false}
+	buildConfigResult := loadConfigFn(coreio.Local, projectDir)
+	if !buildConfigResult.OK {
+		return buildConfigResult
 	}
-	if err := build.SetupBuildCache(coreio.Local, projectDir, buildConfig); err != nil {
-		return core.Result{Value: err, OK: false}
+	buildConfig := buildConfigResult.Value.(*build.BuildConfig)
+	cacheSetup := build.SetupBuildCache(coreio.Local, projectDir, buildConfig)
+	if !cacheSetup.OK {
+		return cacheSetup
 	}
 	if build.HasXcodeCloudConfig(buildConfig) {
-		if _, err := writeXcodeCloudScriptsFn(coreio.Local, projectDir, buildConfig); err != nil {
-			return core.Result{Value: err, OK: false}
+		written := writeXcodeCloudScriptsFn(coreio.Local, projectDir, buildConfig)
+		if !written.OK {
+			return written
 		}
 	}
 
-	version, err := determineVersion(ctx, projectDir)
-	if err != nil {
-		return core.Result{Value: err, OK: false}
+	versionResult := determineVersion(ctx, projectDir)
+	if !versionResult.OK {
+		return versionResult
 	}
+	version := versionResult.Value.(string)
 
-	buildNumber, err := resolveBuildNumber(ctx, projectDir)
-	if err != nil {
-		return core.Result{Value: err, OK: false}
+	buildNumberResult := resolveBuildNumber(ctx, projectDir)
+	if !buildNumberResult.OK {
+		return buildNumberResult
 	}
+	buildNumber := buildNumberResult.Value.(string)
 
 	options := b.resolveOptions(buildConfig, cfg)
 	name := resolveBundleName(buildConfig, projectDir)
 	outputDir := ax.Join(projectDir, "dist", "apple")
 	runtimeCfg := runtimeConfig(coreio.Local, projectDir, outputDir, name, buildConfig, version)
 
-	result, err := buildAppleFn(ctx, runtimeCfg, options, buildNumber)
-	if err != nil {
-		return core.Result{Value: err, OK: false}
+	result := buildAppleFn(ctx, runtimeCfg, options, buildNumber)
+	if !result.OK {
+		return result
 	}
+	buildResult := result.Value.(*build.AppleBuildResult)
 
-	return core.Result{Value: result.BundlePath, OK: true}
+	return core.Ok(buildResult.BundlePath)
 }
 
 // BuildWailsApp compiles the Wails application for a single Apple architecture.
 func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) core.Result {
 	projectDir := cfg.ProjectDir
 	if projectDir == "" {
-		var err error
-		projectDir, err = getwdFn()
-		if err != nil {
-			return core.Result{Value: err, OK: false}
+		projectDirResult := getwdFn()
+		if !projectDirResult.OK {
+			return projectDirResult
 		}
+		projectDir = projectDirResult.Value.(string)
 	}
 
 	buildCfg := build.WailsBuildConfig{
@@ -275,37 +282,61 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) core.Result {
 		buildCfg.LDFlags = []string{cfg.LDFlags}
 	}
 
-	return core.Result{}.New(buildWailsAppFn(ctx, buildCfg))
+	return buildWailsAppFn(ctx, buildCfg)
 }
 
 // CreateUniversal merges arm64 and amd64 bundles into a universal bundle.
 func CreateUniversal(arm64Path, amd64Path, outputPath string) core.Result {
-	return core.Result{}.New(outputPath, createUniversalFn(arm64Path, amd64Path, outputPath))
+	result := createUniversalFn(arm64Path, amd64Path, outputPath)
+	if !result.OK {
+		return result
+	}
+	return core.Ok(outputPath)
 }
 
 // Sign code-signs the given Apple artefact.
 func Sign(ctx context.Context, cfg SignConfig) core.Result {
-	return core.Result{}.New(cfg.AppPath, signFn(ctx, cfg))
+	result := signFn(ctx, cfg)
+	if !result.OK {
+		return result
+	}
+	return core.Ok(cfg.AppPath)
 }
 
 // Notarise submits the artefact for Apple notarisation.
 func Notarise(ctx context.Context, cfg NotariseConfig) core.Result {
-	return core.Result{}.New(cfg.AppPath, notariseFn(ctx, cfg))
+	result := notariseFn(ctx, cfg)
+	if !result.OK {
+		return result
+	}
+	return core.Ok(cfg.AppPath)
 }
 
 // CreateDMG packages the app bundle into a DMG and returns the DMG path.
 func CreateDMG(ctx context.Context, cfg DMGConfig) core.Result {
-	return core.Result{}.New(cfg.OutputPath, createDMGFn(ctx, cfg))
+	result := createDMGFn(ctx, cfg)
+	if !result.OK {
+		return result
+	}
+	return core.Ok(cfg.OutputPath)
 }
 
 // UploadTestFlight uploads the packaged build to TestFlight.
 func UploadTestFlight(ctx context.Context, cfg TestFlightConfig) core.Result {
-	return core.Result{}.New(cfg.AppPath, uploadTFn(ctx, cfg))
+	result := uploadTFn(ctx, cfg)
+	if !result.OK {
+		return result
+	}
+	return core.Ok(cfg.AppPath)
 }
 
 // SubmitAppStore uploads the packaged build to App Store Connect.
 func SubmitAppStore(ctx context.Context, cfg AppStoreConfig) core.Result {
-	return core.Result{}.New(cfg.AppPath, submitASFn(ctx, cfg))
+	result := submitASFn(ctx, cfg)
+	if !result.OK {
+		return result
+	}
+	return core.Ok(cfg.AppPath)
 }
 
 func (b *AppleBuilder) applyOption(opt Option) {
@@ -519,33 +550,34 @@ func runtimeConfig(filesystem coreio.Medium, projectDir, outputDir, name string,
 
 var buildNumberPattern = regexp.MustCompile(`^[0-9]+$`)
 
-func resolveBuildNumber(ctx context.Context, projectDir string) (string, error) {
+func resolveBuildNumber(ctx context.Context, projectDir string) core.Result {
 	if value := core.Trim(core.Env("GITHUB_RUN_NUMBER")); value != "" {
-		if err := validateBuildNumber(value); err == nil {
-			return value, nil
+		if validated := validateBuildNumber(value); validated.OK {
+			return core.Ok(value)
 		}
 	}
 
-	output, err := runDirFn(ctx, projectDir, "git", "rev-list", "--count", "HEAD")
-	if err != nil {
-		return "1", nil
+	outputResult := runDirFn(ctx, projectDir, "git", "rev-list", "--count", "HEAD")
+	if !outputResult.OK {
+		return core.Ok("1")
 	}
 
-	value := core.Trim(output)
+	value := core.Trim(outputResult.Value.(string))
 	if value == "" {
-		return "1", nil
+		return core.Ok("1")
 	}
-	if err := validateBuildNumber(value); err != nil {
-		return "", err
+	validated := validateBuildNumber(value)
+	if !validated.OK {
+		return validated
 	}
-	return value, nil
+	return core.Ok(value)
 }
 
-func validateBuildNumber(value string) error {
+func validateBuildNumber(value string) core.Result {
 	if !buildNumberPattern.MatchString(value) {
-		return coreerr.E("apple.validateBuildNumber", "build number must be a positive integer", nil)
+		return core.Fail(coreerr.E("apple.validateBuildNumber", "build number must be a positive integer", nil))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func firstNonEmpty(values ...string) string {

@@ -48,9 +48,9 @@ func TestPHP_PHPGeneratorGenerateGood(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	err := g.Generate(ctx, opts)
-	if err != nil {
-		t.Fatalf("Generate failed: %v", err)
+	generated := g.Generate(ctx, opts)
+	if !generated.OK {
+		t.Fatalf("Generate failed: %v", generated.Error())
 	}
 
 	// Verify output directory was created

@@ -7,7 +7,6 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/sdk/generators"
-	coreerr "dappco.re/go/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -52,7 +51,7 @@ type DiffConfig struct {
 	// FailOnBreaking fails the release if breaking changes are detected.
 	FailOnBreaking bool `json:"fail_on_breaking,omitempty" yaml:"fail_on_breaking,omitempty"`
 
-	enabledConfigured bool `yaml:"-" json:"-"`
+	EnabledConfigured bool `yaml:"-" json:"-"`
 }
 
 // PublishConfig holds monorepo publishing configuration.
@@ -127,7 +126,7 @@ func (c *Config) ApplyDefaults() {
 	if c.Output == "" {
 		c.Output = defaults.Output
 	}
-	if !c.Diff.enabledConfigured {
+	if !c.Diff.EnabledConfigured {
 		c.Diff.Enabled = defaults.Diff.Enabled
 	}
 }
@@ -153,13 +152,13 @@ func DefaultConfig() *Config {
 		Diff: DiffConfig{
 			Enabled:           true,
 			FailOnBreaking:    false,
-			enabledConfigured: true,
+			EnabledConfigured: true,
 		},
 	}
 }
 
 // UnmarshalYAML accepts either `diff: true` or the expanded mapping form.
-func (c *DiffConfig) UnmarshalYAML(value *yaml.Node) error {
+func (c *DiffConfig) UnmarshalYAML(value *yaml.Node) core.Result {
 	type diffConfigAlias struct {
 		Enabled        *bool `yaml:"enabled,omitempty"`
 		FailOnBreaking bool  `yaml:"fail_on_breaking,omitempty"`
@@ -169,17 +168,17 @@ func (c *DiffConfig) UnmarshalYAML(value *yaml.Node) error {
 	case yaml.ScalarNode:
 		var enabled bool
 		if err := value.Decode(&enabled); err != nil {
-			return err
+			return core.Fail(err)
 		}
 		*c = DiffConfig{
 			Enabled:           enabled,
-			enabledConfigured: true,
+			EnabledConfigured: true,
 		}
-		return nil
+		return core.Ok(nil)
 	case yaml.MappingNode:
 		var alias diffConfigAlias
 		if err := value.Decode(&alias); err != nil {
-			return err
+			return core.Fail(err)
 		}
 
 		*c = DiffConfig{
@@ -187,53 +186,52 @@ func (c *DiffConfig) UnmarshalYAML(value *yaml.Node) error {
 		}
 		if alias.Enabled != nil {
 			c.Enabled = *alias.Enabled
-			c.enabledConfigured = true
+			c.EnabledConfigured = true
 		}
-		return nil
+		return core.Ok(nil)
 	default:
 		var alias diffConfigAlias
 		if err := value.Decode(&alias); err != nil {
-			return err
+			return core.Fail(err)
 		}
 		*c = DiffConfig{
 			FailOnBreaking: alias.FailOnBreaking,
 		}
 		if alias.Enabled != nil {
 			c.Enabled = *alias.Enabled
-			c.enabledConfigured = true
+			c.EnabledConfigured = true
 		}
-		return nil
+		return core.Ok(nil)
 	}
 }
 
 // Generate generates SDKs for all configured languages.
 //
 // err := s.Generate(ctx) // generates sdk/typescript/, sdk/python/, etc.
-func (s *SDK) Generate(ctx context.Context) error {
-	_, err := s.GenerateWithStatus(ctx)
-	return err
+func (s *SDK) Generate(ctx context.Context) core.Result {
+	return s.GenerateWithStatus(ctx)
 }
 
 // GenerateWithStatus generates SDKs for all configured languages and returns
 // per-language status information.
-func (s *SDK) GenerateWithStatus(ctx context.Context) ([]LanguageResult, error) {
+func (s *SDK) GenerateWithStatus(ctx context.Context) core.Result {
 	if s == nil {
-		return nil, coreerr.E("sdk.GenerateWithStatus", "sdk is nil", nil)
+		return core.Fail(core.E("sdk.GenerateWithStatus", "sdk is nil", nil))
 	}
 	if s.config == nil {
-		return nil, coreerr.E("sdk.GenerateWithStatus", "sdk config is nil", nil)
+		return core.Fail(core.E("sdk.GenerateWithStatus", "sdk config is nil", nil))
 	}
 
 	results := make([]LanguageResult, 0, len(s.config.Languages))
 	for _, lang := range s.config.Languages {
-		result, err := s.GenerateLanguageWithStatus(ctx, lang)
-		if err != nil {
-			return results, err
+		result := s.GenerateLanguageWithStatus(ctx, lang)
+		if !result.OK {
+			return result
 		}
-		results = append(results, result)
+		results = append(results, result.Value.(LanguageResult))
 	}
 
-	return results, nil
+	return core.Ok(results)
 }
 
 // outputRoot returns the directory that should contain generated SDKs.
@@ -269,24 +267,23 @@ func (s *SDK) outputDir(lang string) string {
 // GenerateLanguage generates SDK for a specific language.
 //
 // err := s.GenerateLanguage(ctx, "typescript") // generates sdk/typescript/
-func (s *SDK) GenerateLanguage(ctx context.Context, lang string) error {
-	_, err := s.GenerateLanguageWithStatus(ctx, lang)
-	return err
+func (s *SDK) GenerateLanguage(ctx context.Context, lang string) core.Result {
+	return s.GenerateLanguageWithStatus(ctx, lang)
 }
 
 // GenerateLanguageWithStatus generates SDK for a specific language and reports
 // whether it was generated or skipped.
-func (s *SDK) GenerateLanguageWithStatus(ctx context.Context, lang string) (LanguageResult, error) {
+func (s *SDK) GenerateLanguageWithStatus(ctx context.Context, lang string) core.Result {
 	lang = normaliseLanguage(lang)
 	if s == nil {
-		return LanguageResult{Language: lang, OutputDir: ax.Join("sdk", lang)}, coreerr.E("sdk.GenerateLanguage", "sdk is nil", nil)
+		return core.Fail(core.E("sdk.GenerateLanguage", "sdk is nil", nil))
 	}
 	result := LanguageResult{
 		Language:  lang,
 		OutputDir: s.outputDir(lang),
 	}
 	if s.config == nil {
-		return result, coreerr.E("sdk.GenerateLanguage", "sdk config is nil", nil)
+		return core.Fail(core.E("sdk.GenerateLanguage", "sdk config is nil", nil))
 	}
 
 	registry := newGeneratorRegistry()
@@ -296,7 +293,7 @@ func (s *SDK) GenerateLanguageWithStatus(ctx context.Context, lang string) (Lang
 
 	gen, ok := registry.Get(lang)
 	if !ok {
-		return result, coreerr.E("sdk.GenerateLanguage", "unknown language: "+lang, nil)
+		return core.Fail(core.E("sdk.GenerateLanguage", "unknown language: "+lang, nil))
 	}
 
 	if !gen.Available() {
@@ -305,31 +302,32 @@ func (s *SDK) GenerateLanguageWithStatus(ctx context.Context, lang string) (Lang
 			result.Skipped = true
 			result.Reason = reason
 			core.Print(nil, "Warning: skipping %s SDK: %s", lang, reason)
-			return result, nil
+			return core.Ok(result)
 		}
 		core.Print(nil, "Warning: %s", reason)
 	}
 
-	specPath, err := s.DetectSpec()
-	if err != nil {
-		return result, err
+	spec := s.DetectSpec()
+	if !spec.OK {
+		return spec
 	}
 
 	opts := generators.Options{
-		SpecPath:    specPath,
+		SpecPath:    spec.Value.(string),
 		OutputDir:   result.OutputDir,
 		PackageName: s.config.Package.Name,
 		Version:     s.resolvePackageVersion(),
 	}
 
 	core.Print(nil, "Generating %s SDK...", lang)
-	if err := gen.Generate(ctx, opts); err != nil {
-		return result, coreerr.E("sdk.GenerateLanguage", lang+" generation failed", err)
+	generated := gen.Generate(ctx, opts)
+	if !generated.OK {
+		return core.Fail(core.E("sdk.GenerateLanguage", lang+" generation failed", core.NewError(generated.Error())))
 	}
 	core.Print(nil, "Generated %s SDK at %s", lang, result.OutputDir)
 	result.Generated = true
 
-	return result, nil
+	return core.Ok(result)
 }
 
 func normaliseLanguages(values []string) []string {

@@ -44,7 +44,7 @@ func AddAppleCommand(c *core.Core) {
 	c.Command("build/apple", core.Command{
 		Description: "cmd.build.apple.long",
 		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runAppleBuild(cmdutil.ContextOrBackground(), appleCLIOptions{
+			return runAppleBuild(cmdutil.ContextOrBackground(), appleCLIOptions{
 				Arch:              cmdutil.OptionString(opts, "arch"),
 				ArchChanged:       opts.Has("arch"),
 				Sign:              cmdutil.OptionBoolDefault(opts, true, "sign"),
@@ -65,60 +65,67 @@ func AddAppleCommand(c *core.Core) {
 				BuildNumber:       cmdutil.OptionString(opts, "build-number"),
 				ConfigPath:        cmdutil.OptionString(opts, "config"),
 				OutputDir:         cmdutil.OptionString(opts, "output"),
-			}))
+			})
 		},
 	})
 }
 
-func runAppleBuild(ctx context.Context, opts appleCLIOptions) error {
-	projectDir, err := ax.Getwd()
-	if err != nil {
-		return coreerr.E("build.apple", "failed to get working directory", err)
+func runAppleBuild(ctx context.Context, opts appleCLIOptions) core.Result {
+	projectDirResult := ax.Getwd()
+	if !projectDirResult.OK {
+		return core.Fail(coreerr.E("build.apple", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
-	return runAppleBuildInDir(ctx, projectDir, opts)
+	return runAppleBuildInDir(ctx, projectDirResult.Value.(string), opts)
 }
 
-func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOptions) error {
+func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOptions) core.Result {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	filesystem := io.Local
 
-	buildConfig, err := loadAppleBuildConfig(filesystem, projectDir, opts.ConfigPath)
-	if err != nil {
-		return err
+	buildConfigResult := loadAppleBuildConfig(filesystem, projectDir, opts.ConfigPath)
+	if !buildConfigResult.OK {
+		return buildConfigResult
 	}
-	if err := build.SetupBuildCache(filesystem, projectDir, buildConfig); err != nil {
-		return coreerr.E("build.apple", "failed to set up build cache", err)
+	buildConfig := buildConfigResult.Value.(*build.BuildConfig)
+	cacheSetup := build.SetupBuildCache(filesystem, projectDir, buildConfig)
+	if !cacheSetup.OK {
+		return core.Fail(coreerr.E("build.apple", "failed to set up build cache", core.NewError(cacheSetup.Error())))
 	}
 	if build.HasXcodeCloudConfig(buildConfig) {
-		if _, err := build.WriteXcodeCloudScripts(filesystem, projectDir, buildConfig); err != nil {
-			return coreerr.E("build.apple", "failed to write Xcode Cloud scripts", err)
+		written := build.WriteXcodeCloudScripts(filesystem, projectDir, buildConfig)
+		if !written.OK {
+			return core.Fail(coreerr.E("build.apple", "failed to write Xcode Cloud scripts", core.NewError(written.Error())))
 		}
 	}
 
 	version := opts.Version
 	if version == "" {
-		version, err = resolveBuildVersion(ctx, projectDir)
-		if err != nil {
-			return coreerr.E("build.apple", "failed to determine version", err)
+		versionResult := resolveBuildVersion(ctx, projectDir)
+		if !versionResult.OK {
+			return core.Fail(coreerr.E("build.apple", "failed to determine version", core.NewError(versionResult.Error())))
 		}
+		version = versionResult.Value.(string)
 	}
-	if err := build.ValidateVersionIdentifier(version); err != nil {
-		return coreerr.E("build.apple", "invalid build version; use a safe release identifier", err)
+	validVersion := build.ValidateVersionIdentifier(version)
+	if !validVersion.OK {
+		return core.Fail(coreerr.E("build.apple", "invalid build version; use a safe release identifier", core.NewError(validVersion.Error())))
 	}
 
 	buildNumber := opts.BuildNumber
 	if buildNumber != "" {
-		if err := validateAppleBuildNumber(buildNumber); err != nil {
-			return err
+		validBuildNumber := validateAppleBuildNumber(buildNumber)
+		if !validBuildNumber.OK {
+			return validBuildNumber
 		}
 	} else {
-		buildNumber, err = resolveAppleBuildNumber(ctx, projectDir)
-		if err != nil {
-			return err
+		buildNumberResult := resolveAppleBuildNumber(ctx, projectDir)
+		if !buildNumberResult.OK {
+			return buildNumberResult
 		}
+		buildNumber = buildNumberResult.Value.(string)
 	}
 
 	appleOptions := resolveAppleCommandOptions(buildConfig, opts)
@@ -139,10 +146,11 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 	}
 
 	runtimeCfg := buildRuntimeConfig(filesystem, projectDir, outputDir, name, buildConfig, false, "", version)
-	result, err := buildAppleFn(ctx, runtimeCfg, appleOptions, buildNumber)
-	if err != nil {
-		return err
+	resultValue := buildAppleFn(ctx, runtimeCfg, appleOptions, buildNumber)
+	if !resultValue.OK {
+		return resultValue
 	}
+	result := resultValue.Value.(*build.AppleBuildResult)
 
 	cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.apple.completed"))
 	cli.Print("  %s %s\n", i18n.T("cmd.build.apple.label.bundle"), buildTargetStyle.Render(result.BundlePath))
@@ -152,30 +160,30 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 		cli.Print("  %s %s\n", i18n.T("cmd.build.apple.label.dmg"), buildTargetStyle.Render(result.DMGPath))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func loadAppleBuildConfig(filesystem io.Medium, projectDir, configPath string) (*build.BuildConfig, error) {
+func loadAppleBuildConfig(filesystem io.Medium, projectDir, configPath string) core.Result {
 	if configPath == "" {
-		cfg, err := build.LoadConfig(filesystem, projectDir)
-		if err != nil {
-			return nil, coreerr.E("build.apple", "failed to load config", err)
+		cfg := build.LoadConfig(filesystem, projectDir)
+		if !cfg.OK {
+			return core.Fail(coreerr.E("build.apple", "failed to load config", core.NewError(cfg.Error())))
 		}
-		return cfg, nil
+		return cfg
 	}
 
 	if !ax.IsAbs(configPath) {
 		configPath = ax.Join(projectDir, configPath)
 	}
 	if !filesystem.Exists(configPath) {
-		return nil, coreerr.E("build.apple", "build config not found: "+configPath, nil)
+		return core.Fail(coreerr.E("build.apple", "build config not found: "+configPath, nil))
 	}
 
-	cfg, err := build.LoadConfigAtPath(filesystem, configPath)
-	if err != nil {
-		return nil, coreerr.E("build.apple", "failed to load config", err)
+	cfg := build.LoadConfigAtPath(filesystem, configPath)
+	if !cfg.OK {
+		return core.Fail(coreerr.E("build.apple", "failed to load config", core.NewError(cfg.Error())))
 	}
-	return cfg, nil
+	return cfg
 }
 
 func resolveAppleCommandOptions(cfg *build.BuildConfig, overrides appleCLIOptions) build.AppleOptions {
@@ -218,35 +226,36 @@ func resolveAppleCommandOptions(cfg *build.BuildConfig, overrides appleCLIOption
 	return options
 }
 
-func resolveAppleBuildNumber(ctx context.Context, projectDir string) (string, error) {
+func resolveAppleBuildNumber(ctx context.Context, projectDir string) core.Result {
 	if value := core.Trim(core.Env("GITHUB_RUN_NUMBER")); value != "" {
-		if err := validateAppleBuildNumber(value); err == nil {
-			return value, nil
+		if validated := validateAppleBuildNumber(value); validated.OK {
+			return core.Ok(value)
 		}
 	}
 
-	output, err := ax.RunDir(ctx, projectDir, "git", "rev-list", "--count", "HEAD")
-	if err != nil {
-		return "1", nil
+	outputResult := ax.RunDir(ctx, projectDir, "git", "rev-list", "--count", "HEAD")
+	if !outputResult.OK {
+		return core.Ok("1")
 	}
 
-	buildNumber := core.Trim(output)
+	buildNumber := core.Trim(outputResult.Value.(string))
 	if buildNumber == "" {
-		return "1", nil
+		return core.Ok("1")
 	}
-	if err := validateAppleBuildNumber(buildNumber); err != nil {
-		return "", err
+	validated := validateAppleBuildNumber(buildNumber)
+	if !validated.OK {
+		return validated
 	}
-	return buildNumber, nil
+	return core.Ok(buildNumber)
 }
 
 var appleBuildNumberPattern = regexp.MustCompile(`^[0-9]+$`)
 
-func validateAppleBuildNumber(value string) error {
+func validateAppleBuildNumber(value string) core.Result {
 	if !appleBuildNumberPattern.MatchString(value) {
-		return coreerr.E("build.apple", "build-number must be a positive integer", nil)
+		return core.Fail(coreerr.E("build.apple", "build-number must be a positive integer", nil))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func firstNonEmptyString(values ...string) string {

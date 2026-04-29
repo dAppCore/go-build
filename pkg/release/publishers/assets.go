@@ -54,10 +54,11 @@ func buildChecksumMapFromRelease(release *Release) ChecksumMap {
 		return checksums
 	}
 
-	content, err := filesystem.Read(checksumPath)
-	if err != nil {
+	contentResult := filesystem.Read(checksumPath)
+	if !contentResult.OK {
 		return checksums
 	}
+	content := contentResult.Value.(string)
 
 	lookup := parseChecksumFile(content)
 	if len(lookup) == 0 {

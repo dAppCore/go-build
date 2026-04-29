@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/testassert"
 	"dappco.re/go/io"
 )
@@ -25,9 +26,9 @@ func TestSigning_SignBinariesSkipsNonDarwinGood(t *testing.T) {
 	}
 
 	// Should not error even though binary doesn't exist (skips non-darwin)
-	err := SignBinaries(ctx, fs, cfg, artifacts)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	result := SignBinaries(ctx, fs, cfg, artifacts)
+	if !result.OK {
+		t.Errorf("unexpected error: %v", result.Error())
 	}
 }
 
@@ -42,9 +43,9 @@ func TestSigning_SignBinariesDisabledConfigGood(t *testing.T) {
 		{Path: "/tmp/test-binary", OS: "darwin", Arch: "arm64"},
 	}
 
-	err := SignBinaries(ctx, fs, cfg, artifacts)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	result := SignBinaries(ctx, fs, cfg, artifacts)
+	if !result.OK {
+		t.Errorf("unexpected error: %v", result.Error())
 	}
 }
 
@@ -66,9 +67,9 @@ func TestSigning_SignBinariesSkipsOnNonMacOSGood(t *testing.T) {
 		{Path: "/tmp/test-binary", OS: "darwin", Arch: "arm64"},
 	}
 
-	err := SignBinaries(ctx, fs, cfg, artifacts)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	result := SignBinaries(ctx, fs, cfg, artifacts)
+	if !result.OK {
+		t.Errorf("unexpected error: %v", result.Error())
 	}
 }
 
@@ -83,9 +84,9 @@ func TestSigning_NotarizeBinariesDisabledConfigGood(t *testing.T) {
 		{Path: "/tmp/test-binary", OS: "darwin", Arch: "arm64"},
 	}
 
-	err := NotarizeBinaries(ctx, fs, cfg, artifacts)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	result := NotarizeBinaries(ctx, fs, cfg, artifacts)
+	if !result.OK {
+		t.Errorf("unexpected error: %v", result.Error())
 	}
 }
 
@@ -103,9 +104,9 @@ func TestSigning_NotarizeBinariesNotarizeDisabledGood(t *testing.T) {
 		{Path: "/tmp/test-binary", OS: "darwin", Arch: "arm64"},
 	}
 
-	err := NotarizeBinaries(ctx, fs, cfg, artifacts)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	result := NotarizeBinaries(ctx, fs, cfg, artifacts)
+	if !result.OK {
+		t.Errorf("unexpected error: %v", result.Error())
 	}
 }
 
@@ -120,9 +121,9 @@ func TestSigning_SignChecksumsSkipsNoKeyGood(t *testing.T) {
 	}
 
 	// Should silently skip when no key
-	err := SignChecksums(ctx, fs, cfg, "/tmp/CHECKSUMS.txt")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	result := SignChecksums(ctx, fs, cfg, "/tmp/CHECKSUMS.txt")
+	if !result.OK {
+		t.Errorf("unexpected error: %v", result.Error())
 	}
 }
 
@@ -133,9 +134,9 @@ func TestSigning_SignChecksumsDisabledGood(t *testing.T) {
 		Enabled: false,
 	}
 
-	err := SignChecksums(ctx, fs, cfg, "/tmp/CHECKSUMS.txt")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	result := SignChecksums(ctx, fs, cfg, "/tmp/CHECKSUMS.txt")
+	if !result.OK {
+		t.Errorf("unexpected error: %v", result.Error())
 	}
 }
 
@@ -173,7 +174,7 @@ func TestSigning_WindowsSignerGood(t *testing.T) {
 		if s.Available() {
 			t.Fatal("expected false")
 		}
-		if s.Sign(context.Background(), fs, "test.exe") == nil {
+		if s.Sign(context.Background(), fs, "test.exe").OK {
 			t.Fatal("expected error")
 
 			// On Windows, availability depends on the SDK toolchain being installed.
@@ -214,9 +215,12 @@ func (m *mockSigner) Available() bool {
 	return m.available
 }
 
-func (m *mockSigner) Sign(ctx context.Context, fs io.Medium, path string) error {
+func (m *mockSigner) Sign(ctx context.Context, fs io.Medium, path string) core.Result {
 	m.signedPaths = append(m.signedPaths, path)
-	return m.signError
+	if m.signError != nil {
+		return core.Fail(m.signError)
+	}
+	return core.Ok(nil)
 }
 
 // Verify mockSigner implements Signer
@@ -243,9 +247,9 @@ func TestSigning_SignBinariesMockSignerGood(t *testing.T) {
 		// With empty identity, Available() returns false, so Sign is never called.
 		// This verifies the short-circuit behavior.
 		ctx := context.Background()
-		err := SignBinaries(ctx, io.Local, cfg, artifacts)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := SignBinaries(ctx, io.Local, cfg, artifacts)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	})
@@ -256,9 +260,9 @@ func TestSigning_SignBinariesMockSignerGood(t *testing.T) {
 		}
 
 		cfg := SignConfig{Enabled: false}
-		err := SignBinaries(context.Background(), io.Local, cfg, artifacts)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := SignBinaries(context.Background(), io.Local, cfg, artifacts)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	})
@@ -268,9 +272,9 @@ func TestSigning_SignBinariesMockSignerGood(t *testing.T) {
 			Enabled: true,
 			MacOS:   MacOSConfig{Identity: "Developer ID"},
 		}
-		err := SignBinaries(context.Background(), io.Local, cfg, []Artifact{})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := SignBinaries(context.Background(), io.Local, cfg, []Artifact{})
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	})
@@ -284,9 +288,9 @@ func TestSigning_signArtifactsWithSigner_Good(t *testing.T) {
 		{Path: "/dist/windows_arm64/myapp.exe", OS: "windows", Arch: "arm64"},
 	}
 
-	err := signArtifactsWithSigner(context.Background(), io.Local, signer, "windows", artifacts)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := signArtifactsWithSigner(context.Background(), io.Local, signer, "windows", artifacts)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 	if !stdlibAssertEqual([]string{"/dist/windows_amd64/myapp.exe", "/dist/windows_arm64/myapp.exe"}, signer.signedPaths) {
 		t.Fatalf("want %v, got %v", []string{"/dist/windows_amd64/myapp.exe", "/dist/windows_arm64/myapp.exe"}, signer.signedPaths)
@@ -297,16 +301,17 @@ func TestSigning_signArtifactsWithSigner_Good(t *testing.T) {
 func TestSigning_ResolveSigntoolCliGood(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := fallbackDir + "/signtool.exe"
-	if err := io.Local.Write(fallbackPath, "#!/bin/sh\nexit 0\n"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := io.Local.Write(fallbackPath, "#!/bin/sh\nexit 0\n"); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("PATH", "")
 
-	command, err := resolveSigntoolCli(fallbackPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	commandResult := resolveSigntoolCli(fallbackPath)
+	if !commandResult.OK {
+		t.Fatalf("unexpected error: %v", commandResult.Error())
 	}
+	command := commandResult.Value.(string)
 	if !stdlibAssertEqual(fallbackPath, command) {
 		t.Fatalf("want %v, got %v", fallbackPath, command)
 	}
@@ -316,12 +321,12 @@ func TestSigning_ResolveSigntoolCliGood(t *testing.T) {
 func TestSigning_ResolveSigntoolCliBad(t *testing.T) {
 	t.Setenv("PATH", "")
 
-	_, err := resolveSigntoolCli(t.TempDir() + "/missing-signtool.exe")
-	if err == nil {
+	result := resolveSigntoolCli(t.TempDir() + "/missing-signtool.exe")
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "signtool tool not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "signtool tool not found")
+	if !stdlibAssertContains(result.Error(), "signtool tool not found") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "signtool tool not found")
 	}
 
 }
@@ -333,9 +338,9 @@ func TestSigning_SignChecksumsMockSignerGood(t *testing.T) {
 			GPG:     GPGConfig{Key: ""},
 		}
 
-		err := SignChecksums(context.Background(), io.Local, cfg, "/tmp/CHECKSUMS.txt")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := SignChecksums(context.Background(), io.Local, cfg, "/tmp/CHECKSUMS.txt")
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	})
@@ -346,9 +351,9 @@ func TestSigning_SignChecksumsMockSignerGood(t *testing.T) {
 			GPG:     GPGConfig{Key: "ABCD1234"},
 		}
 
-		err := SignChecksums(context.Background(), io.Local, cfg, "/tmp/CHECKSUMS.txt")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := SignChecksums(context.Background(), io.Local, cfg, "/tmp/CHECKSUMS.txt")
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	})
@@ -365,9 +370,9 @@ func TestSigning_NotarizeBinariesMockSignerGood(t *testing.T) {
 			{Path: "/dist/darwin_arm64/myapp", OS: "darwin", Arch: "arm64"},
 		}
 
-		err := NotarizeBinaries(context.Background(), io.Local, cfg, artifacts)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := NotarizeBinaries(context.Background(), io.Local, cfg, artifacts)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	})
@@ -382,9 +387,9 @@ func TestSigning_NotarizeBinariesMockSignerGood(t *testing.T) {
 			{Path: "/dist/darwin_arm64/myapp", OS: "darwin", Arch: "arm64"},
 		}
 
-		err := NotarizeBinaries(context.Background(), io.Local, cfg, artifacts)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := NotarizeBinaries(context.Background(), io.Local, cfg, artifacts)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	})
@@ -395,9 +400,9 @@ func TestSigning_NotarizeBinariesMockSignerGood(t *testing.T) {
 			MacOS:   MacOSConfig{Notarize: true, Identity: "Dev ID"},
 		}
 
-		err := NotarizeBinaries(context.Background(), io.Local, cfg, []Artifact{})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := NotarizeBinaries(context.Background(), io.Local, cfg, []Artifact{})
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	})

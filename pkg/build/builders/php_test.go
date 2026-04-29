@@ -39,8 +39,9 @@ if [ "${1:-}" = "run-script" ] && [ "${2:-}" = "build" ]; then
 	chmod +x "$artifact"
 fi
 `
-	if err := ax.WriteFile(ax.Join(binDir, "composer"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := ax.WriteFile(ax.Join(binDir, "composer"), []byte(script), 0o755)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -54,16 +55,19 @@ func setupPHPTestProject(t *testing.T, withBuildScript bool) string {
 	if withBuildScript {
 		composerJSON = `{"name":"test/php-app","scripts":{"build":"php build.php"}}`
 	}
-	if err := ax.WriteFile(ax.Join(dir, "composer.json"), []byte(composerJSON), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := ax.WriteFile(ax.Join(dir, "composer.json"), []byte(composerJSON), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "index.php"), []byte("<?php echo 'hello';"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(ax.Join(dir, "index.php"), []byte("<?php echo 'hello';"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	if withBuildScript {
-		if err := ax.WriteFile(ax.Join(dir, "build.php"), []byte("<?php echo 'build';"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result = ax.WriteFile(ax.Join(dir, "build.php"), []byte("<?php echo 'build';"), 0o644)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	}
@@ -84,15 +88,13 @@ func TestPHP_PHPBuilderDetectGood(t *testing.T) {
 
 	t.Run("detects composer.json projects", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "composer.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := ax.WriteFile(ax.Join(dir, "composer.json"), []byte("{}"), 0o644)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewPHPBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -101,10 +103,7 @@ func TestPHP_PHPBuilderDetectGood(t *testing.T) {
 
 	t.Run("returns false for empty directory", func(t *testing.T) {
 		builder := NewPHPBuilder()
-		detected, err := builder.Detect(fs, t.TempDir())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, t.TempDir()))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -139,14 +138,11 @@ func TestPHP_PHPBuilderBuildGood(t *testing.T) {
 
 	targets := []build.Target{{OS: "linux", Arch: "amd64"}}
 
-	artifacts, err := builder.Build(context.Background(), cfg, targets)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
-	if _, err := ax.Stat(artifacts[0].Path); err != nil {
+	if stat := ax.Stat(artifacts[0].Path); !stat.OK {
 		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 	}
 	if !stdlibAssertEqual("linux", artifacts[0].OS) {
@@ -156,10 +152,7 @@ func TestPHP_PHPBuilderBuildGood(t *testing.T) {
 		t.Fatalf("want %v, got %v", "amd64", artifacts[0].Arch)
 	}
 
-	content, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireBuilderBytes(t, ax.ReadFile(logPath))
 
 	lines := core.Split(core.Trim(string(content)), "\n")
 	if len(lines) < 6 {
@@ -210,14 +203,11 @@ func TestPHP_PHPBuilderBuildFallbackBundleGood(t *testing.T) {
 		Env:        []string{"FOO=bar"},
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, []build.Target{{OS: "linux", Arch: "amd64"}}))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
-	if _, err := ax.Stat(artifacts[0].Path); err != nil {
+	if stat := ax.Stat(artifacts[0].Path); !stat.OK {
 		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 	}
 	if !stdlibAssertEqual(".zip", ax.Ext(artifacts[0].Path)) {
@@ -268,10 +258,7 @@ func TestPHP_PHPBuilderBuildDefaultsGood(t *testing.T) {
 		Env:        []string{"FOO=bar"},
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, nil))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
@@ -290,10 +277,7 @@ func TestPHP_PHPBuilderInterfaceGood(t *testing.T) {
 	if !stdlibAssertEqual("php", builder.Name()) {
 		t.Fatalf("want %v, got %v", "php", builder.Name())
 	}
-	detected, err := builder.Detect(nil, t.TempDir())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	detected := requireCPPBool(t, builder.Detect(nil, t.TempDir()))
 	if detected {
 		t.Fatal("expected empty temp directory not to be detected")
 	}
@@ -361,7 +345,7 @@ func TestPhp_PHPBuilder_Detect_Good(t *core.T) {
 	subject := &PHPBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -371,7 +355,7 @@ func TestPhp_PHPBuilder_Detect_Bad(t *core.T) {
 	subject := &PHPBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(io.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -381,7 +365,7 @@ func TestPhp_PHPBuilder_Detect_Ugly(t *core.T) {
 	subject := &PHPBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -393,7 +377,7 @@ func TestPhp_PHPBuilder_Build_Good(t *core.T) {
 	subject := &PHPBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -405,7 +389,7 @@ func TestPhp_PHPBuilder_Build_Bad(t *core.T) {
 	subject := &PHPBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -417,7 +401,7 @@ func TestPhp_PHPBuilder_Build_Ugly(t *core.T) {
 	subject := &PHPBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

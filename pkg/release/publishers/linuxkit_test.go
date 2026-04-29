@@ -237,7 +237,7 @@ func TestLinuxKit_LinuxKitPublisherPublishBad(t *testing.T) {
 	p := NewLinuxKitPublisher()
 
 	t.Run("fails when config file not found with linuxkit installed", func(t *testing.T) {
-		if err := validateLinuxKitCli(); err != nil {
+		if err := validateLinuxKitCli(); !err.OK {
 			t.Skip("skipping test: linuxkit CLI not available")
 		}
 
@@ -254,18 +254,15 @@ func TestLinuxKit_LinuxKitPublisherPublishBad(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "config file not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "config file not found")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "config file not found") {
+			t.Fatalf("expected %v to contain %v", err, "config file not found")
 		}
 
 	})
 
 	t.Run("fails when linuxkit CLI not available", func(t *testing.T) {
-		if err := validateLinuxKitCli(); err == nil {
+		if err := validateLinuxKitCli(); err.OK {
 			t.Skip("skipping test: linuxkit CLI is available")
 		}
 
@@ -277,18 +274,15 @@ func TestLinuxKit_LinuxKitPublisherPublishBad(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "linuxkit CLI not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "linuxkit CLI not found")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "linuxkit CLI not found") {
+			t.Fatalf("expected %v to contain %v", err, "linuxkit CLI not found")
 		}
 
 	})
 
 	t.Run("fails when repository cannot be detected and not provided", func(t *testing.T) {
-		if err := validateLinuxKitCli(); err != nil {
+		if err := validateLinuxKitCli(); !err.OK {
 			t.Skip("skipping test: linuxkit CLI not available")
 		}
 
@@ -297,10 +291,7 @@ func TestLinuxKit_LinuxKitPublisherPublishBad(t *testing.T) {
 
 		// Create a config file
 		configPath := ax.Join(tmpDir, "config.yml")
-		err := ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -315,12 +306,9 @@ func TestLinuxKit_LinuxKitPublisherPublishBad(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: ""} // Empty repository
 
-		err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "could not determine repository") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "could not determine repository")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, true))
+		if !stdlibAssertContains(err, "could not determine repository") {
+			t.Fatalf("expected %v to contain %v", err, "could not determine repository")
 		}
 
 	})
@@ -329,7 +317,7 @@ func TestLinuxKit_LinuxKitPublisherPublishBad(t *testing.T) {
 func TestLinuxKit_ValidateLinuxKitCliGood(t *testing.T) {
 	t.Run("returns expected error when linuxkit not installed", func(t *testing.T) {
 		err := validateLinuxKitCli()
-		if err != nil {
+		if !err.OK {
 			if !stdlibAssertContains(
 				// LinuxKit is not installed
 				err.Error(), "linuxkit CLI not found") {
@@ -347,16 +335,13 @@ func TestLinuxKit_ValidateLinuxKitCliGood(t *testing.T) {
 func TestLinuxKit_ResolveLinuxKitCliGood(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "linuxkit")
-	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("PATH", "")
 
-	command, err := resolveLinuxKitCli(fallbackPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	command := requirePublisherString(t, resolveLinuxKitCli(fallbackPath))
 	if !stdlibAssertEqual(fallbackPath, command) {
 		t.Fatalf("want %v, got %v", fallbackPath, command)
 	}
@@ -365,12 +350,9 @@ func TestLinuxKit_ResolveLinuxKitCliGood(t *testing.T) {
 
 func TestLinuxKit_ResolveLinuxKitCliBad(t *testing.T) {
 	t.Setenv("PATH", "")
-	_, err := resolveLinuxKitCli(ax.Join(t.TempDir(), "missing-linuxkit"))
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "linuxkit CLI not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "linuxkit CLI not found")
+	err := requirePublisherError(t, resolveLinuxKitCli(ax.Join(t.TempDir(), "missing-linuxkit")))
+	if !stdlibAssertContains(err, "linuxkit CLI not found") {
+		t.Fatalf("expected %v to contain %v", err, "linuxkit CLI not found")
 
 		// These tests run only when linuxkit CLI is available
 	}
@@ -379,7 +361,7 @@ func TestLinuxKit_ResolveLinuxKitCliBad(t *testing.T) {
 
 func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 
-	if err := validateLinuxKitCli(); err != nil {
+	if err := validateLinuxKitCli(); !err.OK {
 		t.Skip("skipping test: linuxkit CLI not available")
 	}
 
@@ -390,16 +372,10 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 
 		// Create config directory and file
 		configDir := ax.Join(tmpDir, ".core", "linuxkit")
-		err := ax.MkdirAll(configDir, 0o755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.MkdirAll(configDir, 0o755))
 
 		configPath := ax.Join(configDir, "server.yml")
-		err = ax.WriteFile(configPath, []byte("kernel:\n  image: linuxkit/kernel:5.10\n"), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.WriteFile(configPath, []byte("kernel:\n  image: linuxkit/kernel:5.10\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -409,12 +385,11 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: LinuxKit Build & Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: LinuxKit Build & Publish")
 		}
@@ -432,12 +407,9 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "config file not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "config file not found")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "config file not found") {
+			t.Fatalf("expected %v to contain %v", err, "config file not found")
 		}
 
 	})
@@ -446,16 +418,10 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		configDir := ax.Join(tmpDir, ".core", "linuxkit")
-		err := ax.MkdirAll(configDir, 0o755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.MkdirAll(configDir, 0o755))
 
 		configPath := ax.Join(configDir, "server.yml")
-		err = ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -465,12 +431,11 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "custom-owner/custom-repo"}
 
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "custom-owner/custom-repo") {
 			t.Fatalf("expected %v to contain %v", output, "custom-owner/custom-repo")
 		}
@@ -482,19 +447,10 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 
 		// Create config file
 		configDir := ax.Join(tmpDir, ".core", "linuxkit")
-		err := ax.MkdirAll(configDir, 0o755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.MkdirAll(configDir, 0o755))
 
 		configPath := ax.Join(configDir, "server.yml")
-		err = ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Initialize git repo
-				err)
-		}
+		requirePublisherOK(t, ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644))
 
 		runPublisherCommand(t, tmpDir, "git", "init")
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@github.com:detected-owner/detected-repo.git")
@@ -507,12 +463,11 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: ""} // Empty to trigger detection
 
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "detected-owner/detected-repo") {
 			t.Fatalf("expected %v to contain %v", output, "detected-owner/detected-repo")
 		}
@@ -521,7 +476,7 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 }
 
 func TestLinuxKit_LinuxKitPublisherPublishNilRelCfgGood(t *testing.T) {
-	if err := validateLinuxKitCli(); err != nil {
+	if err := validateLinuxKitCli(); !err.OK {
 		t.Skip("skipping test: linuxkit CLI not available")
 	}
 
@@ -532,19 +487,10 @@ func TestLinuxKit_LinuxKitPublisherPublishNilRelCfgGood(t *testing.T) {
 
 		// Create config file
 		configDir := ax.Join(tmpDir, ".core", "linuxkit")
-		err := ax.MkdirAll(configDir, 0o755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.MkdirAll(configDir, 0o755))
 
 		configPath := ax.Join(configDir, "server.yml")
-		err = ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Initialize git repo
-				err)
-		}
+		requirePublisherOK(t, ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644))
 
 		runPublisherCommand(t, tmpDir, "git", "init")
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@github.com:nil-owner/nil-repo.git")
@@ -556,12 +502,11 @@ func TestLinuxKit_LinuxKitPublisherPublishNilRelCfgGood(t *testing.T) {
 		}
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, nil, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, nil, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "nil-owner/nil-repo") {
 
 			// mockReleaseConfig implements ReleaseConfig for testing.
@@ -599,13 +544,11 @@ func TestLinuxKit_LinuxKitPublisherDryRunPublishGood(t *testing.T) {
 			Platforms: []string{"linux/amd64", "linux/arm64"},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg, "owner/repo")
+			publishResult = p.dryRunPublish(release, cfg, "owner/repo")
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: LinuxKit Build & Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: LinuxKit Build & Publish")
 		}
@@ -663,13 +606,11 @@ func TestLinuxKit_LinuxKitPublisherDryRunPublishGood(t *testing.T) {
 			Platforms: []string{"linux/amd64"},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg, "owner/repo")
+			publishResult = p.dryRunPublish(release, cfg, "owner/repo")
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "linuxkit-1.0.0-amd64.docker.tar") {
 			t.Fatalf("expected %v to contain %v", output, "linuxkit-1.0.0-amd64.docker.tar")
 		}
@@ -691,13 +632,11 @@ func TestLinuxKit_LinuxKitPublisherDryRunPublishGood(t *testing.T) {
 			Platforms: []string{"linux/amd64"},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg, "owner/repo")
+			publishResult = p.dryRunPublish(release, cfg, "owner/repo")
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "linuxkit-2.0.0-amd64.iso") {
 			t.Fatalf("expected %v to contain %v", output, "linuxkit-2.0.0-amd64.iso")
 		}
@@ -968,7 +907,7 @@ func TestLinuxKit_LinuxKitPublisherGetArtifactPathAllFormatsGood(t *testing.T) {
 }
 
 func TestLinuxKit_LinuxKitPublisherPublishNilFSBad(t *testing.T) {
-	if err := validateLinuxKitCli(); err != nil {
+	if err := validateLinuxKitCli(); !err.OK {
 		t.Skip("skipping test: linuxkit CLI not available")
 	}
 
@@ -983,12 +922,9 @@ func TestLinuxKit_LinuxKitPublisherPublishNilFSBad(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "release filesystem (FS) is nil") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "release filesystem (FS) is nil")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "release filesystem (FS) is nil") {
+			t.Fatalf("expected %v to contain %v", err, "release filesystem (FS) is nil")
 		}
 
 	})
@@ -1000,7 +936,7 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 	}
 
 	// Skip if linuxkit CLI is not available
-	if err := validateLinuxKitCli(); err != nil {
+	if err := validateLinuxKitCli(); !err.OK {
 		t.Skip("skipping test: linuxkit CLI not available")
 	}
 
@@ -1010,16 +946,10 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 		// Create temp directory with config file
 		tmpDir := t.TempDir()
 		configDir := ax.Join(tmpDir, ".core", "linuxkit")
-		err := ax.MkdirAll(configDir, 0o755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.MkdirAll(configDir, 0o755))
 
 		configPath := ax.Join(configDir, "server.yml")
-		err = ax.WriteFile(configPath, []byte("kernel:\n  image: linuxkit/kernel:5.10\n"), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.WriteFile(configPath, []byte("kernel:\n  image: linuxkit/kernel:5.10\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -1029,12 +959,11 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: LinuxKit Build & Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: LinuxKit Build & Publish")
 		}
@@ -1045,10 +974,7 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		customConfigPath := ax.Join(tmpDir, "custom-config.yml")
-		err := ax.WriteFile(customConfigPath, []byte("kernel:\n  image: custom\n"), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.WriteFile(customConfigPath, []byte("kernel:\n  image: custom\n"), 0o644))
 
 		release := &Release{
 			Version:    "v1.0.0",
@@ -1063,12 +989,11 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "custom-config.yml") {
 			t.Fatalf("expected %v to contain %v", output, "custom-config.yml")
 		}
@@ -1079,10 +1004,7 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		configPath := ax.Join(tmpDir, "config.yml")
-		err := ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644))
 
 		release := &Release{
 			Version:    "v2.0.0",
@@ -1099,15 +1021,11 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Check all format/platform combinations are listed
-				err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "linuxkit-2.0.0-amd64.iso") {
 			t.Fatalf("expected %v to contain %v", output, "linuxkit-2.0.0-amd64.iso")
 		}
@@ -1132,7 +1050,7 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 
 func TestPublish_IsoQcow2RawGood(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"iso", "qcow2", "raw"}, "ok", nil)
-	if result.Err != nil {
+	if !result.Err.OK {
 		t.Fatalf("unexpected error: %v", result.Err)
 	}
 
@@ -1143,7 +1061,7 @@ func TestPublish_IsoQcow2RawGood(t *testing.T) {
 
 func TestPublish_IsoGood(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"iso"}, "ok", nil)
-	if result.Err != nil {
+	if !result.Err.OK {
 		t.Fatalf("unexpected error: %v", result.Err)
 	}
 	assertLinuxKitArtifactExists(t, result, "iso")
@@ -1151,7 +1069,7 @@ func TestPublish_IsoGood(t *testing.T) {
 
 func TestPublish_IsoBad(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"iso"}, "fail", nil)
-	if result.Err == nil {
+	if result.Err.OK {
 		t.Fatal("expected error")
 	}
 	if !stdlibAssertContains(result.Err.Error(), "build failed") {
@@ -1161,7 +1079,7 @@ func TestPublish_IsoBad(t *testing.T) {
 
 func TestPublish_IsoUgly(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"iso"}, "missing", nil)
-	if result.Err == nil {
+	if result.Err.OK {
 		t.Fatal("expected error")
 	}
 	if !stdlibAssertContains(result.Err.Error(), "artifact not found after build") {
@@ -1171,7 +1089,7 @@ func TestPublish_IsoUgly(t *testing.T) {
 
 func TestPublish_Qcow2Good(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"qcow2"}, "ok", nil)
-	if result.Err != nil {
+	if !result.Err.OK {
 		t.Fatalf("unexpected error: %v", result.Err)
 	}
 	assertLinuxKitArtifactExists(t, result, "qcow2")
@@ -1179,7 +1097,7 @@ func TestPublish_Qcow2Good(t *testing.T) {
 
 func TestPublish_Qcow2Bad(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"qcow2"}, "fail", nil)
-	if result.Err == nil {
+	if result.Err.OK {
 		t.Fatal("expected error")
 	}
 	if !stdlibAssertContains(result.Err.Error(), "build failed") {
@@ -1189,7 +1107,7 @@ func TestPublish_Qcow2Bad(t *testing.T) {
 
 func TestPublish_Qcow2Ugly(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"qcow2"}, "missing", nil)
-	if result.Err == nil {
+	if result.Err.OK {
 		t.Fatal("expected error")
 	}
 	if !stdlibAssertContains(result.Err.Error(), "artifact not found after build") {
@@ -1199,7 +1117,7 @@ func TestPublish_Qcow2Ugly(t *testing.T) {
 
 func TestPublish_RawGood(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"raw"}, "ok", nil)
-	if result.Err != nil {
+	if !result.Err.OK {
 		t.Fatalf("unexpected error: %v", result.Err)
 	}
 	assertLinuxKitArtifactExists(t, result, "raw")
@@ -1207,7 +1125,7 @@ func TestPublish_RawGood(t *testing.T) {
 
 func TestPublish_RawBad(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"raw"}, "fail", nil)
-	if result.Err == nil {
+	if result.Err.OK {
 		t.Fatal("expected error")
 	}
 	if !stdlibAssertContains(result.Err.Error(), "build failed") {
@@ -1217,7 +1135,7 @@ func TestPublish_RawBad(t *testing.T) {
 
 func TestPublish_RawUgly(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"raw"}, "missing", nil)
-	if result.Err == nil {
+	if result.Err.OK {
 		t.Fatal("expected error")
 	}
 	if !stdlibAssertContains(result.Err.Error(), "artifact not found after build") {
@@ -1232,7 +1150,7 @@ func TestPublish_Qcow2WithCloudTargetsGood(t *testing.T) {
 			map[string]any{"provider": "gcp", "bucket": "gcp-bucket", "prefix": "images"},
 		},
 	})
-	if result.Err != nil {
+	if !result.Err.OK {
 		t.Fatalf("unexpected error: %v", result.Err)
 	}
 	assertLinuxKitArtifactExists(t, result, "qcow2")
@@ -1258,7 +1176,7 @@ func TestPublish_AWSGood(t *testing.T) {
 			map[string]any{"provider": "aws", "bucket": "aws-bucket", "prefix": "images", "region": "eu-west-2"},
 		},
 	})
-	if result.Err != nil {
+	if !result.Err.OK {
 		t.Fatalf("unexpected error: %v", result.Err)
 	}
 	assertLinuxKitArtifactExists(t, result, "aws")
@@ -1274,7 +1192,7 @@ func TestPublish_AWSGood(t *testing.T) {
 
 func TestPublish_AWSBad(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"aws"}, "ok", nil)
-	if result.Err == nil {
+	if result.Err.OK {
 		t.Fatal("expected error")
 	}
 	if !stdlibAssertContains(result.Err.Error(), "aws target bucket is required") {
@@ -1288,7 +1206,7 @@ func TestPublish_GCPGood(t *testing.T) {
 			`{"provider":"gcp","bucket":"gcp-bucket","prefix":"images"}`,
 		},
 	})
-	if result.Err != nil {
+	if !result.Err.OK {
 		t.Fatalf("unexpected error: %v", result.Err)
 	}
 	assertLinuxKitArtifactExists(t, result, "gcp")
@@ -1301,7 +1219,7 @@ func TestPublish_GCPGood(t *testing.T) {
 
 func TestPublish_GCPBad(t *testing.T) {
 	result := runLinuxKitPublishFixture(t, []string{"gcp"}, "ok", nil)
-	if result.Err == nil {
+	if result.Err.OK {
 		t.Fatal("expected error")
 	}
 	if !stdlibAssertContains(result.Err.Error(), "gcp target bucket is required") {
@@ -1312,7 +1230,7 @@ func TestPublish_GCPBad(t *testing.T) {
 type linuxKitPublishFixtureResult struct {
 	ArtifactPaths map[string]string
 	CloudLog      string
-	Err           error
+	Err           core.Result
 	Output        string
 	ProjectDir    string
 }
@@ -1322,8 +1240,8 @@ func runLinuxKitPublishFixture(t *testing.T, formats []string, linuxKitMode stri
 
 	tmpDir := t.TempDir()
 	binDir := ax.Join(tmpDir, "bin")
-	if err := ax.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(binDir, 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 	installFakeLinuxKitTool(t, binDir, linuxKitMode)
 	installFakeLinuxKitCloudTool(t, binDir, "aws")
@@ -1336,8 +1254,8 @@ func runLinuxKitPublishFixture(t *testing.T, formats []string, linuxKitMode stri
 	t.Setenv("LINUXKIT_CLOUD_MODE", "ok")
 
 	configPath := ax.Join(tmpDir, "config.yml")
-	if err := ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(configPath, []byte("kernel:\n  image: test\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	formatValues := make([]any, 0, len(formats))
@@ -1366,7 +1284,7 @@ func runLinuxKitPublishFixture(t *testing.T, formats []string, linuxKitMode stri
 	relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
 	p := NewLinuxKitPublisher()
-	var publishErr error
+	publishErr := core.Ok(nil)
 	output := capturePublisherOutput(t, func() {
 		publishErr = p.Publish(context.TODO(), release, pubCfg, relCfg, false)
 	})
@@ -1395,10 +1313,7 @@ func assertLinuxKitArtifactExists(t *testing.T, result linuxKitPublishFixtureRes
 		t.Fatalf("expected artifact to exist: %s", artifactPath)
 	}
 
-	content, err := ax.ReadFile(artifactPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requirePublisherBytes(t, ax.ReadFile(artifactPath))
 	if !stdlibAssertContains(string(content), "linuxkit:"+format) {
 		t.Fatalf("expected %v to contain %v", string(content), "linuxkit:"+format)
 	}
@@ -1408,7 +1323,7 @@ func assertLinuxKitPublishError(t *testing.T, format, linuxKitMode, expected str
 	t.Helper()
 
 	result := runLinuxKitPublishFixture(t, []string{format}, linuxKitMode, nil)
-	if result.Err == nil {
+	if result.Err.OK {
 		t.Fatal("expected error")
 	}
 	if !stdlibAssertContains(result.Err.Error(), expected) {
@@ -1422,10 +1337,7 @@ func readLinuxKitCloudLog(t *testing.T, path string) string {
 	if !ax.Exists(path) {
 		return ""
 	}
-	data, err := ax.ReadFile(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	data := requirePublisherBytes(t, ax.ReadFile(path))
 	return string(data)
 }
 
@@ -1495,8 +1407,8 @@ esac
 /bin/mkdir -p "$dir"
 printf 'linuxkit:%s:%s' "$format" "$name" > "$dir/$name$ext"
 `
-	if err := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 }
 
@@ -1516,8 +1428,8 @@ if [ "$LINUXKIT_CLOUD_MODE" = "fail" ]; then
 fi
 exit 0
 `
-	if err := ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, name), []byte(script), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 }
 

@@ -1,4 +1,4 @@
-package log
+package corelog
 
 import core "dappco.re/go"
 
@@ -28,13 +28,10 @@ func (e *Err) Error() string {
 	}
 }
 
-func (e *Err) Unwrap() error {
-	if e == nil {
-		return nil
+func E(op, msg string, cause any) *Err {
+	err, ok := cause.(error)
+	if !ok && cause != nil {
+		err = core.NewError(core.Sprintf("%v", cause))
 	}
-	return e.Err
-}
-
-func E(op, msg string, err error) error {
 	return &Err{Op: op, Msg: msg, Err: err}
 }

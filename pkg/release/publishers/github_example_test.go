@@ -14,7 +14,7 @@ func ExampleNewGitHubPublisher() {
 func ExampleDetectGitHubRepository() {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	_, _ = DetectGitHubRepository(ctx, core.Path(core.TempDir(), "go-build-compliance"))
+	_ = DetectGitHubRepository(ctx, core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("DetectGitHubRepository")
 	// Output: DetectGitHubRepository
 }

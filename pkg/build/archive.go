@@ -12,7 +12,6 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	io_interface "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 	// TODO(AX-6): Replace with dappco.re/go/crypt when it exposes Compress/Decompress API parity.
 	"github.com/Snider/Borg/pkg/compress"
 )
@@ -35,16 +34,16 @@ const (
 //
 //	format, err := build.ParseArchiveFormat("xz")  // → build.ArchiveFormatXZ
 //	format, err := build.ParseArchiveFormat("zip") // → build.ArchiveFormatZip
-func ParseArchiveFormat(value string) (ArchiveFormat, error) {
+func ParseArchiveFormat(value string) core.Result {
 	switch core.Trim(core.Lower(value)) {
 	case "", "gz", "gzip", "tgz", "tar.gz", "tar-gz":
-		return ArchiveFormatGzip, nil
+		return core.Ok(ArchiveFormatGzip)
 	case "xz", "txz", "tar.xz", "tar-xz":
-		return ArchiveFormatXZ, nil
+		return core.Ok(ArchiveFormatXZ)
 	case "zip":
-		return ArchiveFormatZip, nil
+		return core.Ok(ArchiveFormatZip)
 	default:
-		return "", coreerr.E("build.ParseArchiveFormat", "unsupported archive format: "+value, nil)
+		return core.Fail(core.E("build.ParseArchiveFormat", "unsupported archive format: "+value, nil))
 	}
 }
 
@@ -54,7 +53,7 @@ func ParseArchiveFormat(value string) (ArchiveFormat, error) {
 // Returns a new Artifact with Path pointing to the archive.
 //
 // archived, err := build.Archive(io.Local, artifact)
-func Archive(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
+func Archive(fs io_interface.Medium, artifact Artifact) core.Result {
 	return ArchiveWithFormat(fs, artifact, ArchiveFormatGzip)
 }
 
@@ -63,7 +62,7 @@ func Archive(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 // Returns a new Artifact with Path pointing to the archive.
 //
 // archived, err := build.ArchiveXZ(io.Local, artifact)
-func ArchiveXZ(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
+func ArchiveXZ(fs io_interface.Medium, artifact Artifact) core.Result {
 	return ArchiveWithFormat(fs, artifact, ArchiveFormatXZ)
 }
 
@@ -74,19 +73,19 @@ func ArchiveXZ(fs io_interface.Medium, artifact Artifact) (Artifact, error) {
 // Returns a new Artifact with Path pointing to the archive.
 //
 // archived, err := build.ArchiveWithFormat(io.Local, artifact, build.ArchiveFormatXZ)
-func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format ArchiveFormat) (Artifact, error) {
+func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format ArchiveFormat) core.Result {
 	if artifact.Path == "" {
-		return Artifact{}, coreerr.E("build.Archive", "artifact path is empty", nil)
+		return core.Fail(core.E("build.Archive", "artifact path is empty", nil))
 	}
 
 	// Verify the source file exists
-	if _, err := fs.Stat(artifact.Path); err != nil {
-		return Artifact{}, coreerr.E("build.Archive", "source file not found", err)
+	if stat := fs.Stat(artifact.Path); !stat.OK {
+		return core.Fail(core.E("build.Archive", "source file not found", core.NewError(stat.Error())))
 	}
 
 	// Determine archive type based on OS and format.
 	var archivePath string
-	var archiveFunc func(fs io_interface.Medium, src, dst string) error
+	var archiveFunc func(fs io_interface.Medium, src, dst string) core.Result
 
 	switch {
 	case format == ArchiveFormatZip || artifact.OS == "windows":
@@ -101,23 +100,24 @@ func ArchiveWithFormat(fs io_interface.Medium, artifact Artifact, format Archive
 	}
 
 	// Create the archive
-	if err := archiveFunc(fs, artifact.Path, archivePath); err != nil {
-		return Artifact{}, coreerr.E("build.Archive", "failed to create archive", err)
+	archived := archiveFunc(fs, artifact.Path, archivePath)
+	if !archived.OK {
+		return core.Fail(core.E("build.Archive", "failed to create archive", core.NewError(archived.Error())))
 	}
 
-	return Artifact{
+	return core.Ok(Artifact{
 		Path:     archivePath,
 		OS:       artifact.OS,
 		Arch:     artifact.Arch,
 		Checksum: artifact.Checksum,
-	}, nil
+	})
 }
 
 // ArchiveAll archives all artifacts using gzip compression.
 // Returns a slice of new artifacts pointing to the archives.
 //
 // archived, err := build.ArchiveAll(io.Local, artifacts)
-func ArchiveAll(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, error) {
+func ArchiveAll(fs io_interface.Medium, artifacts []Artifact) core.Result {
 	return ArchiveAllWithFormat(fs, artifacts, ArchiveFormatGzip)
 }
 
@@ -125,7 +125,7 @@ func ArchiveAll(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, error
 // Returns a slice of new artifacts pointing to the archives.
 //
 // archived, err := build.ArchiveAllXZ(io.Local, artifacts)
-func ArchiveAllXZ(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, error) {
+func ArchiveAllXZ(fs io_interface.Medium, artifacts []Artifact) core.Result {
 	return ArchiveAllWithFormat(fs, artifacts, ArchiveFormatXZ)
 }
 
@@ -133,21 +133,21 @@ func ArchiveAllXZ(fs io_interface.Medium, artifacts []Artifact) ([]Artifact, err
 // Returns a slice of new artifacts pointing to the archives.
 //
 // archived, err := build.ArchiveAllWithFormat(io.Local, artifacts, build.ArchiveFormatXZ)
-func ArchiveAllWithFormat(fs io_interface.Medium, artifacts []Artifact, format ArchiveFormat) ([]Artifact, error) {
+func ArchiveAllWithFormat(fs io_interface.Medium, artifacts []Artifact, format ArchiveFormat) core.Result {
 	if len(artifacts) == 0 {
-		return nil, nil
+		return core.Ok([]Artifact(nil))
 	}
 
 	var archived []Artifact
 	for _, artifact := range artifacts {
-		arch, err := ArchiveWithFormat(fs, artifact, format)
-		if err != nil {
-			return archived, coreerr.E("build.ArchiveAll", "failed to archive "+artifact.Path, err)
+		arch := ArchiveWithFormat(fs, artifact, format)
+		if !arch.OK {
+			return core.Fail(core.E("build.ArchiveAll", "failed to archive "+artifact.Path, core.NewError(arch.Error())))
 		}
-		archived = append(archived, arch)
+		archived = append(archived, arch.Value.(Artifact))
 	}
 
-	return archived, nil
+	return core.Ok(archived)
 }
 
 // archiveFilename generates the archive filename based on the artifact and extension.
@@ -188,168 +188,184 @@ func archiveBaseNameHasPlatformSuffix(name, os, arch string) bool {
 
 // createTarXzArchive creates a tar.xz archive containing a file or directory tree.
 // TODO(AX-6): Replace Borg compression with dappco.re/go/crypt once API parity exists.
-func createTarXzArchive(fs io_interface.Medium, src, dst string) error {
+func createTarXzArchive(fs io_interface.Medium, src, dst string) core.Result {
 	// Create tar archive in memory
 	tarBuf := core.NewBuffer()
 	tarWriter := tar.NewWriter(tarBuf)
-	if err := writeTarTree(fs, tarWriter, src, src); err != nil {
-		return err
+	written := writeTarTree(fs, tarWriter, src, src)
+	if !written.OK {
+		return written
 	}
 
 	if err := tarWriter.Close(); err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to close tar writer", err)
+		return core.Fail(core.E("build.createTarXzArchive", "failed to close tar writer", err))
 	}
 
 	// Compress with xz using the deferred Borg API.
 	xzData, err := compress.Compress(tarBuf.Bytes(), "xz")
 	if err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to compress with xz", err)
+		return core.Fail(core.E("build.createTarXzArchive", "failed to compress with xz", err))
 	}
 
-	// Write to destination file
-	dstFile, err := fs.Create(dst)
-	if err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to create archive file", err)
-	}
-	defer func() { _ = dstFile.Close() }()
-
-	if _, err := dstFile.Write(xzData); err != nil {
-		return coreerr.E("build.createTarXzArchive", "failed to write archive file", err)
-	}
-
-	return nil
+	return writeArchiveBytes(fs, dst, xzData, "build.createTarXzArchive")
 }
 
 // createTarGzArchive creates a tar.gz archive containing a file or directory tree.
-func createTarGzArchive(fs io_interface.Medium, src, dst string) error {
-	// Create the destination file
-	dstFile, err := fs.Create(dst)
-	if err != nil {
-		return coreerr.E("build.createTarGzArchive", "failed to create archive file", err)
-	}
-	defer func() { _ = dstFile.Close() }()
+func createTarGzArchive(fs io_interface.Medium, src, dst string) core.Result {
+	buf := core.NewBuffer()
 
 	// Create gzip writer
-	gzWriter := gzip.NewWriter(dstFile)
-	defer func() { _ = gzWriter.Close() }()
+	gzWriter := gzip.NewWriter(buf)
 
 	// Create tar writer
 	tarWriter := tar.NewWriter(gzWriter)
-	defer func() { _ = tarWriter.Close() }()
 
-	return writeTarTree(fs, tarWriter, src, src)
+	written := writeTarTree(fs, tarWriter, src, src)
+	if !written.OK {
+		tarWriter.Close()
+		gzWriter.Close()
+		return written
+	}
+	if err := tarWriter.Close(); err != nil {
+		return core.Fail(core.E("build.createTarGzArchive", "failed to close tar writer", err))
+	}
+	if err := gzWriter.Close(); err != nil {
+		return core.Fail(core.E("build.createTarGzArchive", "failed to close gzip writer", err))
+	}
+
+	return writeArchiveBytes(fs, dst, buf.Bytes(), "build.createTarGzArchive")
 }
 
 // createZipArchive creates a zip archive containing a file or directory tree.
-func createZipArchive(fs io_interface.Medium, src, dst string) error {
-	// Create the destination file
-	dstFile, err := fs.Create(dst)
-	if err != nil {
-		return coreerr.E("build.createZipArchive", "failed to create archive file", err)
-	}
-	defer func() { _ = dstFile.Close() }()
+func createZipArchive(fs io_interface.Medium, src, dst string) core.Result {
+	buf := core.NewBuffer()
 
 	// Create zip writer
-	zipWriter := zip.NewWriter(dstFile)
-	defer func() { _ = zipWriter.Close() }()
+	zipWriter := zip.NewWriter(buf)
 
-	return writeZipTree(fs, zipWriter, src, src)
+	written := writeZipTree(fs, zipWriter, src, src)
+	if !written.OK {
+		zipWriter.Close()
+		return written
+	}
+	if err := zipWriter.Close(); err != nil {
+		return core.Fail(core.E("build.createZipArchive", "failed to close zip writer", err))
+	}
+
+	return writeArchiveBytes(fs, dst, buf.Bytes(), "build.createZipArchive")
 }
 
-func writeTarTree(fs io_interface.Medium, writer *tar.Writer, rootPath, currentPath string) error {
-	info, err := fs.Stat(currentPath)
-	if err != nil {
-		return coreerr.E("build.writeTarTree", "failed to stat archive entry", err)
+func writeArchiveBytes(fs io_interface.Medium, dst string, data []byte, operation string) core.Result {
+	written := fs.Write(dst, string(data))
+	if !written.OK {
+		return core.Fail(core.E(operation, "failed to write archive file", core.NewError(written.Error())))
 	}
 
-	header, err := tar.FileInfoHeader(info, "")
+	return core.Ok(nil)
+}
+
+func writeTarTree(fs io_interface.Medium, writer *tar.Writer, rootPath, currentPath string) core.Result {
+	info := fs.Stat(currentPath)
+	if !info.OK {
+		return core.Fail(core.E("build.writeTarTree", "failed to stat archive entry", core.NewError(info.Error())))
+	}
+	fileInfo := info.Value.(stdfs.FileInfo)
+
+	header, err := tar.FileInfoHeader(fileInfo, "")
 	if err != nil {
-		return coreerr.E("build.writeTarTree", "failed to create tar header", err)
+		return core.Fail(core.E("build.writeTarTree", "failed to create tar header", err))
 	}
 	header.Name = archiveEntryName(rootPath, currentPath)
-	if info.IsDir() {
+	if fileInfo.IsDir() {
 		header.Name += "/"
 	}
 
 	if err := writer.WriteHeader(header); err != nil {
-		return coreerr.E("build.writeTarTree", "failed to write tar header", err)
+		return core.Fail(core.E("build.writeTarTree", "failed to write tar header", err))
 	}
 
-	if info.IsDir() {
-		entries, err := fs.List(currentPath)
-		if err != nil {
-			return coreerr.E("build.writeTarTree", "failed to list archive directory", err)
+	if fileInfo.IsDir() {
+		entries := fs.List(currentPath)
+		if !entries.OK {
+			return core.Fail(core.E("build.writeTarTree", "failed to list archive directory", core.NewError(entries.Error())))
 		}
-		sortDirEntries(entries)
-		for _, entry := range entries {
-			if err := writeTarTree(fs, writer, rootPath, ax.Join(currentPath, entry.Name())); err != nil {
-				return err
+		dirEntries := entries.Value.([]core.FsDirEntry)
+		sortDirEntries(dirEntries)
+		for _, entry := range dirEntries {
+			written := writeTarTree(fs, writer, rootPath, ax.Join(currentPath, entry.Name()))
+			if !written.OK {
+				return written
 			}
 		}
-		return nil
+		return core.Ok(nil)
 	}
 
-	source, err := fs.Open(currentPath)
-	if err != nil {
-		return coreerr.E("build.writeTarTree", "failed to open archive entry", err)
+	source := fs.Open(currentPath)
+	if !source.OK {
+		return core.Fail(core.E("build.writeTarTree", "failed to open archive entry", core.NewError(source.Error())))
 	}
-	defer func() { _ = source.Close() }()
+	stream := source.Value.(core.FsFile)
+	defer stream.Close()
 
-	if _, err := stdio.Copy(writer, source); err != nil {
-		return coreerr.E("build.writeTarTree", "failed to write file content to tar", err)
+	if _, err := stdio.Copy(writer, stream); err != nil {
+		return core.Fail(core.E("build.writeTarTree", "failed to write file content to tar", err))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func writeZipTree(fs io_interface.Medium, writer *zip.Writer, rootPath, currentPath string) error {
-	info, err := fs.Stat(currentPath)
-	if err != nil {
-		return coreerr.E("build.writeZipTree", "failed to stat archive entry", err)
+func writeZipTree(fs io_interface.Medium, writer *zip.Writer, rootPath, currentPath string) core.Result {
+	info := fs.Stat(currentPath)
+	if !info.OK {
+		return core.Fail(core.E("build.writeZipTree", "failed to stat archive entry", core.NewError(info.Error())))
 	}
+	fileInfo := info.Value.(stdfs.FileInfo)
 
-	header, err := zip.FileInfoHeader(info)
+	header, err := zip.FileInfoHeader(fileInfo)
 	if err != nil {
-		return coreerr.E("build.writeZipTree", "failed to create zip header", err)
+		return core.Fail(core.E("build.writeZipTree", "failed to create zip header", err))
 	}
 	header.Name = archiveEntryName(rootPath, currentPath)
 
-	if info.IsDir() {
+	if fileInfo.IsDir() {
 		header.Name += "/"
 		if _, err := writer.CreateHeader(header); err != nil {
-			return coreerr.E("build.writeZipTree", "failed to create zip directory entry", err)
+			return core.Fail(core.E("build.writeZipTree", "failed to create zip directory entry", err))
 		}
 
-		entries, err := fs.List(currentPath)
-		if err != nil {
-			return coreerr.E("build.writeZipTree", "failed to list archive directory", err)
+		entries := fs.List(currentPath)
+		if !entries.OK {
+			return core.Fail(core.E("build.writeZipTree", "failed to list archive directory", core.NewError(entries.Error())))
 		}
-		sortDirEntries(entries)
-		for _, entry := range entries {
-			if err := writeZipTree(fs, writer, rootPath, ax.Join(currentPath, entry.Name())); err != nil {
-				return err
+		dirEntries := entries.Value.([]core.FsDirEntry)
+		sortDirEntries(dirEntries)
+		for _, entry := range dirEntries {
+			written := writeZipTree(fs, writer, rootPath, ax.Join(currentPath, entry.Name()))
+			if !written.OK {
+				return written
 			}
 		}
-		return nil
+		return core.Ok(nil)
 	}
 
 	header.Method = zip.Deflate
 	zipEntry, err := writer.CreateHeader(header)
 	if err != nil {
-		return coreerr.E("build.writeZipTree", "failed to create zip entry", err)
+		return core.Fail(core.E("build.writeZipTree", "failed to create zip entry", err))
 	}
 
-	source, err := fs.Open(currentPath)
-	if err != nil {
-		return coreerr.E("build.writeZipTree", "failed to open archive entry", err)
+	source := fs.Open(currentPath)
+	if !source.OK {
+		return core.Fail(core.E("build.writeZipTree", "failed to open archive entry", core.NewError(source.Error())))
 	}
-	defer func() { _ = source.Close() }()
+	stream := source.Value.(core.FsFile)
+	defer func() { _ = stream.Close() }()
 
-	if _, err := stdio.Copy(zipEntry, source); err != nil {
-		return coreerr.E("build.writeZipTree", "failed to write file content to zip", err)
+	if _, err := stdio.Copy(zipEntry, stream); err != nil {
+		return core.Fail(core.E("build.writeZipTree", "failed to write file content to zip", err))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func archiveEntryName(rootPath, currentPath string) string {
@@ -358,8 +374,12 @@ func archiveEntryName(rootPath, currentPath string) string {
 		return rootName
 	}
 
-	relPath, err := ax.Rel(rootPath, currentPath)
-	if err != nil || relPath == "" || relPath == "." {
+	relPathResult := ax.Rel(rootPath, currentPath)
+	if !relPathResult.OK {
+		return rootName
+	}
+	relPath := relPathResult.Value.(string)
+	if relPath == "" || relPath == "." {
 		return rootName
 	}
 

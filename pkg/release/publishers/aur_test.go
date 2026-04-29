@@ -122,10 +122,7 @@ func TestAUR_AURPublisherRenderTemplateGood(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/aur/PKGBUILD.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/aur/PKGBUILD.tmpl", data))
 		if !stdlibAssertContains(result, "# Maintainer: John Doe <john@example.com>") {
 			t.Fatalf("expected %v to contain %v", result, "# Maintainer: John Doe <john@example.com>")
 		}
@@ -168,10 +165,7 @@ func TestAUR_AURPublisherRenderTemplateGood(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/aur/.SRCINFO.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/aur/.SRCINFO.tmpl", data))
 		if !stdlibAssertContains(result, "pkgbase = myapp-bin") {
 			t.Fatalf("expected %v to contain %v", result, "pkgbase = myapp-bin")
 		}
@@ -205,12 +199,9 @@ func TestAUR_AURPublisherRenderTemplateBad(t *testing.T) {
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := aurTemplateData{}
-		_, err := p.renderTemplate(io.Local, "templates/aur/nonexistent.tmpl", data)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read template") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		err := requirePublisherError(t, p.renderTemplate(io.Local, "templates/aur/nonexistent.tmpl", data))
+		if !stdlibAssertContains(err, "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
 
 	})
@@ -232,13 +223,11 @@ func TestAUR_AURPublisherDryRunPublishGood(t *testing.T) {
 			Maintainer: "John Doe <john@example.com>",
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: AUR Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: AUR Publish")
 		}
@@ -286,13 +275,11 @@ func TestAUR_AURPublisherDryRunPublishGood(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: dist/aur-files") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/aur-files")
 		}
@@ -315,12 +302,9 @@ func TestAUR_AURPublisherPublishBad(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "aur"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "maintainer is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "maintainer is required")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "maintainer is required") {
+			t.Fatalf("expected %v to contain %v", err, "maintainer is required")
 		}
 
 	})

@@ -1,4 +1,4 @@
-package exec
+package processexec
 
 import (
 	"context"
@@ -47,15 +47,16 @@ func (c *Cmd) WithStderr(w io.Writer) *Cmd {
 	return c
 }
 
-func (c *Cmd) build() (*core.Cmd, error) {
+func (c *Cmd) build() core.Result {
 	if c.ctx == nil {
-		return nil, core.NewError("command context is required")
+		return core.Fail(core.NewError("command context is required"))
 	}
-	resolved, err := resolveExecutable(c.name)
-	if err != nil {
-		return nil, err
+	resolved := resolveExecutable(c.name)
+	if !resolved.OK {
+		return resolved
 	}
-	cmd := &core.Cmd{Path: resolved, Args: append([]string{resolved}, c.args...)}
+	path := resolved.Value.(string)
+	cmd := &core.Cmd{Path: path, Args: append([]string{path}, c.args...)}
 	cmd.Dir = c.dir
 	if len(c.env) > 0 {
 		cmd.Env = append(core.Environ(), c.env...)
@@ -63,22 +64,23 @@ func (c *Cmd) build() (*core.Cmd, error) {
 	cmd.Stdin = c.stdin
 	cmd.Stdout = c.stdout
 	cmd.Stderr = c.stderr
-	return cmd, nil
+	return core.Ok(cmd)
 }
 
-func (c *Cmd) Run() error {
-	cmd, err := c.build()
-	if err != nil {
-		return err
+func (c *Cmd) Run() core.Result {
+	cmd := c.build()
+	if !cmd.OK {
+		return cmd
 	}
-	return runCommand(c.ctx, cmd)
+	return runCommand(c.ctx, cmd.Value.(*core.Cmd))
 }
 
-func (c *Cmd) CombinedOutput() ([]byte, error) {
-	cmd, err := c.build()
-	if err != nil {
-		return nil, err
+func (c *Cmd) CombinedOutput() core.Result {
+	built := c.build()
+	if !built.OK {
+		return built
 	}
+	cmd := built.Value.(*core.Cmd)
 	buf := core.NewBuffer()
 	if c.stdout != nil || c.stderr != nil {
 		if c.stdout == nil {
@@ -87,32 +89,38 @@ func (c *Cmd) CombinedOutput() ([]byte, error) {
 		if c.stderr == nil {
 			cmd.Stderr = buf
 		}
-		err := runCommand(c.ctx, cmd)
-		return buf.Bytes(), err
+		run := runCommand(c.ctx, cmd)
+		if !run.OK {
+			return core.Fail(core.E("process.CombinedOutput", core.Trim(buf.String()), core.NewError(run.Error())))
+		}
+		return core.Ok(buf.Bytes())
 	}
 	cmd.Stdout = buf
 	cmd.Stderr = buf
-	err = runCommand(c.ctx, cmd)
-	return buf.Bytes(), err
+	run := runCommand(c.ctx, cmd)
+	if !run.OK {
+		return core.Fail(core.E("process.CombinedOutput", core.Trim(buf.String()), core.NewError(run.Error())))
+	}
+	return core.Ok(buf.Bytes())
 }
 
-func resolveExecutable(name string) (string, error) {
+func resolveExecutable(name string) core.Result {
 	if name == "" {
-		return "", core.NewError("program name is empty")
+		return core.Fail(core.NewError("program name is empty"))
 	}
 	if core.Contains(name, "/") || core.Contains(name, "\\") {
-		return name, nil
+		return core.Ok(name)
 	}
 	found := core.App{}.Find(name, name)
 	if !found.OK {
-		return "", resultError(found)
+		return found
 	}
-	return found.Value.(*core.App).Path, nil
+	return core.Ok(found.Value.(*core.App).Path)
 }
 
-func runCommand(ctx context.Context, cmd *core.Cmd) error {
+func runCommand(ctx context.Context, cmd *core.Cmd) core.Result {
 	if err := cmd.Start(); err != nil {
-		return err
+		return core.Fail(err)
 	}
 	done := make(chan error, 1)
 	go func() {
@@ -120,23 +128,16 @@ func runCommand(ctx context.Context, cmd *core.Cmd) error {
 	}()
 	select {
 	case err := <-done:
-		return err
+		return core.ResultOf(nil, err)
 	case <-ctx.Done():
 		if cmd.Process != nil {
 			killErr := cmd.Process.Kill()
 			<-done
 			if killErr != nil {
-				return killErr
+				return core.Fail(killErr)
 			}
-			return ctx.Err()
+			return core.Fail(ctx.Err())
 		}
-		return ctx.Err()
+		return core.Fail(ctx.Err())
 	}
-}
-
-func resultError(result core.Result) error {
-	if err, ok := result.Value.(error); ok {
-		return err
-	}
-	return core.NewError(result.Error())
 }

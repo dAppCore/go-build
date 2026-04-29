@@ -54,16 +54,15 @@ func ExampleBuildProvider_Describe() {
 	// Output: BuildProvider_Describe
 }
 
-func ExampleInfo_MarshalJSON() {
+func ExampleInfo() {
 	subject := Info{Name: "app.tar.gz", Path: "/dist/app.tar.gz", Size: 42}
-	data, _ := subject.MarshalJSON()
-	core.Println(core.Contains(string(data), "app.tar.gz"))
-	// Output: true
+	core.Println(subject.Name, subject.Size)
+	// Output: app.tar.gz 42
 }
 
-func ExampleReleaseWorkflowRequest_UnmarshalJSON() {
+func ExampleReleaseWorkflowRequest_Decode() {
 	var subject ReleaseWorkflowRequest
-	_ = subject.UnmarshalJSON([]byte(`{"` + apiPathField + `":"ci/release.yml"}`))
+	_ = subject.Decode([]byte(`{"` + apiPathField + `":"ci/release.yml"}`))
 	core.Println(subject.Path)
 	// Output: ci/release.yml
 }

@@ -29,10 +29,14 @@ func publisherPrintln(args ...any) {
 	publisherPrint("%s", core.Join(" ", parts...))
 }
 
-func publisherRun(ctx context.Context, dir string, env []string, command string, args ...string) error {
-	output, err := ax.CombinedOutput(ctx, dir, env, command, args...)
+func publisherRun(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
+	outputResult := ax.CombinedOutput(ctx, dir, env, command, args...)
+	output := ""
+	if outputResult.OK {
+		output = outputResult.Value.(string)
+	}
 	if output != "" {
 		publisherPrint("%s", output)
 	}
-	return err
+	return outputResult
 }

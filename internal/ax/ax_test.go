@@ -1,6 +1,7 @@
 package ax
 
 import (
+	"io/fs"
 	"syscall"
 	"time"
 
@@ -92,7 +93,7 @@ func TestAx_Join_Ugly(t *core.T) {
 func TestAx_Abs_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Abs(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Abs(core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -101,7 +102,7 @@ func TestAx_Abs_Good(t *core.T) {
 func TestAx_Abs_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Abs("")
+		_ = Abs("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -110,7 +111,7 @@ func TestAx_Abs_Bad(t *core.T) {
 func TestAx_Abs_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Abs(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Abs(core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -119,7 +120,7 @@ func TestAx_Abs_Ugly(t *core.T) {
 func TestAx_Rel_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Rel("agent", "linux")
+		_ = Rel("agent", "linux")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -128,7 +129,7 @@ func TestAx_Rel_Good(t *core.T) {
 func TestAx_Rel_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Rel("", "")
+		_ = Rel("", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -137,7 +138,7 @@ func TestAx_Rel_Bad(t *core.T) {
 func TestAx_Rel_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Rel("agent", "linux")
+		_ = Rel("agent", "linux")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -281,7 +282,7 @@ func TestAx_FromSlash_Ugly(t *core.T) {
 func TestAx_Getwd_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Getwd()
+		_ = Getwd()
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -290,7 +291,7 @@ func TestAx_Getwd_Good(t *core.T) {
 func TestAx_Getwd_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Getwd()
+		_ = Getwd()
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -299,7 +300,7 @@ func TestAx_Getwd_Bad(t *core.T) {
 func TestAx_Getwd_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Getwd()
+		_ = Getwd()
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -308,7 +309,7 @@ func TestAx_Getwd_Ugly(t *core.T) {
 func TestAx_TempDir_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = TempDir("agent")
+		_ = TempDir("agent")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -317,7 +318,7 @@ func TestAx_TempDir_Good(t *core.T) {
 func TestAx_TempDir_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = TempDir("")
+		_ = TempDir("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -326,7 +327,7 @@ func TestAx_TempDir_Bad(t *core.T) {
 func TestAx_TempDir_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = TempDir("agent")
+		_ = TempDir("agent")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -335,7 +336,7 @@ func TestAx_TempDir_Ugly(t *core.T) {
 func TestAx_MkdirTemp_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = MkdirTemp("agent")
+		_ = MkdirTemp("agent")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -344,7 +345,7 @@ func TestAx_MkdirTemp_Good(t *core.T) {
 func TestAx_MkdirTemp_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = MkdirTemp("")
+		_ = MkdirTemp("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -353,7 +354,7 @@ func TestAx_MkdirTemp_Bad(t *core.T) {
 func TestAx_MkdirTemp_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = MkdirTemp("agent")
+		_ = MkdirTemp("agent")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -362,7 +363,7 @@ func TestAx_MkdirTemp_Ugly(t *core.T) {
 func TestAx_ReadFile_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ReadFile(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ReadFile(core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -371,7 +372,7 @@ func TestAx_ReadFile_Good(t *core.T) {
 func TestAx_ReadFile_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ReadFile("")
+		_ = ReadFile("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -380,7 +381,7 @@ func TestAx_ReadFile_Bad(t *core.T) {
 func TestAx_ReadFile_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ReadFile(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ReadFile(core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -524,7 +525,7 @@ func TestAx_RemoveAll_Ugly(t *core.T) {
 func TestAx_Stat_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Stat(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Stat(core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -533,7 +534,7 @@ func TestAx_Stat_Good(t *core.T) {
 func TestAx_Stat_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Stat("")
+		_ = Stat("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -542,7 +543,7 @@ func TestAx_Stat_Bad(t *core.T) {
 func TestAx_Stat_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Stat(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Stat(core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -551,7 +552,7 @@ func TestAx_Stat_Ugly(t *core.T) {
 func TestAx_ReadDir_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ReadDir(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ReadDir(core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -560,7 +561,7 @@ func TestAx_ReadDir_Good(t *core.T) {
 func TestAx_ReadDir_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ReadDir("")
+		_ = ReadDir("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -569,7 +570,7 @@ func TestAx_ReadDir_Bad(t *core.T) {
 func TestAx_ReadDir_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ReadDir(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ReadDir(core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -578,7 +579,7 @@ func TestAx_ReadDir_Ugly(t *core.T) {
 func TestAx_Open_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Open(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Open(core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -587,7 +588,7 @@ func TestAx_Open_Good(t *core.T) {
 func TestAx_Open_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Open("")
+		_ = Open("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -596,7 +597,7 @@ func TestAx_Open_Bad(t *core.T) {
 func TestAx_Open_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Open(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Open(core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -605,7 +606,7 @@ func TestAx_Open_Ugly(t *core.T) {
 func TestAx_Create_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Create(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Create(core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -614,7 +615,7 @@ func TestAx_Create_Good(t *core.T) {
 func TestAx_Create_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Create("")
+		_ = Create("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -623,7 +624,7 @@ func TestAx_Create_Bad(t *core.T) {
 func TestAx_Create_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Create(core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Create(core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -821,7 +822,7 @@ func TestAx_Geteuid_Ugly(t *core.T) {
 func TestAx_JSONMarshal_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = JSONMarshal("agent")
+		_ = JSONMarshal("agent")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -830,7 +831,7 @@ func TestAx_JSONMarshal_Good(t *core.T) {
 func TestAx_JSONMarshal_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = JSONMarshal("agent")
+		_ = JSONMarshal("agent")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -839,7 +840,7 @@ func TestAx_JSONMarshal_Bad(t *core.T) {
 func TestAx_JSONMarshal_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = JSONMarshal("agent")
+		_ = JSONMarshal("agent")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -875,7 +876,7 @@ func TestAx_JSONUnmarshal_Ugly(t *core.T) {
 func TestAx_LookPath_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LookPath("agent")
+		_ = LookPath("agent")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -884,7 +885,7 @@ func TestAx_LookPath_Good(t *core.T) {
 func TestAx_LookPath_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LookPath("")
+		_ = LookPath("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -893,7 +894,7 @@ func TestAx_LookPath_Bad(t *core.T) {
 func TestAx_LookPath_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LookPath("agent")
+		_ = LookPath("agent")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -902,7 +903,7 @@ func TestAx_LookPath_Ugly(t *core.T) {
 func TestAx_ResolveCommand_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveCommand("agent")
+		_ = ResolveCommand("agent")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -911,7 +912,7 @@ func TestAx_ResolveCommand_Good(t *core.T) {
 func TestAx_ResolveCommand_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveCommand("")
+		_ = ResolveCommand("")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -920,7 +921,7 @@ func TestAx_ResolveCommand_Bad(t *core.T) {
 func TestAx_ResolveCommand_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = ResolveCommand("agent")
+		_ = ResolveCommand("agent")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -931,7 +932,7 @@ func TestAx_Run_Good(t *core.T) {
 	cancel()
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Run(ctx, "dappcore-command-not-found")
+		_ = Run(ctx, "dappcore-command-not-found")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -942,7 +943,7 @@ func TestAx_Run_Bad(t *core.T) {
 	cancel()
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Run(ctx, "")
+		_ = Run(ctx, "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -953,7 +954,7 @@ func TestAx_Run_Ugly(t *core.T) {
 	cancel()
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Run(ctx, "dappcore-command-not-found")
+		_ = Run(ctx, "dappcore-command-not-found")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -964,7 +965,7 @@ func TestAx_RunDir_Good(t *core.T) {
 	cancel()
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = RunDir(ctx, core.Path(t.TempDir(), "go-build-compliance"), "dappcore-command-not-found")
+		_ = RunDir(ctx, core.Path(t.TempDir(), "go-build-compliance"), "dappcore-command-not-found")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -975,7 +976,7 @@ func TestAx_RunDir_Bad(t *core.T) {
 	cancel()
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = RunDir(ctx, "", "")
+		_ = RunDir(ctx, "", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -986,7 +987,7 @@ func TestAx_RunDir_Ugly(t *core.T) {
 	cancel()
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = RunDir(ctx, core.Path(t.TempDir(), "go-build-compliance"), "dappcore-command-not-found")
+		_ = RunDir(ctx, core.Path(t.TempDir(), "go-build-compliance"), "dappcore-command-not-found")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1129,7 +1130,7 @@ func TestAx_CombinedOutput_Good(t *core.T) {
 	cancel()
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = CombinedOutput(ctx, core.Path(t.TempDir(), "go-build-compliance"), []string{"agent"}, "dappcore-command-not-found")
+		_ = CombinedOutput(ctx, core.Path(t.TempDir(), "go-build-compliance"), []string{"agent"}, "dappcore-command-not-found")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1140,7 +1141,7 @@ func TestAx_CombinedOutput_Bad(t *core.T) {
 	cancel()
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = CombinedOutput(ctx, "", []string{"agent"}, "")
+		_ = CombinedOutput(ctx, "", []string{"agent"}, "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1151,7 +1152,7 @@ func TestAx_CombinedOutput_Ugly(t *core.T) {
 	cancel()
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = CombinedOutput(ctx, core.Path(t.TempDir(), "go-build-compliance"), []string{"agent"}, "dappcore-command-not-found")
+		_ = CombinedOutput(ctx, core.Path(t.TempDir(), "go-build-compliance"), []string{"agent"}, "dappcore-command-not-found")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1159,12 +1160,13 @@ func TestAx_CombinedOutput_Ugly(t *core.T) {
 
 func TestAx_Chtimes_Good(t *core.T) {
 	path := Join(t.TempDir(), "stamp")
-	core.RequireNoError(t, WriteString(path, "agent", 0o644))
+	core.RequireTrue(t, WriteString(path, "agent", 0o644).OK)
 	want := time.Unix(123, 0)
 
-	core.RequireNoError(t, Chtimes(path, want, want))
-	info, err := Stat(path)
-	core.RequireNoError(t, err)
+	core.RequireTrue(t, Chtimes(path, want, want).OK)
+	infoResult := Stat(path)
+	core.RequireTrue(t, infoResult.OK)
+	info := infoResult.Value.(fs.FileInfo)
 	core.AssertEqual(t, want.Unix(), info.ModTime().Unix())
 }
 
@@ -1177,12 +1179,13 @@ func TestAx_Chtimes_Bad(t *core.T) {
 
 func TestAx_Chtimes_Ugly(t *core.T) {
 	path := Join(t.TempDir(), "stamp")
-	core.RequireNoError(t, WriteString(path, "", 0o644))
+	core.RequireTrue(t, WriteString(path, "", 0o644).OK)
 	want := time.Unix(0, 0)
 
-	core.RequireNoError(t, Chtimes(path, want, want))
-	info, err := Stat(path)
-	core.RequireNoError(t, err)
+	core.RequireTrue(t, Chtimes(path, want, want).OK)
+	infoResult := Stat(path)
+	core.RequireTrue(t, infoResult.OK)
+	info := infoResult.Value.(fs.FileInfo)
 	core.AssertEqual(t, want.Unix(), info.ModTime().Unix())
 }
 
@@ -1190,22 +1193,22 @@ func TestAx_Readlink_Good(t *core.T) {
 	dir := t.TempDir()
 	target := Join(dir, "target")
 	link := Join(dir, "link")
-	core.RequireNoError(t, WriteString(target, "agent", 0o644))
+	core.RequireTrue(t, WriteString(target, "agent", 0o644).OK)
 	if err := syscall.Symlink(target, link); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
-	got, err := Readlink(link)
-	core.RequireNoError(t, err)
+	result := Readlink(link)
+	core.RequireTrue(t, result.OK)
+	got := result.Value.(string)
 	core.AssertEqual(t, target, got)
 }
 
 func TestAx_Readlink_Bad(t *core.T) {
 	path := Join(t.TempDir(), "missing")
-	target, err := Readlink(path)
-	core.AssertError(t, err)
-	core.AssertEqual(t, "", target)
-	core.AssertContains(t, err.Error(), path)
+	result := Readlink(path)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), path)
 }
 
 func TestAx_Readlink_Ugly(t *core.T) {
@@ -1215,7 +1218,8 @@ func TestAx_Readlink_Ugly(t *core.T) {
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
-	got, err := Readlink(link)
-	core.RequireNoError(t, err)
+	result := Readlink(link)
+	core.RequireTrue(t, result.OK)
+	got := result.Value.(string)
 	core.AssertEqual(t, "target", got)
 }

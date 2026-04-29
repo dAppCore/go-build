@@ -8,7 +8,7 @@ import (
 func TestExport_Export_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Export(Config{}, "tar.gz")
+		_ = Export(Config{}, "tar.gz")
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -17,7 +17,7 @@ func TestExport_Export_Good(t *core.T) {
 func TestExport_Export_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Export(Config{}, "")
+		_ = Export(Config{}, "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -26,7 +26,7 @@ func TestExport_Export_Bad(t *core.T) {
 func TestExport_Export_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = Export(Config{}, "tar.gz")
+		_ = Export(Config{}, "tar.gz")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

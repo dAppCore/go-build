@@ -58,10 +58,10 @@ type Publisher interface {
 	// Name returns the publisher's identifier.
 	Name() string
 	// Validate checks the runtime release and publisher configuration before publish.
-	Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error
+	Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) core.Result
 	// Publish publishes the release to the target.
 	// If dryRun is true, it prints what would be done without executing.
-	Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error
+	Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) core.Result
 	// Supports reports whether the publisher handles the named target.
 	Supports(target string) bool
 }
@@ -104,17 +104,18 @@ func NewPublisherConfig(pubType string, prerelease, draft bool, extended any) Pu
 	}
 }
 
-func validatePublisherRelease(name string, release *Release) error {
+func validatePublisherRelease(name string, release *Release) core.Result {
 	if release == nil {
-		return coreerr.E(name+".Validate", "release is nil", nil)
+		return core.Fail(coreerr.E(name+".Validate", "release is nil", nil))
 	}
 	if release.FS == nil {
-		return coreerr.E(name+".Validate", "release filesystem (FS) is nil", nil)
+		return core.Fail(coreerr.E(name+".Validate", "release filesystem (FS) is nil", nil))
 	}
-	if err := build.ValidateVersionIdentifier(release.Version); err != nil {
-		return coreerr.E(name+".Validate", "release version contains unsupported characters", err)
+	validated := build.ValidateVersionIdentifier(release.Version)
+	if !validated.OK {
+		return core.Fail(coreerr.E(name+".Validate", "release version contains unsupported characters", core.NewError(validated.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func releaseArtifactFS(release *Release) io.Medium {

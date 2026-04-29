@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	core "dappco.re/go"
 	coreapi "dappco.re/go/api"
 	providerpkg "dappco.re/go/api/pkg/provider"
 	"dappco.re/go/process"
@@ -25,12 +26,12 @@ func (e *stubAPIEngine) Register(group coreapi.RouteGroup) {
 	e.groups = append(e.groups, group.Name())
 }
 
-func (e *stubAPIEngine) Serve(ctx context.Context) error {
+func (e *stubAPIEngine) Serve(ctx context.Context) core.Result {
 	e.once.Do(func() {
 		close(e.serveStarted)
 	})
 	<-ctx.Done()
-	return context.Canceled
+	return core.Fail(context.Canceled)
 }
 
 type stubProcessDaemon struct {
@@ -39,14 +40,14 @@ type stubProcessDaemon struct {
 	ready   []bool
 }
 
-func (d *stubProcessDaemon) Start() error {
+func (d *stubProcessDaemon) Start() core.Result {
 	d.started = true
-	return nil
+	return core.Ok(nil)
 }
 
-func (d *stubProcessDaemon) Stop() error {
+func (d *stubProcessDaemon) Stop() core.Result {
 	d.stopped = true
-	return nil
+	return core.Ok(nil)
 }
 
 func (d *stubProcessDaemon) SetReady(ready bool) {
@@ -102,8 +103,8 @@ func TestRun_WiresMCPAndAgenticGood(t *testing.T) {
 		}
 	}
 	newProviderRegistry = providerpkg.NewRegistry
-	newAPIEngine = func(opts ...coreapi.Option) (apiEngine, error) {
-		return engine, nil
+	newAPIEngine = func(opts ...coreapi.Option) core.Result {
+		return core.Ok(engine)
 	}
 	newMCPServer = func(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) coreapi.RouteGroup {
 		if stdlibAssertNil(registry.Get("build")) {
@@ -126,7 +127,7 @@ func TestRun_WiresMCPAndAgenticGood(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	done := make(chan error, 1)
+	done := make(chan core.Result, 1)
 	go func() {
 		done <- Run(ctx, Config{
 			ProjectDir:       projectDir,
@@ -150,9 +151,9 @@ func TestRun_WiresMCPAndAgenticGood(t *testing.T) {
 	cancel()
 
 	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+	case result := <-done:
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	case <-time.After(2 * time.Second):

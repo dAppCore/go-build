@@ -8,34 +8,37 @@ import (
 	coreerr "dappco.re/go/log"
 )
 
-func (p *LinuxKitPublisher) publishAWS(ctx context.Context, release *Release, cfg LinuxKitConfig, artifactPath string) error {
-	if err := p.ensureLinuxKitArtifact(release, artifactPath); err != nil {
-		return err
+func (p *LinuxKitPublisher) publishAWS(ctx context.Context, release *Release, cfg LinuxKitConfig, artifactPath string) core.Result {
+	ensured := p.ensureLinuxKitArtifact(release, artifactPath)
+	if !ensured.OK {
+		return ensured
 	}
 
 	targets := linuxKitCloudTargets(cfg, "aws")
 	if len(targets) == 0 {
-		return coreerr.E("linuxkit.publishAWS", "aws target bucket is required", nil)
+		return core.Fail(coreerr.E("linuxkit.publishAWS", "aws target bucket is required", nil))
 	}
 
 	for _, target := range targets {
-		if err := p.uploadLinuxKitS3(ctx, release, target, artifactPath); err != nil {
-			return err
+		uploaded := p.uploadLinuxKitS3(ctx, release, target, artifactPath)
+		if !uploaded.OK {
+			return uploaded
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func (p *LinuxKitPublisher) uploadLinuxKitS3(ctx context.Context, release *Release, target LinuxKitTarget, artifactPath string) error {
+func (p *LinuxKitPublisher) uploadLinuxKitS3(ctx context.Context, release *Release, target LinuxKitTarget, artifactPath string) core.Result {
 	if target.Bucket == "" {
-		return coreerr.E("linuxkit.uploadS3", "aws target bucket is required", nil)
+		return core.Fail(coreerr.E("linuxkit.uploadS3", "aws target bucket is required", nil))
 	}
 
-	awsCommand, err := resolveAWSCli()
-	if err != nil {
-		return err
+	awsCommandResult := resolveAWSCli()
+	if !awsCommandResult.OK {
+		return awsCommandResult
 	}
+	awsCommand := awsCommandResult.Value.(string)
 
 	objectKey := linuxKitObjectKey(target, artifactPath)
 	destination := linuxKitCloudURI("s3", target.Bucket, objectKey)
@@ -44,15 +47,16 @@ func (p *LinuxKitPublisher) uploadLinuxKitS3(ctx context.Context, release *Relea
 		args = append(args, "--region", target.Region)
 	}
 
-	if err := publisherRun(ctx, release.ProjectDir, nil, awsCommand, args...); err != nil {
-		return coreerr.E("linuxkit.uploadS3", "failed to upload "+ax.Base(artifactPath)+" to "+destination, err)
+	uploaded := publisherRun(ctx, release.ProjectDir, nil, awsCommand, args...)
+	if !uploaded.OK {
+		return core.Fail(coreerr.E("linuxkit.uploadS3", "failed to upload "+ax.Base(artifactPath)+" to "+destination, core.NewError(uploaded.Error())))
 	}
 
 	publisherPrint("Uploaded LinuxKit AWS image: %s", destination)
-	return nil
+	return core.Ok(nil)
 }
 
-func resolveAWSCli(paths ...string) (string, error) {
+func resolveAWSCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/aws",
@@ -60,12 +64,12 @@ func resolveAWSCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("aws", paths...)
-	if err != nil {
-		return "", coreerr.E("linuxkit.resolveAWSCli", "aws CLI not found. Install it from https://aws.amazon.com/cli/", err)
+	command := ax.ResolveCommand("aws", paths...)
+	if !command.OK {
+		return core.Fail(coreerr.E("linuxkit.resolveAWSCli", "aws CLI not found. Install it from https://aws.amazon.com/cli/", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }
 
 func appendLinuxKitTargetValue(cfg *LinuxKitConfig, provider string, value any) {

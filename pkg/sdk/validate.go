@@ -3,19 +3,19 @@ package sdk
 import (
 	"context"
 
+	core "dappco.re/go"
 	"github.com/oasdiff/kin-openapi/openapi3"
-
-	coreerr "dappco.re/go/log"
 )
 
 // ValidateSpec detects and validates the OpenAPI specification for this SDK.
 //
 // detectedPath, err := s.ValidateSpec(context.Background())
-func (s *SDK) ValidateSpec(ctx context.Context) (string, error) {
-	specPath, err := s.DetectSpec()
-	if err != nil {
-		return "", err
+func (s *SDK) ValidateSpec(ctx context.Context) core.Result {
+	spec := s.DetectSpec()
+	if !spec.OK {
+		return spec
 	}
+	specPath := spec.Value.(string)
 
 	loader := openapi3.NewLoader()
 	loader.Context = ctx
@@ -23,12 +23,12 @@ func (s *SDK) ValidateSpec(ctx context.Context) (string, error) {
 
 	doc, err := loader.LoadFromFile(specPath)
 	if err != nil {
-		return "", coreerr.E("sdk.ValidateSpec", "failed to load OpenAPI spec", err)
+		return core.Fail(core.E("sdk.ValidateSpec", "failed to load OpenAPI spec", err))
 	}
 
 	if err := doc.Validate(ctx); err != nil {
-		return "", coreerr.E("sdk.ValidateSpec", "invalid OpenAPI spec", err)
+		return core.Fail(core.E("sdk.ValidateSpec", "invalid OpenAPI spec", err))
 	}
 
-	return specPath, nil
+	return core.Ok(specPath)
 }

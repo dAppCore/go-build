@@ -11,7 +11,6 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 // appendConfiguredEnv returns a fresh environment slice that includes the
@@ -70,14 +69,15 @@ func defaultOutputDir(cfg *build.Config) string {
 	return ax.Join(cfg.ProjectDir, "dist")
 }
 
-func ensureOutputDir(fs io.Medium, outputDir, operation string) error {
+func ensureOutputDir(fs io.Medium, outputDir, operation string) core.Result {
 	if outputDir == "" {
-		return nil
+		return core.Ok(nil)
 	}
-	if err := fs.EnsureDir(outputDir); err != nil {
-		return coreerr.E(operation, "failed to create output directory", err)
+	created := fs.EnsureDir(outputDir)
+	if !created.OK {
+		return core.Fail(core.E(operation, "failed to create output directory", core.NewError(created.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func platformName(target build.Target) string {
@@ -92,12 +92,13 @@ func platformDir(outputDir string, target build.Target) string {
 	return ax.Join(outputDir, name)
 }
 
-func ensurePlatformDir(fs io.Medium, outputDir string, target build.Target, operation string) (string, error) {
+func ensurePlatformDir(fs io.Medium, outputDir string, target build.Target, operation string) core.Result {
 	dir := platformDir(outputDir, target)
-	if err := fs.EnsureDir(dir); err != nil {
-		return "", coreerr.E(operation, "failed to create platform directory", err)
+	created := fs.EnsureDir(dir)
+	if !created.OK {
+		return core.Fail(core.E(operation, "failed to create platform directory", core.NewError(created.Error())))
 	}
-	return dir, nil
+	return core.Ok(dir)
 }
 
 func standardTargetValues(outputDir, targetDir string, target build.Target) []string {
@@ -143,7 +144,7 @@ type stagedOutput struct {
 	cleanup          func()
 }
 
-func prepareStagedOutput(outputDir string, artifactFS io.Medium, tempPattern, operation string) (stagedOutput, error) {
+func prepareStagedOutput(outputDir string, artifactFS io.Medium, tempPattern, operation string) core.Result {
 	stage := stagedOutput{
 		outputDir:        outputDir,
 		commandOutputDir: outputDir,
@@ -151,43 +152,47 @@ func prepareStagedOutput(outputDir string, artifactFS io.Medium, tempPattern, op
 		cleanup:          func() {},
 	}
 	if build.MediumIsLocal(artifactFS) {
-		return stage, nil
+		return core.Ok(stage)
 	}
 
-	stageDir, err := ax.TempDir(tempPattern)
-	if err != nil {
-		return stagedOutput{}, coreerr.E(operation, "failed to create local artifact staging directory", err)
+	stageDirResult := ax.TempDir(tempPattern)
+	if !stageDirResult.OK {
+		return core.Fail(core.E(operation, "failed to create local artifact staging directory", core.NewError(stageDirResult.Error())))
 	}
+	stageDir := stageDirResult.Value.(string)
 	stage.commandOutputDir = stageDir
 	stage.commandFS = io.Local
-	stage.cleanup = func() { _ = ax.RemoveAll(stageDir) }
-	return stage, nil
+	stage.cleanup = func() { ax.RemoveAll(stageDir) }
+	return core.Ok(stage)
 }
 
 type zipExcludeFunc func(path string) bool
 
-func bundleZipTree(fs io.Medium, rootDir, bundlePath, operation string, exclude zipExcludeFunc) error {
-	if err := fs.EnsureDir(ax.Dir(bundlePath)); err != nil {
-		return coreerr.E(operation, "failed to create bundle directory", err)
+func bundleZipTree(fs io.Medium, rootDir, bundlePath, operation string, exclude zipExcludeFunc) core.Result {
+	created := fs.EnsureDir(ax.Dir(bundlePath))
+	if !created.OK {
+		return core.Fail(core.E(operation, "failed to create bundle directory", core.NewError(created.Error())))
 	}
 
-	file, err := fs.Create(bundlePath)
-	if err != nil {
-		return coreerr.E(operation, "failed to create bundle file", err)
+	fileResult := fs.Create(bundlePath)
+	if !fileResult.OK {
+		return core.Fail(core.E(operation, "failed to create bundle file", core.NewError(fileResult.Error())))
 	}
-	defer func() { _ = file.Close() }()
+	file := fileResult.Value.(core.WriteCloser)
+	defer file.Close()
 
 	writer := zip.NewWriter(file)
-	defer func() { _ = writer.Close() }()
+	defer writer.Close()
 
 	return writeZipTree(fs, writer, rootDir, rootDir, operation, exclude)
 }
 
-func writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, currentDir, operation string, exclude zipExcludeFunc) error {
-	entries, err := fs.List(currentDir)
-	if err != nil {
-		return coreerr.E(operation, "failed to list directory", err)
+func writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, currentDir, operation string, exclude zipExcludeFunc) core.Result {
+	entriesResult := fs.List(currentDir)
+	if !entriesResult.OK {
+		return core.Fail(core.E(operation, "failed to list directory", core.NewError(entriesResult.Error())))
 	}
+	entries := entriesResult.Value.([]stdfs.DirEntry)
 
 	slices.SortFunc(entries, func(a, b stdfs.DirEntry) int {
 		if a.Name() < b.Name() {
@@ -206,34 +211,38 @@ func writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, currentDir, operati
 		}
 
 		if entry.IsDir() {
-			if err := writeZipTree(fs, writer, rootDir, entryPath, operation, exclude); err != nil {
-				return err
+			written := writeZipTree(fs, writer, rootDir, entryPath, operation, exclude)
+			if !written.OK {
+				return written
 			}
 			continue
 		}
 
-		if err := writeZipEntry(fs, writer, rootDir, entryPath, operation); err != nil {
-			return err
+		written := writeZipEntry(fs, writer, rootDir, entryPath, operation)
+		if !written.OK {
+			return written
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func writeZipEntry(fs io.Medium, writer *zip.Writer, rootDir, entryPath, operation string) error {
-	relPath, err := ax.Rel(rootDir, entryPath)
-	if err != nil {
-		return coreerr.E(operation, "failed to relativise bundle path", err)
+func writeZipEntry(fs io.Medium, writer *zip.Writer, rootDir, entryPath, operation string) core.Result {
+	relPathResult := ax.Rel(rootDir, entryPath)
+	if !relPathResult.OK {
+		return core.Fail(core.E(operation, "failed to relativise bundle path", core.NewError(relPathResult.Error())))
 	}
+	relPath := relPathResult.Value.(string)
 
-	info, err := fs.Stat(entryPath)
-	if err != nil {
-		return coreerr.E(operation, "failed to stat bundle entry", err)
+	infoResult := fs.Stat(entryPath)
+	if !infoResult.OK {
+		return core.Fail(core.E(operation, "failed to stat bundle entry", core.NewError(infoResult.Error())))
 	}
+	info := infoResult.Value.(stdfs.FileInfo)
 
 	header, err := zip.FileInfoHeader(info)
 	if err != nil {
-		return coreerr.E(operation, "failed to create zip header", err)
+		return core.Fail(core.E(operation, "failed to create zip header", err))
 	}
 	header.Name = core.Replace(relPath, ax.DS(), "/")
 	header.Method = zip.Deflate
@@ -241,23 +250,24 @@ func writeZipEntry(fs io.Medium, writer *zip.Writer, rootDir, entryPath, operati
 
 	zipEntry, err := writer.CreateHeader(header)
 	if err != nil {
-		return coreerr.E(operation, "failed to create zip entry", err)
+		return core.Fail(core.E(operation, "failed to create zip entry", err))
 	}
 
-	source, err := fs.Open(entryPath)
-	if err != nil {
-		return coreerr.E(operation, "failed to open bundle entry", err)
+	sourceResult := fs.Open(entryPath)
+	if !sourceResult.OK {
+		return core.Fail(core.E(operation, "failed to open bundle entry", core.NewError(sourceResult.Error())))
 	}
+	source := sourceResult.Value.(core.FsFile)
 
 	if _, err := stdio.Copy(zipEntry, source); err != nil {
 		if closeErr := source.Close(); closeErr != nil {
-			return coreerr.E(operation, "failed to close bundle entry after write failure", closeErr)
+			return core.Fail(core.E(operation, "failed to close bundle entry after write failure", closeErr))
 		}
-		return coreerr.E(operation, "failed to write bundle entry", err)
+		return core.Fail(core.E(operation, "failed to write bundle entry", err))
 	}
 	if err := source.Close(); err != nil {
-		return coreerr.E(operation, "failed to close bundle entry", err)
+		return core.Fail(core.E(operation, "failed to close bundle entry", err))
 	}
 
-	return nil
+	return core.Ok(nil)
 }

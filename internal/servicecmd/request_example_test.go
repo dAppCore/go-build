@@ -13,10 +13,10 @@ func ExampleFromOptions() {
 }
 
 func ExampleLoadConfig() {
-	_, _ = LoadConfig(Request{}, func() (string, error) {
-		return "", nil
-	}, func(string) (buildservice.Config, error) {
-		return buildservice.Config{}, nil
+	_ = LoadConfig(Request{}, func() core.Result {
+		return core.Ok("")
+	}, func(string) core.Result {
+		return core.Ok(buildservice.Config{})
 	})
 	core.Println("LoadConfig")
 	// Output: LoadConfig

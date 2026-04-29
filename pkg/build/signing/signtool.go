@@ -4,9 +4,9 @@ import (
 	"context"
 	"runtime"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 // WindowsSigner signs binaries using Windows signtool.
@@ -46,29 +46,28 @@ func (s *WindowsSigner) Available() bool {
 	if s.config.Certificate == "" {
 		return false
 	}
-	_, err := resolveSigntoolCli()
-	return err == nil
+	return resolveSigntoolCli().OK
 }
 
 // Sign signs a binary using signtool and a PFX certificate.
 //
 // err := s.Sign(ctx, io.Local, "dist/myapp.exe")
-func (s *WindowsSigner) Sign(ctx context.Context, fs io.Medium, binary string) error {
+func (s *WindowsSigner) Sign(ctx context.Context, fs io.Medium, binary string) core.Result {
 	_ = fs
 
 	if !s.Available() {
 		if runtime.GOOS != "windows" {
-			return coreerr.E("signtool.Sign", "signtool is only available on Windows", nil)
+			return core.Fail(core.E("signtool.Sign", "signtool is only available on Windows", nil))
 		}
 		if s.config.Certificate == "" {
-			return coreerr.E("signtool.Sign", "signtool certificate not configured", nil)
+			return core.Fail(core.E("signtool.Sign", "signtool certificate not configured", nil))
 		}
-		return coreerr.E("signtool.Sign", "signtool tool not found in PATH", nil)
+		return core.Fail(core.E("signtool.Sign", "signtool tool not found in PATH", nil))
 	}
 
-	signtoolCommand, err := resolveSigntoolCli()
-	if err != nil {
-		return coreerr.E("signtool.Sign", "signtool tool not found in PATH", err)
+	signtoolCommand := resolveSigntoolCli()
+	if !signtoolCommand.OK {
+		return core.Fail(core.E("signtool.Sign", "signtool tool not found in PATH", core.NewError(signtoolCommand.Error())))
 	}
 
 	args := []string{
@@ -83,15 +82,15 @@ func (s *WindowsSigner) Sign(ctx context.Context, fs io.Medium, binary string) e
 	}
 	args = append(args, binary)
 
-	output, err := ax.CombinedOutput(ctx, "", nil, signtoolCommand, args...)
-	if err != nil {
-		return coreerr.E("signtool.Sign", output, err)
+	output := ax.CombinedOutput(ctx, "", nil, signtoolCommand.Value.(string), args...)
+	if !output.OK {
+		return core.Fail(core.E("signtool.Sign", output.Error(), core.NewError(output.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func resolveSigntoolCli(paths ...string) (string, error) {
+func resolveSigntoolCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			`C:\\Program Files (x86)\\Windows Kits\\10\\bin\\x64\\signtool.exe`,
@@ -101,10 +100,10 @@ func resolveSigntoolCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("signtool", paths...)
-	if err != nil {
-		return "", coreerr.E("signtool.resolveSigntoolCli", "signtool tool not found. Install the Windows SDK.", err)
+	command := ax.ResolveCommand("signtool", paths...)
+	if !command.OK {
+		return core.Fail(core.E("signtool.resolveSigntoolCli", "signtool tool not found. Install the Windows SDK.", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }

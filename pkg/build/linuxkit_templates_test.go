@@ -40,19 +40,21 @@ func TestLinuxkitTemplates_LookupLinuxKitBaseImage_Ugly(t *core.T) {
 }
 
 func TestLinuxkitTemplates_LinuxKitBaseTemplate_Good(t *core.T) {
-	template, err := LinuxKitBaseTemplate("core-dev")
-	core.RequireNoError(t, err)
+	result := LinuxKitBaseTemplate("core-dev")
+	core.RequireTrue(t, result.OK)
+	template := result.Value.(string)
 	core.AssertContains(t, template, "CORE_IMAGE=core-dev")
 }
 
 func TestLinuxkitTemplates_LinuxKitBaseTemplate_Bad(t *core.T) {
-	template, err := LinuxKitBaseTemplate("missing")
-	core.AssertError(t, err)
-	core.AssertEqual(t, "", template)
+	result := LinuxKitBaseTemplate("missing")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "missing")
 }
 
 func TestLinuxkitTemplates_LinuxKitBaseTemplate_Ugly(t *core.T) {
-	template, err := LinuxKitBaseTemplate("core-minimal")
-	core.RequireNoError(t, err)
+	result := LinuxKitBaseTemplate("core-minimal")
+	core.RequireTrue(t, result.OK)
+	template := result.Value.(string)
 	core.AssertContains(t, template, "core-minimal")
 }

@@ -3,7 +3,7 @@ package build
 import (
 	"regexp"
 
-	coreerr "dappco.re/go/log"
+	"dappco.re/go"
 )
 
 var safeVersionString = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
@@ -13,23 +13,24 @@ var safeVersionString = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
 //
 // Safe identifiers are non-empty ASCII strings limited to characters that
 // cannot split a linker flag or shell token.
-func ValidateVersionString(version string) error {
+func ValidateVersionString(version string) core.Result {
 	if !safeVersionString.MatchString(version) {
-		return coreerr.E("build.ValidateVersionString", "version must be a non-empty safe release identifier", nil)
+		return core.Fail(core.E("build.ValidateVersionString", "version must be a non-empty safe release identifier", nil))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // ValidateVersionIdentifier reports whether a version override is safe when a
 // caller also permits the absence of a version.
-func ValidateVersionIdentifier(version string) error {
+func ValidateVersionIdentifier(version string) core.Result {
 	if version == "" {
-		return nil
+		return core.Ok(nil)
 	}
-	if err := ValidateVersionString(version); err != nil {
-		return coreerr.E("build.ValidateVersionIdentifier", "version contains unsupported characters", err)
+	valid := ValidateVersionString(version)
+	if !valid.OK {
+		return core.Fail(core.E("build.ValidateVersionIdentifier", "version contains unsupported characters", core.NewError(valid.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }

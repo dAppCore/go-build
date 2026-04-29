@@ -12,9 +12,7 @@ func TestValidateVersionString_Good(t *testing.T) {
 		"dev-build_20260425",
 	} {
 		t.Run(version, func(t *testing.T) {
-			if err := ValidateVersionString(version); err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			requireVersionFlagOK(t, ValidateVersionString(version))
 		})
 	}
 }
@@ -27,9 +25,7 @@ func TestValidateVersionString_Bad(t *testing.T) {
 		"v1.2.3`uname`",
 	} {
 		t.Run(version, func(t *testing.T) {
-			if err := ValidateVersionString(version); err == nil {
-				t.Fatal("expected error")
-			}
+			requireVersionFlagError(t, ValidateVersionString(version))
 		})
 	}
 }
@@ -43,9 +39,7 @@ func TestValidateVersionString_Ugly(t *testing.T) {
 		"v1.2.3 beta",
 	} {
 		t.Run(version, func(t *testing.T) {
-			if err := ValidateVersionString(version); err == nil {
-				t.Fatal("expected error")
-			}
+			requireVersionFlagError(t, ValidateVersionString(version))
 		})
 	}
 }

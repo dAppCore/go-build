@@ -65,10 +65,11 @@ func TestBuild_LinuxKitBaseTemplate_Good(t *testing.T) {
 	}
 
 	for _, image := range images {
-		content, err := LinuxKitBaseTemplate(image.Name)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		templateResult := LinuxKitBaseTemplate(image.Name)
+		if !templateResult.OK {
+			t.Fatalf("unexpected error: %v", templateResult.Error())
 		}
+		content := templateResult.Value.(string)
 		if !stdlibAssertContains(content, image.Name) {
 			t.Fatalf("expected %v to contain %v", content, image.Name)
 		}

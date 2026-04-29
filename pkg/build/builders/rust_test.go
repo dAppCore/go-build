@@ -54,8 +54,9 @@ esac
 printf 'fake rust artifact\n' > "$artifact"
 chmod +x "$artifact" 2>/dev/null || true
 `
-	if err := ax.WriteFile(ax.Join(binDir, "cargo"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := ax.WriteFile(ax.Join(binDir, "cargo"), []byte(script), 0o755)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
@@ -64,14 +65,17 @@ func setupRustTestProject(t *testing.T) string {
 	t.Helper()
 
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "Cargo.toml"), []byte("[package]\nname = \"testapp\"\nversion = \"0.1.0\""), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := ax.WriteFile(ax.Join(dir, "Cargo.toml"), []byte("[package]\nname = \"testapp\"\nversion = \"0.1.0\""), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.MkdirAll(ax.Join(dir, "src"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.MkdirAll(ax.Join(dir, "src"), 0o755)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(dir, "src", "main.rs"), []byte("fn main() {}"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result = ax.WriteFile(ax.Join(dir, "src", "main.rs"), []byte("fn main() {}"), 0o644)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	return dir
@@ -90,15 +94,13 @@ func TestRust_RustBuilderDetectGood(t *testing.T) {
 
 	t.Run("detects Cargo.toml projects", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "Cargo.toml"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := ax.WriteFile(ax.Join(dir, "Cargo.toml"), []byte("{}"), 0o644)
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		builder := NewRustBuilder()
-		detected, err := builder.Detect(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, dir))
 		if !(detected) {
 			t.Fatal("expected true")
 		}
@@ -107,10 +109,7 @@ func TestRust_RustBuilderDetectGood(t *testing.T) {
 
 	t.Run("returns false for empty directory", func(t *testing.T) {
 		builder := NewRustBuilder()
-		detected, err := builder.Detect(fs, t.TempDir())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		detected := requireCPPBool(t, builder.Detect(fs, t.TempDir()))
 		if detected {
 			t.Fatal("expected false")
 		}
@@ -145,14 +144,11 @@ func TestRust_RustBuilderBuildGood(t *testing.T) {
 
 	targets := []build.Target{{OS: "linux", Arch: "amd64"}}
 
-	artifacts, err := builder.Build(context.Background(), cfg, targets)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg, targets))
 	if len(artifacts) != 1 {
 		t.Fatalf("want len %v, got %v", 1, len(artifacts))
 	}
-	if _, err := ax.Stat(artifacts[0].Path); err != nil {
+	if stat := ax.Stat(artifacts[0].Path); !stat.OK {
 		t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 	}
 	if !stdlibAssertEqual("linux", artifacts[0].OS) {
@@ -162,10 +158,7 @@ func TestRust_RustBuilderBuildGood(t *testing.T) {
 		t.Fatalf("want %v, got %v", "amd64", artifacts[0].Arch)
 	}
 
-	content, err := ax.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireBuilderBytes(t, ax.ReadFile(logPath))
 
 	lines := core.Split(core.Trim(string(content)), "\n")
 	if len(lines) < 5 {
@@ -201,10 +194,7 @@ func TestRust_RustBuilderInterfaceGood(t *testing.T) {
 	if !stdlibAssertEqual("rust", builder.Name()) {
 		t.Fatalf("want %v, got %v", "rust", builder.Name())
 	}
-	detected, err := builder.Detect(nil, t.TempDir())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	detected := requireCPPBool(t, builder.Detect(nil, t.TempDir()))
 	if detected {
 		t.Fatal("expected empty temp directory not to be detected")
 	}
@@ -272,7 +262,7 @@ func TestRust_RustBuilder_Detect_Good(t *core.T) {
 	subject := &RustBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -282,7 +272,7 @@ func TestRust_RustBuilder_Detect_Bad(t *core.T) {
 	subject := &RustBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(io.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -292,7 +282,7 @@ func TestRust_RustBuilder_Detect_Ugly(t *core.T) {
 	subject := &RustBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -304,7 +294,7 @@ func TestRust_RustBuilder_Build_Good(t *core.T) {
 	subject := &RustBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -316,7 +306,7 @@ func TestRust_RustBuilder_Build_Bad(t *core.T) {
 	subject := &RustBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -328,7 +318,7 @@ func TestRust_RustBuilder_Build_Ugly(t *core.T) {
 	subject := &RustBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = subject.Build(ctx, nil, nil)
+		_ = subject.Build(ctx, nil, nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

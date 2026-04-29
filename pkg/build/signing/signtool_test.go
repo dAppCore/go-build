@@ -70,12 +70,12 @@ func TestSigntool_Sign_Bad(t *testing.T) {
 			Certificate: "cert.pfx",
 		})
 
-		err := signer.Sign(context.Background(), io.Local, "test.exe")
-		if err == nil {
+		result := signer.Sign(context.Background(), io.Local, "test.exe")
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertContains(err.Error(), "only available on Windows") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "only available on Windows")
+		if !stdlibAssertContains(result.Error(), "only available on Windows") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "only available on Windows")
 		}
 
 	})
@@ -83,31 +83,32 @@ func TestSigntool_Sign_Bad(t *testing.T) {
 
 func TestSigntool_Sign_Good(t *testing.T) {
 	signer := NewWindowsSigner(WindowsConfig{Signtool: true, Certificate: "cert.pfx"})
-	err := signer.Sign(context.Background(), io.Local, "test.exe")
+	result := signer.Sign(context.Background(), io.Local, "test.exe")
 	if runtime.GOOS != "windows" {
-		if err == nil {
+		if result.OK {
 			t.Fatal("expected non-Windows platform guard")
 		}
 		return
 	}
-	if err != nil && !stdlibAssertContains(err.Error(), "signtool") {
-		t.Fatalf("expected signtool-related result, got %v", err)
+	if !result.OK && !stdlibAssertContains(result.Error(), "signtool") {
+		t.Fatalf("expected signtool-related result, got %v", result.Error())
 	}
 }
 
 func TestSigntool_ResolveSigntoolCliGood(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "signtool.exe")
-	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("PATH", "")
 
-	command, err := resolveSigntoolCli(fallbackPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := resolveSigntoolCli(fallbackPath)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
+	command := result.Value.(string)
 	if !stdlibAssertEqual(fallbackPath, command) {
 		t.Fatalf("want %v, got %v", fallbackPath, command)
 	}
@@ -117,12 +118,12 @@ func TestSigntool_ResolveSigntoolCliGood(t *testing.T) {
 func TestSigntool_ResolveSigntoolCliBad(t *testing.T) {
 	t.Setenv("PATH", "")
 
-	_, err := resolveSigntoolCli(ax.Join(t.TempDir(), "missing-signtool.exe"))
-	if err == nil {
+	result := resolveSigntoolCli(ax.Join(t.TempDir(), "missing-signtool.exe"))
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "signtool tool not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "signtool tool not found")
+	if !stdlibAssertContains(result.Error(), "signtool tool not found") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "signtool tool not found")
 	}
 
 }

@@ -35,12 +35,9 @@ func TestPublishers_PublishRejectsUnsafeVersionGood(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.publisher.Publish(context.Background(), release, PublisherConfig{Type: tc.name}, relCfg, true)
-			if err == nil {
-				t.Fatal("expected error")
-			}
-			if !stdlibAssertContains(err.Error(), "release version contains unsupported characters") {
-				t.Fatalf("expected %v to contain %v", err.Error(), "release version contains unsupported characters")
+			err := requirePublisherError(t, tc.publisher.Publish(context.Background(), release, PublisherConfig{Type: tc.name}, relCfg, true))
+			if !stdlibAssertContains(err, "release version contains unsupported characters") {
+				t.Fatalf("expected %v to contain %v", err, "release version contains unsupported characters")
 			}
 
 		})

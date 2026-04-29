@@ -36,10 +36,10 @@ func TestRequest_FromOptions_Ugly(t *core.T) {
 func TestRequest_LoadConfig_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LoadConfig(Request{}, func() (string, error) {
-			return "", nil
-		}, func(string) (buildservice.Config, error) {
-			return buildservice.Config{}, nil
+		_ = LoadConfig(Request{}, func() core.Result {
+			return core.Ok("")
+		}, func(string) core.Result {
+			return core.Ok(buildservice.Config{})
 		})
 		goodCalls++
 	})
@@ -49,10 +49,10 @@ func TestRequest_LoadConfig_Good(t *core.T) {
 func TestRequest_LoadConfig_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LoadConfig(Request{}, func() (string, error) {
-			return "", nil
-		}, func(string) (buildservice.Config, error) {
-			return buildservice.Config{}, nil
+		_ = LoadConfig(Request{}, func() core.Result {
+			return core.Ok("")
+		}, func(string) core.Result {
+			return core.Ok(buildservice.Config{})
 		})
 		badCalls++
 	})
@@ -62,10 +62,10 @@ func TestRequest_LoadConfig_Bad(t *core.T) {
 func TestRequest_LoadConfig_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_, _ = LoadConfig(Request{}, func() (string, error) {
-			return "", nil
-		}, func(string) (buildservice.Config, error) {
-			return buildservice.Config{}, nil
+		_ = LoadConfig(Request{}, func() core.Result {
+			return core.Ok("")
+		}, func(string) core.Result {
+			return core.Ok(buildservice.Config{})
 		})
 		uglyCalls++
 	})

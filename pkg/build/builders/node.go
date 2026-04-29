@@ -3,6 +3,7 @@ package builders
 
 import (
 	"context"
+	stdfs "io/fs"
 	"runtime"
 
 	"dappco.re/go"
@@ -34,17 +35,17 @@ func (b *NodeBuilder) Name() string {
 // Detect checks if this builder can handle the project in the given directory.
 //
 // ok, err := b.Detect(io.Local, ".")
-func (b *NodeBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return build.IsNodeProject(fs, dir), nil
+func (b *NodeBuilder) Detect(fs io.Medium, dir string) core.Result {
+	return core.Ok(build.IsNodeProject(fs, dir))
 }
 
 // Build runs the project build script once per target and collects artifacts
 // from the target-specific output directory.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return nil, coreerr.E("NodeBuilder.Build", "config is nil", nil)
+		return core.Fail(coreerr.E("NodeBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
@@ -54,8 +55,9 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 	if outputDir == "" {
 		outputDir = defaultOutputDir(cfg)
 	}
-	if err := ensureOutputDir(filesystem, outputDir, "NodeBuilder.Build"); err != nil {
-		return nil, err
+	created := ensureOutputDir(filesystem, outputDir, "NodeBuilder.Build")
+	if !created.OK {
+		return created
 	}
 
 	projectDir := b.resolveNodeProjectDir(filesystem, cfg.ProjectDir)
@@ -63,30 +65,34 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		projectDir = cfg.ProjectDir
 	}
 
-	command, args, err := b.resolveBuildCommand(cfg, filesystem, projectDir)
-	if err != nil {
-		return nil, err
+	commandResult := b.resolveBuildCommand(cfg, filesystem, projectDir)
+	if !commandResult.OK {
+		return commandResult
 	}
+	spec := commandResult.Value.(commandSpec)
+	command := spec.command
+	args := spec.args
 
 	var artifacts []build.Artifact
 	for _, target := range targets {
-		platformDir, err := ensurePlatformDir(filesystem, outputDir, target, "NodeBuilder.Build")
-		if err != nil {
-			return artifacts, err
+		platformDirResult := ensurePlatformDir(filesystem, outputDir, target, "NodeBuilder.Build")
+		if !platformDirResult.OK {
+			return platformDirResult
 		}
+		platformDir := platformDirResult.Value.(string)
 
 		env := configuredTargetEnv(cfg, target, standardTargetValues(outputDir, platformDir, target)...)
 
-		output, err := ax.CombinedOutput(ctx, projectDir, env, command, args...)
-		if err != nil {
-			return artifacts, coreerr.E("NodeBuilder.Build", command+" build failed: "+output, err)
+		output := ax.CombinedOutput(ctx, projectDir, env, command, args...)
+		if !output.OK {
+			return core.Fail(coreerr.E("NodeBuilder.Build", command+" build failed: "+output.Error(), core.NewError(output.Error())))
 		}
 
 		found := b.findArtifactsForTarget(cfg.FS, outputDir, target)
 		artifacts = append(artifacts, found...)
 	}
 
-	return artifacts, nil
+	return core.Ok(artifacts)
 }
 
 // resolveNodeProjectDir locates the directory containing package.json.
@@ -105,10 +111,11 @@ func (b *NodeBuilder) findNodeProjectDir(fs io.Medium, dir string, depth int) st
 		return ""
 	}
 
-	entries, err := fs.List(dir)
-	if err != nil {
+	entriesResult := fs.List(dir)
+	if !entriesResult.OK {
 		return ""
 	}
+	entries := entriesResult.Value.([]stdfs.DirEntry)
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -144,29 +151,29 @@ func (b *NodeBuilder) hasDenoConfig(fs io.Medium, dir string) bool {
 // resolvePackageManager selects the package manager from lockfiles.
 //
 // packageManager := b.resolvePackageManager(io.Local, ".")
-func (b *NodeBuilder) resolvePackageManager(fs io.Medium, projectDir string) (string, error) {
+func (b *NodeBuilder) resolvePackageManager(fs io.Medium, projectDir string) core.Result {
 	if declared := detectDeclaredPackageManager(fs, projectDir); declared != "" {
-		return declared, nil
+		return core.Ok(declared)
 	}
 
 	switch {
 	case fs.IsFile(ax.Join(projectDir, "bun.lockb")) || fs.IsFile(ax.Join(projectDir, "bun.lock")):
-		return "bun", nil
+		return core.Ok("bun")
 	case fs.IsFile(ax.Join(projectDir, "pnpm-lock.yaml")):
-		return "pnpm", nil
+		return core.Ok("pnpm")
 	case fs.IsFile(ax.Join(projectDir, "yarn.lock")):
-		return "yarn", nil
+		return core.Ok("yarn")
 	case fs.IsFile(ax.Join(projectDir, "package-lock.json")):
-		return "npm", nil
+		return core.Ok("npm")
 	default:
-		return "npm", nil
+		return core.Ok("npm")
 	}
 }
 
 // resolveBuildCommand returns the executable and arguments for the selected package manager.
 //
 // command, args, err := b.resolveBuildCommand("npm")
-func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, projectDir string) (string, []string, error) {
+func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, projectDir string) core.Result {
 	configuredDenoBuild := ""
 	if cfg != nil {
 		configuredDenoBuild = cfg.DenoBuild
@@ -180,10 +187,11 @@ func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, proje
 		return resolveNpmBuildCommand(cfg, b.resolveNpmCli)
 	}
 
-	packageManager, err := b.resolvePackageManager(fs, projectDir)
-	if err != nil {
-		return "", nil, err
+	packageManagerResult := b.resolvePackageManager(fs, projectDir)
+	if !packageManagerResult.OK {
+		return packageManagerResult
 	}
+	packageManager := packageManagerResult.Value.(string)
 
 	var paths []string
 	switch packageManager {
@@ -198,16 +206,16 @@ func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, proje
 		packageManager = "npm"
 	}
 
-	command, err := ax.ResolveCommand(packageManager, paths...)
-	if err != nil {
-		return "", nil, coreerr.E("NodeBuilder.resolveBuildCommand", packageManager+" CLI not found", err)
+	command := ax.ResolveCommand(packageManager, paths...)
+	if !command.OK {
+		return core.Fail(coreerr.E("NodeBuilder.resolveBuildCommand", packageManager+" CLI not found", core.NewError(command.Error())))
 	}
 
 	switch packageManager {
 	case "yarn":
-		return command, []string{"build"}, nil
+		return core.Ok(commandSpec{command: command.Value.(string), args: []string{"build"}})
 	default:
-		return command, []string{"run", "build"}, nil
+		return core.Ok(commandSpec{command: command.Value.(string), args: []string{"run", "build"}})
 	}
 }
 
@@ -218,7 +226,7 @@ func configuredNpmBuild(cfg *build.Config) string {
 	return cfg.NpmBuild
 }
 
-func (b *NodeBuilder) resolveDenoCli(paths ...string) (string, error) {
+func (b *NodeBuilder) resolveDenoCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/deno",
@@ -226,15 +234,15 @@ func (b *NodeBuilder) resolveDenoCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("deno", paths...)
-	if err != nil {
-		return "", coreerr.E("NodeBuilder.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", err)
+	command := ax.ResolveCommand("deno", paths...)
+	if !command.OK {
+		return core.Fail(coreerr.E("NodeBuilder.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }
 
-func (b *NodeBuilder) resolveNpmCli(paths ...string) (string, error) {
+func (b *NodeBuilder) resolveNpmCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/npm",
@@ -242,12 +250,12 @@ func (b *NodeBuilder) resolveNpmCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("npm", paths...)
-	if err != nil {
-		return "", coreerr.E("NodeBuilder.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", err)
+	command := ax.ResolveCommand("npm", paths...)
+	if !command.OK {
+		return core.Fail(coreerr.E("NodeBuilder.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }
 
 // findArtifactsForTarget searches for build outputs in the target-specific output directory.
@@ -258,8 +266,9 @@ func (b *NodeBuilder) findArtifactsForTarget(fs io.Medium, outputDir string, tar
 
 	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 	if fs.IsDir(platformDir) {
-		entries, err := fs.List(platformDir)
-		if err == nil {
+		entriesResult := fs.List(platformDir)
+		if entriesResult.OK {
+			entries := entriesResult.Value.([]stdfs.DirEntry)
 			for _, entry := range entries {
 				if entry.IsDir() {
 					if target.OS == "darwin" && core.HasSuffix(entry.Name(), ".app") {
@@ -296,10 +305,11 @@ func (b *NodeBuilder) findArtifactsForTarget(fs io.Medium, outputDir string, tar
 	}
 
 	for _, pattern := range patterns {
-		entries, err := fs.List(outputDir)
-		if err != nil {
+		entriesResult := fs.List(outputDir)
+		if !entriesResult.OK {
 			continue
 		}
+		entries := entriesResult.Value.([]stdfs.DirEntry)
 		for _, entry := range entries {
 			match := entry.Name()
 			matched := core.PathMatch(pattern, match)

@@ -122,10 +122,7 @@ func TestNpm_NpmPublisherRenderTemplateGood(t *testing.T) {
 			Access:      "public",
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/npm/package.json.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/npm/package.json.tmpl", data))
 		if !stdlibAssertContains(result, `"name": "@myorg/mycli"`) {
 			t.Fatalf("expected %v to contain %v", result, `"name": "@myorg/mycli"`)
 		}
@@ -162,10 +159,7 @@ func TestNpm_NpmPublisherRenderTemplateGood(t *testing.T) {
 			Access:      "restricted",
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/npm/package.json.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/npm/package.json.tmpl", data))
 		if !stdlibAssertContains(result, `"access": "restricted"`) {
 			t.Fatalf("expected %v to contain %v", result, `"access": "restricted"`)
 		}
@@ -191,10 +185,7 @@ func TestNpm_NpmPublisherRenderTemplateGood(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/npm/install.js.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/npm/install.js.tmpl", data))
 		if !stdlibAssertContains(result, `const CHECKSUM_FILE = "CHECKSUMS.txt";`) {
 			t.Fatalf("expected %v to contain %v", result, `const CHECKSUM_FILE = "CHECKSUMS.txt";`)
 		}
@@ -216,12 +207,9 @@ func TestNpm_NpmPublisherRenderTemplateBad(t *testing.T) {
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := npmTemplateData{}
-		_, err := p.renderTemplate(io.Local, "templates/npm/nonexistent.tmpl", data)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read template") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		err := requirePublisherError(t, p.renderTemplate(io.Local, "templates/npm/nonexistent.tmpl", data))
+		if !stdlibAssertContains(err, "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
 
 	})
@@ -239,13 +227,11 @@ func TestNpm_NpmPublisherDryRunPublishGood(t *testing.T) {
 			BinaryName:  "mycli",
 			Description: "My CLI",
 		}
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data)
+			publishResult = p.dryRunPublish(io.Local, data)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: npm Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: npm Publish")
 		}
@@ -285,13 +271,11 @@ func TestNpm_NpmPublisherDryRunPublishGood(t *testing.T) {
 			BinaryName: "cli",
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data)
+			publishResult = p.dryRunPublish(io.Local, data)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Access:     restricted") {
 			t.Fatalf("expected %v to contain %v", output, "Access:     restricted")
 		}
@@ -314,12 +298,9 @@ func TestNpm_NpmPublisherPublishBad(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "npm"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "package name is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "package name is required")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "package name is required") {
+			t.Fatalf("expected %v to contain %v", err, "package name is required")
 		}
 
 	})
@@ -340,12 +321,9 @@ func TestNpm_NpmPublisherPublishBad(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "NPM_TOKEN environment variable is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "NPM_TOKEN environment variable is required")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "NPM_TOKEN environment variable is required") {
+			t.Fatalf("expected %v to contain %v", err, "NPM_TOKEN environment variable is required")
 		}
 
 	})

@@ -3,8 +3,7 @@
 package builders
 
 import (
-	"io/fs"
-
+	"dappco.re/go"
 	"dappco.re/go/build/pkg/build"
 )
 
@@ -14,32 +13,32 @@ func init() {
 
 // ResolveBuilder returns a concrete builder implementation for the project type.
 //
-//	builder, err := builders.ResolveBuilder(build.ProjectTypeGo)
-func ResolveBuilder(projectType build.ProjectType) (build.Builder, error) {
+//	result := builders.ResolveBuilder(build.ProjectTypeGo)
+func ResolveBuilder(projectType build.ProjectType) core.Result {
 	switch projectType {
 	case build.ProjectTypeWails:
-		return NewWailsBuilder(), nil
+		return core.Ok(NewWailsBuilder())
 	case build.ProjectTypeGo:
-		return NewGoBuilder(), nil
+		return core.Ok(NewGoBuilder())
 	case build.ProjectTypeDocker:
-		return NewDockerBuilder(), nil
+		return core.Ok(NewDockerBuilder())
 	case build.ProjectTypeLinuxKit:
-		return NewLinuxKitBuilder(), nil
+		return core.Ok(NewLinuxKitBuilder())
 	case build.ProjectTypeTaskfile:
-		return NewTaskfileBuilder(), nil
+		return core.Ok(NewTaskfileBuilder())
 	case build.ProjectTypeCPP:
-		return NewCPPBuilder(), nil
+		return core.Ok(NewCPPBuilder())
 	case build.ProjectTypeNode:
-		return NewNodeBuilder(), nil
+		return core.Ok(NewNodeBuilder())
 	case build.ProjectTypePHP:
-		return NewPHPBuilder(), nil
+		return core.Ok(NewPHPBuilder())
 	case build.ProjectTypePython:
-		return NewPythonBuilder(), nil
+		return core.Ok(NewPythonBuilder())
 	case build.ProjectTypeRust:
-		return NewRustBuilder(), nil
+		return core.Ok(NewRustBuilder())
 	case build.ProjectTypeDocs:
-		return NewDocsBuilder(), nil
+		return core.Ok(NewDocsBuilder())
 	default:
-		return nil, fs.ErrNotExist
+		return core.Fail(core.E("builders.ResolveBuilder", "unknown project type: "+string(projectType), nil))
 	}
 }

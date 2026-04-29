@@ -14,13 +14,15 @@ type packageJSONManifest struct {
 //
 // manager := detectDeclaredPackageManager(io.Local, ".")
 func detectDeclaredPackageManager(fs io.Medium, dir string) string {
-	content, err := fs.Read(ax.Join(dir, "package.json"))
-	if err != nil {
+	contentResult := fs.Read(ax.Join(dir, "package.json"))
+	if !contentResult.OK {
 		return ""
 	}
+	content := contentResult.Value.(string)
 
 	var manifest packageJSONManifest
-	if err := ax.JSONUnmarshal([]byte(content), &manifest); err != nil {
+	decoded := ax.JSONUnmarshal([]byte(content), &manifest)
+	if !decoded.OK {
 		return ""
 	}
 

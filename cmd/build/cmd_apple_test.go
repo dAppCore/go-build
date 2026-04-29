@@ -84,10 +84,7 @@ func TestBuildCmd_resolveAppleCommandOptions_Good(t *testing.T) {
 func TestBuildCmd_resolveAppleBuildNumber_Good(t *testing.T) {
 	t.Run("prefers github run number when valid", func(t *testing.T) {
 		t.Setenv("GITHUB_RUN_NUMBER", "77")
-		value, err := resolveAppleBuildNumber(context.Background(), t.TempDir())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		value := requireBuildCmdString(t, resolveAppleBuildNumber(context.Background(), t.TempDir()))
 		if !stdlibAssertEqual("77", value) {
 			t.Fatalf("want %v, got %v", "77", value)
 		}
@@ -99,18 +96,13 @@ func TestBuildCmd_resolveAppleBuildNumber_Good(t *testing.T) {
 		runGit(t, dir, "init")
 		runGit(t, dir, "config", "user.email", "test@example.com")
 		runGit(t, dir, "config", "user.name", "Test User")
-		if err := ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireBuildCmdOK(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0o644))
 
 		runGit(t, dir, "add", ".")
 		runGit(t, dir, "commit", "-m", "feat: initial commit")
 
 		t.Setenv("GITHUB_RUN_NUMBER", "")
-		value, err := resolveAppleBuildNumber(context.Background(), dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		value := requireBuildCmdString(t, resolveAppleBuildNumber(context.Background(), dir))
 		if !stdlibAssertEqual("1", value) {
 			t.Fatalf("want %v, got %v", "1", value)
 		}
@@ -143,10 +135,8 @@ func TestBuildCmd_AddAppleCommand_Good(t *testing.T) {
 func TestBuildCmd_runAppleBuildInDir_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	coreDir := ax.Join(projectDir, ".core")
-	if err := ax.MkdirAll(coreDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
+	requireBuildCmdOK(t, ax.MkdirAll(coreDir, 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
 project:
   name: Core
   binary: Core
@@ -159,9 +149,7 @@ sign:
     team_id: ABC123DEF4
     apple_id: dev@example.com
     app_password: secret
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`), 0o644))
 
 	oldBuildApple := buildAppleFn
 	t.Cleanup(func() {
@@ -169,7 +157,7 @@ sign:
 	})
 
 	var called bool
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		called = true
 		if !stdlibAssertEqual(ax.Join(projectDir, "out"), cfg.OutputDir) {
 			t.Fatalf("want %v, got %v", ax.Join(projectDir, "out"), cfg.OutputDir)
@@ -190,23 +178,20 @@ sign:
 			t.Fatal("expected true")
 		}
 
-		return &build.AppleBuildResult{
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath:  ax.Join(cfg.OutputDir, "Core.app"),
 			Version:     "1.2.3",
 			BuildNumber: buildNumber,
-		}, nil
+		})
 	}
 
-	err := runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
+	requireBuildCmdOK(t, runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
 		Sign:        true,
 		SignChanged: true,
 		Version:     "v1.2.3",
 		BuildNumber: "42",
 		OutputDir:   "out",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !(called) {
 		t.Fatal("expected true")
 	}
@@ -216,39 +201,32 @@ sign:
 func TestBuildCmd_runAppleBuildInDir_RejectsUnsafeVersion_Bad(t *testing.T) {
 	projectDir := t.TempDir()
 	coreDir := ax.Join(projectDir, ".core")
-	if err := ax.MkdirAll(coreDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
+	requireBuildCmdOK(t, ax.MkdirAll(coreDir, 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
 project:
   name: Core
   binary: Core
 apple:
   bundle_id: ai.lthn.core
   sign: false
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`), 0o644))
 
 	oldBuildApple := buildAppleFn
 	t.Cleanup(func() {
 		buildAppleFn = oldBuildApple
 	})
 
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		t.Fatal("buildAppleFn must not be called for unsafe versions")
-		return nil, nil
+		return core.Ok(nil)
 	}
 
-	err := runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
+	message := requireBuildCmdError(t, runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
 		Version:     "v1.2.3 --bad",
 		BuildNumber: "42",
-	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "invalid build version") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "invalid build version")
+	}))
+	if !stdlibAssertContains(message, "invalid build version") {
+		t.Fatalf("expected %v to contain %v", message, "invalid build version")
 	}
 
 }
@@ -256,10 +234,8 @@ apple:
 func TestBuildCmd_runAppleBuildInDir_SetsUpBuildCache_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	coreDir := ax.Join(projectDir, ".core")
-	if err := ax.MkdirAll(coreDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
+	requireBuildCmdOK(t, ax.MkdirAll(coreDir, 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
 project:
   name: Core
   binary: Core
@@ -272,16 +248,14 @@ build:
 apple:
   bundle_id: ai.lthn.core
   sign: false
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`), 0o644))
 
 	oldBuildApple := buildAppleFn
 	t.Cleanup(func() {
 		buildAppleFn = oldBuildApple
 	})
 
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		if !stdlibAssertEqual([]string{ax.Join(projectDir, "cache", "go-build"), ax.Join(projectDir, "cache", "go-mod")}, cfg.Cache.Paths) {
 			t.Fatalf("want %v, got %v", []string{ax.Join(projectDir, "cache", "go-build"), ax.Join(projectDir, "cache", "go-mod")}, cfg.Cache.Paths)
 		}
@@ -298,30 +272,25 @@ apple:
 			t.Fatal("expected true")
 		}
 
-		return &build.AppleBuildResult{
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath:  ax.Join(cfg.OutputDir, "Core.app"),
 			Version:     "1.2.3",
 			BuildNumber: buildNumber,
-		}, nil
+		})
 	}
 
-	err := runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
+	requireBuildCmdOK(t, runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
 		Version:     "v1.2.3",
 		BuildNumber: "42",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 
 }
 
 func TestBuildCmd_runAppleBuildInDir_WritesXcodeCloudScripts_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	coreDir := ax.Join(projectDir, ".core")
-	if err := ax.MkdirAll(coreDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
+	requireBuildCmdOK(t, ax.MkdirAll(coreDir, 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(`
 project:
   name: Core
   binary: Core
@@ -330,36 +299,28 @@ apple:
   sign: false
   xcode_cloud:
     workflow: CoreGUI Release
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`), 0o644))
 
 	oldBuildApple := buildAppleFn
 	t.Cleanup(func() {
 		buildAppleFn = oldBuildApple
 	})
 
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
-		return &build.AppleBuildResult{
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath:  ax.Join(cfg.OutputDir, "Core.app"),
 			Version:     "1.2.3",
 			BuildNumber: buildNumber,
-		}, nil
+		})
 	}
 
-	err := runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
+	requireBuildCmdOK(t, runAppleBuildInDir(context.Background(), projectDir, appleCLIOptions{
 		Version:     "v1.2.3",
 		BuildNumber: "42",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 
 	preScriptPath := ax.Join(projectDir, build.XcodeCloudScriptsDir, build.XcodeCloudPreXcodebuildScriptName)
-	preScript, err := ax.ReadFile(preScriptPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	preScript := requireBuildCmdBytes(t, ax.ReadFile(preScriptPath))
 	if !stdlibAssertContains(string(preScript), `core build apple --arch 'universal' --config '.core/build.yaml'`) {
 		t.Fatalf("expected %v to contain %v", string(preScript), `core build apple --arch 'universal' --config '.core/build.yaml'`)
 	}

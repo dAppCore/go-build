@@ -16,9 +16,7 @@ const cmdProjectOSField = "o" + "s"
 
 func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	if err := ax.ExecDir(context.Background(), dir, "git", args...); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.ExecDir(context.Background(), dir, "git", args...))
 
 }
 
@@ -43,18 +41,13 @@ done
 mkdir -p "$(dirname "$output")"
 printf 'signature\n' > "$output"
 `
-	if err := ax.WriteFile(ax.Join(binDir, "gpg"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(binDir, "gpg"), []byte(script), 0o755))
 
 }
 
 func TestBuildCmd_GetBuilderGood(t *testing.T) {
 	t.Run("returns Python builder for python project type", func(t *testing.T) {
-		builder, err := getBuilder(build.ProjectTypePython)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		builder := requireBuildCmdBuilder(t, getBuilder(build.ProjectTypePython))
 		if stdlibAssertNil(builder) {
 			t.Fatal("expected non-nil")
 		}
@@ -315,9 +308,7 @@ func TestBuildCmd_resolvePackageOutputs_Good(t *testing.T) {
 
 func TestBuildCmd_runProjectBuild_CIModeEmitsGitHubAnnotationOnError_Bad(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
 	originalGetwd := getProjectBuildWorkingDir
 	t.Cleanup(func() {
@@ -325,22 +316,22 @@ func TestBuildCmd_runProjectBuild_CIModeEmitsGitHubAnnotationOnError_Bad(t *test
 		cli.SetStdout(nil)
 		cli.SetStderr(nil)
 	})
-	getProjectBuildWorkingDir = func() (string, error) { return projectDir, nil }
+	getProjectBuildWorkingDir = func() core.Result { return core.Ok(projectDir) }
 
 	stdout := core.NewBuffer()
 	cli.SetStdout(stdout)
 	cli.SetStderr(stdout)
 
-	err := runProjectBuild(ProjectBuildRequest{
+	result := runProjectBuild(ProjectBuildRequest{
 		Context:     context.Background(),
 		CIMode:      true,
 		TargetsFlag: "linux",
 	})
-	if err == nil {
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(stdout.String(), emitCIAnnotationForTest(err)) {
-		t.Fatalf("expected %v to contain %v", stdout.String(), emitCIAnnotationForTest(err))
+	if !stdlibAssertContains(stdout.String(), emitCIAnnotationForTest(result)) {
+		t.Fatalf("expected %v to contain %v", stdout.String(), emitCIAnnotationForTest(result))
 	}
 
 }
@@ -496,10 +487,7 @@ func TestBuildCmd_resolveProjectBuildName_Good(t *testing.T) {
 
 func TestBuildCmd_resolveArchiveFormat_Good(t *testing.T) {
 	t.Run("uses cli override when present", func(t *testing.T) {
-		format, err := resolveArchiveFormat("gz", "xz")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		format := requireBuildCmdArchiveFormat(t, resolveArchiveFormat("gz", "xz"))
 		if !stdlibAssertEqual(build.ArchiveFormatXZ, format) {
 			t.Fatalf("want %v, got %v", build.ArchiveFormatXZ, format)
 		}
@@ -507,10 +495,7 @@ func TestBuildCmd_resolveArchiveFormat_Good(t *testing.T) {
 	})
 
 	t.Run("falls back to config when cli override is empty", func(t *testing.T) {
-		format, err := resolveArchiveFormat("zip", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		format := requireBuildCmdArchiveFormat(t, resolveArchiveFormat("zip", ""))
 		if !stdlibAssertEqual(build.ArchiveFormatZip, format) {
 			t.Fatalf("want %v, got %v", build.ArchiveFormatZip, format)
 		}
@@ -524,18 +509,13 @@ func TestBuildCmd_resolveBuildVersion_Good(t *testing.T) {
 	runGit(t, dir, "init")
 	runGit(t, dir, "config", "user.email", "test@example.com")
 	runGit(t, dir, "config", "user.name", "Test User")
-	if err := ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("hello\n"), 0644))
 
 	runGit(t, dir, "add", ".")
 	runGit(t, dir, "commit", "-m", "feat: initial commit")
 	runGit(t, dir, "tag", "v1.4.2")
 
-	version, err := resolveBuildVersion(context.Background(), dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	version := requireBuildCmdString(t, resolveBuildVersion(context.Background(), dir))
 	if !stdlibAssertEqual("v1.4.2", version) {
 		t.Fatalf("want %v, got %v", "v1.4.2", version)
 	}
@@ -552,33 +532,21 @@ func TestBuildCmd_writeArtifactMetadata_Good(t *testing.T) {
 
 	linuxDir := ax.Join(dir, "linux_amd64")
 	windowsDir := ax.Join(dir, "windows_amd64")
-	if err := ax.MkdirAll(linuxDir, 0755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.MkdirAll(windowsDir, 0755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.MkdirAll(linuxDir, 0755))
+	requireBuildCmdOK(t, ax.MkdirAll(windowsDir, 0755))
 
 	artifacts := []build.Artifact{
 		{Path: ax.Join(linuxDir, "sample"), OS: "linux", Arch: "amd64"},
 		{Path: ax.Join(windowsDir, "sample.exe"), OS: "windows", Arch: "amd64"},
 	}
 
-	err := writeArtifactMetadata(fs, "sample", artifacts)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, writeArtifactMetadata(fs, "sample", artifacts))
 
 	verifyArtifactMeta := func(path string, expectedOS string, expectedArch string) {
-		content, readErr := ax.ReadFile(path)
-		if readErr != nil {
-			t.Fatalf("unexpected error: %v", readErr)
-		}
+		content := requireBuildCmdBytes(t, ax.ReadFile(path))
 
 		var meta map[string]any
-		if err := ax.JSONUnmarshal(content, &meta); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireBuildCmdOK(t, ax.JSONUnmarshal(content, &meta))
 		if !stdlibAssertEqual("sample", meta["name"]) {
 			t.Fatalf("want %v, got %v", "sample", meta["name"])
 		}
@@ -609,26 +577,17 @@ func TestBuildCmd_writeArtifactMetadata_SkipsChecksumArtifacts_Good(t *testing.T
 	fs := io.Local
 	dir := t.TempDir()
 	distDir := ax.Join(dir, "dist")
-	if err := ax.MkdirAll(distDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.MkdirAll(distDir, 0o755))
 
 	checksumPath := ax.Join(distDir, "CHECKSUMS.txt")
 	signaturePath := checksumPath + ".asc"
-	if err := ax.WriteFile(checksumPath, []byte("checksums"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(signaturePath, []byte("signature"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(checksumPath, []byte("checksums"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(signaturePath, []byte("signature"), 0o644))
 
-	err := writeArtifactMetadata(fs, "sample", []build.Artifact{
+	requireBuildCmdOK(t, writeArtifactMetadata(fs, "sample", []build.Artifact{
 		{Path: checksumPath},
 		{Path: signaturePath},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if ax.Exists(ax.Join(distDir, "artifact_meta.json")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(distDir, "artifact_meta.json"))
 	}
@@ -639,17 +598,13 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesChecksumArtifacts_Good(t *tes
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist")
 	artifactPath := ax.Join(outputDir, "sample_linux_amd64.tar.gz")
-	if err := ax.MkdirAll(outputDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(artifactPath, []byte("archive"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.MkdirAll(outputDir, 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(artifactPath, []byte("archive"), 0o644))
 
 	signCfg := build.DefaultConfig().Sign
 	signCfg.Enabled = false
 
-	artifacts, err := computeAndWriteChecksums(
+	artifacts := requireBuildCmdArtifacts(t, computeAndWriteChecksums(
 		context.Background(),
 		io.Local,
 		projectDir,
@@ -658,10 +613,7 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesChecksumArtifacts_Good(t *tes
 		signCfg,
 		false,
 		false,
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	))
 
 	paths := make([]string, 0, len(artifacts))
 	for _, artifact := range artifacts {
@@ -676,9 +628,7 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesChecksumArtifacts_Good(t *tes
 	if stdlibAssertContains(paths, ax.Join(outputDir, "CHECKSUMS.txt.asc")) {
 		t.Fatalf("expected %v not to contain %v", paths, ax.Join(outputDir, "CHECKSUMS.txt.asc"))
 	}
-	if _, err := ax.Stat(ax.Join(outputDir, "CHECKSUMS.txt")); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "CHECKSUMS.txt"))
-	}
+	requireBuildCmdOK(t, ax.Stat(ax.Join(outputDir, "CHECKSUMS.txt")))
 
 }
 
@@ -690,18 +640,14 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesSignatureArtifact_Good(t *tes
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist")
 	artifactPath := ax.Join(outputDir, "sample_linux_amd64.tar.gz")
-	if err := ax.MkdirAll(outputDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(artifactPath, []byte("archive"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.MkdirAll(outputDir, 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(artifactPath, []byte("archive"), 0o644))
 
 	signCfg := build.DefaultConfig().Sign
 	signCfg.Enabled = true
 	signCfg.GPG.Key = "ABCD1234"
 
-	artifacts, err := computeAndWriteChecksums(
+	artifacts := requireBuildCmdArtifacts(t, computeAndWriteChecksums(
 		context.Background(),
 		io.Local,
 		projectDir,
@@ -710,10 +656,7 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesSignatureArtifact_Good(t *tes
 		signCfg,
 		false,
 		false,
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	))
 
 	paths := make([]string, 0, len(artifacts))
 	for _, artifact := range artifacts {
@@ -725,9 +668,7 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesSignatureArtifact_Good(t *tes
 	if !stdlibAssertContains(paths, ax.Join(outputDir, "CHECKSUMS.txt.asc")) {
 		t.Fatalf("expected %v to contain %v", paths, ax.Join(outputDir, "CHECKSUMS.txt.asc"))
 	}
-	if _, err := ax.Stat(ax.Join(outputDir, "CHECKSUMS.txt.asc")); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "CHECKSUMS.txt.asc"))
-	}
+	requireBuildCmdOK(t, ax.Stat(ax.Join(outputDir, "CHECKSUMS.txt.asc")))
 
 }
 
@@ -762,10 +703,7 @@ func TestBuildCmd_selectOutputArtifacts_Good(t *testing.T) {
 }
 
 func TestBuildCmd_runProjectBuild_PwaOverride_Good(t *testing.T) {
-	expectedWD, err := ax.Getwd()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	expectedWD := requireBuildCmdString(t, ax.Getwd())
 
 	original := runLocalPwaBuild
 	t.Cleanup(func() {
@@ -773,22 +711,19 @@ func TestBuildCmd_runProjectBuild_PwaOverride_Good(t *testing.T) {
 	})
 
 	called := false
-	runLocalPwaBuild = func(ctx context.Context, projectDir string) error {
+	runLocalPwaBuild = func(ctx context.Context, projectDir string) core.Result {
 		called = true
 		if !stdlibAssertEqual(expectedWD, projectDir) {
 			t.Fatalf("want %v, got %v", expectedWD, projectDir)
 		}
 
-		return nil
+		return core.Ok(nil)
 	}
 
-	err = runProjectBuild(ProjectBuildRequest{
+	requireBuildCmdOK(t, runProjectBuild(ProjectBuildRequest{
 		Context:   context.Background(),
 		BuildType: "pwa",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if !(called) {
 		t.Fatal("expected true")
 	}
@@ -801,26 +736,17 @@ func TestBuildCmd_runProjectBuild_NoConfigGoPassthrough_Good(t *testing.T) {
 	t.Cleanup(func() {
 		getProjectBuildWorkingDir = originalGetwd
 	})
-	getProjectBuildWorkingDir = func() (string, error) {
-		return projectDir, nil
+	getProjectBuildWorkingDir = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
-	err := runProjectBuild(ProjectBuildRequest{
+	requireBuildCmdOK(t, runProjectBuild(ProjectBuildRequest{
 		Context:       context.Background(),
 		ArchiveOutput: true,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if _, err := ax.Stat(ax.Join(projectDir, "passthrough")); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "passthrough"))
-	}
+	}))
+	requireBuildCmdOK(t, ax.Stat(ax.Join(projectDir, "passthrough")))
 	if ax.Exists(ax.Join(projectDir, "dist")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "dist"))
 	}
@@ -833,36 +759,23 @@ func TestBuildCmd_runProjectBuild_ConfiguredBuildDefaultsToRawArtifacts_Good(t *
 	t.Cleanup(func() {
 		getProjectBuildWorkingDir = originalGetwd
 	})
-	getProjectBuildWorkingDir = func() (string, error) {
-		return projectDir, nil
+	getProjectBuildWorkingDir = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	if err := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/configured\n\ngo 1.24\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte("version: 1\n"+"project:\n"+"  name: configured\n"+"  binary: configured\n"+"targets:\n"+"  - os: "+runtime.GOOS+"\n"+"    arch: "+runtime.GOARCH+"\n"+"sign:\n"+"  enabled: false\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/configured\n\ngo 1.24\n"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte("version: 1\n"+"project:\n"+"  name: configured\n"+"  binary: configured\n"+"targets:\n"+"  - os: "+runtime.GOOS+"\n"+"    arch: "+runtime.GOARCH+"\n"+"sign:\n"+"  enabled: false\n"), 0o644))
 
-	err := runProjectBuild(ProjectBuildRequest{
+	requireBuildCmdOK(t, runProjectBuild(ProjectBuildRequest{
 		Context: context.Background(),
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 
 	expectedBinary := ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "configured")
 	if runtime.GOOS == "windows" {
 		expectedBinary += ".exe"
 	}
-	if _, err := ax.Stat(expectedBinary); err != nil {
-		t.Fatalf("expected file to exist: %v", expectedBinary)
-	}
+	requireBuildCmdOK(t, ax.Stat(expectedBinary))
 	if ax.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "dist", "CHECKSUMS.txt"))
 	}
@@ -880,12 +793,8 @@ func TestBuildCmd_runProjectBuild_ConfiguredBuildDefaultsToRawArtifacts_Good(t *
 
 func TestBuildCmd_shouldUseGoBuildPassthrough_Good(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
 	t.Run("keeps simple no-config go builds on passthrough", func(t *testing.T) {
 		if !(shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{})) {
@@ -924,12 +833,8 @@ func TestBuildCmd_shouldUseGoBuildPassthrough_Good(t *testing.T) {
 
 	t.Run("uses the pipeline for Wails projects even without config", func(t *testing.T) {
 		wailsDir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(wailsDir, "go.mod"), []byte("module example.com/wails\n\ngo 1.24\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(wailsDir, "wails.json"), []byte(`{"name":"demo"}`), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireBuildCmdOK(t, ax.WriteFile(ax.Join(wailsDir, "go.mod"), []byte("module example.com/wails\n\ngo 1.24\n"), 0o644))
+		requireBuildCmdOK(t, ax.WriteFile(ax.Join(wailsDir, "wails.json"), []byte(`{"name":"demo"}`), 0o644))
 		if (shouldUseGoBuildPassthrough(io.Local, wailsDir, ProjectBuildRequest{})) {
 			t.Fatal("expected false")
 		}
@@ -938,12 +843,8 @@ func TestBuildCmd_shouldUseGoBuildPassthrough_Good(t *testing.T) {
 
 	t.Run("uses the pipeline for multi-type Go and Node projects", func(t *testing.T) {
 		stackDir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(stackDir, "go.mod"), []byte("module example.com/fullstack\n\ngo 1.24\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(stackDir, "package.json"), []byte(`{"name":"fullstack"}`), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireBuildCmdOK(t, ax.WriteFile(ax.Join(stackDir, "go.mod"), []byte("module example.com/fullstack\n\ngo 1.24\n"), 0o644))
+		requireBuildCmdOK(t, ax.WriteFile(ax.Join(stackDir, "package.json"), []byte(`{"name":"fullstack"}`), 0o644))
 		if (shouldUseGoBuildPassthrough(io.Local, stackDir, ProjectBuildRequest{})) {
 			t.Fatal("expected false")
 		}
@@ -959,31 +860,20 @@ func TestBuildCmd_runProjectBuild_NoConfigGoPassthroughTargetAndOutput_Good(t *t
 	t.Cleanup(func() {
 		getProjectBuildWorkingDir = originalGetwd
 	})
-	getProjectBuildWorkingDir = func() (string, error) {
-		return projectDir, nil
+	getProjectBuildWorkingDir = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	if err := ax.MkdirAll(outputDir, 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.MkdirAll(outputDir, 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
-	err := runProjectBuild(ProjectBuildRequest{
+	requireBuildCmdOK(t, runProjectBuild(ProjectBuildRequest{
 		Context:     context.Background(),
 		TargetsFlag: "linux/amd64",
 		OutputDir:   outputDir,
 		BuildName:   "custom-binary",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if _, err := ax.Stat(outputPath); err != nil {
-		t.Fatalf("expected file to exist: %v", outputPath)
-	}
+	}))
+	requireBuildCmdOK(t, ax.Stat(outputPath))
 
 }
 
@@ -993,34 +883,25 @@ func TestBuildCmd_runProjectBuild_NoConfigGoCIModeUsesPipeline_Good(t *testing.T
 	t.Cleanup(func() {
 		getProjectBuildWorkingDir = originalGetwd
 	})
-	getProjectBuildWorkingDir = func() (string, error) {
-		return projectDir, nil
+	getProjectBuildWorkingDir = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
 	buildName := ax.Base(projectDir)
 
-	err := runProjectBuild(ProjectBuildRequest{
+	requireBuildCmdOK(t, runProjectBuild(ProjectBuildRequest{
 		Context:        context.Background(),
 		CIMode:         true,
 		TargetsFlag:    "linux/amd64",
 		ArchiveOutput:  false,
 		ChecksumOutput: false,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if ax.Exists(ax.Join(projectDir, "passthrough")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "passthrough"))
 	}
-	if _, err := ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", buildName)); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "linux_amd64", buildName))
-	}
+	requireBuildCmdOK(t, ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", buildName)))
 
 }
 
@@ -1030,39 +911,26 @@ func TestBuildCmd_runProjectBuild_CIModeCopiesCIStampedArtifacts_Good(t *testing
 	t.Cleanup(func() {
 		getProjectBuildWorkingDir = originalGetwd
 	})
-	getProjectBuildWorkingDir = func() (string, error) {
-		return projectDir, nil
+	getProjectBuildWorkingDir = func() core.Result {
+		return core.Ok(projectDir)
 	}
 
 	t.Setenv("GITHUB_SHA", "abc1234def5678901234567890123456789012345")
 	t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
 	t.Setenv("GITHUB_REPOSITORY", "owner/repo")
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
-	err := runProjectBuild(ProjectBuildRequest{
+	requireBuildCmdOK(t, runProjectBuild(ProjectBuildRequest{
 		Context:     context.Background(),
 		CIMode:      true,
 		TargetsFlag: "linux/amd64",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 
 	ciArtifactPath := ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir)+"_linux_amd64_v1.2.3")
-	if _, err := ax.Stat(ciArtifactPath); err != nil {
-		t.Fatalf("expected file to exist: %v", ciArtifactPath)
-	}
-	if _, err := ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir))); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir)))
-	}
-	if _, err := ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", "artifact_meta.json")); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "linux_amd64", "artifact_meta.json"))
-	}
+	requireBuildCmdOK(t, ax.Stat(ciArtifactPath))
+	requireBuildCmdOK(t, ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir))))
+	requireBuildCmdOK(t, ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", "artifact_meta.json")))
 
 }
 
@@ -1072,36 +940,25 @@ func TestBuildCmd_runProjectBuild_NoConfigGoArchiveRequestUsesPipeline_Good(t *t
 	t.Cleanup(func() {
 		getProjectBuildWorkingDir = originalGetwd
 	})
-	getProjectBuildWorkingDir = func() (string, error) {
-		return projectDir, nil
+	getProjectBuildWorkingDir = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/passthrough\n\ngo 1.24\n"), 0o644))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
 	buildName := ax.Base(projectDir)
 
-	err := runProjectBuild(ProjectBuildRequest{
+	requireBuildCmdOK(t, runProjectBuild(ProjectBuildRequest{
 		Context:          context.Background(),
 		TargetsFlag:      "linux/amd64",
 		ArchiveOutput:    true,
 		ArchiveOutputSet: true,
 		ChecksumOutput:   false,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	}))
 	if ax.Exists(ax.Join(projectDir, "passthrough")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "passthrough"))
 	}
-	if _, err := ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", buildName)); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "linux_amd64", buildName))
-	}
-	if _, err := ax.Stat(ax.Join(projectDir, "dist", buildName+"_linux_amd64.tar.gz")); err != nil {
-		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", buildName+"_linux_amd64.tar.gz"))
-	}
+	requireBuildCmdOK(t, ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", buildName)))
+	requireBuildCmdOK(t, ax.Stat(ax.Join(projectDir, "dist", buildName+"_linux_amd64.tar.gz")))
 
 }

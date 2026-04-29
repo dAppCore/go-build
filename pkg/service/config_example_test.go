@@ -6,7 +6,7 @@ import (
 
 // --- v0.9.0 generated usage examples ---
 func ExampleResolveConfig() {
-	_, _ = ResolveConfig(core.Path(core.TempDir(), "go-build-compliance"))
+	_ = ResolveConfig(core.Path(core.TempDir(), "go-build-compliance"))
 	core.Println("ResolveConfig")
 	// Output: ResolveConfig
 }
@@ -25,7 +25,7 @@ func ExampleConfig_Normalized() {
 }
 
 func ExampleResolveNativeFormat() {
-	_, _ = ResolveNativeFormat("tar.gz")
+	_ = ResolveNativeFormat("tar.gz")
 	core.Println("ResolveNativeFormat")
 	// Output: ResolveNativeFormat
 }

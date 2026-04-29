@@ -47,18 +47,19 @@ func (p *AURPublisher) Name() string {
 }
 
 // Validate checks the AUR publisher configuration before publishing.
-func (p *AURPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+func (p *AURPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) core.Result {
 	_ = ctx
-	if err := validatePublisherRelease(p.Name(), release); err != nil {
-		return err
+	validated := validatePublisherRelease(p.Name(), release)
+	if !validated.OK {
+		return validated
 	}
 
 	cfg := p.parseConfig(pubCfg, relCfg)
 	if cfg.Maintainer == "" {
-		return coreerr.E("aur.Validate", "maintainer is required (set publish.aur.maintainer in config)", nil)
+		return core.Fail(coreerr.E("aur.Validate", "maintainer is required (set publish.aur.maintainer in config)", nil))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // Supports reports whether the publisher handles the requested target.
@@ -68,16 +69,17 @@ func (p *AURPublisher) Supports(target string) bool {
 
 // Publish publishes the release to AUR.
 //
-// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
-func (p *AURPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	if err := validatePublisherRelease(p.Name(), release); err != nil {
-		return err
+// result := pub.Publish(ctx, rel, pubCfg, relCfg, false)
+func (p *AURPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) core.Result {
+	validated := validatePublisherRelease(p.Name(), release)
+	if !validated.OK {
+		return validated
 	}
 
 	cfg := p.parseConfig(pubCfg, relCfg)
 
 	if cfg.Maintainer == "" {
-		return coreerr.E("aur.Publish", "maintainer is required (set publish.aur.maintainer in config)", nil)
+		return core.Fail(coreerr.E("aur.Publish", "maintainer is required (set publish.aur.maintainer in config)", nil))
 	}
 
 	repo := ""
@@ -85,11 +87,11 @@ func (p *AURPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 		repo = relCfg.GetRepository()
 	}
 	if repo == "" {
-		detectedRepo, err := detectRepository(ctx, release.ProjectDir)
-		if err != nil {
-			return coreerr.E("aur.Publish", "could not determine repository", err)
+		detectedRepoResult := detectRepository(ctx, release.ProjectDir)
+		if !detectedRepoResult.OK {
+			return core.Fail(coreerr.E("aur.Publish", "could not determine repository", core.NewError(detectedRepoResult.Error())))
 		}
-		repo = detectedRepo
+		repo = detectedRepoResult.Value.(string)
 	}
 
 	projectName := ""
@@ -162,7 +164,7 @@ func (p *AURPublisher) parseConfig(pubCfg PublisherConfig, relCfg ReleaseConfig)
 	return cfg
 }
 
-func (p *AURPublisher) dryRunPublish(m coreio.Medium, data aurTemplateData, cfg AURConfig) error {
+func (p *AURPublisher) dryRunPublish(m coreio.Medium, data aurTemplateData, cfg AURConfig) core.Result {
 	publisherPrintln()
 	publisherPrintln("=== DRY RUN: AUR Publish ===")
 	publisherPrintln()
@@ -172,20 +174,22 @@ func (p *AURPublisher) dryRunPublish(m coreio.Medium, data aurTemplateData, cfg 
 	publisherPrint("Repository: %s", data.Repository)
 	publisherPrintln()
 
-	pkgbuild, err := p.renderTemplate(m, "templates/aur/PKGBUILD.tmpl", data)
-	if err != nil {
-		return coreerr.E("aur.dryRunPublish", "failed to render PKGBUILD template", err)
+	pkgbuildResult := p.renderTemplate(m, "templates/aur/PKGBUILD.tmpl", data)
+	if !pkgbuildResult.OK {
+		return core.Fail(coreerr.E("aur.dryRunPublish", "failed to render PKGBUILD template", core.NewError(pkgbuildResult.Error())))
 	}
+	pkgbuild := pkgbuildResult.Value.(string)
 	publisherPrintln("Generated PKGBUILD:")
 	publisherPrintln("---")
 	publisherPrintln(pkgbuild)
 	publisherPrintln("---")
 	publisherPrintln()
 
-	srcinfo, err := p.renderTemplate(m, "templates/aur/.SRCINFO.tmpl", data)
-	if err != nil {
-		return coreerr.E("aur.dryRunPublish", "failed to render .SRCINFO template", err)
+	srcinfoResult := p.renderTemplate(m, "templates/aur/.SRCINFO.tmpl", data)
+	if !srcinfoResult.OK {
+		return core.Fail(coreerr.E("aur.dryRunPublish", "failed to render .SRCINFO template", core.NewError(srcinfoResult.Error())))
 	}
+	srcinfo := srcinfoResult.Value.(string)
 	publisherPrintln("Generated .SRCINFO:")
 	publisherPrintln("---")
 	publisherPrintln(srcinfo)
@@ -204,19 +208,21 @@ func (p *AURPublisher) dryRunPublish(m coreio.Medium, data aurTemplateData, cfg 
 	publisherPrintln()
 	publisherPrintln("=== END DRY RUN ===")
 
-	return nil
+	return core.Ok(nil)
 }
 
-func (p *AURPublisher) executePublish(ctx context.Context, projectDir string, data aurTemplateData, cfg AURConfig, release *Release) error {
-	pkgbuild, err := p.renderTemplate(release.FS, "templates/aur/PKGBUILD.tmpl", data)
-	if err != nil {
-		return coreerr.E("aur.Publish", "failed to render PKGBUILD", err)
+func (p *AURPublisher) executePublish(ctx context.Context, projectDir string, data aurTemplateData, cfg AURConfig, release *Release) core.Result {
+	pkgbuildResult := p.renderTemplate(release.FS, "templates/aur/PKGBUILD.tmpl", data)
+	if !pkgbuildResult.OK {
+		return core.Fail(coreerr.E("aur.Publish", "failed to render PKGBUILD", core.NewError(pkgbuildResult.Error())))
 	}
+	pkgbuild := pkgbuildResult.Value.(string)
 
-	srcinfo, err := p.renderTemplate(release.FS, "templates/aur/.SRCINFO.tmpl", data)
-	if err != nil {
-		return coreerr.E("aur.Publish", "failed to render .SRCINFO", err)
+	srcinfoResult := p.renderTemplate(release.FS, "templates/aur/.SRCINFO.tmpl", data)
+	if !srcinfoResult.OK {
+		return core.Fail(coreerr.E("aur.Publish", "failed to render .SRCINFO", core.NewError(srcinfoResult.Error())))
 	}
+	srcinfo := srcinfoResult.Value.(string)
 
 	// If official config is enabled, write to output directory
 	if aurOfficialMode(cfg) {
@@ -227,113 +233,126 @@ func (p *AURPublisher) executePublish(ctx context.Context, projectDir string, da
 			output = ax.Join(projectDir, output)
 		}
 
-		if err := release.FS.EnsureDir(output); err != nil {
-			return coreerr.E("aur.Publish", "failed to create output directory", err)
+		created := release.FS.EnsureDir(output)
+		if !created.OK {
+			return core.Fail(coreerr.E("aur.Publish", "failed to create output directory", core.NewError(created.Error())))
 		}
 
 		pkgbuildPath := ax.Join(output, "PKGBUILD")
-		if err := release.FS.Write(pkgbuildPath, pkgbuild); err != nil {
-			return coreerr.E("aur.Publish", "failed to write PKGBUILD", err)
+		wrotePKGBUILD := release.FS.Write(pkgbuildPath, pkgbuild)
+		if !wrotePKGBUILD.OK {
+			return core.Fail(coreerr.E("aur.Publish", "failed to write PKGBUILD", core.NewError(wrotePKGBUILD.Error())))
 		}
 
 		srcinfoPath := ax.Join(output, ".SRCINFO")
-		if err := release.FS.Write(srcinfoPath, srcinfo); err != nil {
-			return coreerr.E("aur.Publish", "failed to write .SRCINFO", err)
+		wroteSRCINFO := release.FS.Write(srcinfoPath, srcinfo)
+		if !wroteSRCINFO.OK {
+			return core.Fail(coreerr.E("aur.Publish", "failed to write .SRCINFO", core.NewError(wroteSRCINFO.Error())))
 		}
 		publisherPrint("Wrote AUR files: %s", output)
 	}
 
 	// Push to AUR if not in official-only mode
 	if !aurOfficialMode(cfg) {
-		if err := p.pushToAUR(ctx, data, pkgbuild, srcinfo); err != nil {
-			return err
+		pushed := p.pushToAUR(ctx, data, pkgbuild, srcinfo)
+		if !pushed.OK {
+			return pushed
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func aurOfficialMode(cfg AURConfig) bool {
 	return cfg.Official != nil && cfg.Official.Enabled
 }
 
-func (p *AURPublisher) pushToAUR(ctx context.Context, data aurTemplateData, pkgbuild, srcinfo string) error {
+func (p *AURPublisher) pushToAUR(ctx context.Context, data aurTemplateData, pkgbuild, srcinfo string) core.Result {
 	aurURL := core.Sprintf("ssh://aur@aur.archlinux.org/%s-bin.git", data.PackageName)
 
-	tmpDir, err := ax.TempDir("aur-package-*")
-	if err != nil {
-		return coreerr.E("aur.pushToAUR", "failed to create temp directory", err)
+	tmpDirResult := ax.TempDir("aur-package-*")
+	if !tmpDirResult.OK {
+		return core.Fail(coreerr.E("aur.pushToAUR", "failed to create temp directory", core.NewError(tmpDirResult.Error())))
 	}
-	defer func() { _ = ax.RemoveAll(tmpDir) }()
+	tmpDir := tmpDirResult.Value.(string)
+	defer func() { ax.RemoveAll(tmpDir) }()
 
 	// Clone existing AUR repo (or initialise new one)
 	publisherPrint("Cloning AUR package %s-bin...", data.PackageName)
-	if err := ax.Exec(ctx, "git", "clone", aurURL, tmpDir); err != nil {
+	cloned := ax.Exec(ctx, "git", "clone", aurURL, tmpDir)
+	if !cloned.OK {
 		// If clone fails, init a new repo
-		if err := ax.Exec(ctx, "git", "init", tmpDir); err != nil {
-			return coreerr.E("aur.pushToAUR", "failed to initialise repo", err)
+		initialised := ax.Exec(ctx, "git", "init", tmpDir)
+		if !initialised.OK {
+			return core.Fail(coreerr.E("aur.pushToAUR", "failed to initialise repo", core.NewError(initialised.Error())))
 		}
-		if err := ax.Exec(ctx, "git", "-C", tmpDir, "remote", "add", "origin", aurURL); err != nil {
-			return coreerr.E("aur.pushToAUR", "failed to add remote", err)
+		addedRemote := ax.Exec(ctx, "git", "-C", tmpDir, "remote", "add", "origin", aurURL)
+		if !addedRemote.OK {
+			return core.Fail(coreerr.E("aur.pushToAUR", "failed to add remote", core.NewError(addedRemote.Error())))
 		}
 	}
 
 	// Write files
-	if err := ax.WriteString(ax.Join(tmpDir, "PKGBUILD"), pkgbuild, 0o644); err != nil {
-		return coreerr.E("aur.pushToAUR", "failed to write PKGBUILD", err)
+	wrotePKGBUILD := ax.WriteString(ax.Join(tmpDir, "PKGBUILD"), pkgbuild, 0o644)
+	if !wrotePKGBUILD.OK {
+		return core.Fail(coreerr.E("aur.pushToAUR", "failed to write PKGBUILD", core.NewError(wrotePKGBUILD.Error())))
 	}
-	if err := ax.WriteString(ax.Join(tmpDir, ".SRCINFO"), srcinfo, 0o644); err != nil {
-		return coreerr.E("aur.pushToAUR", "failed to write .SRCINFO", err)
+	wroteSRCINFO := ax.WriteString(ax.Join(tmpDir, ".SRCINFO"), srcinfo, 0o644)
+	if !wroteSRCINFO.OK {
+		return core.Fail(coreerr.E("aur.pushToAUR", "failed to write .SRCINFO", core.NewError(wroteSRCINFO.Error())))
 	}
 
 	commitMsg := core.Sprintf("Update to %s", data.Version)
 
-	if err := ax.ExecDir(ctx, tmpDir, "git", "add", "."); err != nil {
-		return coreerr.E("aur.pushToAUR", "git add failed", err)
+	added := ax.ExecDir(ctx, tmpDir, "git", "add", ".")
+	if !added.OK {
+		return core.Fail(coreerr.E("aur.pushToAUR", "git add failed", core.NewError(added.Error())))
 	}
 
-	if err := publisherRun(ctx, tmpDir, nil, "git", "commit", "-m", commitMsg); err != nil {
-		return coreerr.E("aur.pushToAUR", "git commit failed", err)
+	committed := publisherRun(ctx, tmpDir, nil, "git", "commit", "-m", commitMsg)
+	if !committed.OK {
+		return core.Fail(coreerr.E("aur.pushToAUR", "git commit failed", core.NewError(committed.Error())))
 	}
 
-	if err := publisherRun(ctx, tmpDir, nil, "git", "push", "origin", "master"); err != nil {
-		return coreerr.E("aur.pushToAUR", "git push failed", err)
+	pushed := publisherRun(ctx, tmpDir, nil, "git", "push", "origin", "master")
+	if !pushed.OK {
+		return core.Fail(coreerr.E("aur.pushToAUR", "git push failed", core.NewError(pushed.Error())))
 	}
 
 	publisherPrint("Published to AUR: https://aur.archlinux.org/packages/%s-bin", data.PackageName)
-	return nil
+	return core.Ok(nil)
 }
 
-func (p *AURPublisher) renderTemplate(m coreio.Medium, name string, data aurTemplateData) (string, error) {
+func (p *AURPublisher) renderTemplate(m coreio.Medium, name string, data aurTemplateData) core.Result {
 	var content []byte
-	var err error
 
 	// Try custom template from medium
 	customPath := ax.Join(".core", name)
 	if m != nil && m.IsFile(customPath) {
-		customContent, err := m.Read(customPath)
-		if err == nil {
-			content = []byte(customContent)
+		customContent := m.Read(customPath)
+		if customContent.OK {
+			content = []byte(customContent.Value.(string))
 		}
 	}
 
 	// Fallback to embedded template
 	if content == nil {
-		content, err = aurTemplates.ReadFile(name)
-		if err != nil {
-			return "", coreerr.E("aur.renderTemplate", "failed to read template "+name, err)
+		embeddedContent, readFailure := aurTemplates.ReadFile(name)
+		if readFailure != nil {
+			return core.Fail(coreerr.E("aur.renderTemplate", "failed to read template "+name, readFailure))
 		}
+		content = embeddedContent
 	}
 
-	tmpl, err := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
-	if err != nil {
-		return "", coreerr.E("aur.renderTemplate", "failed to parse template "+name, err)
+	tmpl, parseFailure := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
+	if parseFailure != nil {
+		return core.Fail(coreerr.E("aur.renderTemplate", "failed to parse template "+name, parseFailure))
 	}
 
 	buf := core.NewBuffer()
-	if err := tmpl.Execute(buf, data); err != nil {
-		return "", coreerr.E("aur.renderTemplate", "failed to execute template "+name, err)
+	if executeFailure := tmpl.Execute(buf, data); executeFailure != nil {
+		return core.Fail(coreerr.E("aur.renderTemplate", "failed to execute template "+name, executeFailure))
 	}
 
-	return buf.String(), nil
+	return core.Ok(buf.String())
 }

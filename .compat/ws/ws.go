@@ -98,7 +98,7 @@ func (c *Client) readLoop() {
 		}
 		if msg.Type == TypeSubscribe {
 			if channel, ok := msg.Data.(string); ok {
-				if err := c.hub.Subscribe(c, channel); err != nil {
+				if subscribed := c.hub.Subscribe(c, channel); !subscribed.OK {
 					return
 				}
 			}
@@ -133,9 +133,9 @@ func (h *Hub) removeClient(client *Client) {
 	}
 }
 
-func (h *Hub) Subscribe(client *Client, channel string) error {
+func (h *Hub) Subscribe(client *Client, channel string) core.Result {
 	if h == nil || client == nil || channel == "" {
-		return core.NewError("invalid subscription")
+		return core.Fail(core.NewError("invalid subscription"))
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -143,12 +143,12 @@ func (h *Hub) Subscribe(client *Client, channel string) error {
 		h.channels[channel] = make(map[*Client]bool)
 	}
 	h.channels[channel][client] = true
-	return nil
+	return core.Ok(nil)
 }
 
-func (h *Hub) SendToChannel(channel string, msg Message) error {
+func (h *Hub) SendToChannel(channel string, msg Message) core.Result {
 	if h == nil {
-		return core.NewError("hub unavailable")
+		return core.Fail(core.NewError("hub unavailable"))
 	}
 	if msg.Channel == "" {
 		msg.Channel = channel
@@ -165,12 +165,12 @@ func (h *Hub) SendToChannel(channel string, msg Message) error {
 		default:
 		}
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func (h *Hub) Broadcast(msg Message) error {
+func (h *Hub) Broadcast(msg Message) core.Result {
 	if h == nil {
-		return core.NewError("hub unavailable")
+		return core.Fail(core.NewError("hub unavailable"))
 	}
 	h.mu.RLock()
 	clients := make([]*Client, 0, len(h.clients))
@@ -184,7 +184,7 @@ func (h *Hub) Broadcast(msg Message) error {
 		default:
 		}
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func (h *Hub) ChannelSubscriberCount(channel string) int {
@@ -203,19 +203,4 @@ func (h *Hub) ClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.clients)
-}
-
-func (m Message) MarshalJSON() ([]byte, error) {
-	type alias Message
-	if m.Timestamp.IsZero() {
-		m.Timestamp = time.Now().UTC()
-	}
-	encoded := core.JSONMarshal(alias(m))
-	if !encoded.OK {
-		if err, ok := encoded.Value.(error); ok {
-			return nil, err
-		}
-		return nil, core.NewError("failed to marshal websocket message")
-	}
-	return encoded.Value.([]byte), nil
 }

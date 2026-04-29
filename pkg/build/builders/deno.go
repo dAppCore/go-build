@@ -8,61 +8,68 @@ import (
 	coreerr "dappco.re/go/log"
 )
 
+type commandSpec struct {
+	command string
+	args    []string
+}
+
 // resolveDenoBuildCommand returns the Deno build invocation using the action-style
 // environment override first, then the persisted build config, then the default task.
-func resolveDenoBuildCommand(cfg *build.Config, resolveDeno func(...string) (string, error)) (string, []string, error) {
+func resolveDenoBuildCommand(cfg *build.Config, resolveDeno func(...string) core.Result) core.Result {
 	override := core.Trim(core.Env("DENO_BUILD"))
 	if override == "" && cfg != nil {
 		override = core.Trim(cfg.DenoBuild)
 	}
 	if override != "" {
-		args, err := splitCommandLine(override)
-		if err != nil {
-			return "", nil, coreerr.E("builders.resolveDenoBuildCommand", "invalid DENO_BUILD command", err)
+		argsResult := splitCommandLine(override)
+		if !argsResult.OK {
+			return core.Fail(coreerr.E("builders.resolveDenoBuildCommand", "invalid DENO_BUILD command", core.NewError(argsResult.Error())))
 		}
+		args := argsResult.Value.([]string)
 		if len(args) == 0 {
-			return "", nil, coreerr.E("builders.resolveDenoBuildCommand", "DENO_BUILD command is empty", nil)
+			return core.Fail(coreerr.E("builders.resolveDenoBuildCommand", "DENO_BUILD command is empty", nil))
 		}
-		return args[0], args[1:], nil
+		return core.Ok(commandSpec{command: args[0], args: args[1:]})
 	}
 
-	command, err := resolveDeno()
-	if err != nil {
-		return "", nil, err
+	command := resolveDeno()
+	if !command.OK {
+		return command
 	}
-	return command, []string{"task", "build"}, nil
+	return core.Ok(commandSpec{command: command.Value.(string), args: []string{"task", "build"}})
 }
 
 // resolveNpmBuildCommand returns the npm build invocation using the action-style
 // environment override first, then the persisted build config, then the default task.
-func resolveNpmBuildCommand(cfg *build.Config, resolveNpm func(...string) (string, error)) (string, []string, error) {
+func resolveNpmBuildCommand(cfg *build.Config, resolveNpm func(...string) core.Result) core.Result {
 	override := core.Trim(core.Env("NPM_BUILD"))
 	if override == "" && cfg != nil {
 		override = core.Trim(cfg.NpmBuild)
 	}
 	if override != "" {
-		args, err := splitCommandLine(override)
-		if err != nil {
-			return "", nil, coreerr.E("builders.resolveNpmBuildCommand", "invalid NPM_BUILD command", err)
+		argsResult := splitCommandLine(override)
+		if !argsResult.OK {
+			return core.Fail(coreerr.E("builders.resolveNpmBuildCommand", "invalid NPM_BUILD command", core.NewError(argsResult.Error())))
 		}
+		args := argsResult.Value.([]string)
 		if len(args) == 0 {
-			return "", nil, coreerr.E("builders.resolveNpmBuildCommand", "NPM_BUILD command is empty", nil)
+			return core.Fail(coreerr.E("builders.resolveNpmBuildCommand", "NPM_BUILD command is empty", nil))
 		}
-		return args[0], args[1:], nil
+		return core.Ok(commandSpec{command: args[0], args: args[1:]})
 	}
 
-	command, err := resolveNpm()
-	if err != nil {
-		return "", nil, err
+	command := resolveNpm()
+	if !command.OK {
+		return command
 	}
-	return command, []string{"run", "build"}, nil
+	return core.Ok(commandSpec{command: command.Value.(string), args: []string{"run", "build"}})
 }
 
 // splitCommandLine tokenises a command string with basic shell-style quoting.
-func splitCommandLine(command string) ([]string, error) {
+func splitCommandLine(command string) core.Result {
 	command = core.Trim(command)
 	if command == "" {
-		return nil, nil
+		return core.Ok([]string(nil))
 	}
 
 	var (
@@ -106,9 +113,9 @@ func splitCommandLine(command string) ([]string, error) {
 		current.WriteRune('\\')
 	}
 	if quote != 0 {
-		return nil, coreerr.E("builders.splitCommandLine", "unterminated quote in command", nil)
+		return core.Fail(coreerr.E("builders.splitCommandLine", "unterminated quote in command", nil))
 	}
 
 	flush()
-	return args, nil
+	return core.Ok(args)
 }

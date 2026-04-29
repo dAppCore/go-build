@@ -31,12 +31,12 @@ const (
 //
 //	script, err := build.GenerateInstallerScript(build.VariantCI, "v1.2.3", "dappcore/core")
 //	// script starts with the ci.sh template rendered for core binaries
-func GenerateInstallerScript(variant InstallerVariant, version, repo string) (string, error) {
+func GenerateInstallerScript(variant InstallerVariant, version, repo string) core.Result {
 	return buildinstallers.GenerateInstaller(variant, installerConfig(version, repo))
 }
 
 // GenerateInstaller is the backwards-compatible alias for GenerateInstallerScript.
-func GenerateInstaller(variant InstallerVariant, version, repo string) (string, error) {
+func GenerateInstaller(variant InstallerVariant, version, repo string) core.Result {
 	return GenerateInstallerScript(variant, version, repo)
 }
 
@@ -45,12 +45,12 @@ func GenerateInstaller(variant InstallerVariant, version, repo string) (string, 
 //
 //	scripts, err := build.GenerateAllInstallerScripts("v1.2.3", "dappcore/core")
 //	// scripts["setup.sh"], scripts["ci.sh"], scripts["go.sh"], ...
-func GenerateAllInstallerScripts(version, repo string) (map[string]string, error) {
+func GenerateAllInstallerScripts(version, repo string) core.Result {
 	return buildinstallers.GenerateAll(installerConfig(version, repo))
 }
 
 // GenerateAll is the backwards-compatible alias for GenerateAllInstallerScripts.
-func GenerateAll(version, repo string) (map[string]string, error) {
+func GenerateAll(version, repo string) core.Result {
 	return GenerateAllInstallerScripts(version, repo)
 }
 

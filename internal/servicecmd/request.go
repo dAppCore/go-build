@@ -6,7 +6,6 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/cmdutil"
 	buildservice "dappco.re/go/build/pkg/service"
-	coreerr "dappco.re/go/log"
 )
 
 // Request bundles the inputs the `core service install/start/stop/status`
@@ -64,11 +63,12 @@ func FromOptions(opts core.Options) Request {
 //	if err != nil {
 //		return err
 //	}
-func LoadConfig(req Request, getwd func() (string, error), resolve func(string) (buildservice.Config, error)) (buildservice.Config, error) {
-	cwd, err := getwd()
-	if err != nil {
-		return buildservice.Config{}, coreerr.E("service.loadServiceConfig", "failed to get working directory", err)
+func LoadConfig(req Request, getwd func() core.Result, resolve func(string) core.Result) core.Result {
+	cwdResult := getwd()
+	if !cwdResult.OK {
+		return core.Fail(core.E("service.loadServiceConfig", "failed to get working directory", core.NewError(cwdResult.Error())))
 	}
+	cwd := cwdResult.Value.(string)
 
 	projectDir := req.ProjectDir
 	if projectDir == "" {
@@ -77,15 +77,17 @@ func LoadConfig(req Request, getwd func() (string, error), resolve func(string) 
 		projectDir = core.PathJoin(cwd, projectDir)
 	}
 
-	cfg, err := resolve(projectDir)
-	if err != nil {
-		return buildservice.Config{}, err
+	cfgResult := resolve(projectDir)
+	if !cfgResult.OK {
+		return cfgResult
 	}
+	cfg := cfgResult.Value.(buildservice.Config)
 
-	if err := ApplyOverrides(&cfg, req); err != nil {
-		return buildservice.Config{}, err
+	overridden := ApplyOverrides(&cfg, req)
+	if !overridden.OK {
+		return overridden
 	}
-	return cfg.Normalized(), nil
+	return core.Ok(cfg.Normalized())
 }
 
 // ApplyOverrides applies request-level service overrides to a config.
@@ -94,9 +96,9 @@ func LoadConfig(req Request, getwd func() (string, error), resolve func(string) 
 //
 //	cfg := buildservice.Config{ProjectDir: projectDir}
 //	err := servicecmd.ApplyOverrides(&cfg, servicecmd.Request{Name: "core-build"})
-func ApplyOverrides(cfg *buildservice.Config, req Request) error {
+func ApplyOverrides(cfg *buildservice.Config, req Request) core.Result {
 	if cfg == nil {
-		return nil
+		return core.Ok(nil)
 	}
 
 	if req.Name != "" {
@@ -126,14 +128,14 @@ func ApplyOverrides(cfg *buildservice.Config, req Request) error {
 	if req.WatchInterval != "" {
 		duration, err := time.ParseDuration(req.WatchInterval)
 		if err != nil {
-			return coreerr.E("service.applyServiceOverrides", "invalid watch interval", err)
+			return core.Fail(core.E("service.applyServiceOverrides", "invalid watch interval", err))
 		}
 		cfg.WatchInterval = duration
 	}
 	if req.ScheduleInterval != "" {
 		duration, err := time.ParseDuration(req.ScheduleInterval)
 		if err != nil {
-			return coreerr.E("service.applyServiceOverrides", "invalid schedule interval", err)
+			return core.Fail(core.E("service.applyServiceOverrides", "invalid schedule interval", err))
 		}
 		cfg.ScheduleInterval = duration
 	}
@@ -141,7 +143,7 @@ func ApplyOverrides(cfg *buildservice.Config, req Request) error {
 		cfg.AutoRebuild = req.AutoRebuild
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // ParseCSV splits comma-separated service option values and drops blank entries.

@@ -11,7 +11,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/log"
 )
 
 var (
@@ -38,34 +37,36 @@ func dockerRuntimeAvailableWithContext(ctx context.Context) bool {
 		return false
 	}
 
-	dockerCommand, err := resolveDockerRuntimeCli()
-	if err != nil {
+	dockerCommand := resolveDockerRuntimeCli()
+	if !dockerCommand.OK {
 		return false
 	}
+	command := dockerCommand.Value.(string)
 
-	commandState, err := dockerRuntimeCommandState(dockerCommand)
-	if err != nil {
+	commandState := dockerRuntimeCommandState(command)
+	if !commandState.OK {
 		return false
 	}
+	state := commandState.Value.(string)
 
-	if cached, ok := cachedDockerRuntimeAvailability(dockerCommand, commandState); ok {
+	if cached, ok := cachedDockerRuntimeAvailability(command, state); ok {
 		return cached
 	}
 
-	err = ax.Exec(ctx, dockerCommand, "--help")
-	if err != nil && ctx.Err() != nil {
+	run := ax.Exec(ctx, command, "--help")
+	if !run.OK && ctx.Err() != nil {
 		return false
 	}
 	if ctx.Err() != nil {
 		return false
 	}
 
-	available := err == nil
-	storeDockerRuntimeAvailability(dockerCommand, commandState, available)
+	available := run.OK
+	storeDockerRuntimeAvailability(command, state, available)
 	return available
 }
 
-func resolveDockerRuntimeCli(paths ...string) (string, error) {
+func resolveDockerRuntimeCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/bin/docker",
@@ -75,40 +76,42 @@ func resolveDockerRuntimeCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("docker", paths...)
-	if err != nil {
-		return "", coreerr.E("sdk.resolveDockerRuntimeCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
+	command := ax.ResolveCommand("docker", paths...)
+	if !command.OK {
+		return core.Fail(core.E("sdk.resolveDockerRuntimeCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }
 
 func availabilityProbeContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), availabilityProbeTimeout)
 }
 
-func dockerRuntimeCommandState(command string) (string, error) {
-	info, err := ax.Stat(command)
-	if err != nil {
-		return "", err
+func dockerRuntimeCommandState(command string) core.Result {
+	info := ax.Stat(command)
+	if !info.OK {
+		return info
 	}
+	fileInfo := info.Value.(core.FsFileInfo)
 
-	file, err := ax.Open(command)
-	if err != nil {
-		return "", err
+	file := ax.Open(command)
+	if !file.OK {
+		return file
 	}
-	defer func() { _ = file.Close() }()
+	fileValue := file.Value.(core.FsFile)
+	defer func() { _ = fileValue.Close() }()
 
 	hasher := sha256.New()
-	if _, err := stdio.CopyN(hasher, file, dockerRuntimeFingerprintBytes); err != nil && !core.Is(err, stdio.EOF) {
-		return "", err
+	if _, err := stdio.CopyN(hasher, fileValue, dockerRuntimeFingerprintBytes); err != nil && !core.Is(err, stdio.EOF) {
+		return core.Fail(err)
 	}
 
-	return command + "|" +
-		strconv.FormatInt(info.Size(), 10) + "|" +
-		strconv.FormatInt(info.ModTime().UnixNano(), 10) + "|" +
-		info.Mode().String() + "|" +
-		hex.EncodeToString(hasher.Sum(nil)), nil
+	return core.Ok(command + "|" +
+		strconv.FormatInt(fileInfo.Size(), 10) + "|" +
+		strconv.FormatInt(fileInfo.ModTime().UnixNano(), 10) + "|" +
+		fileInfo.Mode().String() + "|" +
+		hex.EncodeToString(hasher.Sum(nil)))
 }
 
 func cachedDockerRuntimeAvailability(command, state string) (bool, bool) {

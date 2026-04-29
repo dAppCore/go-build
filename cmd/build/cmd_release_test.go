@@ -14,10 +14,7 @@ import (
 func TestBuildCmd_applyReleaseArchiveFormatOverride_Good(t *testing.T) {
 	cfg := release.DefaultConfig()
 
-	err := applyReleaseArchiveFormatOverride(cfg, "xz")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, applyReleaseArchiveFormatOverride(cfg, "xz"))
 	if !stdlibAssertEqual("xz", cfg.Build.ArchiveFormat) {
 		t.Fatalf("want %v, got %v", "xz", cfg.Build.ArchiveFormat)
 	}
@@ -27,10 +24,7 @@ func TestBuildCmd_applyReleaseArchiveFormatOverride_Good(t *testing.T) {
 func TestBuildCmd_applyReleaseArchiveFormatOverride_Bad(t *testing.T) {
 	cfg := release.DefaultConfig()
 
-	err := applyReleaseArchiveFormatOverride(cfg, "bogus")
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	requireBuildCmdError(t, applyReleaseArchiveFormatOverride(cfg, "bogus"))
 	if !stdlibAssertEqual("", cfg.Build.ArchiveFormat) {
 		t.Fatalf("want %v, got %v", "", cfg.Build.ArchiveFormat)
 	}
@@ -78,7 +72,7 @@ func TestBuildCmd_runRelease_TargetSDK_Good(t *testing.T) {
 	t.Cleanup(func() {
 		getReleaseWorkingDir = originalGetwd
 	})
-	getReleaseWorkingDir = func() (string, error) { return projectDir, nil }
+	getReleaseWorkingDir = func() core.Result { return core.Ok(projectDir) }
 
 	originalConfigExists := releaseConfigExistsFn
 	originalLoadConfig := loadReleaseConfigFn
@@ -96,18 +90,18 @@ func TestBuildCmd_runRelease_TargetSDK_Good(t *testing.T) {
 
 		return true
 	}
-	loadReleaseConfigFn = func(dir string) (*release.Config, error) {
+	loadReleaseConfigFn = func(dir string) core.Result {
 		cfg := release.DefaultConfig()
 		cfg.SetProjectDir(dir)
 		cfg.SDK = &release.SDKConfig{
 			Languages: []string{"typescript", "go"},
 			Output:    "sdk",
 		}
-		return cfg, nil
+		return core.Ok(cfg)
 	}
 
 	called := false
-	runSDKReleaseFn = func(ctx context.Context, cfg *release.Config, dryRun bool) (*release.SDKRelease, error) {
+	runSDKReleaseFn = func(ctx context.Context, cfg *release.Config, dryRun bool) core.Result {
 		called = true
 		if !(dryRun) {
 			t.Fatal("expected true")
@@ -116,17 +110,14 @@ func TestBuildCmd_runRelease_TargetSDK_Good(t *testing.T) {
 			t.Fatal("expected non-nil")
 		}
 
-		return &release.SDKRelease{
+		return core.Ok(&release.SDKRelease{
 			Version:   "v1.2.3",
 			Output:    "sdk",
 			Languages: []string{"typescript", "go"},
-		}, nil
+		})
 	}
 
-	err := runRelease(context.Background(), true, false, "sdk", "v1.2.3", false, false, "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, runRelease(context.Background(), true, false, "sdk", "v1.2.3", false, false, ""))
 	if !(called) {
 		t.Fatal("expected true")
 	}
@@ -135,18 +126,14 @@ func TestBuildCmd_runRelease_TargetSDK_Good(t *testing.T) {
 
 func TestBuildCmd_runRelease_AppleTestFlight_Good(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+	requireBuildCmdOK(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 project:
   name: Core
   binary: Core
 apple:
   bundle_id: ai.lthn.core
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`), 0o644))
 
 	originalGetwd := getReleaseWorkingDir
 	originalConfigExists := releaseConfigExistsFn
@@ -157,14 +144,14 @@ apple:
 		buildAppleFn = originalBuildApple
 	})
 
-	getReleaseWorkingDir = func() (string, error) { return projectDir, nil }
+	getReleaseWorkingDir = func() core.Result { return core.Ok(projectDir) }
 	releaseConfigExistsFn = func(dir string) bool {
 		t.Fatalf("release config should not be required for apple-testflight target: %s", dir)
 		return false
 	}
 
 	called := false
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		called = true
 		if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
 			t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
@@ -181,17 +168,14 @@ apple:
 		if !stdlibAssertEqual("1", buildNumber) {
 			t.Fatalf("want %v, got %v", "1", buildNumber)
 		}
-		return &build.AppleBuildResult{
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath:  ax.Join(cfg.OutputDir, "Core.app"),
 			Version:     "1.2.3",
 			BuildNumber: buildNumber,
-		}, nil
+		})
 	}
 
-	err := runRelease(context.Background(), false, false, "apple-testflight", "v1.2.3", false, false, "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireBuildCmdOK(t, runRelease(context.Background(), false, false, "apple-testflight", "v1.2.3", false, false, ""))
 	if !called {
 		t.Fatal("expected buildAppleFn to be called")
 	}
@@ -221,15 +205,12 @@ func TestBuildCmd_runRelease_RejectsUnsafeVersion_Bad(t *testing.T) {
 		releaseConfigExistsFn = originalConfigExists
 	})
 
-	getReleaseWorkingDir = func() (string, error) { return projectDir, nil }
+	getReleaseWorkingDir = func() core.Result { return core.Ok(projectDir) }
 	releaseConfigExistsFn = func(dir string) bool { return true }
 
-	err := runRelease(context.Background(), true, false, "release", "v1.2.3 --bad", false, false, "")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "invalid release version override") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "invalid release version override")
+	message := requireBuildCmdError(t, runRelease(context.Background(), true, false, "release", "v1.2.3 --bad", false, false, ""))
+	if !stdlibAssertContains(message, "invalid release version override") {
+		t.Fatalf("expected %v to contain %v", message, "invalid release version override")
 	}
 
 }
@@ -245,7 +226,7 @@ func TestBuildCmd_runRelease_CIModeEmitsGitHubAnnotationOnError_Bad(t *testing.T
 		cli.SetStderr(nil)
 	})
 
-	getReleaseWorkingDir = func() (string, error) { return projectDir, nil }
+	getReleaseWorkingDir = func() core.Result { return core.Ok(projectDir) }
 	releaseConfigExistsFn = func(dir string) bool {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
@@ -258,12 +239,12 @@ func TestBuildCmd_runRelease_CIModeEmitsGitHubAnnotationOnError_Bad(t *testing.T
 	cli.SetStdout(stdout)
 	cli.SetStderr(stdout)
 
-	err := runRelease(context.Background(), false, true, "release", "", false, false, "")
-	if err == nil {
+	result := runRelease(context.Background(), false, true, "release", "", false, false, "")
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(stdout.String(), emitCIAnnotationForTest(err)) {
-		t.Fatalf("expected %v to contain %v", stdout.String(), emitCIAnnotationForTest(err))
+	if !stdlibAssertContains(stdout.String(), emitCIAnnotationForTest(result)) {
+		t.Fatalf("expected %v to contain %v", stdout.String(), emitCIAnnotationForTest(result))
 	}
 
 }

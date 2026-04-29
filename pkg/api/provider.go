@@ -8,6 +8,7 @@ package api
 import (
 	"cmp"
 	"context"
+	stdfs "io/fs"
 	"slices"
 
 	"dappco.re/go"
@@ -306,24 +307,26 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 }
 
 // resolveDir returns the absolute project directory.
-func (p *BuildProvider) resolveDir() (string, error) {
+func (p *BuildProvider) resolveDir() core.Result {
 	return ax.Abs(p.projectDir)
 }
 
 // -- Build Handlers -----------------------------------------------------------
 
 func (p *BuildProvider) getConfig(c *gin.Context) {
-	dir, err := p.resolveDir()
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+	dirResult := p.resolveDir()
+	if !dirResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", dirResult.Error()))
 		return
 	}
+	dir := dirResult.Value.(string)
 
-	cfg, err := build.LoadConfig(p.medium, dir)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
+	cfgResult := build.LoadConfig(p.medium, dir)
+	if !cfgResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", cfgResult.Error()))
 		return
 	}
+	cfg := cfgResult.Value.(*build.BuildConfig)
 
 	hasConfig := build.ConfigExists(p.medium, dir)
 
@@ -335,29 +338,33 @@ func (p *BuildProvider) getConfig(c *gin.Context) {
 }
 
 func (p *BuildProvider) discoverProject(c *gin.Context) {
-	dir, err := p.resolveDir()
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+	dirResult := p.resolveDir()
+	if !dirResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", dirResult.Error()))
 		return
 	}
+	dir := dirResult.Value.(string)
 
-	cfg, err := build.LoadConfig(p.medium, dir)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
+	cfgResult := build.LoadConfig(p.medium, dir)
+	if !cfgResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", cfgResult.Error()))
 		return
 	}
+	cfg := cfgResult.Value.(*build.BuildConfig)
 
-	discovery, err := build.DiscoverFull(p.medium, dir)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("discover_failed", err.Error()))
+	discoveryResult := build.DiscoverFull(p.medium, dir)
+	if !discoveryResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("discover_failed", discoveryResult.Error()))
 		return
 	}
+	discovery := discoveryResult.Value.(*build.DiscoveryResult)
 	options := build.ComputeOptions(cfg, discovery)
-	setupPlan, err := build.ComputeSetupPlan(p.medium, dir, cfg, discovery)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("setup_plan_failed", err.Error()))
+	setupPlanResult := build.ComputeSetupPlan(p.medium, dir, cfg, discovery)
+	if !setupPlanResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("setup_plan_failed", setupPlanResult.Error()))
 		return
 	}
+	setupPlan := setupPlanResult.Value.(*build.SetupPlan)
 
 	// Convert to string slice for JSON
 	typeStrings := make([]string, len(discovery.Types))
@@ -433,62 +440,72 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 }
 
 func (p *BuildProvider) triggerBuild(c *gin.Context) {
-	dir, err := p.resolveDir()
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+	dirResult := p.resolveDir()
+	if !dirResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", dirResult.Error()))
 		return
 	}
+	dir := dirResult.Value.(string)
 
-	request, err := decodeBuildRequest(c)
-	if err != nil {
-		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
+	requestResult := decodeBuildRequest(c)
+	if !requestResult.OK {
+		c.JSON(statusBadRequest, api.Fail("invalid_request", requestResult.Error()))
 		return
 	}
+	request := requestResult.Value.(buildRequest)
 	archiveOutput, checksumOutput := resolveBuildOutputs(request)
 
 	hasBuildConfig := build.ConfigExists(p.medium, dir)
 	var cfg *build.BuildConfig
 	if hasBuildConfig {
-		cfg, err = build.LoadConfig(p.medium, dir)
-		if err != nil {
-			c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
+		cfgResult := build.LoadConfig(p.medium, dir)
+		if !cfgResult.OK {
+			c.JSON(statusInternalServerError, api.Fail("config_load_failed", cfgResult.Error()))
 			return
 		}
+		cfg = cfgResult.Value.(*build.BuildConfig)
 	}
 
-	projectTypes, err := build.Discover(p.medium, dir)
-	if err != nil || len(projectTypes) == 0 {
+	projectTypesResult := build.Discover(p.medium, dir)
+	if !projectTypesResult.OK {
+		c.JSON(statusBadRequest, api.Fail("no_project", "no buildable project detected"))
+		return
+	}
+	projectTypes := projectTypesResult.Value.([]build.ProjectType)
+	if len(projectTypes) == 0 {
 		c.JSON(statusBadRequest, api.Fail("no_project", "no buildable project detected"))
 		return
 	}
 	for _, projectType := range projectTypes {
-		if _, err := providerGetBuilder(projectType); err != nil {
-			c.JSON(statusBadRequest, api.Fail("unsupported_type", err.Error()))
+		builderResult := providerGetBuilder(projectType)
+		if !builderResult.OK {
+			c.JSON(statusBadRequest, api.Fail("unsupported_type", builderResult.Error()))
 			return
 		}
 	}
 
 	pipeline := &build.Pipeline{
 		FS: p.medium,
-		ResolveBuilder: func(projectType build.ProjectType) (build.Builder, error) {
+		ResolveBuilder: func(projectType build.ProjectType) core.Result {
 			return providerGetBuilder(projectType)
 		},
-		ResolveVersion: func(ctx context.Context, projectDir string) (string, error) {
-			version, err := providerDetermineVersion(ctx, projectDir)
-			if err != nil {
-				return "dev", nil
+		ResolveVersion: func(ctx context.Context, projectDir string) core.Result {
+			version := providerDetermineVersion(ctx, projectDir)
+			if !version.OK {
+				return core.Ok("dev")
 			}
-			return version, nil
+			return version
 		},
 	}
-	plan, err := pipeline.Plan(c.Request.Context(), build.PipelineRequest{
+	planResult := pipeline.Plan(c.Request.Context(), build.PipelineRequest{
 		ProjectDir:  dir,
 		BuildConfig: cfg,
 	})
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("build_prepare_failed", err.Error()))
+	if !planResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("build_prepare_failed", planResult.Error()))
 		return
 	}
+	plan := planResult.Value.(*build.PipelinePlan)
 
 	projectTypeNames := make([]string, 0, len(plan.ProjectTypes))
 	for _, projectType := range plan.ProjectTypes {
@@ -502,13 +519,14 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 		"version":       plan.Version,
 	})
 
-	result, err := pipeline.Run(c.Request.Context(), plan)
-	if err != nil {
-		p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-		c.JSON(statusInternalServerError, api.Fail("build_failed", err.Error()))
+	result := pipeline.Run(c.Request.Context(), plan)
+	if !result.OK {
+		p.emitEvent("build.failed", map[string]any{"error": result.Error()})
+		c.JSON(statusInternalServerError, api.Fail("build_failed", result.Error()))
 		return
 	}
-	artifacts := result.Artifacts
+	pipelineResult := result.Value.(*build.PipelineResult)
+	artifacts := pipelineResult.Artifacts
 
 	signCfg := plan.BuildConfig.Sign
 	goos := currentGOOS()
@@ -522,16 +540,18 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 			}
 		}
 
-		if err := providerSignBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts); err != nil {
-			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(statusInternalServerError, api.Fail("sign_failed", err.Error()))
+		signed := providerSignBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts)
+		if !signed.OK {
+			p.emitEvent("build.failed", map[string]any{"error": signed.Error()})
+			c.JSON(statusInternalServerError, api.Fail("sign_failed", signed.Error()))
 			return
 		}
 
 		if goos == "darwin" && signCfg.MacOS.Notarize {
-			if err := providerNotarizeBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts); err != nil {
-				p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-				c.JSON(statusInternalServerError, api.Fail("notarize_failed", err.Error()))
+			notarized := providerNotarizeBinaries(c.Request.Context(), p.medium, signCfg, signingArtifacts)
+			if !notarized.OK {
+				p.emitEvent("build.failed", map[string]any{"error": notarized.Error()})
+				c.JSON(statusInternalServerError, api.Fail("notarize_failed", notarized.Error()))
 				return
 			}
 		}
@@ -546,42 +566,47 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	}
 
 	if archiveOutput {
-		archiveFormat, err := build.ParseArchiveFormat(plan.BuildConfig.Build.ArchiveFormat)
-		if err != nil {
-			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(statusBadRequest, api.Fail("archive_format_invalid", err.Error()))
+		archiveFormatResult := build.ParseArchiveFormat(plan.BuildConfig.Build.ArchiveFormat)
+		if !archiveFormatResult.OK {
+			p.emitEvent("build.failed", map[string]any{"error": archiveFormatResult.Error()})
+			c.JSON(statusBadRequest, api.Fail("archive_format_invalid", archiveFormatResult.Error()))
 			return
 		}
+		archiveFormat := archiveFormatResult.Value.(build.ArchiveFormat)
 
-		finalArtifacts, err = build.ArchiveAllWithFormat(p.medium, finalArtifacts, archiveFormat)
-		if err != nil {
-			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(statusInternalServerError, api.Fail("archive_failed", err.Error()))
+		archivedResult := build.ArchiveAllWithFormat(p.medium, finalArtifacts, archiveFormat)
+		if !archivedResult.OK {
+			p.emitEvent("build.failed", map[string]any{"error": archivedResult.Error()})
+			c.JSON(statusInternalServerError, api.Fail("archive_failed", archivedResult.Error()))
 			return
 		}
+		finalArtifacts = archivedResult.Value.([]build.Artifact)
 
 		response["archive_format"] = string(archiveFormat)
 	}
 
 	if checksumOutput {
-		checksummed, err := build.ChecksumAll(p.medium, finalArtifacts)
-		if err != nil {
-			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(statusInternalServerError, api.Fail("checksum_failed", err.Error()))
+		checksummedResult := build.ChecksumAll(p.medium, finalArtifacts)
+		if !checksummedResult.OK {
+			p.emitEvent("build.failed", map[string]any{"error": checksummedResult.Error()})
+			c.JSON(statusInternalServerError, api.Fail("checksum_failed", checksummedResult.Error()))
 			return
 		}
+		checksummed := checksummedResult.Value.([]build.Artifact)
 
 		checksumPath := ax.Join(plan.OutputDir, "CHECKSUMS.txt")
-		if err := build.WriteChecksumFile(p.medium, checksummed, checksumPath); err != nil {
-			p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-			c.JSON(statusInternalServerError, api.Fail("checksum_write_failed", err.Error()))
+		wroteChecksums := build.WriteChecksumFile(p.medium, checksummed, checksumPath)
+		if !wroteChecksums.OK {
+			p.emitEvent("build.failed", map[string]any{"error": wroteChecksums.Error()})
+			c.JSON(statusInternalServerError, api.Fail("checksum_write_failed", wroteChecksums.Error()))
 			return
 		}
 
 		if signCfg.Enabled {
-			if err := providerSignChecksums(c.Request.Context(), p.medium, signCfg, checksumPath); err != nil {
-				p.emitEvent("build.failed", map[string]any{"error": err.Error()})
-				c.JSON(statusInternalServerError, api.Fail("checksum_sign_failed", err.Error()))
+			signedChecksums := providerSignChecksums(c.Request.Context(), p.medium, signCfg, checksumPath)
+			if !signedChecksums.OK {
+				p.emitEvent("build.failed", map[string]any{"error": signedChecksums.Error()})
+				c.JSON(statusInternalServerError, api.Fail("checksum_sign_failed", signedChecksums.Error()))
 				return
 			}
 		}
@@ -600,19 +625,20 @@ func (p *BuildProvider) triggerBuild(c *gin.Context) {
 	c.JSON(statusOK, api.OK(response))
 }
 
-func decodeBuildRequest(c *gin.Context) (buildRequest, error) {
+func decodeBuildRequest(c *gin.Context) core.Result {
 	var request buildRequest
 	if c == nil || c.Request == nil || c.Request.Body == nil || c.Request.ContentLength == 0 {
-		return request, nil
+		return core.Ok(request)
 	}
 	body, err := c.GetRawData()
 	if err != nil {
-		return buildRequest{}, err
+		return core.Fail(err)
 	}
-	if err := decodeJSONBody(body, &request); err != nil {
-		return buildRequest{}, err
+	decoded := decodeJSONBody(body, &request)
+	if !decoded.OK {
+		return decoded
 	}
-	return request, nil
+	return core.Ok(request)
 }
 
 func resolveBuildOutputs(request buildRequest) (bool, bool) {
@@ -642,9 +668,9 @@ func resolveBuildOutputs(request buildRequest) (bool, bool) {
 }
 
 // resolveProjectType returns the configured build type when present, otherwise it falls back to detection.
-func resolveProjectType(filesystem io.Medium, projectDir, buildType string) (build.ProjectType, error) {
+func resolveProjectType(filesystem io.Medium, projectDir, buildType string) core.Result {
 	if buildType != "" {
-		return build.ProjectType(buildType), nil
+		return core.Ok(build.ProjectType(buildType))
 	}
 
 	return projectdetect.DetectProjectType(filesystem, projectDir)
@@ -652,36 +678,18 @@ func resolveProjectType(filesystem io.Medium, projectDir, buildType string) (bui
 
 // Info holds JSON-friendly metadata about a dist/ file.
 type Info struct {
-	Name string `json:"name"`
-	Path string
-	Size int64 `json:"size"`
-}
-
-func (a Info) MarshalJSON() ([]byte, error) {
-	encoded := core.JSONMarshal(map[string]any{
-		"name":       a.Name,
-		apiPathField: a.Path,
-		"size":       a.Size,
-	})
-	if !encoded.OK {
-		return nil, resultError(encoded)
-	}
-	return encoded.Value.([]byte), nil
-}
-
-func resultError(result core.Result) error {
-	if err, ok := result.Value.(error); ok {
-		return err
-	}
-	return core.NewError(result.Error())
+	Name string "json:\"name\""
+	Path string "json:\"path\""
+	Size int64  "json:\"size\""
 }
 
 func (p *BuildProvider) listArtifacts(c *gin.Context) {
-	dir, err := p.resolveDir()
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+	dirResult := p.resolveDir()
+	if !dirResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", dirResult.Error()))
 		return
 	}
+	dir := dirResult.Value.(string)
 
 	distDir := ax.Join(dir, "dist")
 	if !p.medium.IsDir(distDir) {
@@ -692,11 +700,12 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 		return
 	}
 
-	artifacts, err := p.collectArtifacts(distDir, distDir)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("list_failed", err.Error()))
+	artifactsResult := p.collectArtifacts(distDir, distDir)
+	if !artifactsResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("list_failed", artifactsResult.Error()))
 		return
 	}
+	artifacts := artifactsResult.Value.([]Info)
 
 	slices.SortFunc(artifacts, func(a, b Info) int {
 		return cmp.Compare(a.Name, b.Name)
@@ -712,32 +721,37 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 	}))
 }
 
-func (p *BuildProvider) collectArtifacts(distDir, currentDir string) ([]Info, error) {
-	entries, err := p.medium.List(currentDir)
-	if err != nil {
-		return nil, err
+func (p *BuildProvider) collectArtifacts(distDir, currentDir string) core.Result {
+	entriesResult := p.medium.List(currentDir)
+	if !entriesResult.OK {
+		return entriesResult
 	}
+	entries := entriesResult.Value.([]stdfs.DirEntry)
 
 	var artifacts []Info
 	for _, entry := range entries {
 		path := ax.Join(currentDir, entry.Name())
 		if entry.IsDir() {
-			nested, err := p.collectArtifacts(distDir, path)
-			if err != nil {
-				return nil, err
+			nestedResult := p.collectArtifacts(distDir, path)
+			if !nestedResult.OK {
+				return nestedResult
 			}
+			nested := nestedResult.Value.([]Info)
 			artifacts = append(artifacts, nested...)
 			continue
 		}
 
-		info, err := entry.Info()
-		if err != nil {
+		info, infoFailure := entry.Info()
+		if infoFailure != nil {
 			continue
 		}
 
-		name, err := ax.Rel(distDir, path)
-		if err != nil {
+		nameResult := ax.Rel(distDir, path)
+		name := ""
+		if !nameResult.OK {
 			name = entry.Name()
+		} else {
+			name = nameResult.Value.(string)
 		}
 
 		artifacts = append(artifacts, Info{
@@ -747,23 +761,25 @@ func (p *BuildProvider) collectArtifacts(distDir, currentDir string) ([]Info, er
 		})
 	}
 
-	return artifacts, nil
+	return core.Ok(artifacts)
 }
 
 // -- Release Handlers ---------------------------------------------------------
 
 func (p *BuildProvider) getVersion(c *gin.Context) {
-	dir, err := p.resolveDir()
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+	dirResult := p.resolveDir()
+	if !dirResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", dirResult.Error()))
 		return
 	}
+	dir := dirResult.Value.(string)
 
-	version, err := release.DetermineVersionWithContext(c.Request.Context(), dir)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("version_failed", err.Error()))
+	versionResult := release.DetermineVersionWithContext(c.Request.Context(), dir)
+	if !versionResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("version_failed", versionResult.Error()))
 		return
 	}
+	version := versionResult.Value.(string)
 
 	c.JSON(statusOK, api.OK(map[string]any{
 		"version": version,
@@ -771,21 +787,23 @@ func (p *BuildProvider) getVersion(c *gin.Context) {
 }
 
 func (p *BuildProvider) getChangelog(c *gin.Context) {
-	dir, err := p.resolveDir()
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+	dirResult := p.resolveDir()
+	if !dirResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", dirResult.Error()))
 		return
 	}
+	dir := dirResult.Value.(string)
 
 	// Optional query params for ref range
 	fromRef := c.Query("from")
 	toRef := c.Query("to")
 
-	changelog, err := release.GenerateWithContext(c.Request.Context(), dir, fromRef, toRef)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("changelog_failed", err.Error()))
+	changelogResult := release.GenerateWithContext(c.Request.Context(), dir, fromRef, toRef)
+	if !changelogResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("changelog_failed", changelogResult.Error()))
 		return
 	}
+	changelog := changelogResult.Value.(string)
 
 	c.JSON(statusOK, api.OK(map[string]any{
 		"changelog": changelog,
@@ -793,17 +811,19 @@ func (p *BuildProvider) getChangelog(c *gin.Context) {
 }
 
 func (p *BuildProvider) triggerRelease(c *gin.Context) {
-	dir, err := p.resolveDir()
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+	dirResult := p.resolveDir()
+	if !dirResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", dirResult.Error()))
 		return
 	}
+	dir := dirResult.Value.(string)
 
-	cfg, err := providerLoadReleaseConfig(dir)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
+	cfgResult := providerLoadReleaseConfig(dir)
+	if !cfgResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", cfgResult.Error()))
 		return
 	}
+	cfg := cfgResult.Value.(*release.Config)
 
 	// Parse optional dry_run parameter
 	dryRun := c.Query("dry_run") == "true"
@@ -812,11 +832,12 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 		"dry_run": dryRun,
 	})
 
-	rel, err := providerRunRelease(c.Request.Context(), cfg, dryRun)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("release_failed", err.Error()))
+	relResult := providerRunRelease(c.Request.Context(), cfg, dryRun)
+	if !relResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("release_failed", relResult.Error()))
 		return
 	}
+	rel := relResult.Value.(*release.Release)
 
 	p.emitEvent("release.complete", map[string]any{
 		"version":        rel.Version,
@@ -852,11 +873,15 @@ type ReleaseWorkflowRequest struct {
 	WorkflowOutputPathHyphen string `json:"workflow-output-path"`
 }
 
-func (r *ReleaseWorkflowRequest) UnmarshalJSON(data []byte) error {
+func (r *ReleaseWorkflowRequest) Decode(data []byte) core.Result {
+	if core.Trim(string(data)) == "" {
+		return core.Ok(nil)
+	}
+
 	var raw map[string]string
 	decoded := core.JSONUnmarshal(data, &raw)
 	if !decoded.OK {
-		return resultError(decoded)
+		return decoded
 	}
 	r.Path = raw[apiPathField]
 	r.WorkflowPath = raw["workflowPath"]
@@ -871,23 +896,25 @@ func (r *ReleaseWorkflowRequest) UnmarshalJSON(data []byte) error {
 	r.WorkflowOutputHyphen = raw["workflow-output"]
 	r.WorkflowOutputPathSnake = raw["workflow_output_path"]
 	r.WorkflowOutputPathHyphen = raw["workflow-output-path"]
-	return nil
+	return core.Ok(nil)
 }
 
 // resolveWorkflowTargetPath merges the workflow path and workflow output aliases into one final target path.
 //
 // request := ReleaseWorkflowRequest{Path: "ci/release.yml"}
-// path, err := request.resolveWorkflowTargetPath("/tmp/project", io.Local)
-func (r ReleaseWorkflowRequest) resolveWorkflowTargetPath(dir string, medium io.Medium) (string, error) {
-	outputPath, err := r.resolveOutputPath(dir, medium)
-	if err != nil {
-		return "", err
+// result := request.resolveWorkflowTargetPath("/tmp/project", io.Local)
+func (r ReleaseWorkflowRequest) resolveWorkflowTargetPath(dir string, medium io.Medium) core.Result {
+	outputPathResult := r.resolveOutputPath(dir, medium)
+	if !outputPathResult.OK {
+		return outputPathResult
 	}
+	outputPath := outputPathResult.Value.(string)
 
-	workflowPath, err := r.resolveWorkflowPath(dir, medium)
-	if err != nil {
-		return "", err
+	workflowPathResult := r.resolveWorkflowPath(dir, medium)
+	if !workflowPathResult.OK {
+		return workflowPathResult
 	}
+	workflowPath := workflowPathResult.Value.(string)
 
 	return build.ResolveReleaseWorkflowInputPathWithMedium(medium, dir, workflowPath, outputPath)
 }
@@ -895,9 +922,9 @@ func (r ReleaseWorkflowRequest) resolveWorkflowTargetPath(dir string, medium io.
 // resolveWorkflowPath("ci/release.yml") and resolveWorkflowPath("workflow-path") both resolve to the same file path.
 //
 // request := ReleaseWorkflowRequest{WorkflowPath: "ci/release.yml"}
-// workflowPath, err := request.resolveWorkflowPath("/tmp/project", io.Local)
-func (r ReleaseWorkflowRequest) resolveWorkflowPath(dir string, medium io.Medium) (string, error) {
-	workflowPath, err := build.ResolveReleaseWorkflowInputPathAliases(
+// result := request.resolveWorkflowPath("/tmp/project", io.Local)
+func (r ReleaseWorkflowRequest) resolveWorkflowPath(dir string, medium io.Medium) core.Result {
+	workflowPath := build.ResolveReleaseWorkflowInputPathAliases(
 		medium,
 		dir,
 		r.Path,
@@ -905,19 +932,19 @@ func (r ReleaseWorkflowRequest) resolveWorkflowPath(dir string, medium io.Medium
 		r.WorkflowPathSnake,
 		r.WorkflowPathHyphen,
 	)
-	if err != nil {
-		return "", coreerr.E("api.ReleaseWorkflowRequest", "workflow path aliases specify different locations", nil)
+	if !workflowPath.OK {
+		return core.Fail(coreerr.E("api.ReleaseWorkflowRequest", "workflow path aliases specify different locations", nil))
 	}
 
-	return workflowPath, nil
+	return workflowPath
 }
 
 // resolveOutputPath("ci/release.yml") and resolveOutputPath("workflow-output-path") both resolve to the same file path.
 //
 // request := ReleaseWorkflowRequest{WorkflowOutputPath: "ci/release.yml"}
-// outputPath, err := request.resolveOutputPath("/tmp/project")
-func (r ReleaseWorkflowRequest) resolveOutputPath(dir string, medium io.Medium) (string, error) {
-	resolvedOutputPath, err := build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
+// result := request.resolveOutputPath("/tmp/project")
+func (r ReleaseWorkflowRequest) resolveOutputPath(dir string, medium io.Medium) core.Result {
+	resolvedOutputPath := build.ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(
 		medium,
 		dir,
 		r.OutputPath,
@@ -930,19 +957,20 @@ func (r ReleaseWorkflowRequest) resolveOutputPath(dir string, medium io.Medium) 
 		r.WorkflowOutputPathSnake,
 		r.WorkflowOutputPathHyphen,
 	)
-	if err != nil {
-		return "", coreerr.E("api.ReleaseWorkflowRequest", "workflow output aliases specify different locations", nil)
+	if !resolvedOutputPath.OK {
+		return core.Fail(coreerr.E("api.ReleaseWorkflowRequest", "workflow output aliases specify different locations", nil))
 	}
 
-	return resolvedOutputPath, nil
+	return resolvedOutputPath
 }
 
 func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
-	dir, err := p.resolveDir()
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+	dirResult := p.resolveDir()
+	if !dirResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", dirResult.Error()))
 		return
 	}
+	dir := dirResult.Value.(string)
 
 	var request ReleaseWorkflowRequest
 	body, err := c.GetRawData()
@@ -950,19 +978,22 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
 		return
 	}
-	if err := decodeJSONBody(body, &request); err != nil {
-		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
+	decoded := request.Decode(body)
+	if !decoded.OK {
+		c.JSON(statusBadRequest, api.Fail("invalid_request", decoded.Error()))
 		return
 	}
 
-	workflowPath, err := request.resolveWorkflowTargetPath(dir, p.medium)
-	if err != nil {
-		c.JSON(statusBadRequest, api.Fail("invalid_request", err.Error()))
+	workflowPathResult := request.resolveWorkflowTargetPath(dir, p.medium)
+	if !workflowPathResult.OK {
+		c.JSON(statusBadRequest, api.Fail("invalid_request", workflowPathResult.Error()))
 		return
 	}
+	workflowPath := workflowPathResult.Value.(string)
 
-	if err := build.WriteReleaseWorkflow(p.medium, workflowPath); err != nil {
-		c.JSON(statusInternalServerError, api.Fail("workflow_write_failed", err.Error()))
+	written := build.WriteReleaseWorkflow(p.medium, workflowPath)
+	if !written.OK {
+		c.JSON(statusInternalServerError, api.Fail("workflow_write_failed", written.Error()))
 		return
 	}
 
@@ -988,13 +1019,13 @@ func (p *BuildProvider) getSdkDiff(c *gin.Context) {
 		return
 	}
 
-	result, err := sdk.Diff(basePath, revisionPath)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("diff_failed", err.Error()))
+	result := sdk.Diff(basePath, revisionPath)
+	if !result.OK {
+		c.JSON(statusInternalServerError, api.Fail("diff_failed", result.Error()))
 		return
 	}
 
-	c.JSON(statusOK, api.OK(result))
+	c.JSON(statusOK, api.OK(result.Value))
 }
 
 type sdkGenerateRequest struct {
@@ -1002,35 +1033,38 @@ type sdkGenerateRequest struct {
 }
 
 func (p *BuildProvider) generateSdk(c *gin.Context) {
-	dir, err := p.resolveDir()
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("resolve_failed", err.Error()))
+	dirResult := p.resolveDir()
+	if !dirResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("resolve_failed", dirResult.Error()))
 		return
 	}
+	dir := dirResult.Value.(string)
 
 	var req sdkGenerateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if bindFailure := c.ShouldBindJSON(&req); bindFailure != nil {
 		// No body is fine — generate all languages
 		req.Language = ""
 	}
 
-	sdkCfg, err := sdkcfg.LoadProjectConfig(p.medium, dir)
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("config_load_failed", err.Error()))
+	sdkCfgResult := sdkcfg.LoadProjectConfig(p.medium, dir)
+	if !sdkCfgResult.OK {
+		c.JSON(statusInternalServerError, api.Fail("config_load_failed", sdkCfgResult.Error()))
 		return
 	}
+	sdkCfg := sdkCfgResult.Value.(*sdk.Config)
 
 	s := sdk.New(dir, sdkCfg)
 
 	ctx := c.Request.Context()
+	var generated core.Result
 	if req.Language != "" {
-		err = s.GenerateLanguage(ctx, req.Language)
+		generated = s.GenerateLanguage(ctx, req.Language)
 	} else {
-		err = s.Generate(ctx)
+		generated = s.Generate(ctx)
 	}
 
-	if err != nil {
-		c.JSON(statusInternalServerError, api.Fail("sdk_generate_failed", err.Error()))
+	if !generated.OK {
+		c.JSON(statusInternalServerError, api.Fail("sdk_generate_failed", generated.Error()))
 		return
 	}
 
@@ -1056,12 +1090,12 @@ func (p *BuildProvider) streamEvents(c *gin.Context) {
 // -- Internal Helpers ---------------------------------------------------------
 
 // getBuilder returns the appropriate builder for the project type.
-func getBuilder(projectType build.ProjectType) (build.Builder, error) {
-	builder, err := builders.ResolveBuilder(projectType)
-	if err != nil {
-		return nil, err
+func getBuilder(projectType build.ProjectType) core.Result {
+	builder := builders.ResolveBuilder(projectType)
+	if !builder.OK {
+		return builder
 	}
-	return builder, nil
+	return builder
 }
 
 func currentGOOS() string {
@@ -1071,19 +1105,19 @@ func currentGOOS() string {
 	return core.Env("OS")
 }
 
-func decodeJSONBody(body []byte, target any) error {
+func decodeJSONBody(body []byte, target any) core.Result {
 	if core.Trim(string(body)) == "" {
-		return nil
+		return core.Ok(nil)
 	}
 
 	result := core.JSONUnmarshalString(string(body), target)
 	if result.OK {
-		return nil
+		return core.Ok(nil)
 	}
 	if err, ok := result.Value.(error); ok {
-		return err
+		return core.Fail(err)
 	}
-	return coreerr.E("api.decodeJSONBody", "invalid JSON", nil)
+	return core.Fail(coreerr.E("api.decodeJSONBody", "invalid JSON", nil))
 }
 
 // emitEvent sends a WS event if the hub is available.
@@ -1091,10 +1125,11 @@ func (p *BuildProvider) emitEvent(channel string, data any) {
 	if p.hub == nil {
 		return
 	}
-	if err := p.hub.SendToChannel(channel, ws.Message{
+	sent := p.hub.SendToChannel(channel, ws.Message{
 		Type: ws.TypeEvent,
 		Data: data,
-	}); err != nil {
+	})
+	if !sent.OK {
 		return
 	}
 }

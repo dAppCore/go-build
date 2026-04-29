@@ -28,7 +28,7 @@ func TestPython_PythonGeneratorAvailableGood(t *testing.T) {
 
 func TestPython_PythonGeneratorGenerateGood(t *testing.T) {
 	g := NewPythonGenerator()
-	if _, err := g.resolveNativeCli(); err != nil && !dockerAvailable() {
+	if native := g.resolveNativeCli(); !native.OK && !dockerAvailable() {
 		t.Skip("no Python generator available (neither native nor docker)")
 	}
 
@@ -47,9 +47,9 @@ func TestPython_PythonGeneratorGenerateGood(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	err := g.Generate(ctx, opts)
-	if err != nil {
-		t.Fatalf("Generate failed: %v", err)
+	generated := g.Generate(ctx, opts)
+	if !generated.OK {
+		t.Fatalf("Generate failed: %v", generated.Error())
 	}
 
 	// Verify output directory was created

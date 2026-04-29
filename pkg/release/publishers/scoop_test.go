@@ -132,10 +132,7 @@ func TestScoop_ScoopPublisherRenderTemplateGood(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data))
 		if !stdlibAssertContains(result, `"version": "1.2.3"`) {
 			t.Fatalf("expected %v to contain %v", result, `"version": "1.2.3"`)
 		}
@@ -183,10 +180,7 @@ func TestScoop_ScoopPublisherRenderTemplateGood(t *testing.T) {
 			Checksums:   ChecksumMap{},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data))
 		if !stdlibAssertContains(result, `"checkver"`) {
 			t.Fatalf("expected %v to contain %v", result, `"checkver"`)
 		}
@@ -205,12 +199,9 @@ func TestScoop_ScoopPublisherRenderTemplateBad(t *testing.T) {
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := scoopTemplateData{}
-		_, err := p.renderTemplate(io.Local, "templates/scoop/nonexistent.tmpl", data)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read template") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		err := requirePublisherError(t, p.renderTemplate(io.Local, "templates/scoop/nonexistent.tmpl", data))
+		if !stdlibAssertContains(err, "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
 
 	})
@@ -231,13 +222,11 @@ func TestScoop_ScoopPublisherDryRunPublishGood(t *testing.T) {
 			Bucket: "owner/scoop-bucket",
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Scoop Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Scoop Publish")
 		}
@@ -279,13 +268,11 @@ func TestScoop_ScoopPublisherDryRunPublishGood(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/scoop/path") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/scoop/path")
 		}
@@ -307,13 +294,11 @@ func TestScoop_ScoopPublisherDryRunPublishGood(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/scoop/path") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/scoop/path")
 		}
@@ -336,13 +321,11 @@ func TestScoop_ScoopPublisherDryRunPublishGood(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(io.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: dist/scoop") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/scoop")
 		}
@@ -362,12 +345,9 @@ func TestScoop_ScoopPublisherPublishBad(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "scoop"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "bucket is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "bucket is required")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "bucket is required") {
+			t.Fatalf("expected %v to contain %v", err, "bucket is required")
 		}
 
 	})
@@ -396,13 +376,8 @@ func TestScoop_ScoopPublisherPublishBad(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "myapp"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if _, err := ax.Stat(ax.Join(projectDir, "dist", "scoop-pr", "myapp.json")); err != nil {
-			t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "scoop-pr", "myapp.json"))
-		}
+		requirePublisherOK(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		requirePublisherOK(t, ax.Stat(ax.Join(projectDir, "dist", "scoop-pr", "myapp.json")))
 
 	})
 }

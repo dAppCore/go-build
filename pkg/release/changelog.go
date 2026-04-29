@@ -67,8 +67,8 @@ var changelogLiteralTypeRegex = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 // If fromRef is empty, it uses the previous tag or initial commit.
 // If toRef is empty, it uses HEAD.
 //
-// md, err := release.Generate(".", "v1.2.3", "HEAD")
-func Generate(dir, fromRef, toRef string) (string, error) {
+// result := release.Generate(".", "v1.2.3", "HEAD")
+func Generate(dir, fromRef, toRef string) core.Result {
 	return GenerateWithContext(context.Background(), dir, fromRef, toRef)
 }
 
@@ -76,31 +76,32 @@ func Generate(dir, fromRef, toRef string) (string, error) {
 // If fromRef is empty, it uses the previous tag or initial commit.
 // If toRef is empty, it uses HEAD.
 //
-// md, err := release.GenerateWithContext(ctx, ".", "v1.2.3", "HEAD")
-func GenerateWithContext(ctx context.Context, dir, fromRef, toRef string) (string, error) {
+// result := release.GenerateWithContext(ctx, ".", "v1.2.3", "HEAD")
+func GenerateWithContext(ctx context.Context, dir, fromRef, toRef string) core.Result {
 	if toRef == "" {
 		toRef = "HEAD"
 	}
 
 	// If fromRef is empty, try to find previous tag
 	if fromRef == "" {
-		prevTag, err := getPreviousTagWithContext(ctx, dir, toRef)
-		if err != nil {
+		prevTagResult := getPreviousTagWithContext(ctx, dir, toRef)
+		if !prevTagResult.OK {
 			if ctx.Err() != nil {
-				return "", coreerr.E("changelog.Generate", "generation cancelled", ctx.Err())
+				return core.Fail(coreerr.E("changelog.Generate", "generation cancelled", ctx.Err()))
 			}
 			// No previous tag, use initial commit
 			fromRef = ""
 		} else {
-			fromRef = prevTag
+			fromRef = prevTagResult.Value.(string)
 		}
 	}
 
 	// Get commits between refs
-	commits, err := getCommitsWithContext(ctx, dir, fromRef, toRef)
-	if err != nil {
-		return "", coreerr.E("changelog.Generate", "failed to get commits", err)
+	commitsResult := getCommitsWithContext(ctx, dir, fromRef, toRef)
+	if !commitsResult.OK {
+		return core.Fail(coreerr.E("changelog.Generate", "failed to get commits", core.NewError(commitsResult.Error())))
 	}
+	commits := commitsResult.Value.([]string)
 
 	// Parse conventional commits
 	var parsedCommits []ConventionalCommit
@@ -112,20 +113,20 @@ func GenerateWithContext(ctx context.Context, dir, fromRef, toRef string) (strin
 	}
 
 	// Generate markdown
-	return formatChangelog(parsedCommits, toRef), nil
+	return core.Ok(formatChangelog(parsedCommits, toRef))
 }
 
 // GenerateWithConfig generates a changelog with filtering based on config.
 //
-// md, err := release.GenerateWithConfig(".", "v1.2.3", "HEAD", &cfg.Changelog)
-func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
+// result := release.GenerateWithConfig(".", "v1.2.3", "HEAD", &cfg.Changelog)
+func GenerateWithConfig(dir, fromRef, toRef string, cfg *ChangelogConfig) core.Result {
 	return GenerateWithConfigWithContext(context.Background(), dir, fromRef, toRef, cfg)
 }
 
 // GenerateWithConfigWithContext generates a filtered changelog while honouring caller cancellation.
 //
-// md, err := release.GenerateWithConfigWithContext(ctx, ".", "v1.2.3", "HEAD", &cfg.Changelog)
-func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef string, cfg *ChangelogConfig) (string, error) {
+// result := release.GenerateWithConfigWithContext(ctx, ".", "v1.2.3", "HEAD", &cfg.Changelog)
+func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef string, cfg *ChangelogConfig) core.Result {
 	if cfg == nil {
 		return GenerateWithContext(ctx, dir, fromRef, toRef)
 	}
@@ -136,22 +137,23 @@ func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef stri
 
 	// If fromRef is empty, try to find previous tag
 	if fromRef == "" {
-		prevTag, err := getPreviousTagWithContext(ctx, dir, toRef)
-		if err != nil {
+		prevTagResult := getPreviousTagWithContext(ctx, dir, toRef)
+		if !prevTagResult.OK {
 			if ctx.Err() != nil {
-				return "", coreerr.E("changelog.GenerateWithConfig", "generation cancelled", ctx.Err())
+				return core.Fail(coreerr.E("changelog.GenerateWithConfig", "generation cancelled", ctx.Err()))
 			}
 			fromRef = ""
 		} else {
-			fromRef = prevTag
+			fromRef = prevTagResult.Value.(string)
 		}
 	}
 
 	// Get commits between refs
-	commits, err := getCommitsWithContext(ctx, dir, fromRef, toRef)
-	if err != nil {
-		return "", coreerr.E("changelog.GenerateWithConfig", "failed to get commits", err)
+	commitsResult := getCommitsWithContext(ctx, dir, fromRef, toRef)
+	if !commitsResult.OK {
+		return core.Fail(coreerr.E("changelog.GenerateWithConfig", "failed to get commits", core.NewError(commitsResult.Error())))
 	}
+	commits := commitsResult.Value.([]string)
 
 	includeSet, excludeSet, excludePatterns := compileChangelogFilters(cfg)
 
@@ -174,18 +176,18 @@ func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef stri
 		parsedCommits = append(parsedCommits, *parsed)
 	}
 
-	return formatChangelog(parsedCommits, toRef), nil
+	return core.Ok(formatChangelog(parsedCommits, toRef))
 }
 
-func getPreviousTagWithContext(ctx context.Context, dir, ref string) (string, error) {
-	output, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0", ref+"^")
-	if err != nil {
-		return "", err
+func getPreviousTagWithContext(ctx context.Context, dir, ref string) core.Result {
+	output := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0", ref+"^")
+	if !output.OK {
+		return output
 	}
-	return core.Trim(output), nil
+	return core.Ok(core.Trim(output.Value.(string)))
 }
 
-func getCommitsWithContext(ctx context.Context, dir, fromRef, toRef string) ([]string, error) {
+func getCommitsWithContext(ctx context.Context, dir, fromRef, toRef string) core.Result {
 	var args []string
 	if fromRef == "" {
 		// All commits up to toRef
@@ -195,10 +197,11 @@ func getCommitsWithContext(ctx context.Context, dir, fromRef, toRef string) ([]s
 		args = []string{gitLogCommand, "--oneline", "--no-merges", fromRef + ".." + toRef}
 	}
 
-	output, err := ax.RunDir(ctx, dir, "git", args...)
-	if err != nil {
-		return nil, err
+	outputResult := ax.RunDir(ctx, dir, "git", args...)
+	if !outputResult.OK {
+		return outputResult
 	}
+	output := outputResult.Value.(string)
 
 	var commits []string
 	scanner := bufio.NewScanner(core.NewReader(output))
@@ -209,7 +212,10 @@ func getCommitsWithContext(ctx context.Context, dir, fromRef, toRef string) ([]s
 		}
 	}
 
-	return commits, scanner.Err()
+	if scanFailure := scanner.Err(); scanFailure != nil {
+		return core.Fail(scanFailure)
+	}
+	return core.Ok(commits)
 }
 
 // parseConventionalCommit parses a git log --oneline output into a ConventionalCommit.
