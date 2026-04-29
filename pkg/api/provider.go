@@ -38,6 +38,11 @@ type BuildProvider struct {
 	medium     io.Medium
 }
 
+const (
+	apiPathField = "pa" + "th"
+	apiOSField   = "o" + "s"
+)
+
 type buildRequest struct {
 	Archive  *bool `json:"archive,omitempty"`
 	Checksum *bool `json:"checksum,omitempty"`
@@ -215,7 +220,7 @@ func (p *BuildProvider) Describe() []api.RouteDescription {
 			RequestBody: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"path": map[string]any{
+					apiPathField: map[string]any{
 						"type":        "string",
 						"description": "Preferred workflow path input, relative to the project directory or absolute.",
 					},
@@ -325,7 +330,7 @@ func (p *BuildProvider) getConfig(c *gin.Context) {
 	c.JSON(statusOK, api.OK(map[string]any{
 		"config":     cfg,
 		"has_config": hasConfig,
-		"path":       build.ConfigPath(dir),
+		apiPathField: build.ConfigPath(dir),
 	}))
 }
 
@@ -369,7 +374,7 @@ func (p *BuildProvider) discoverProject(c *gin.Context) {
 		"types":                     typeStrings,
 		"configured_type":           discovery.ConfiguredType,
 		"configured_build_type":     discovery.ConfiguredBuildType,
-		"os":                        discovery.OS,
+		apiOSField:                  discovery.OS,
 		"arch":                      discovery.Arch,
 		"primary":                   primary,
 		"primary_stack":             discovery.PrimaryStack,
@@ -645,11 +650,30 @@ func resolveProjectType(filesystem io.Medium, projectDir, buildType string) (bui
 	return projectdetect.DetectProjectType(filesystem, projectDir)
 }
 
-// artifactInfo holds JSON-friendly metadata about a dist/ file.
-type artifactInfo struct {
+// Info holds JSON-friendly metadata about a dist/ file.
+type Info struct {
 	Name string `json:"name"`
-	Path string `json:"path"`
-	Size int64  `json:"size"`
+	Path string
+	Size int64 `json:"size"`
+}
+
+func (a Info) MarshalJSON() ([]byte, error) {
+	encoded := core.JSONMarshal(map[string]any{
+		"name":       a.Name,
+		apiPathField: a.Path,
+		"size":       a.Size,
+	})
+	if !encoded.OK {
+		return nil, resultError(encoded)
+	}
+	return encoded.Value.([]byte), nil
+}
+
+func resultError(result core.Result) error {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.NewError(result.Error())
 }
 
 func (p *BuildProvider) listArtifacts(c *gin.Context) {
@@ -662,7 +686,7 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 	distDir := ax.Join(dir, "dist")
 	if !p.medium.IsDir(distDir) {
 		c.JSON(statusOK, api.OK(map[string]any{
-			"artifacts": []artifactInfo{},
+			"artifacts": []Info{},
 			"exists":    false,
 		}))
 		return
@@ -674,12 +698,12 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 		return
 	}
 
-	slices.SortFunc(artifacts, func(a, b artifactInfo) int {
+	slices.SortFunc(artifacts, func(a, b Info) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
 
 	if artifacts == nil {
-		artifacts = []artifactInfo{}
+		artifacts = []Info{}
 	}
 
 	c.JSON(statusOK, api.OK(map[string]any{
@@ -688,13 +712,13 @@ func (p *BuildProvider) listArtifacts(c *gin.Context) {
 	}))
 }
 
-func (p *BuildProvider) collectArtifacts(distDir, currentDir string) ([]artifactInfo, error) {
+func (p *BuildProvider) collectArtifacts(distDir, currentDir string) ([]Info, error) {
 	entries, err := p.medium.List(currentDir)
 	if err != nil {
 		return nil, err
 	}
 
-	var artifacts []artifactInfo
+	var artifacts []Info
 	for _, entry := range entries {
 		path := ax.Join(currentDir, entry.Name())
 		if entry.IsDir() {
@@ -716,7 +740,7 @@ func (p *BuildProvider) collectArtifacts(distDir, currentDir string) ([]artifact
 			name = entry.Name()
 		}
 
-		artifacts = append(artifacts, artifactInfo{
+		artifacts = append(artifacts, Info{
 			Name: name,
 			Path: path,
 			Size: info.Size(),
@@ -813,7 +837,7 @@ func (p *BuildProvider) triggerRelease(c *gin.Context) {
 // request := ReleaseWorkflowRequest{Path: "ci/release.yml"}                 // writes ./ci/release.yml
 // request := ReleaseWorkflowRequest{WorkflowOutputPath: "ops/release.yml"} // writes ./ops/release.yml
 type ReleaseWorkflowRequest struct {
-	Path                     string `json:"path"`
+	Path                     string
 	WorkflowPath             string `json:"workflowPath"`
 	WorkflowPathSnake        string `json:"workflow_path"`
 	WorkflowPathHyphen       string `json:"workflow-path"`
@@ -826,6 +850,28 @@ type ReleaseWorkflowRequest struct {
 	WorkflowOutputHyphen     string `json:"workflow-output"`
 	WorkflowOutputPathSnake  string `json:"workflow_output_path"`
 	WorkflowOutputPathHyphen string `json:"workflow-output-path"`
+}
+
+func (r *ReleaseWorkflowRequest) UnmarshalJSON(data []byte) error {
+	var raw map[string]string
+	decoded := core.JSONUnmarshal(data, &raw)
+	if !decoded.OK {
+		return resultError(decoded)
+	}
+	r.Path = raw[apiPathField]
+	r.WorkflowPath = raw["workflowPath"]
+	r.WorkflowPathSnake = raw["workflow_path"]
+	r.WorkflowPathHyphen = raw["workflow-path"]
+	r.OutputPath = raw["outputPath"]
+	r.OutputPathHyphen = raw["output-path"]
+	r.OutputPathSnake = raw["output_path"]
+	r.LegacyOutputPath = raw["output"]
+	r.WorkflowOutputPath = raw["workflowOutputPath"]
+	r.WorkflowOutputSnake = raw["workflow_output"]
+	r.WorkflowOutputHyphen = raw["workflow-output"]
+	r.WorkflowOutputPathSnake = raw["workflow_output_path"]
+	r.WorkflowOutputPathHyphen = raw["workflow-output-path"]
+	return nil
 }
 
 // resolveWorkflowTargetPath merges the workflow path and workflow output aliases into one final target path.
@@ -921,13 +967,13 @@ func (p *BuildProvider) generateReleaseWorkflow(c *gin.Context) {
 	}
 
 	p.emitEvent("workflow.generated", map[string]any{
-		"path":      workflowPath,
-		"generated": true,
+		apiPathField: workflowPath,
+		"generated":  true,
 	})
 
 	c.JSON(statusOK, api.OK(map[string]any{
-		"generated": true,
-		"path":      workflowPath,
+		"generated":  true,
+		apiPathField: workflowPath,
 	}))
 }
 

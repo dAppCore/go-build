@@ -9,7 +9,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 )
 
-func TestPwa_FindManifestURL_Good(t *testing.T) {
+func TestPwa_FindManifestURLGood(t *testing.T) {
 	t.Run("accepts a standard manifest link", func(t *testing.T) {
 		htmlContent := `<html><head><link rel="manifest" href="/manifest.json"></head></html>`
 
@@ -37,7 +37,7 @@ func TestPwa_FindManifestURL_Good(t *testing.T) {
 	})
 }
 
-func TestPwa_FindManifestURL_Bad(t *testing.T) {
+func TestPwa_FindManifestURLBad(t *testing.T) {
 	t.Run("returns an error when no manifest link exists", func(t *testing.T) {
 		htmlContent := `<html><head><link rel="icon" href="/icon.png"></head></html>`
 
@@ -55,7 +55,7 @@ func TestPwa_FindManifestURL_Bad(t *testing.T) {
 	})
 }
 
-func TestPwa_ExtractHTMLMetadataAndAssets_Good(t *testing.T) {
+func TestPwa_ExtractHTMLMetadataAndAssetsGood(t *testing.T) {
 	htmlContent := `
 <!doctype html>
 <html>
@@ -94,7 +94,7 @@ func TestPwa_ExtractHTMLMetadataAndAssets_Good(t *testing.T) {
 
 }
 
-func TestPwa_DownloadPWA_DownloadsHTMLAndManifestAssets_Good(t *testing.T) {
+func TestPwa_DownloadPWA_DownloadsHTMLAndManifestAssetsGood(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/app":
@@ -172,7 +172,7 @@ func TestPwa_DownloadPWA_DownloadsHTMLAndManifestAssets_Good(t *testing.T) {
 	}
 }
 
-func TestPwa_ResolvePWAAppConfig_UsesLocalMetadata_Good(t *testing.T) {
+func TestPwa_ResolvePWAAppConfig_UsesLocalMetadataGood(t *testing.T) {
 	projectDir := t.TempDir()
 	if err := ax.WriteString(ax.Join(projectDir, "index.html"), `<!doctype html>
 <html>

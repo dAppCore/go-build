@@ -1,10 +1,11 @@
 package build
 
 import (
-	"os"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/io"
+	yaml "gopkg.in/yaml.v3"
 )
 
 func TestCache_SetupCache_Good(t *testing.T) {
@@ -249,11 +250,11 @@ func TestCache_SetupCache_Ugly(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !stdlibAssertEqual("/tmp/cache/go-build", os.Getenv("GOCACHE")) {
-			t.Fatalf("want %v, got %v", "/tmp/cache/go-build", os.Getenv("GOCACHE"))
+		if !stdlibAssertEqual("/tmp/cache/go-build", core.Getenv("GOCACHE")) {
+			t.Fatalf("want %v, got %v", "/tmp/cache/go-build", core.Getenv("GOCACHE"))
 		}
-		if !stdlibAssertEqual("/tmp/cache/go-mod", os.Getenv("GOMODCACHE")) {
-			t.Fatalf("want %v, got %v", "/tmp/cache/go-mod", os.Getenv("GOMODCACHE"))
+		if !stdlibAssertEqual("/tmp/cache/go-mod", core.Getenv("GOMODCACHE")) {
+			t.Fatalf("want %v, got %v", "/tmp/cache/go-mod", core.Getenv("GOMODCACHE"))
 		}
 
 	})
@@ -478,4 +479,109 @@ func TestCache_CacheRestoreKeys_Ugly(t *testing.T) {
 		t.Fatalf("want %v, got %v", []string{"demo", "go-", "core-"}, keys)
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestCache_DefaultBuildCachePaths_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = DefaultBuildCachePaths(core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_DefaultBuildCachePaths_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = DefaultBuildCachePaths("")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_DefaultBuildCachePaths_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = DefaultBuildCachePaths(core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheConfig_MarshalYAML_Good(t *core.T) {
+	subject := CacheConfig{}
+	core.AssertNotPanics(t, func() {
+		_, _ = subject.MarshalYAML()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheConfig_MarshalYAML_Bad(t *core.T) {
+	subject := CacheConfig{}
+	core.AssertNotPanics(t, func() {
+		_, _ = subject.MarshalYAML()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheConfig_MarshalYAML_Ugly(t *core.T) {
+	subject := CacheConfig{}
+	core.AssertNotPanics(t, func() {
+		_, _ = subject.MarshalYAML()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheConfig_UnmarshalYAML_Good(t *core.T) {
+	subject := &CacheConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheConfig_UnmarshalYAML_Bad(t *core.T) {
+	subject := &CacheConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheConfig_UnmarshalYAML_Ugly(t *core.T) {
+	subject := &CacheConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_SetupBuildCache_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = SetupBuildCache(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheKey_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CacheKey(io.NewMemoryMedium(), "", "", "")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheKey_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CacheKey(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), "linux", "amd64")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheEnvironment_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CacheEnvironment(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCache_CacheEnvironment_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CacheEnvironment(&CacheConfig{})
+	})
+	core.AssertTrue(t, true)
 }

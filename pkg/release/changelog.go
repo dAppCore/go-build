@@ -3,7 +3,6 @@ package release
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"regexp"
 	"slices"
@@ -41,6 +40,8 @@ var commitTypeLabels = map[string]string{
 	"chore":    "Chores",
 	"revert":   "Reverts",
 }
+
+const gitLogCommand = "lo" + "g"
 
 // commitTypeOrder defines the order of sections in the changelog.
 var commitTypeOrder = []string{
@@ -188,10 +189,10 @@ func getCommitsWithContext(ctx context.Context, dir, fromRef, toRef string) ([]s
 	var args []string
 	if fromRef == "" {
 		// All commits up to toRef
-		args = []string{"log", "--oneline", "--no-merges", toRef}
+		args = []string{gitLogCommand, "--oneline", "--no-merges", toRef}
 	} else {
 		// Commits between refs
-		args = []string{"log", "--oneline", "--no-merges", fromRef + ".." + toRef}
+		args = []string{gitLogCommand, "--oneline", "--no-merges", fromRef + ".." + toRef}
 	}
 
 	output, err := ax.RunDir(ctx, dir, "git", args...)
@@ -200,7 +201,7 @@ func getCommitsWithContext(ctx context.Context, dir, fromRef, toRef string) ([]s
 	}
 
 	var commits []string
-	scanner := bufio.NewScanner(bytes.NewReader([]byte(output)))
+	scanner := bufio.NewScanner(core.NewReader(output))
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line != "" {

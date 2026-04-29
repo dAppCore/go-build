@@ -70,7 +70,7 @@ func (o *stubAgenticOrchestrator) Notify(channel string, payload any) {
 	o.notifications = append(o.notifications, channel)
 }
 
-func TestRun_WiresMCPAndAgentic_Good(t *testing.T) {
+func TestRun_WiresMCPAndAgenticGood(t *testing.T) {
 	originalHub := newHub
 	originalBuildProvider := newBuildProvider
 	originalRegistry := newProviderRegistry

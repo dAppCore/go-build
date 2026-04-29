@@ -3,7 +3,8 @@ package testassert
 
 import (
 	"reflect"
-	"strings"
+
+	core "dappco.re/go"
 )
 
 // Equal reports whether want and got are deeply equal.
@@ -65,7 +66,7 @@ func Zero(value any) bool {
 func Contains(container, elem any) bool {
 	if s, ok := container.(string); ok {
 		sub, ok := elem.(string)
-		return ok && strings.Contains(s, sub)
+		return ok && core.Contains(s, sub)
 	}
 
 	v := reflect.ValueOf(container)

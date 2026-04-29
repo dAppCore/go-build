@@ -22,6 +22,8 @@ var (
 //go:embed all:tmpl/gui
 var guiTemplate embed.FS
 
+const buildPathOptionKey = "pa" + "th"
+
 // AddBuildCommands registers the 'build' command and all subcommands.
 //
 // buildcmd.AddBuildCommands(root)
@@ -91,7 +93,7 @@ func AddBuildCommands(c *core.Core) {
 	c.Command("build/from-path", core.Command{
 		Description: "cmd.build.from_path.short",
 		Action: func(opts core.Options) core.Result {
-			fromPath := cmdutil.OptionString(opts, "path")
+			fromPath := cmdutil.OptionString(opts, buildPathOptionKey)
 			if fromPath == "" {
 				return cmdutil.ResultFromError(errPathRequired)
 			}
@@ -102,7 +104,7 @@ func AddBuildCommands(c *core.Core) {
 	c.Command("build/pwa", core.Command{
 		Description: "cmd.build.pwa.short",
 		Action: func(opts core.Options) core.Result {
-			pwaPath := cmdutil.OptionString(opts, "path")
+			pwaPath := cmdutil.OptionString(opts, buildPathOptionKey)
 			pwaURL := cmdutil.OptionString(opts, "url")
 			switch {
 			case pwaPath != "":

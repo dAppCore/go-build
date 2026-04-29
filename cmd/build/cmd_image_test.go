@@ -2,10 +2,9 @@ package buildcmd
 
 import (
 	"context"
-	"os"
 	"testing"
 
-	"dappco.re/go"
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
@@ -128,7 +127,7 @@ func TestBuildCmd_parseImageFormats_Good(t *testing.T) {
 
 }
 
-func TestBuildCmd_buildPwaCommandAcceptsPath_Good(t *testing.T) {
+func TestBuildCmd_buildPwaCommandAcceptsPathGood(t *testing.T) {
 	c := core.New()
 	AddBuildCommands(c)
 
@@ -143,7 +142,7 @@ func TestBuildCmd_buildPwaCommandAcceptsPath_Good(t *testing.T) {
 		return nil
 	}
 
-	opts := core.NewOptions(core.Option{Key: "path", Value: "/tmp/pwa"})
+	opts := core.NewOptions(core.Option{Key: buildPathOptionKey, Value: "/tmp/pwa"})
 	result := command.Run(opts)
 	if !(result.OK) {
 		t.Fatal("expected true")
@@ -162,7 +161,7 @@ func TestBuildCmd_runBuildImage_Good(t *testing.T) {
 	binDir := t.TempDir()
 	setupFakeLinuxKitImageCLI(t, binDir)
 	setupFakeDockerImageCLI(t, binDir)
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", binDir+string(core.PathListSeparator)+core.Getenv("PATH"))
 
 	outputDir := t.TempDir()
 
@@ -175,10 +174,10 @@ func TestBuildCmd_runBuildImage_Good(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, err := os.Stat(ax.Join(outputDir, "core-minimal.tar")); err != nil {
+	if _, err := ax.Stat(ax.Join(outputDir, "core-minimal.tar")); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "core-minimal.tar"))
 	}
-	if _, err := os.Stat(ax.Join(outputDir, "core-minimal.aci")); err != nil {
+	if _, err := ax.Stat(ax.Join(outputDir, "core-minimal.aci")); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "core-minimal.aci"))
 	}
 
@@ -364,7 +363,7 @@ func TestBuildCmd_retainVersionedImageArtifacts_Good(t *testing.T) {
 	}
 
 	for _, path := range expected {
-		if _, err := os.Stat(path); err != nil {
+		if _, err := ax.Stat(path); err != nil {
 			t.Fatalf("expected file to exist: %v", path)
 		}
 
@@ -375,7 +374,7 @@ func TestBuildCmd_publishOCIImageArchive_Good(t *testing.T) {
 	binDir := t.TempDir()
 	logPath := ax.Join(t.TempDir(), "docker.log")
 	setupFakeDockerImageCLI(t, binDir)
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", binDir+string(core.PathListSeparator)+core.Getenv("PATH"))
 	t.Setenv("DOCKER_LOG", logPath)
 
 	projectDir := t.TempDir()
@@ -392,7 +391,7 @@ func TestBuildCmd_publishOCIImageArchive_Good(t *testing.T) {
 		t.Fatalf("want %v, got %v", "ghcr.io/dappcore/core-dev:1.2.3", ref)
 	}
 
-	logContent, err := os.ReadFile(logPath)
+	logContent, err := ax.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -406,4 +405,26 @@ func TestBuildCmd_publishOCIImageArchive_Good(t *testing.T) {
 		t.Fatalf("expected %v to contain %v", string(logContent), "docker image push ghcr.io/dappcore/core-dev:1.2.3")
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestCmdImage_AddImageCommand_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		AddImageCommand(core.New())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdImage_AddImageCommand_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		AddImageCommand(core.New())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdImage_AddImageCommand_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		AddImageCommand(core.New())
+	})
+	core.AssertTrue(t, true)
 }

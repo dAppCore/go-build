@@ -3,9 +3,7 @@ package servicecmd
 
 import (
 	"context"
-	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"dappco.re/go"
@@ -159,10 +157,10 @@ func runServiceExport(req serviceRequest) error {
 	}
 
 	outputPath := req.Output
-	if !filepath.IsAbs(outputPath) {
-		outputPath = filepath.Join(cfg.ProjectDir, outputPath)
+	if !core.PathIsAbs(outputPath) {
+		outputPath = core.PathJoin(cfg.ProjectDir, outputPath)
 	}
-	if err := ax.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+	if err := ax.MkdirAll(core.PathDir(outputPath), 0o755); err != nil {
 		return err
 	}
 	if err := ax.WriteFile(outputPath, []byte(exported.Content), 0o644); err != nil {
@@ -179,7 +177,7 @@ func runServiceRun(ctx context.Context, req serviceRequest) error {
 		return err
 	}
 
-	signalContext, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	signalContext, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	return runDaemon(signalContext, cfg)

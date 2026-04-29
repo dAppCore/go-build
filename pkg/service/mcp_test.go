@@ -1,8 +1,8 @@
 package service
 
 import (
-	"bytes"
 	"context"
+	core "dappco.re/go"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +13,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 )
 
-func TestMCP_DefaultNewMCPServer_ExposesDaemonTools_Good(t *testing.T) {
+func TestMCP_DefaultNewMCPServer_ExposesDaemonToolsGood(t *testing.T) {
 	projectDir := t.TempDir()
 	registry := providerpkg.NewRegistry()
 	registry.Add(stubDaemonProvider{
@@ -32,7 +32,7 @@ func TestMCP_DefaultNewMCPServer_ExposesDaemonTools_Good(t *testing.T) {
 
 }
 
-func TestMCP_BuildRunAndDiscover_Good(t *testing.T) {
+func TestMCP_BuildRunAndDiscoverGood(t *testing.T) {
 	projectDir := t.TempDir()
 	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -93,7 +93,7 @@ func TestMCP_BuildRunAndDiscover_Good(t *testing.T) {
 func postTool(t *testing.T, url string) string {
 	t.Helper()
 
-	response, err := http.Post(url, "application/json", bytes.NewBufferString(`{}`))
+	response, err := http.Post(url, "application/json", core.NewBufferString(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

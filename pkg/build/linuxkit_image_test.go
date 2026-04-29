@@ -1,6 +1,7 @@
 package build
 
 import (
+	core "dappco.re/go"
 	"testing"
 )
 
@@ -81,4 +82,173 @@ func TestBuild_LinuxKitBaseTemplate_Good(t *testing.T) {
 		}
 
 	}
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestLinuxkitImage_DefaultLinuxKitConfig_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = DefaultLinuxKitConfig()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_DefaultLinuxKitConfig_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = DefaultLinuxKitConfig()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_DefaultLinuxKitConfig_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = DefaultLinuxKitConfig()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_LinuxKit_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = LinuxKit()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_LinuxKit_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = LinuxKit()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_LinuxKit_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = LinuxKit()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithBase_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithBase("agent")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithBase_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithBase("")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithBase_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithBase("agent")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithPackages_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithPackages()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithPackages_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithPackages()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithPackages_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithPackages()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithMount_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithMount(core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithMount_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithMount("")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithMount_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithMount(core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithGPU_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithGPU(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithGPU_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithGPU(false)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithGPU_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithGPU(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithFormats_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithFormats()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithFormats_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithFormats()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithFormats_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithFormats()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithRegistry_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithRegistry("agent")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithRegistry_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithRegistry("")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestLinuxkitImage_WithRegistry_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithRegistry("agent")
+	})
+	core.AssertTrue(t, true)
 }

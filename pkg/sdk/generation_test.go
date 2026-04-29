@@ -11,7 +11,7 @@ import (
 
 // --- SDK Generation Orchestration Tests ---
 
-func TestGeneration_SDKGenerateAllLanguages_Good(t *testing.T) {
+func TestGeneration_SDKGenerateAllLanguagesGood(t *testing.T) {
 	t.Run("Generate iterates all configured languages", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
@@ -46,7 +46,7 @@ func TestGeneration_SDKGenerateAllLanguages_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_SDKGenerateLanguageOutputDir_Good(t *testing.T) {
+func TestGeneration_SDKGenerateLanguageOutputDirGood(t *testing.T) {
 	t.Run("output directory uses language subdirectory", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
@@ -81,7 +81,7 @@ func TestGeneration_SDKGenerateLanguageOutputDir_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_SDKGenerateLanguageNoSpec_Bad(t *testing.T) {
+func TestGeneration_SDKGenerateLanguageNoSpecBad(t *testing.T) {
 	t.Run("fails when no OpenAPI spec exists", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
@@ -101,7 +101,7 @@ func TestGeneration_SDKGenerateLanguageNoSpec_Bad(t *testing.T) {
 	})
 }
 
-func TestGeneration_SDKGenerateLanguageUnknownLanguage_Bad(t *testing.T) {
+func TestGeneration_SDKGenerateLanguageUnknownLanguageBad(t *testing.T) {
 	t.Run("fails for unregistered language", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		specPath := ax.Join(tmpDir, "openapi.yaml")
@@ -124,7 +124,7 @@ func TestGeneration_SDKGenerateLanguageUnknownLanguage_Bad(t *testing.T) {
 	})
 }
 
-func TestGeneration_RegistryRegisterAndGet_Good(t *testing.T) {
+func TestGeneration_RegistryRegisterAndGetGood(t *testing.T) {
 	t.Run("register and retrieve all generators", func(t *testing.T) {
 		registry := generators.NewRegistry()
 
@@ -174,7 +174,7 @@ func TestGeneration_RegistryRegisterAndGet_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_RegistryDefaults_Good(t *testing.T) {
+func TestGeneration_RegistryDefaultsGood(t *testing.T) {
 	registry := generators.NewRegistry()
 
 	languages := registry.Languages()
@@ -199,7 +199,7 @@ func TestGeneration_RegistryDefaults_Good(t *testing.T) {
 
 }
 
-func TestGeneration_RegistryOverwritesDuplicateLanguage_Good(t *testing.T) {
+func TestGeneration_RegistryOverwritesDuplicateLanguageGood(t *testing.T) {
 	registry := generators.NewRegistry()
 	registry.Register(generators.NewTypeScriptGenerator())
 	registry.Register(generators.NewTypeScriptGenerator())
@@ -219,7 +219,7 @@ func TestGeneration_RegistryOverwritesDuplicateLanguage_Good(t *testing.T) {
 
 }
 
-func TestGeneration_GeneratorsLanguageIdentifiers_Good(t *testing.T) {
+func TestGeneration_GeneratorsLanguageIdentifiersGood(t *testing.T) {
 	tests := []struct {
 		generator generators.Generator
 		expected  string
@@ -240,7 +240,7 @@ func TestGeneration_GeneratorsLanguageIdentifiers_Good(t *testing.T) {
 	}
 }
 
-func TestGeneration_GeneratorsInstallInstructions_Good(t *testing.T) {
+func TestGeneration_GeneratorsInstallInstructionsGood(t *testing.T) {
 	tests := []struct {
 		language string
 		gen      generators.Generator
@@ -268,7 +268,7 @@ func TestGeneration_GeneratorsInstallInstructions_Good(t *testing.T) {
 	}
 }
 
-func TestGeneration_GeneratorsAvailableDoesNotPanic_Good(t *testing.T) {
+func TestGeneration_GeneratorsAvailableDoesNotPanicGood(t *testing.T) {
 
 	gens := []generators.Generator{
 		generators.NewTypeScriptGenerator(),
@@ -287,7 +287,7 @@ func TestGeneration_GeneratorsAvailableDoesNotPanic_Good(t *testing.T) {
 
 // --- SDK Config Tests ---
 
-func TestGeneration_SDKConfigDefaultConfig_Good(t *testing.T) {
+func TestGeneration_SDKConfigDefaultConfigGood(t *testing.T) {
 	t.Run("default config has all four languages", func(t *testing.T) {
 		cfg := DefaultConfig()
 		if !stdlibAssertContains(cfg.Languages, "typescript") {
@@ -328,7 +328,7 @@ func TestGeneration_SDKConfigDefaultConfig_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_SDKConfigSetVersion_Good(t *testing.T) {
+func TestGeneration_SDKConfigSetVersionGood(t *testing.T) {
 	t.Run("SetVersion updates both fields", func(t *testing.T) {
 		s := New("/tmp", &Config{
 			Package: PackageConfig{
@@ -360,7 +360,7 @@ func TestGeneration_SDKConfigSetVersion_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_SDKConfigNewWithNilConfig_Good(t *testing.T) {
+func TestGeneration_SDKConfigNewWithNilConfigGood(t *testing.T) {
 	s := New("/project", nil)
 	if stdlibAssertNil(s.config) {
 		t.Fatal("expected non-nil")
@@ -374,7 +374,7 @@ func TestGeneration_SDKConfigNewWithNilConfig_Good(t *testing.T) {
 
 }
 
-func TestGeneration_SDKOutputDirWithPublishPath_Good(t *testing.T) {
+func TestGeneration_SDKOutputDirWithPublishPathGood(t *testing.T) {
 	s := New("/project", &Config{
 		Output: "generated",
 		Publish: PublishConfig{
@@ -390,7 +390,7 @@ func TestGeneration_SDKOutputDirWithPublishPath_Good(t *testing.T) {
 
 }
 
-func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {
+func TestGeneration_SpecDetectionPriorityGood(t *testing.T) {
 	t.Run("configured spec takes priority over common paths", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
@@ -449,7 +449,7 @@ func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_SpecDetectionAllCommonPaths_Good(t *testing.T) {
+func TestGeneration_SpecDetectionAllCommonPathsGood(t *testing.T) {
 	for _, commonPath := range commonSpecPaths {
 		t.Run(commonPath, func(t *testing.T) {
 			tmpDir := t.TempDir()

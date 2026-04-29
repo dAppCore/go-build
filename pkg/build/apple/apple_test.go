@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go"
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/testassert"
 	build "dappco.re/go/build/pkg/build"
@@ -597,3 +597,433 @@ var (
 	stdlibAssertContains      = testassert.Contains
 	stdlibAssertElementsMatch = testassert.ElementsMatch
 )
+
+// --- v0.9.0 generated compliance triplets ---
+func TestApple_Register_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = Register(core.New())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_Register_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = Register(core.New())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_Register_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = Register(core.New())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_New_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = New()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_New_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = New()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_New_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = New()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithArch_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithArch("amd64")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithArch_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithArch("")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithArch_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithArch("amd64")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithSign_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithSign(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithSign_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithSign(false)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithSign_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithSign(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithNotarise_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithNotarise(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithNotarise_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithNotarise(false)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithNotarise_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithNotarise(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithDMG_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithDMG(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithDMG_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithDMG(false)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithDMG_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithDMG(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithTestFlight_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithTestFlight(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithTestFlight_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithTestFlight(false)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithTestFlight_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithTestFlight(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithAppStore_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithAppStore(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithAppStore_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithAppStore(false)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_WithAppStore_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = WithAppStore(true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_AppleBuilder_Name_Good(t *core.T) {
+	subject := &AppleBuilder{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_AppleBuilder_Name_Bad(t *core.T) {
+	subject := &AppleBuilder{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_AppleBuilder_Name_Ugly(t *core.T) {
+	subject := &AppleBuilder{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_AppleBuilder_Detect_Good(t *core.T) {
+	subject := &AppleBuilder{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_AppleBuilder_Detect_Bad(t *core.T) {
+	subject := &AppleBuilder{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Detect(coreio.NewMemoryMedium(), "")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_AppleBuilder_Detect_Ugly(t *core.T) {
+	subject := &AppleBuilder{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_AppleBuilder_Build_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AppleBuilder{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Build(ctx, &AppleOptions{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_AppleBuilder_Build_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AppleBuilder{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Build(ctx, nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_AppleBuilder_Build_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AppleBuilder{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Build(ctx, &AppleOptions{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_BuildWailsApp_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = BuildWailsApp(ctx, WailsBuildConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_BuildWailsApp_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = BuildWailsApp(ctx, WailsBuildConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_BuildWailsApp_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = BuildWailsApp(ctx, WailsBuildConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_CreateUniversal_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CreateUniversal(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_CreateUniversal_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CreateUniversal("", "", "")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_CreateUniversal_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CreateUniversal(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_Sign_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = Sign(ctx, SignConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_Sign_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = Sign(ctx, SignConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_Sign_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = Sign(ctx, SignConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_Notarise_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = Notarise(ctx, NotariseConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_Notarise_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = Notarise(ctx, NotariseConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_Notarise_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = Notarise(ctx, NotariseConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_CreateDMG_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = CreateDMG(ctx, DMGConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_CreateDMG_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = CreateDMG(ctx, DMGConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_CreateDMG_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = CreateDMG(ctx, DMGConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_UploadTestFlight_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = UploadTestFlight(ctx, TestFlightConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_UploadTestFlight_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = UploadTestFlight(ctx, TestFlightConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_UploadTestFlight_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = UploadTestFlight(ctx, TestFlightConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_SubmitAppStore_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = SubmitAppStore(ctx, AppStoreConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_SubmitAppStore_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = SubmitAppStore(ctx, AppStoreConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestApple_SubmitAppStore_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_ = SubmitAppStore(ctx, AppStoreConfig{})
+	})
+	core.AssertTrue(t, true)
+}

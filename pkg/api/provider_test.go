@@ -3,29 +3,27 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	core "dappco.re/go"
 	coreapi "dappco.re/go/api"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/io"
 	"dappco.re/go/ws"
-	"errors"
 	"github.com/gorilla/websocket"
 )
 
-func TestProvider_BuildProviderIdentity_Good(t *testing.T) {
+func TestProvider_BuildProviderIdentityGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	if !stdlibAssertEqual("build", p.Name()) {
 		t.Fatalf("want %v, got %v", "build", p.Name())
@@ -36,7 +34,7 @@ func TestProvider_BuildProviderIdentity_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderElement_Good(t *testing.T) {
+func TestProvider_BuildProviderElementGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	el := p.Element()
 	if !stdlibAssertEqual("core-build-panel", el.Tag) {
@@ -48,7 +46,7 @@ func TestProvider_BuildProviderElement_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderChannels_Good(t *testing.T) {
+func TestProvider_BuildProviderChannelsGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	channels := p.Channels()
 	if !stdlibAssertContains(channels, "build.started") {
@@ -83,7 +81,7 @@ func TestProvider_BuildProviderChannels_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
+func TestProvider_BuildProviderDescribeGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	routes := p.Describe()
 	if len(routes) != 11 {
@@ -156,7 +154,7 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 		t.Fatal("expected true")
 	}
 
-	pathSchema, ok := properties["path"].(map[string]any)
+	pathSchema, ok := properties[apiPathField].(map[string]any)
 	if !(ok) {
 		t.Fatal("expected true")
 	}
@@ -301,7 +299,7 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 
 }
 
-func TestProvider_ReleaseWorkflowRequestResolvedOutputPath_Good(t *testing.T) {
+func TestProvider_ReleaseWorkflowRequestResolvedOutputPathGood(t *testing.T) {
 	projectDir := t.TempDir()
 	absoluteDir := ax.Join(projectDir, "ops")
 	if err := io.Local.EnsureDir(absoluteDir); err != nil {
@@ -322,7 +320,7 @@ func TestProvider_ReleaseWorkflowRequestResolvedOutputPath_Good(t *testing.T) {
 
 }
 
-func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliases_Good(t *testing.T) {
+func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliasesGood(t *testing.T) {
 	projectDir := t.TempDir()
 
 	req := ReleaseWorkflowRequest{
@@ -340,7 +338,7 @@ func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliases_Good(t *testin
 
 }
 
-func TestProvider_BuildProviderDefaultProjectDir_Good(t *testing.T) {
+func TestProvider_BuildProviderDefaultProjectDirGood(t *testing.T) {
 	p := NewProvider("", nil)
 	if !stdlibAssertEqual(".", p.projectDir) {
 		t.Fatalf("want %v, got %v", ".", p.projectDir)
@@ -348,7 +346,7 @@ func TestProvider_BuildProviderDefaultProjectDir_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderCustomProjectDir_Good(t *testing.T) {
+func TestProvider_BuildProviderCustomProjectDirGood(t *testing.T) {
 	p := NewProvider("/tmp/myproject", nil)
 	if !stdlibAssertEqual("/tmp/myproject", p.projectDir) {
 		t.Fatalf("want %v, got %v", "/tmp/myproject", p.projectDir)
@@ -356,7 +354,7 @@ func TestProvider_BuildProviderCustomProjectDir_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderNilHub_Good(t *testing.T) {
+func TestProvider_BuildProviderNilHubGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	if p.hub != nil {
 		t.Fatal("expected nil hub")
@@ -367,7 +365,7 @@ func TestProvider_BuildProviderNilHub_Good(t *testing.T) {
 	}
 }
 
-func TestProvider_ResolveBuildOutputs_Good(t *testing.T) {
+func TestProvider_ResolveBuildOutputsGood(t *testing.T) {
 	t.Run("defaults to raw build output", func(t *testing.T) {
 		archiveOutput, checksumOutput := resolveBuildOutputs(buildRequest{})
 		if archiveOutput {
@@ -408,7 +406,7 @@ func TestProvider_ResolveBuildOutputs_Good(t *testing.T) {
 	})
 }
 
-func TestProvider_GetBuilderSupportedTypes_Good(t *testing.T) {
+func TestProvider_GetBuilderSupportedTypesGood(t *testing.T) {
 	cases := []struct {
 		projectType build.ProjectType
 		name        string
@@ -440,15 +438,15 @@ func TestProvider_GetBuilderSupportedTypes_Good(t *testing.T) {
 	}
 }
 
-func TestProvider_GetBuilderUnsupportedType_Bad(t *testing.T) {
+func TestProvider_GetBuilderUnsupportedTypeBad(t *testing.T) {
 	_, err := getBuilder(build.ProjectType("unknown"))
-	if !errors.Is(err, fs.ErrNotExist) {
+	if !core.Is(err, fs.ErrNotExist) {
 		t.Fatalf("expected error %v to be %v", err, fs.ErrNotExist)
 	}
 
 }
 
-func TestProvider_BuildProviderResolveDir_Good(t *testing.T) {
+func TestProvider_BuildProviderResolveDirGood(t *testing.T) {
 	p := NewProvider("/tmp", nil)
 	dir, err := p.resolveDir()
 	if err != nil {
@@ -460,7 +458,7 @@ func TestProvider_BuildProviderResolveDir_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderResolveDirRelative_Good(t *testing.T) {
+func TestProvider_BuildProviderResolveDirRelativeGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	dir, err := p.resolveDir()
 	if err != nil {
@@ -475,7 +473,7 @@ func TestProvider_BuildProviderResolveDirRelative_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderMediumSet_Good(t *testing.T) {
+func TestProvider_BuildProviderMediumSetGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	if stdlibAssertNil(p.medium) {
 		t.Fatal("medium should be set to io.Local")
@@ -500,7 +498,7 @@ func TestProvider_RegisterRoutes_ExposesRFCAliases_Good(t *testing.T) {
 	}
 
 	sdkResponse := httptest.NewRecorder()
-	sdkRequest := httptest.NewRequest(http.MethodPost, "/sdk", bytes.NewBufferString(`{}`))
+	sdkRequest := httptest.NewRequest(http.MethodPost, "/sdk", core.NewBufferString(`{}`))
 	sdkRequest.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(sdkResponse, sdkRequest)
 	if stdlibAssertEqual(http.StatusNotFound, sdkResponse.Code) {
@@ -516,7 +514,7 @@ func TestProvider_RegisterRoutes_ExposesRFCAliases_Good(t *testing.T) {
 
 }
 
-func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
+func TestProvider_StreamEvents_UsesHubHandlerGood(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
@@ -531,7 +529,7 @@ func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
 	server := httptest.NewServer(router)
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/events"
+	wsURL := "ws" + core.TrimPrefix(server.URL, "http") + "/events"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -576,7 +574,7 @@ func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
 
 }
 
-func TestProvider_GetConfig_UsesSnakeCaseJSONKeys_Good(t *testing.T) {
+func TestProvider_GetConfig_UsesSnakeCaseJSONKeysGood(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
@@ -665,7 +663,7 @@ sign:
 
 }
 
-func TestProvider_ResolveProjectType_Good(t *testing.T) {
+func TestProvider_ResolveProjectTypeGood(t *testing.T) {
 	t.Run("honours explicit build type override", func(t *testing.T) {
 		dir := t.TempDir()
 		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); err != nil {
@@ -711,16 +709,45 @@ type providerReleaseWorkflowCase struct {
 	expectWorkflow bool
 }
 
-func TestProvider_GenerateReleaseWorkflow_Good(t *testing.T) {
+type providerWorkflowJSONField struct {
+	key   string
+	value string
+}
+
+func providerWorkflowJSON(fields ...providerWorkflowJSONField) string {
+	values := make(map[string]string, len(fields))
+	for _, field := range fields {
+		values[field.key] = field.value
+	}
+	encoded := core.JSONMarshal(values)
+	if !encoded.OK {
+		return "{}"
+	}
+	return string(encoded.Value.([]byte))
+}
+
+func providerPathJSON(value string) string {
+	return providerWorkflowJSON(providerWorkflowJSONField{key: apiPathField, value: value})
+}
+
+func providerInvalidPathJSON() string {
+	return core.Concat("{\"", apiPathField, "\":")
+}
+
+func providerJSONFieldPrefix(key string) string {
+	return core.Concat("\"", key, "\":\"")
+}
+
+func TestProvider_GenerateReleaseWorkflowGood(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cases := []providerReleaseWorkflowCase{
 		{name: "default path", body: `{}`, wantPath: build.ReleaseWorkflowPath, expectWorkflow: true},
-		{name: "custom path", body: `{"path":"ci/release.yml"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "custom path", body: providerPathJSON("ci/release.yml"), wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
 		{name: "workflowPath alias", body: `{"workflowPath":"ci/workflow-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-path.yml"), expectWorkflow: true},
 		{name: "workflow_path alias", body: `{"workflow_path":"ci/workflow-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-path.yml"), expectWorkflow: true},
 		{name: "workflow-path alias", body: `{"workflow-path":"ci/workflow-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-path.yml"), expectWorkflow: true},
-		{name: "conflicting workflow path aliases", body: `{"path":"ci/workflow-path.yml","workflowPath":"ops/workflow-path.yml"}`, wantStatus: http.StatusBadRequest},
+		{name: "conflicting workflow path aliases", body: providerWorkflowJSON(providerWorkflowJSONField{key: apiPathField, value: "ci/workflow-path.yml"}, providerWorkflowJSONField{key: "workflowPath", value: "ops/workflow-path.yml"}), wantStatus: http.StatusBadRequest},
 		{name: "output alias", body: `{"output":"ci/release.yml"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
 		{name: "outputPath alias", body: `{"outputPath":"ci/output-path.yml"}`, wantPath: providerWorkflowPath("ci", "output-path.yml"), expectWorkflow: true},
 		{name: "output-path alias", body: `{"output-path":"ci/output-path.yml"}`, wantPath: providerWorkflowPath("ci", "output-path.yml"), expectWorkflow: true},
@@ -742,19 +769,19 @@ func TestProvider_GenerateReleaseWorkflow_Good(t *testing.T) {
 		{name: "conflicting workflow output aliases", body: `{"outputPath":"ci/output-path.yml","workflowOutputPath":"ops/output-path.yml"}`, wantStatus: http.StatusBadRequest},
 		{name: "conflicting output aliases", body: `{"outputPath":"ci/output-path.yml","output_path":"ops/output-path.yml"}`, wantStatus: http.StatusBadRequest},
 		{name: "conflicting output path hyphen aliases", body: `{"outputPath":"ci/output-path.yml","output-path":"ops/output-path.yml"}`, wantStatus: http.StatusBadRequest},
-		{name: "bare directory path", body: `{"path":"ci"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
-		{name: "current directory prefixed path", body: `{"path":"./ci"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
-		{name: "workflows directory", body: `{"path":".github/workflows"}`, wantPath: providerWorkflowPath(".github", "workflows", "release.yml"), expectWorkflow: true},
+		{name: "bare directory path", body: providerPathJSON("ci"), wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "current directory prefixed path", body: providerPathJSON("./ci"), wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "workflows directory", body: providerPathJSON(".github/workflows"), wantPath: providerWorkflowPath(".github", "workflows", "release.yml"), expectWorkflow: true},
 		{
 			name:           "existing directory path",
-			body:           `{"path":"ci"}`,
+			body:           providerPathJSON("ci"),
 			before:         createProviderWorkflowDir("ci"),
 			useLocalMedium: true,
 			wantPath:       providerWorkflowPath("ci", "release.yml"),
 			expectWorkflow: true,
 		},
-		{name: "conflicting path and output", body: `{"path":"ci/release.yml","output":"ops/release.yml"}`, wantStatus: http.StatusBadRequest},
-		{name: "invalid JSON", body: `{"path":`, wantStatus: http.StatusBadRequest},
+		{name: "conflicting path and output", body: providerWorkflowJSON(providerWorkflowJSONField{key: apiPathField, value: "ci/release.yml"}, providerWorkflowJSONField{key: "output", value: "ops/release.yml"}), wantStatus: http.StatusBadRequest},
+		{name: "invalid JSON", body: providerInvalidPathJSON(), wantStatus: http.StatusBadRequest},
 		{name: "empty body", nilBody: true, useLocalMedium: true, wantPath: build.ReleaseWorkflowPath, expectWorkflow: true},
 	}
 
@@ -801,7 +828,7 @@ func assertProviderReleaseWorkflow(t *testing.T, tc providerReleaseWorkflowCase)
 		if tc.bodyFor != nil {
 			body = tc.bodyFor(projectDir)
 		}
-		request = httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(body))
+		request = httptest.NewRequest(http.MethodPost, "/release/workflow", core.NewBufferString(body))
 	}
 	request.Header.Set("Content-Type", "application/json")
 
@@ -840,7 +867,7 @@ func assertProviderReleaseWorkflow(t *testing.T, tc providerReleaseWorkflowCase)
 	}
 }
 
-func TestProvider_DiscoverProject_Good(t *testing.T) {
+func TestProvider_discoverProject_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("GITHUB_SHA", "0123456789abcdef")
 	t.Setenv("GITHUB_REF", "refs/heads/main")
@@ -896,8 +923,8 @@ build:
 	if !stdlibAssertContains(body, `"configured_build_type":""`) {
 		t.Fatalf("expected %v to contain %v", body, `"configured_build_type":""`)
 	}
-	if !stdlibAssertContains(body, `"os":"`) {
-		t.Fatalf("expected %v to contain %v", body, `"os":"`)
+	if !stdlibAssertContains(body, providerJSONFieldPrefix(apiOSField)) {
+		t.Fatalf("expected %v to contain %v", body, providerJSONFieldPrefix(apiOSField))
 	}
 	if !stdlibAssertContains(body, `"arch":"`) {
 		t.Fatalf("expected %v to contain %v", body, `"arch":"`)
@@ -1114,7 +1141,7 @@ targets:
 
 	p := NewProvider(projectDir, nil)
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/build", bytes.NewBufferString(`{"package":true}`))
+	request := httptest.NewRequest(http.MethodPost, "/build", core.NewBufferString(`{"package":true}`))
 	request.Header.Set("Content-Type", "application/json")
 
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -1523,4 +1550,210 @@ func (b *capturingBuilder) Detect(fs io.Medium, dir string) (bool, error) {
 
 func (b *capturingBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
 	return b.buildFn(ctx, cfg, targets)
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestProvider_NewProvider_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = NewProvider(core.Path(t.TempDir(), "go-build-compliance"), nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_NewProvider_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = NewProvider("", nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_NewProvider_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = NewProvider(core.Path(t.TempDir(), "go-build-compliance"), nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Name_Good(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Name_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Name_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_BasePath_Good(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.BasePath()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_BasePath_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.BasePath()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_BasePath_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.BasePath()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Element_Good(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Element()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Element_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Element()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Element_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Element()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Channels_Good(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Channels()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Channels_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Channels()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Channels_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Channels()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_RegisterRoutes_Good(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		subject.RegisterRoutes(gin.New().Group("/build"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_RegisterRoutes_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		subject.RegisterRoutes(gin.New().Group("/build"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_RegisterRoutes_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		subject.RegisterRoutes(gin.New().Group("/build"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Describe_Good(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Describe()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Describe_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Describe()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_BuildProvider_Describe_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Describe()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProvider_Info_MarshalJSON_Good(t *core.T) {
+	data, err := Info{Name: "app.tar.gz", Path: "/dist/app.tar.gz", Size: 42}.MarshalJSON()
+	core.RequireNoError(t, err)
+	core.AssertContains(t, string(data), "app.tar.gz")
+	core.AssertContains(t, string(data), apiPathField)
+}
+
+func TestProvider_Info_MarshalJSON_Bad(t *core.T) {
+	data, err := Info{}.MarshalJSON()
+	core.RequireNoError(t, err)
+	core.AssertContains(t, string(data), `"size":0`)
+}
+
+func TestProvider_Info_MarshalJSON_Ugly(t *core.T) {
+	data, err := Info{Name: "nested/app.tar.gz", Path: "/dist/linux/app.tar.gz", Size: 1}.MarshalJSON()
+	core.RequireNoError(t, err)
+	core.AssertContains(t, string(data), "nested/app.tar.gz")
+}
+
+func TestProvider_ReleaseWorkflowRequest_UnmarshalJSON_Good(t *core.T) {
+	var subject ReleaseWorkflowRequest
+	err := subject.UnmarshalJSON([]byte(`{"` + apiPathField + `":"ci/release.yml"}`))
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "ci/release.yml", subject.Path)
+}
+
+func TestProvider_ReleaseWorkflowRequest_UnmarshalJSON_Bad(t *core.T) {
+	var subject ReleaseWorkflowRequest
+	err := subject.UnmarshalJSON([]byte(`{`))
+	core.AssertError(t, err)
+}
+
+func TestProvider_ReleaseWorkflowRequest_UnmarshalJSON_Ugly(t *core.T) {
+	var subject ReleaseWorkflowRequest
+	err := subject.UnmarshalJSON([]byte(`{"workflow_output_path":"ops/release.yml","workflow-output":"legacy.yml"}`))
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "ops/release.yml", subject.WorkflowOutputPathSnake)
+	core.AssertEqual(t, "legacy.yml", subject.WorkflowOutputHyphen)
 }

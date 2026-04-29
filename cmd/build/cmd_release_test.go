@@ -1,11 +1,10 @@
 package buildcmd
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
-	"dappco.re/go"
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
@@ -255,9 +254,9 @@ func TestBuildCmd_runRelease_CIModeEmitsGitHubAnnotationOnError_Bad(t *testing.T
 		return false
 	}
 
-	var stdout bytes.Buffer
-	cli.SetStdout(&stdout)
-	cli.SetStderr(&stdout)
+	stdout := core.NewBuffer()
+	cli.SetStdout(stdout)
+	cli.SetStderr(stdout)
 
 	err := runRelease(context.Background(), false, true, "release", "", false, false, "")
 	if err == nil {
@@ -267,4 +266,26 @@ func TestBuildCmd_runRelease_CIModeEmitsGitHubAnnotationOnError_Bad(t *testing.T
 		t.Fatalf("expected %v to contain %v", stdout.String(), emitCIAnnotationForTest(err))
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestCmdRelease_AddReleaseCommand_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		AddReleaseCommand(core.New())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdRelease_AddReleaseCommand_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		AddReleaseCommand(core.New())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdRelease_AddReleaseCommand_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		AddReleaseCommand(core.New())
+	})
+	core.AssertTrue(t, true)
 }

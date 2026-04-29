@@ -1,15 +1,15 @@
 package sdk
 
 import (
+	core "dappco.re/go"
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	"errors"
 )
 
 // --- Breaking Change Detection Tests (oasdiff integration) ---
 
-func TestBreaking_DiffAddEndpointNonBreaking_Good(t *testing.T) {
+func TestBreaking_DiffAddEndpointNonBreakingGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -73,7 +73,7 @@ paths:
 
 }
 
-func TestBreaking_DiffRemoveEndpointBreaking_Good(t *testing.T) {
+func TestBreaking_DiffRemoveEndpointBreakingGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -137,7 +137,7 @@ paths:
 
 }
 
-func TestBreaking_DiffAddRequiredParamBreaking_Good(t *testing.T) {
+func TestBreaking_DiffAddRequiredParamBreakingGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -192,7 +192,7 @@ paths:
 
 }
 
-func TestBreaking_DiffAddOptionalParamNonBreaking_Good(t *testing.T) {
+func TestBreaking_DiffAddOptionalParamNonBreakingGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -244,7 +244,7 @@ paths:
 
 }
 
-func TestBreaking_DiffChangeResponseTypeBreaking_Good(t *testing.T) {
+func TestBreaking_DiffChangeResponseTypeBreakingGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -315,7 +315,7 @@ paths:
 
 }
 
-func TestBreaking_DiffRemoveHTTPMethodBreaking_Good(t *testing.T) {
+func TestBreaking_DiffRemoveHTTPMethodBreakingGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -369,7 +369,7 @@ paths:
 
 }
 
-func TestBreaking_DiffIdenticalSpecsNonBreaking_Good(t *testing.T) {
+func TestBreaking_DiffIdenticalSpecsNonBreakingGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	spec := `openapi: "3.0.0"
@@ -422,7 +422,7 @@ paths:
 
 }
 
-func TestBreaking_DiffNonExistentBase_Bad(t *testing.T) {
+func TestBreaking_DiffNonExistentBaseBad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	revPath := ax.Join(tmpDir, "rev.yaml")
@@ -445,7 +445,7 @@ paths: {}
 
 }
 
-func TestBreaking_DiffNonExistentRevision_Bad(t *testing.T) {
+func TestBreaking_DiffNonExistentRevisionBad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	basePath := ax.Join(tmpDir, "base.yaml")
@@ -468,7 +468,7 @@ paths: {}
 
 }
 
-func TestBreaking_DiffInvalidYAML_Bad(t *testing.T) {
+func TestBreaking_DiffInvalidYAMLBad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	basePath := ax.Join(tmpDir, "base.yaml")
@@ -516,7 +516,7 @@ func TestBreaking_DiffExitCode_Good(t *testing.T) {
 		{
 			name:     "error returns 2",
 			result:   nil,
-			err:      errors.New("test error"),
+			err:      core.NewError("test error"),
 			expected: 2,
 		},
 		{
@@ -541,7 +541,7 @@ func TestBreaking_DiffExitCode_Good(t *testing.T) {
 	}
 }
 
-func TestBreaking_DiffResultSummary_Good(t *testing.T) {
+func TestBreaking_DiffResultSummaryGood(t *testing.T) {
 	t.Run("breaking result has count in summary", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
@@ -611,7 +611,7 @@ paths:
 	})
 }
 
-func TestBreaking_DiffResultChangesAreHumanReadable_Good(t *testing.T) {
+func TestBreaking_DiffResultChangesAreHumanReadableGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -661,7 +661,7 @@ paths: {}
 
 // --- Multiple Changes Detection Tests ---
 
-func TestBreaking_DiffMultipleBreakingChanges_Good(t *testing.T) {
+func TestBreaking_DiffMultipleBreakingChangesGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	base := `openapi: "3.0.0"
@@ -730,7 +730,7 @@ paths:
 
 // --- JSON Spec Support Tests ---
 
-func TestBreaking_DiffJSONSpecs_Good(t *testing.T) {
+func TestBreaking_DiffJSONSpecsGood(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	baseJSON := `{

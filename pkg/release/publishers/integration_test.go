@@ -11,7 +11,7 @@ import (
 
 // --- GitHub Publisher Integration Tests ---
 
-func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("dry run creates no files on disk", func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffects_Good(t *testi
 	})
 }
 
-func TestIntegration_GitHubPublisherIntegrationRepositoryDetection_Good(t *testing.T) {
+func TestIntegration_GitHubPublisherIntegrationRepositoryDetectionGood(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("uses relCfg repository when provided", func(t *testing.T) {
@@ -259,7 +259,7 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetection_Good(t *testi
 	})
 }
 
-func TestIntegration_GitHubPublisherIntegrationArtifactUpload_Good(t *testing.T) {
+func TestIntegration_GitHubPublisherIntegrationArtifactUploadGood(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("dry run lists all artifact types", func(t *testing.T) {
@@ -342,7 +342,7 @@ func TestIntegration_GitHubPublisherIntegrationArtifactUpload_Good(t *testing.T)
 	})
 }
 
-func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
 	if err := validateDockerCli(); err != nil {
 		t.Skip("skipping: docker CLI not available")
 	}
@@ -503,7 +503,7 @@ func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffects_Good(t *testi
 	})
 }
 
-func TestIntegration_DockerPublisherIntegrationConfigParsing_Good(t *testing.T) {
+func TestIntegration_DockerPublisherIntegrationConfigParsingGood(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("full config round-trip from PublisherConfig to DockerConfig", func(t *testing.T) {
@@ -560,7 +560,7 @@ func TestIntegration_DockerPublisherIntegrationConfigParsing_Good(t *testing.T) 
 	})
 }
 
-func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("dry run generates formula without writing files", func(t *testing.T) {
@@ -680,7 +680,7 @@ func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffects_Good(t *tes
 	})
 }
 
-func TestIntegration_HomebrewPublisherIntegrationFormulaGeneration_Good(t *testing.T) {
+func TestIntegration_HomebrewPublisherIntegrationFormulaGenerationGood(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("generated formula contains correct Ruby class structure", func(t *testing.T) {
@@ -771,7 +771,7 @@ func TestIntegration_HomebrewPublisherIntegrationFormulaGeneration_Good(t *testi
 	})
 }
 
-func TestIntegration_ScoopPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_ScoopPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("dry run generates manifest without writing files", func(t *testing.T) {
@@ -840,7 +840,7 @@ func TestIntegration_ScoopPublisherIntegrationDryRunNoSideEffects_Good(t *testin
 	})
 }
 
-func TestIntegration_AURPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_AURPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("dry run generates PKGBUILD and SRCINFO without writing files", func(t *testing.T) {
@@ -916,7 +916,7 @@ func TestIntegration_AURPublisherIntegrationDryRunNoSideEffects_Good(t *testing.
 	})
 }
 
-func TestIntegration_ChocolateyPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_ChocolateyPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("dry run generates nuspec and install script without side effects", func(t *testing.T) {
@@ -988,7 +988,7 @@ func TestIntegration_ChocolateyPublisherIntegrationDryRunNoSideEffects_Good(t *t
 	})
 }
 
-func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
 	p := NewNpmPublisher()
 
 	t.Run("dry run generates package.json without writing files or publishing", func(t *testing.T) {
@@ -1059,7 +1059,7 @@ func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffects_Good(t *testing.
 	})
 }
 
-func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffects_Good(t *testing.T) {
+func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T) {
 	if err := validateLinuxKitCli(); err != nil {
 		t.Skip("skipping: linuxkit CLI not available")
 	}
@@ -1147,7 +1147,7 @@ func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffects_Good(t *tes
 	})
 }
 
-func TestIntegration_AllPublishersIntegrationNameUniqueness_Good(t *testing.T) {
+func TestIntegration_AllPublishersIntegrationNameUniquenessGood(t *testing.T) {
 	t.Run("all publishers have unique names", func(t *testing.T) {
 		publishers := []Publisher{
 			NewGitHubPublisher(),
@@ -1180,7 +1180,7 @@ func TestIntegration_AllPublishersIntegrationNameUniqueness_Good(t *testing.T) {
 	})
 }
 
-func TestIntegration_AllPublishersIntegrationNilRelCfg_Good(t *testing.T) {
+func TestIntegration_AllPublishersIntegrationNilRelCfgGood(t *testing.T) {
 	t.Run("github handles nil relCfg with git repo", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
@@ -1209,7 +1209,7 @@ func TestIntegration_AllPublishersIntegrationNilRelCfg_Good(t *testing.T) {
 	})
 }
 
-func TestIntegration_BuildChecksumMapIntegration_Good(t *testing.T) {
+func TestIntegration_BuildChecksumMapIntegrationGood(t *testing.T) {
 	t.Run("maps all platforms correctly from realistic artifacts", func(t *testing.T) {
 		artifacts := []build.Artifact{
 			{Path: "/dist/core-v1.0.0-darwin-amd64.tar.gz", Checksum: "da64"},

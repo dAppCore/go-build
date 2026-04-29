@@ -2,7 +2,6 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"text/template"
@@ -300,8 +299,8 @@ func (p *ChocolateyPublisher) renderTemplate(m io.Medium, name string, data choc
 		return "", coreerr.E("chocolatey.renderTemplate", "failed to parse template "+name, err)
 	}
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	buf := core.NewBuffer()
+	if err := tmpl.Execute(buf, data); err != nil {
 		return "", coreerr.E("chocolatey.renderTemplate", "failed to execute template "+name, err)
 	}
 

@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"path"
 	"runtime"
 
 	"dappco.re/go"
@@ -303,8 +302,8 @@ func (b *NodeBuilder) findArtifactsForTarget(fs io.Medium, outputDir string, tar
 		}
 		for _, entry := range entries {
 			match := entry.Name()
-			matched, _ := path.Match(pattern, match)
-			if !matched {
+			matched := core.PathMatch(pattern, match)
+			if !matched.OK || !matched.Value.(bool) {
 				continue
 			}
 			fullPath := ax.Join(outputDir, match)

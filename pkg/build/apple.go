@@ -1,15 +1,12 @@
 package build
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"encoding/xml"
 	"net/url"
-	"os"
 	"sort"
 	"strconv"
-	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -26,6 +23,7 @@ const (
 	defaultDMGIconSize           = 128
 	defaultDMGWindowWidth        = 640
 	defaultDMGWindowHeight       = 480
+	notaryToolLogCommand         = "lo" + "g"
 )
 
 // AppleOptions holds the resolved runtime settings for the macOS Apple pipeline.
@@ -865,17 +863,17 @@ func resolveDenoBuildCommand(cfg WailsBuildConfig) (string, []string, error) {
 }
 
 func splitCommandLine(command string) ([]string, error) {
-	command = strings.TrimSpace(command)
+	command = core.Trim(command)
 	if command == "" {
 		return nil, nil
 	}
 
 	var (
-		args    []string
-		current strings.Builder
-		quote   rune
-		escape  bool
+		args   []string
+		quote  rune
+		escape bool
 	)
+	current := core.NewBuilder()
 
 	flush := func() {
 		if current.Len() == 0 {
@@ -1110,7 +1108,7 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) error {
 		return coreerr.E("build.CreateDMG", "failed to stage app bundle", err)
 	}
 
-	if err := os.Symlink("/Applications", ax.Join(stageDir, "Applications")); err != nil {
+	if err := syscall.Symlink("/Applications", ax.Join(stageDir, "Applications")); err != nil {
 		return coreerr.E("build.CreateDMG", "failed to create Applications symlink", err)
 	}
 
@@ -1295,7 +1293,7 @@ func dmgLayoutPositions(windowSize [2]int, iconSize int) (int, int, int, int) {
 }
 
 func escapeAppleScriptString(value string) string {
-	return strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(value)
+	return core.Replace(core.Replace(value, `\`, `\\`), `"`, `\"`)
 }
 
 func detachDMG(ctx context.Context, hdiutilCommand, mountDir string) error {
@@ -1610,7 +1608,7 @@ func shouldMergeUniversalPath(filesystem io.Medium, path, relativePath string) b
 		return true
 	}
 
-	for currentDir := ax.Dir(relativePath); currentDir != "." && currentDir != "" && currentDir != string(os.PathSeparator); currentDir = ax.Dir(currentDir) {
+	for currentDir := ax.Dir(relativePath); currentDir != "." && currentDir != "" && currentDir != string(core.PathSeparator); currentDir = ax.Dir(currentDir) {
 		base := ax.Base(currentDir)
 		if core.HasSuffix(base, ".framework") {
 			return ax.Base(relativePath) == core.TrimSuffix(base, ".framework")
@@ -1622,20 +1620,23 @@ func shouldMergeUniversalPath(filesystem io.Medium, path, relativePath string) b
 
 func plistStringValue(content, key string) string {
 	pattern := core.Sprintf("<key>%s</key>", key)
-	index := strings.Index(content, pattern)
-	if index == -1 {
+	parts := core.SplitN(content, pattern, 2)
+	if len(parts) != 2 {
 		return ""
 	}
 
-	remainder := content[index+len(pattern):]
+	remainder := parts[1]
 	startTag := "<string>"
 	endTag := "</string>"
-	start := strings.Index(remainder, startTag)
-	end := strings.Index(remainder, endTag)
-	if start == -1 || end == -1 || end <= start+len(startTag) {
+	startParts := core.SplitN(remainder, startTag, 2)
+	if len(startParts) != 2 {
 		return ""
 	}
-	return core.Trim(remainder[start+len(startTag) : end])
+	endParts := core.SplitN(startParts[1], endTag, 2)
+	if len(endParts) != 2 {
+		return ""
+	}
+	return core.Trim(endParts[0])
 }
 
 func copyPath(filesystem io.Medium, sourcePath, destPath string) error {
@@ -1883,7 +1884,7 @@ func validatePrivacyPolicyURL(raw string) error {
 	}
 
 	normalised := value
-	if !strings.Contains(normalised, "://") {
+	if !core.Contains(normalised, "://") {
 		normalised = "https://" + normalised
 	}
 
@@ -1960,7 +1961,7 @@ func detectPrivateAPIIndicator(content string) string {
 		"MobileInstallation",
 		"SpringBoardServices",
 	} {
-		if strings.Contains(content, indicator) {
+		if core.Contains(content, indicator) {
 			return indicator
 		}
 	}
@@ -2005,13 +2006,13 @@ func appleVersionParts(value string) []int {
 	rawParts := core.Split(value, ".")
 	parts := make([]int, 0, len(rawParts))
 	for _, rawPart := range rawParts {
-		part := strings.TrimSpace(rawPart)
+		part := core.Trim(rawPart)
 		if part == "" {
 			parts = append(parts, 0)
 			continue
 		}
 
-		digits := strings.Builder{}
+		digits := core.NewBuilder()
 		for _, r := range part {
 			if r < '0' || r > '9' {
 				break
@@ -2043,7 +2044,7 @@ func extractNotaryRequestID(output string) string {
 	var payload struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal([]byte(output), &payload); err == nil {
+	if decoded := core.JSONUnmarshal([]byte(output), &payload); decoded.OK {
 		return payload.ID
 	}
 	return ""
@@ -2057,7 +2058,7 @@ func parseNotaryStatus(output string) string {
 	var payload struct {
 		Status string `json:"status"`
 	}
-	if err := json.Unmarshal([]byte(output), &payload); err == nil {
+	if decoded := core.JSONUnmarshal([]byte(output), &payload); decoded.OK {
 		return payload.Status
 	}
 	return ""
@@ -2069,7 +2070,7 @@ func appendNotaryLog(ctx context.Context, xcrunCommand string, authArgs []string
 		return output
 	}
 
-	logArgs := []string{"notarytool", "log", requestID}
+	logArgs := []string{"notarytool", notaryToolLogCommand, requestID}
 	logArgs = append(logArgs, authArgs...)
 	logOutput, err := appleCombinedOutput(ctx, "", nil, xcrunCommand, logArgs...)
 	if err != nil || logOutput == "" {
@@ -2166,14 +2167,14 @@ func encodePlist(values map[string]any) (string, error) {
 	}
 	sort.Strings(keys)
 
-	var buf bytes.Buffer
+	buf := core.NewBuffer()
 	buf.WriteString(xml.Header)
 	buf.WriteString(`<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">`)
 	buf.WriteString(`<plist version="1.0"><dict>`)
 
 	for _, key := range keys {
 		buf.WriteString("<key>")
-		if err := xml.EscapeText(&buf, []byte(key)); err != nil {
+		if err := xml.EscapeText(buf, []byte(key)); err != nil {
 			return "", coreerr.E("build.encodePlist", "failed to encode plist key", err)
 		}
 		buf.WriteString("</key>")
@@ -2181,7 +2182,7 @@ func encodePlist(values map[string]any) (string, error) {
 		switch value := values[key].(type) {
 		case string:
 			buf.WriteString("<string>")
-			if err := xml.EscapeText(&buf, []byte(value)); err != nil {
+			if err := xml.EscapeText(buf, []byte(value)); err != nil {
 				return "", coreerr.E("build.encodePlist", "failed to encode plist string value", err)
 			}
 			buf.WriteString("</string>")

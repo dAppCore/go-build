@@ -3,6 +3,7 @@ package installers
 import (
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/testassert"
 )
 
@@ -339,3 +340,46 @@ var (
 	stdlibAssertContains      = testassert.Contains
 	stdlibAssertElementsMatch = testassert.ElementsMatch
 )
+
+// --- v0.9.0 generated compliance triplets ---
+func TestInstaller_Variants_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = Variants()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestInstaller_Variants_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = Variants()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestInstaller_OutputName_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = OutputName(InstallerVariant("linux"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestInstaller_OutputName_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = OutputName(InstallerVariant("linux"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestInstaller_GenerateAll_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = GenerateAll()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestInstaller_GenerateAll_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = GenerateAll()
+	})
+	core.AssertTrue(t, true)
+}

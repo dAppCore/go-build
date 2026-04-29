@@ -1,7 +1,6 @@
 package builders
 
 import (
-	"strings"
 	"unicode"
 
 	"dappco.re/go"
@@ -61,17 +60,17 @@ func resolveNpmBuildCommand(cfg *build.Config, resolveNpm func(...string) (strin
 
 // splitCommandLine tokenises a command string with basic shell-style quoting.
 func splitCommandLine(command string) ([]string, error) {
-	command = strings.TrimSpace(command)
+	command = core.Trim(command)
 	if command == "" {
 		return nil, nil
 	}
 
 	var (
-		args    []string
-		current strings.Builder
-		quote   rune
-		escape  bool
+		args   []string
+		quote  rune
+		escape bool
 	)
+	current := core.NewBuilder()
 
 	flush := func() {
 		if current.Len() == 0 {

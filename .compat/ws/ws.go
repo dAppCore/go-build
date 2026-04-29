@@ -2,12 +2,11 @@ package ws
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"net/http"
 	"sync"
 	"time"
 
+	core "dappco.re/go"
 	"github.com/gorilla/websocket"
 )
 
@@ -136,7 +135,7 @@ func (h *Hub) removeClient(client *Client) {
 
 func (h *Hub) Subscribe(client *Client, channel string) error {
 	if h == nil || client == nil || channel == "" {
-		return errors.New("invalid subscription")
+		return core.NewError("invalid subscription")
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -149,7 +148,7 @@ func (h *Hub) Subscribe(client *Client, channel string) error {
 
 func (h *Hub) SendToChannel(channel string, msg Message) error {
 	if h == nil {
-		return errors.New("hub unavailable")
+		return core.NewError("hub unavailable")
 	}
 	if msg.Channel == "" {
 		msg.Channel = channel
@@ -171,7 +170,7 @@ func (h *Hub) SendToChannel(channel string, msg Message) error {
 
 func (h *Hub) Broadcast(msg Message) error {
 	if h == nil {
-		return errors.New("hub unavailable")
+		return core.NewError("hub unavailable")
 	}
 	h.mu.RLock()
 	clients := make([]*Client, 0, len(h.clients))
@@ -211,5 +210,12 @@ func (m Message) MarshalJSON() ([]byte, error) {
 	if m.Timestamp.IsZero() {
 		m.Timestamp = time.Now().UTC()
 	}
-	return json.Marshal(alias(m))
+	encoded := core.JSONMarshal(alias(m))
+	if !encoded.OK {
+		if err, ok := encoded.Value.(error); ok {
+			return nil, err
+		}
+		return nil, core.NewError("failed to marshal websocket message")
+	}
+	return encoded.Value.([]byte), nil
 }

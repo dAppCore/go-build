@@ -2,14 +2,11 @@ package service
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
+	core "dappco.re/go"
 	coreapi "dappco.re/go/api"
 	providerpkg "dappco.re/go/api/pkg/provider"
 	"dappco.re/go/build/internal/ax"
@@ -57,7 +54,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 
 	cfg = cfg.Normalized()
-	if err := ax.MkdirAll(filepath.Dir(cfg.PIDFile), 0o755); err != nil {
+	if err := ax.MkdirAll(core.PathDir(cfg.PIDFile), 0o755); err != nil {
 		return coreerr.E("service.Run", "failed to create pid directory", err)
 	}
 
@@ -96,7 +93,7 @@ func Run(ctx context.Context, cfg Config) error {
 	)
 	if err != nil {
 		stopErr := daemon.Stop()
-		return errors.Join(err, stopErr)
+		return core.ErrorJoin(err, stopErr)
 	}
 	if buildProvider != nil {
 		engine.Register(buildProvider)
@@ -132,10 +129,10 @@ func Run(ctx context.Context, cfg Config) error {
 	select {
 	case err := <-serverErrCh:
 		stopErr := daemon.Stop()
-		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, http.ErrServerClosed) {
+		if err == nil || core.Is(err, context.Canceled) || core.Is(err, http.ErrServerClosed) {
 			return stopErr
 		}
-		return errors.Join(err, stopErr)
+		return core.ErrorJoin(err, stopErr)
 	case <-ctx.Done():
 		return daemon.Stop()
 	}
@@ -270,13 +267,13 @@ func snapshotFiles(cfg Config) (map[string]time.Time, error) {
 	snapshot := make(map[string]time.Time)
 
 	for _, root := range cfg.WatchPaths {
-		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		err := core.PathWalkDir(root, func(path string, entry core.FsDirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
 			if shouldSkipWatchPath(cfg.ProjectDir, path) {
 				if entry.IsDir() {
-					return filepath.SkipDir
+					return core.PathSkipDir
 				}
 				return nil
 			}
@@ -300,18 +297,18 @@ func snapshotFiles(cfg Config) (map[string]time.Time, error) {
 }
 
 func shouldSkipWatchPath(projectDir, path string) bool {
-	projectDir = filepath.Clean(projectDir)
-	path = filepath.Clean(path)
+	projectDir = core.PathJoin(projectDir)
+	path = core.PathJoin(path)
 
 	skipRoots := []string{
-		filepath.Join(projectDir, ".git"),
-		filepath.Join(projectDir, "dist"),
-		filepath.Join(projectDir, ".core", "cache"),
-		filepath.Join(projectDir, ".core", "build", "app"),
+		core.PathJoin(projectDir, ".git"),
+		core.PathJoin(projectDir, "dist"),
+		core.PathJoin(projectDir, ".core", "cache"),
+		core.PathJoin(projectDir, ".core", "build", "app"),
 	}
 	for _, root := range skipRoots {
-		root = filepath.Clean(root)
-		if path == root || strings.HasPrefix(path, root+string(filepath.Separator)) {
+		root = core.PathJoin(root)
+		if path == root || core.HasPrefix(path, root+string(core.PathSeparator)) {
 			return true
 		}
 	}

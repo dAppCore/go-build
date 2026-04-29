@@ -1,6 +1,6 @@
 package build
 
-import "strings"
+import core "dappco.re/go"
 
 // LinuxKitImage models an immutable LinuxKit image definition.
 //
@@ -55,7 +55,7 @@ func LinuxKit(opts ...LinuxKitOption) *LinuxKitImage {
 // WithBase overrides the base image template name.
 func WithBase(base string) LinuxKitOption {
 	return func(cfg *LinuxKitConfig) {
-		cfg.Base = strings.TrimSpace(base)
+		cfg.Base = core.Trim(base)
 	}
 }
 
@@ -69,7 +69,7 @@ func WithPackages(packages ...string) LinuxKitOption {
 // WithMount appends a writable mount point exposed inside the image.
 func WithMount(path string) LinuxKitOption {
 	return func(cfg *LinuxKitConfig) {
-		path = strings.TrimSpace(path)
+		path = core.Trim(path)
 		if path == "" {
 			return
 		}
@@ -94,7 +94,7 @@ func WithFormats(formats ...string) LinuxKitOption {
 // WithRegistry sets the OCI registry namespace for image publication metadata.
 func WithRegistry(registry string) LinuxKitOption {
 	return func(cfg *LinuxKitConfig) {
-		cfg.Registry = strings.TrimSpace(registry)
+		cfg.Registry = core.Trim(registry)
 	}
 }
 
@@ -106,7 +106,7 @@ func normalizeLinuxKitValues(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	result := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = core.Trim(value)
 		if value == "" {
 			continue
 		}
@@ -128,7 +128,7 @@ func normalizeLinuxKitFormats(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	result := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.ToLower(strings.TrimSpace(value))
+		value = core.Lower(core.Trim(value))
 		if value == "" {
 			continue
 		}
@@ -145,8 +145,8 @@ func normalizeLinuxKitFormats(values []string) []string {
 func normalizeLinuxKitConfig(cfg LinuxKitConfig) LinuxKitConfig {
 	cfg = applyLinuxKitDefaults(cfg)
 
-	cfg.Base = strings.TrimSpace(cfg.Base)
-	cfg.Registry = strings.TrimSpace(cfg.Registry)
+	cfg.Base = core.Trim(cfg.Base)
+	cfg.Registry = core.Trim(cfg.Registry)
 	cfg.Packages = normalizeLinuxKitValues(cfg.Packages)
 
 	cfg.Mounts = normalizeLinuxKitValues(cfg.Mounts)
@@ -159,7 +159,7 @@ func normalizeLinuxKitConfig(cfg LinuxKitConfig) LinuxKitConfig {
 func applyLinuxKitDefaults(cfg LinuxKitConfig) LinuxKitConfig {
 	defaults := DefaultLinuxKitConfig()
 
-	if strings.TrimSpace(cfg.Base) == "" {
+	if core.Trim(cfg.Base) == "" {
 		cfg.Base = defaults.Base
 	}
 	if len(cfg.Mounts) == 0 {

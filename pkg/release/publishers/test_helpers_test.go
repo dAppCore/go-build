@@ -1,21 +1,21 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 )
 
 func capturePublisherOutput(t *testing.T, fn func()) string {
 	t.Helper()
 
-	var buf bytes.Buffer
+	buf := core.NewBuffer()
 	oldStdout := publisherStdout
 	oldStderr := publisherStderr
-	publisherStdout = &buf
-	publisherStderr = &buf
+	publisherStdout = buf
+	publisherStderr = buf
 	defer func() {
 		publisherStdout = oldStdout
 		publisherStderr = oldStderr

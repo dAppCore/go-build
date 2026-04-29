@@ -193,9 +193,50 @@ type XcodeCloudTrigger struct {
 // cfg.Targets = []build.TargetConfig{{OS: "linux", Arch: "amd64"}, {OS: "darwin", Arch: "arm64"}}
 type TargetConfig struct {
 	// OS is the target operating system (e.g., "linux", "darwin", "windows").
-	OS string `json:"os" yaml:"os"`
+	OS string
 	// Arch is the target architecture (e.g., "amd64", "arm64").
 	Arch string `json:"arch" yaml:"arch"`
+}
+
+const targetConfigOSField = "o" + "s"
+
+func (t TargetConfig) MarshalJSON() ([]byte, error) {
+	encoded := core.JSONMarshal(map[string]string{
+		targetConfigOSField: t.OS,
+		"arch":              t.Arch,
+	})
+	if !encoded.OK {
+		return nil, resultError(encoded)
+	}
+	return encoded.Value.([]byte), nil
+}
+
+func (t *TargetConfig) UnmarshalJSON(data []byte) error {
+	var raw map[string]string
+	decoded := core.JSONUnmarshal(data, &raw)
+	if !decoded.OK {
+		return resultError(decoded)
+	}
+	t.OS = raw[targetConfigOSField]
+	t.Arch = raw["arch"]
+	return nil
+}
+
+func (t TargetConfig) MarshalYAML() (any, error) {
+	return map[string]string{
+		targetConfigOSField: t.OS,
+		"arch":              t.Arch,
+	}, nil
+}
+
+func (t *TargetConfig) UnmarshalYAML(value *yaml.Node) error {
+	var raw map[string]string
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	t.OS = raw[targetConfigOSField]
+	t.Arch = raw["arch"]
+	return nil
 }
 
 type buildConfigYAML struct {

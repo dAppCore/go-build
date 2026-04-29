@@ -1,6 +1,6 @@
 package log
 
-import "fmt"
+import core "dappco.re/go"
 
 type Err struct {
 	Op  string
@@ -14,7 +14,7 @@ func (e *Err) Error() string {
 	}
 	switch {
 	case e.Op != "" && e.Msg != "" && e.Err != nil:
-		return fmt.Sprintf("%s: %s: %v", e.Op, e.Msg, e.Err)
+		return core.Sprintf("%s: %s: %v", e.Op, e.Msg, e.Err)
 	case e.Op != "" && e.Msg != "":
 		return e.Op + ": " + e.Msg
 	case e.Msg != "" && e.Err != nil:

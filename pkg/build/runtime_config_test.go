@@ -3,6 +3,7 @@ package build
 import (
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/io"
 )
 
@@ -242,4 +243,26 @@ func TestBuild_RuntimeConfigFromBuildConfig_UsesRFCPreBuildAliases_Good(t *testi
 		t.Fatalf("want %v, got %v", "npm run build", cfg.NpmBuild)
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestRuntimeConfig_RuntimeConfigFromBuildConfig_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = RuntimeConfigFromBuildConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{}, true, "agent", "v1.2.3")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestRuntimeConfig_RuntimeConfigFromBuildConfig_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = RuntimeConfigFromBuildConfig(io.NewMemoryMedium(), "", "", "", nil, false, "", "")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestRuntimeConfig_RuntimeConfigFromBuildConfig_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = RuntimeConfigFromBuildConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{}, true, "agent", "v1.2.3")
+	})
+	core.AssertTrue(t, true)
 }

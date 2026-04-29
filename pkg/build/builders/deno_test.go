@@ -1,13 +1,13 @@
 package builders
 
 import (
-	"errors"
+	core "dappco.re/go"
 	"testing"
 
 	"dappco.re/go/build/pkg/build"
 )
 
-func TestDeno_ResolveDenoBuildCommand_Good(t *testing.T) {
+func TestDeno_ResolveDenoBuildCommandGood(t *testing.T) {
 	t.Run("environment override takes precedence over config and default", func(t *testing.T) {
 		t.Setenv("DENO_BUILD", `deno task "build docs" --watch`)
 
@@ -69,7 +69,7 @@ func TestDeno_ResolveDenoBuildCommand_Good(t *testing.T) {
 	})
 }
 
-func TestDeno_ResolveDenoBuildCommand_Bad(t *testing.T) {
+func TestDeno_ResolveDenoBuildCommandBad(t *testing.T) {
 	t.Run("invalid shell quoting is rejected", func(t *testing.T) {
 		t.Setenv("DENO_BUILD", `deno task "unterminated`)
 
@@ -90,7 +90,7 @@ func TestDeno_ResolveDenoBuildCommand_Bad(t *testing.T) {
 		t.Setenv("DENO_BUILD", "")
 
 		_, _, err := resolveDenoBuildCommand(nil, func(...string) (string, error) {
-			return "", errors.New("deno not found")
+			return "", core.NewError("deno not found")
 		})
 		if err == nil {
 			t.Fatal("expected error")
@@ -102,7 +102,7 @@ func TestDeno_ResolveDenoBuildCommand_Bad(t *testing.T) {
 	})
 }
 
-func TestDeno_ResolveDenoBuildCommand_Ugly(t *testing.T) {
+func TestDeno_ResolveDenoBuildCommandUgly(t *testing.T) {
 	t.Run("trimmed empty command falls through to the default resolver", func(t *testing.T) {
 		t.Setenv("DENO_BUILD", "   ")
 
@@ -122,7 +122,7 @@ func TestDeno_ResolveDenoBuildCommand_Ugly(t *testing.T) {
 	})
 }
 
-func TestDeno_ResolveNpmBuildCommand_Good(t *testing.T) {
+func TestDeno_ResolveNpmBuildCommandGood(t *testing.T) {
 	t.Run("environment override takes precedence over config and default", func(t *testing.T) {
 		t.Setenv("NPM_BUILD", `npm run "build docs" -- --watch`)
 
@@ -184,7 +184,7 @@ func TestDeno_ResolveNpmBuildCommand_Good(t *testing.T) {
 	})
 }
 
-func TestDeno_ResolveNpmBuildCommand_Bad(t *testing.T) {
+func TestDeno_ResolveNpmBuildCommandBad(t *testing.T) {
 	t.Run("invalid shell quoting is rejected", func(t *testing.T) {
 		t.Setenv("NPM_BUILD", `npm run "unterminated`)
 
@@ -205,7 +205,7 @@ func TestDeno_ResolveNpmBuildCommand_Bad(t *testing.T) {
 		t.Setenv("NPM_BUILD", "")
 
 		_, _, err := resolveNpmBuildCommand(nil, func(...string) (string, error) {
-			return "", errors.New("npm not found")
+			return "", core.NewError("npm not found")
 		})
 		if err == nil {
 			t.Fatal("expected error")
@@ -217,7 +217,7 @@ func TestDeno_ResolveNpmBuildCommand_Bad(t *testing.T) {
 	})
 }
 
-func TestDeno_ResolveNpmBuildCommand_Ugly(t *testing.T) {
+func TestDeno_ResolveNpmBuildCommandUgly(t *testing.T) {
 	t.Run("trimmed empty command falls through to the default resolver", func(t *testing.T) {
 		t.Setenv("NPM_BUILD", "   ")
 
@@ -237,7 +237,7 @@ func TestDeno_ResolveNpmBuildCommand_Ugly(t *testing.T) {
 	})
 }
 
-func TestDeno_SplitCommandLine_Good(t *testing.T) {
+func TestDeno_SplitCommandLineGood(t *testing.T) {
 	t.Run("handles quoted arguments and escaped spaces", func(t *testing.T) {
 		args, err := splitCommandLine(`deno task "build docs" --flag value\ with\ spaces`)
 		if err != nil {
@@ -250,7 +250,7 @@ func TestDeno_SplitCommandLine_Good(t *testing.T) {
 	})
 }
 
-func TestDeno_SplitCommandLine_Bad(t *testing.T) {
+func TestDeno_SplitCommandLineBad(t *testing.T) {
 	t.Run("rejects unterminated quotes", func(t *testing.T) {
 		args, err := splitCommandLine(`deno task "build docs`)
 		if err == nil {
@@ -266,7 +266,7 @@ func TestDeno_SplitCommandLine_Bad(t *testing.T) {
 	})
 }
 
-func TestDeno_SplitCommandLine_Ugly(t *testing.T) {
+func TestDeno_SplitCommandLineUgly(t *testing.T) {
 	t.Run("empty input returns no args", func(t *testing.T) {
 		args, err := splitCommandLine("   ")
 		if err != nil {

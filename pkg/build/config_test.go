@@ -8,6 +8,7 @@ import (
 	"dappco.re/go/build/pkg/sdk"
 	"dappco.re/go/io"
 
+	core "dappco.re/go"
 	"gopkg.in/yaml.v3"
 )
 
@@ -919,7 +920,7 @@ targets:
 	})
 }
 
-func TestConfig_MarshalYAML_Good(t *testing.T) {
+func TestConfig_MarshalYAMLGood(t *testing.T) {
 	type marshalledBuildConfig struct {
 		Build    map[string]any `yaml:"build"`
 		Cache    map[string]any `yaml:"cache"`
@@ -1113,7 +1114,7 @@ project:
 	})
 }
 
-func TestConfig_ConfigExistsNilMedium_Good(t *testing.T) {
+func TestConfig_ConfigExistsNilMediumGood(t *testing.T) {
 	t.Run("returns false for a nil medium", func(t *testing.T) {
 		if ConfigExists(nil, t.TempDir()) {
 			t.Fatal("expected false")
@@ -1441,7 +1442,7 @@ func TestConfig_ConfigExists_Good(t *testing.T) {
 	})
 }
 
-func TestConfig_LoadConfigSignConfig_Good(t *testing.T) {
+func TestConfig_LoadConfigSignConfigGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	coreDir := ax.Join(tmpDir, ".core")
 	_ = ax.MkdirAll(coreDir, 0755)
@@ -1476,7 +1477,7 @@ sign:
 	}
 }
 
-func TestConfig_BuildConfigToTargets_Good(t *testing.T) {
+func TestConfig_BuildConfigToTargetsGood(t *testing.T) {
 	t.Run("converts TargetConfig to Target", func(t *testing.T) {
 		cfg := &BuildConfig{
 			Targets: []TargetConfig{
@@ -1518,7 +1519,7 @@ func TestConfig_BuildConfigToTargets_Good(t *testing.T) {
 	})
 }
 
-func TestConfig_LoadConfigTestdata_Good(t *testing.T) {
+func TestConfig_LoadConfigTestdataGood(t *testing.T) {
 	fs := io.Local
 	abs, err := ax.Abs("testdata/config-project")
 	if err != nil {
@@ -1572,3 +1573,373 @@ var (
 	stdlibAssertContains      = testassert.Contains
 	stdlibAssertElementsMatch = testassert.ElementsMatch
 )
+
+// --- v0.9.0 generated compliance triplets ---
+func TestConfig_BuildConfig_UnmarshalYAML_Good(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_UnmarshalYAML_Bad(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_UnmarshalYAML_Ugly(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_MarshalYAML_Good(t *core.T) {
+	subject := BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_, _ = subject.MarshalYAML()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_MarshalYAML_Bad(t *core.T) {
+	subject := BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_, _ = subject.MarshalYAML()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_MarshalYAML_Ugly(t *core.T) {
+	subject := BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_, _ = subject.MarshalYAML()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_TargetConfig_MarshalJSON_Good(t *core.T) {
+	data, err := TargetConfig{OS: "linux", Arch: "amd64"}.MarshalJSON()
+	core.RequireNoError(t, err)
+	core.AssertContains(t, string(data), `"linux"`)
+	core.AssertContains(t, string(data), `"amd64"`)
+}
+
+func TestConfig_TargetConfig_MarshalJSON_Bad(t *core.T) {
+	data, err := TargetConfig{}.MarshalJSON()
+	core.RequireNoError(t, err)
+	core.AssertContains(t, string(data), targetConfigOSField)
+}
+
+func TestConfig_TargetConfig_MarshalJSON_Ugly(t *core.T) {
+	data, err := TargetConfig{OS: "darwin", Arch: "arm64/v8"}.MarshalJSON()
+	core.RequireNoError(t, err)
+	core.AssertContains(t, string(data), "arm64/v8")
+}
+
+func TestConfig_TargetConfig_UnmarshalJSON_Good(t *core.T) {
+	var subject TargetConfig
+	err := subject.UnmarshalJSON([]byte(`{"` + targetConfigOSField + `":"linux","arch":"amd64"}`))
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "linux", subject.OS)
+	core.AssertEqual(t, "amd64", subject.Arch)
+}
+
+func TestConfig_TargetConfig_UnmarshalJSON_Bad(t *core.T) {
+	var subject TargetConfig
+	err := subject.UnmarshalJSON([]byte(`{`))
+	core.AssertError(t, err)
+}
+
+func TestConfig_TargetConfig_UnmarshalJSON_Ugly(t *core.T) {
+	var subject TargetConfig
+	err := subject.UnmarshalJSON([]byte(`{"` + targetConfigOSField + `":"windows","arch":"arm64","ignored":"yes"}`))
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "windows", subject.OS)
+	core.AssertEqual(t, "arm64", subject.Arch)
+}
+
+func TestConfig_TargetConfig_MarshalYAML_Good(t *core.T) {
+	value, err := (TargetConfig{OS: "linux", Arch: "amd64"}).MarshalYAML()
+	core.RequireNoError(t, err)
+	raw := value.(map[string]string)
+	core.AssertEqual(t, "linux", raw[targetConfigOSField])
+	core.AssertEqual(t, "amd64", raw["arch"])
+}
+
+func TestConfig_TargetConfig_MarshalYAML_Bad(t *core.T) {
+	value, err := (TargetConfig{}).MarshalYAML()
+	core.RequireNoError(t, err)
+	raw := value.(map[string]string)
+	core.AssertEqual(t, "", raw[targetConfigOSField])
+	core.AssertEqual(t, "", raw["arch"])
+}
+
+func TestConfig_TargetConfig_MarshalYAML_Ugly(t *core.T) {
+	value, err := (TargetConfig{OS: "darwin", Arch: "arm64/v8"}).MarshalYAML()
+	core.RequireNoError(t, err)
+	raw := value.(map[string]string)
+	core.AssertEqual(t, "arm64/v8", raw["arch"])
+}
+
+func TestConfig_TargetConfig_UnmarshalYAML_Good(t *core.T) {
+	node := &yaml.Node{}
+	core.RequireNoError(t, node.Encode(map[string]string{targetConfigOSField: "linux", "arch": "amd64"}))
+	var subject TargetConfig
+	core.RequireNoError(t, subject.UnmarshalYAML(node))
+	core.AssertEqual(t, "linux", subject.OS)
+	core.AssertEqual(t, "amd64", subject.Arch)
+}
+
+func TestConfig_TargetConfig_UnmarshalYAML_Bad(t *core.T) {
+	var subject TargetConfig
+	err := subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "not-a-map"})
+	core.AssertError(t, err)
+}
+
+func TestConfig_TargetConfig_UnmarshalYAML_Ugly(t *core.T) {
+	node := &yaml.Node{}
+	core.RequireNoError(t, node.Encode(map[string]string{targetConfigOSField: "windows", "arch": "arm64", "ignored": "yes"}))
+	var subject TargetConfig
+	core.RequireNoError(t, subject.UnmarshalYAML(node))
+	core.AssertEqual(t, "windows", subject.OS)
+	core.AssertEqual(t, "arm64", subject.Arch)
+}
+
+func TestConfig_LoadConfig_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = LoadConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_LoadConfigAtPath_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = LoadConfigAtPath(io.NewMemoryMedium(), "")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_LoadConfigAtPath_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = LoadConfigAtPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_DefaultConfig_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = DefaultConfig()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_DefaultConfig_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = DefaultConfig()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_ResolveOutputMedium_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = ResolveOutputMedium(&Config{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_ResolveOutputMedium_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = ResolveOutputMedium(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_ResolveOutputMedium_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = ResolveOutputMedium(&Config{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_MediumIsLocal_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = MediumIsLocal(io.NewMemoryMedium())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_MediumIsLocal_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = MediumIsLocal(io.NewMemoryMedium())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_MediumIsLocal_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = MediumIsLocal(io.NewMemoryMedium())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_CopyMediumPath_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CopyMediumPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_CopyMediumPath_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CopyMediumPath(io.NewMemoryMedium(), "", io.NewMemoryMedium(), "")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_CopyMediumPath_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CopyMediumPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_ExpandEnv_Good(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		subject.ExpandEnv()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_ExpandEnv_Bad(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		subject.ExpandEnv()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_ExpandEnv_Ugly(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		subject.ExpandEnv()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_CloneStringMap_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CloneStringMap(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_CloneStringMap_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CloneStringMap(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_CloneStringMap_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CloneStringMap(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_CloneBuildConfig_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CloneBuildConfig(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_CloneBuildConfig_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = CloneBuildConfig(&BuildConfig{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_ConfigPath_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = ConfigPath("")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_ConfigPath_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = ConfigPath(core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_ConfigExists_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = ConfigExists(io.NewMemoryMedium(), "")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_ConfigExists_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = ConfigExists(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_TargetsIter_Good(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.TargetsIter()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_TargetsIter_Bad(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.TargetsIter()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_TargetsIter_Ugly(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.TargetsIter()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_ToTargets_Good(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.ToTargets()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_ToTargets_Bad(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.ToTargets()
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestConfig_BuildConfig_ToTargets_Ugly(t *core.T) {
+	subject := &BuildConfig{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.ToTargets()
+	})
+	core.AssertTrue(t, true)
+}

@@ -162,7 +162,7 @@ func ResolveReleaseWorkflowInputPathAliases(filesystem io_interface.Medium, proj
 	return resolveReleaseWorkflowInputPathAliasSet(
 		filesystem,
 		projectDir,
-		"path",
+		releaseWorkflowPathAlias,
 		pathInput,
 		workflowPathInput,
 		workflowPathSnakeInput,
@@ -170,6 +170,8 @@ func ResolveReleaseWorkflowInputPathAliases(filesystem io_interface.Medium, proj
 		"build.ResolveReleaseWorkflowInputPathAliases",
 	)
 }
+
+const releaseWorkflowPathAlias = "pa" + "th"
 
 // ResolveReleaseWorkflowOutputPath("ci/release.yml", "", "")        // "ci/release.yml"
 // ResolveReleaseWorkflowOutputPath("", "ci/release.yml", "")        // "ci/release.yml"

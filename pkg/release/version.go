@@ -5,7 +5,6 @@ import (
 	"context"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -36,7 +35,7 @@ func DetermineVersion(dir string) (string, error) {
 // version, err := release.DetermineVersionWithContext(ctx, ".") // → "v1.2.4"
 func DetermineVersionWithContext(ctx context.Context, dir string) (string, error) {
 	if git := build.DetectGitHubMetadata(); git != nil && git.IsTag {
-		tag := normalizeVersion(strings.TrimSpace(git.Tag))
+		tag := normalizeVersion(core.Trim(git.Tag))
 		if !ValidateVersion(tag) {
 			return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+tag, nil)
 		}
@@ -264,8 +263,8 @@ func comparePrereleaseVersions(a, b string) int {
 		return -1
 	}
 
-	aParts := strings.Split(a, ".")
-	bParts := strings.Split(b, ".")
+	aParts := core.Split(a, ".")
+	bParts := core.Split(b, ".")
 	limit := len(aParts)
 	if len(bParts) < limit {
 		limit = len(bParts)

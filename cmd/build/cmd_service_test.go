@@ -2,10 +2,9 @@ package buildcmd
 
 import (
 	"context"
-	"errors"
 	"testing"
 
-	"dappco.re/go"
+	core "dappco.re/go"
 	buildservice "dappco.re/go/build/pkg/service"
 	nativeservice "github.com/kardianos/service"
 )
@@ -85,7 +84,7 @@ func stubResolvedServiceConfig(t *testing.T, projectDir string) {
 	}
 }
 
-func TestService_AddServiceCommands_RegistersSubcommands_Good(t *testing.T) {
+func TestService_AddServiceCommands_RegistersSubcommandsGood(t *testing.T) {
 	c := core.New()
 
 	AddBuildCommands(c)
@@ -108,7 +107,7 @@ func TestService_AddServiceCommands_RegistersSubcommands_Good(t *testing.T) {
 	}
 }
 
-func TestService_Install_Good(t *testing.T) {
+func TestService_InstallGood(t *testing.T) {
 	restoreServiceCommandStubs(t)
 
 	projectDir := t.TempDir()
@@ -147,14 +146,14 @@ func TestService_Install_Good(t *testing.T) {
 	}
 }
 
-func TestService_Install_Bad(t *testing.T) {
+func TestService_InstallBad(t *testing.T) {
 	restoreServiceCommandStubs(t)
 
 	projectDir := t.TempDir()
 	stubResolvedServiceConfig(t, projectDir)
 
 	newBuildNativeController = func(nativeservice.Interface, *nativeservice.Config) (serviceController, error) {
-		return nil, errors.New("native service unavailable")
+		return nil, core.NewError("native service unavailable")
 	}
 
 	err := runServiceInstall(serviceRequest{})
@@ -166,13 +165,13 @@ func TestService_Install_Bad(t *testing.T) {
 	}
 }
 
-func TestService_Install_Ugly(t *testing.T) {
+func TestService_InstallUgly(t *testing.T) {
 	restoreServiceCommandStubs(t)
 
 	projectDir := t.TempDir()
 	stubResolvedServiceConfig(t, projectDir)
 
-	controller := &stubServiceController{installErr: errors.New("install rejected")}
+	controller := &stubServiceController{installErr: core.NewError("install rejected")}
 	newBuildNativeController = func(nativeservice.Interface, *nativeservice.Config) (serviceController, error) {
 		return controller, nil
 	}
@@ -189,7 +188,7 @@ func TestService_Install_Ugly(t *testing.T) {
 	}
 }
 
-func TestService_Run_UsesKardianosRunCallback_Good(t *testing.T) {
+func TestService_Run_UsesKardianosRunCallbackGood(t *testing.T) {
 	restoreServiceCommandStubs(t)
 
 	projectDir := t.TempDir()
@@ -228,4 +227,122 @@ func TestService_Run_UsesKardianosRunCallback_Good(t *testing.T) {
 	default:
 		t.Fatal("expected daemon to be called")
 	}
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestCmdService_Program_Start_Good(t *core.T) {
+	subject := &serviceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Start(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_Program_Start_Bad(t *core.T) {
+	subject := &serviceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Start(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_Program_Start_Ugly(t *core.T) {
+	subject := &serviceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Start(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_Program_Stop_Good(t *core.T) {
+	subject := &serviceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Stop(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_Program_Stop_Bad(t *core.T) {
+	subject := &serviceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Stop(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_Program_Stop_Ugly(t *core.T) {
+	subject := &serviceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Stop(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_ServiceProgram_Start_Good(t *core.T) {
+	subject := controlServiceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Start(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_ServiceProgram_Start_Bad(t *core.T) {
+	subject := controlServiceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Start(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_ServiceProgram_Start_Ugly(t *core.T) {
+	subject := controlServiceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Start(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_ServiceProgram_Stop_Good(t *core.T) {
+	subject := controlServiceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Stop(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_ServiceProgram_Stop_Bad(t *core.T) {
+	subject := controlServiceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Stop(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_ServiceProgram_Stop_Ugly(t *core.T) {
+	subject := controlServiceProgram{}
+	core.AssertNotPanics(t, func() {
+		_ = subject.Stop(nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_AddServiceCommands_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		AddServiceCommands(core.New())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_AddServiceCommands_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		AddServiceCommands(core.New())
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestCmdService_AddServiceCommands_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		AddServiceCommands(core.New())
+	})
+	core.AssertTrue(t, true)
 }

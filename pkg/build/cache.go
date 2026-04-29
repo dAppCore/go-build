@@ -3,8 +3,6 @@
 package build
 
 import (
-	"os"
-
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/io"
@@ -328,12 +326,13 @@ func appendIfMissing(values []string, value string) []string {
 }
 
 func applyCacheEnvironment(cfg *CacheConfig) {
+	setenv := core.Setenv
 	for _, env := range CacheEnvironment(cfg) {
 		parts := core.SplitN(env, "=", 2)
 		if len(parts) != 2 {
 			continue
 		}
-		if err := os.Setenv(parts[0], parts[1]); err != nil {
+		if set := setenv(parts[0], parts[1]); !set.OK {
 			continue
 		}
 	}

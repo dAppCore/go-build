@@ -73,7 +73,7 @@ func AddWorkflowCommand(c *core.Core) {
 		Description: "cmd.build.workflow.long",
 		Action: func(opts core.Options) core.Result {
 			return cmdutil.ResultFromError(runReleaseWorkflow(cmdutil.ContextOrBackground(), releaseWorkflowRequestInputs{
-				pathInput:                     cmdutil.OptionString(opts, "path"),
+				pathInput:                     cmdutil.OptionString(opts, buildPathOptionKey),
 				workflowPathInput:             cmdutil.OptionString(opts, "workflowPath"),
 				workflowPathSnakeInput:        cmdutil.OptionString(opts, "workflow_path"),
 				workflowPathHyphenInput:       cmdutil.OptionString(opts, "workflow-path"),

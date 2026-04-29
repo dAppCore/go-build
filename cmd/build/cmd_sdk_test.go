@@ -20,7 +20,7 @@ paths:
           description: OK
 `
 
-func TestRunBuildSDKInDir_ValidSpecDryRun_Good(t *testing.T) {
+func TestRunBuildSDKInDir_ValidSpecDryRunGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	if err := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(validBuildOpenAPISpec), 0o644); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -33,7 +33,7 @@ func TestRunBuildSDKInDir_ValidSpecDryRun_Good(t *testing.T) {
 
 }
 
-func TestRunBuildSDKInDir_UsesBuildSDKConfig_Good(t *testing.T) {
+func TestRunBuildSDKInDir_UsesBuildSDKConfigGood(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := ax.Join(tmpDir, "docs", "openapi.yaml")
 	if err := ax.MkdirAll(ax.Dir(specPath), 0o755); err != nil {
@@ -61,7 +61,7 @@ sdk:
 
 }
 
-func TestRunBuildSDKInDir_InvalidDocument_Bad(t *testing.T) {
+func TestRunBuildSDKInDir_InvalidDocumentBad(t *testing.T) {
 	tmpDir := t.TempDir()
 	if err := ax.WriteFile(ax.Join(tmpDir, "openapi.yaml"), []byte(`openapi: "3.0.0"
 info:

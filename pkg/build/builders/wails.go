@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"os"
 	"runtime"
 
 	"dappco.re/go"
@@ -837,7 +836,7 @@ func writeGoShim(dir, goCommand, garbleCommand string) error {
 }
 
 func prependPathEnv(env []string, dir string) []string {
-	pathSeparator := string(os.PathListSeparator)
+	pathSeparator := string(core.PathListSeparator)
 	for i, entry := range env {
 		if core.HasPrefix(entry, "PATH=") {
 			current := core.TrimPrefix(entry, "PATH=")

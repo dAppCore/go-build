@@ -2,10 +2,9 @@ package generators
 
 import (
 	"context"
-	"encoding/json"
 	stdio "io"
-	"strings"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	coreerr "dappco.re/go/log"
 )
@@ -175,7 +174,7 @@ func (g *TypeScriptGenerator) generateDocker(ctx context.Context, opts Options, 
 }
 
 func finalizeTypeScriptOutput(stagingDir string, opts Options) error {
-	if strings.TrimSpace(opts.OutputDir) == "" {
+	if core.Trim(opts.OutputDir) == "" {
 		return coreerr.E("typescript.finalizeOutput", "output dir is required", nil)
 	}
 
@@ -201,7 +200,7 @@ func finalizeTypeScriptOutput(stagingDir string, opts Options) error {
 		sourcePath := ax.Join(stagingDir, name)
 
 		switch {
-		case entry.IsDir() && strings.EqualFold(name, "src"):
+		case entry.IsDir() && core.Lower(name) == "src":
 			if err := copyTypeScriptDirectoryContents(sourcePath, srcDir); err != nil {
 				return err
 			}
@@ -224,7 +223,7 @@ func finalizeTypeScriptOutput(stagingDir string, opts Options) error {
 }
 
 func shouldPlaceTypeScriptInSrc(name string, isDir bool) bool {
-	name = strings.TrimSpace(strings.ToLower(name))
+	name = core.Trim(core.Lower(name))
 	if name == "" {
 		return false
 	}
@@ -238,7 +237,7 @@ func shouldPlaceTypeScriptInSrc(name string, isDir bool) bool {
 		}
 	}
 
-	switch strings.ToLower(ax.Ext(name)) {
+	switch core.Lower(ax.Ext(name)) {
 	case ".cts", ".mts", ".ts", ".tsx":
 		return true
 	default:
@@ -255,21 +254,21 @@ func ensureTypeScriptPackageMetadata(outputDir, packageName, version string) err
 		if err != nil {
 			return coreerr.E("typescript.ensurePackageMetadata", "failed to read package.json", err)
 		}
-		if len(strings.TrimSpace(string(content))) > 0 {
-			if err := json.Unmarshal(content, &manifest); err != nil {
-				return coreerr.E("typescript.ensurePackageMetadata", "failed to parse package.json", err)
+		if len(core.Trim(string(content))) > 0 {
+			if decoded := core.JSONUnmarshal(content, &manifest); !decoded.OK {
+				return coreerr.E("typescript.ensurePackageMetadata", "failed to parse package.json", resultError(decoded))
 			}
 		}
 	}
 
-	resolvedName := strings.TrimSpace(packageName)
+	resolvedName := core.Trim(packageName)
 	if resolvedName == "" {
 		resolvedName = ax.Base(outputDir)
 	}
 	manifest["name"] = resolvedName
 
-	if strings.TrimSpace(version) != "" {
-		manifest["version"] = strings.TrimSpace(version)
+	if core.Trim(version) != "" {
+		manifest["version"] = core.Trim(version)
 	} else if _, ok := manifest["version"]; !ok {
 		manifest["version"] = "0.0.0"
 	}
@@ -293,11 +292,11 @@ func ensureTypeScriptPackageMetadata(outputDir, packageName, version string) err
 		}
 	}
 
-	encoded, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return coreerr.E("typescript.ensurePackageMetadata", "failed to encode package.json", err)
+	encoded := core.JSONMarshalIndent(manifest, "", "  ")
+	if !encoded.OK {
+		return coreerr.E("typescript.ensurePackageMetadata", "failed to encode package.json", resultError(encoded))
 	}
-	if err := ax.WriteFile(manifestPath, append(encoded, '\n'), 0o644); err != nil {
+	if err := ax.WriteFile(manifestPath, append(encoded.Value.([]byte), '\n'), 0o644); err != nil {
 		return coreerr.E("typescript.ensurePackageMetadata", "failed to write package.json", err)
 	}
 
@@ -319,6 +318,13 @@ func copyTypeScriptDirectoryContents(sourceDir, destinationDir string) error {
 	}
 
 	return nil
+}
+
+func resultError(result core.Result) error {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.NewError(result.Error())
 }
 
 func copyTypeScriptPath(sourcePath, destinationPath string) error {

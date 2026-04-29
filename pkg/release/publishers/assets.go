@@ -1,8 +1,7 @@
 package publishers
 
 import (
-	"strings"
-
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 )
@@ -130,9 +129,7 @@ func artifactPlatform(artifact build.Artifact, name string) (string, string, boo
 		return osValue, archValue, true
 	}
 
-	tokens := strings.FieldsFunc(stripArtifactSuffixes(strings.ToLower(name)), func(r rune) bool {
-		return r == '-' || r == '_' || r == '.'
-	})
+	tokens := splitArtifactTokens(stripArtifactSuffixes(core.Lower(name)))
 	for i := 0; i+1 < len(tokens); i++ {
 		osValue := normalizePlatformToken(tokens[i])
 		archValue := normalizeArchToken(tokens[i+1])
@@ -154,15 +151,15 @@ func stripArtifactSuffixes(name string) string {
 		".sig",
 		".asc",
 	} {
-		if strings.HasSuffix(name, suffix) {
-			return strings.TrimSuffix(name, suffix)
+		if core.HasSuffix(name, suffix) {
+			return core.TrimSuffix(name, suffix)
 		}
 	}
 	return name
 }
 
 func normalizePlatformToken(value string) string {
-	switch strings.TrimSpace(strings.ToLower(value)) {
+	switch core.Trim(core.Lower(value)) {
 	case "darwin", "macos", "mac":
 		return "darwin"
 	case "linux":
@@ -175,7 +172,7 @@ func normalizePlatformToken(value string) string {
 }
 
 func normalizeArchToken(value string) string {
-	switch strings.TrimSpace(strings.ToLower(value)) {
+	switch core.Trim(core.Lower(value)) {
 	case "amd64", "x86_64", "x64":
 		return "amd64"
 	case "arm64", "aarch64":
@@ -186,28 +183,61 @@ func normalizeArchToken(value string) string {
 }
 
 func isChecksumArtifactName(name string) bool {
-	name = strings.TrimSpace(strings.ToLower(name))
-	return strings.HasSuffix(name, ".txt") && strings.Contains(name, "checksum")
+	name = core.Trim(core.Lower(name))
+	return core.HasSuffix(name, ".txt") && core.Contains(name, "checksum")
 }
 
 func isSignatureArtifactName(name string) bool {
-	name = strings.TrimSpace(strings.ToLower(name))
-	return strings.HasSuffix(name, ".asc") || strings.HasSuffix(name, ".sig")
+	name = core.Trim(core.Lower(name))
+	return core.HasSuffix(name, ".asc") || core.HasSuffix(name, ".sig")
 }
 
 func isMetadataArtifactName(name string) bool {
-	return strings.EqualFold(strings.TrimSpace(name), "artifact_meta.json")
+	return core.Lower(core.Trim(name)) == "artifact_meta.json"
 }
 
 func parseChecksumFile(content string) map[string]string {
-	lines := strings.Split(content, "\n")
+	lines := core.Split(content, "\n")
 	lookup := make(map[string]string, len(lines))
 	for _, line := range lines {
-		fields := strings.Fields(strings.TrimSpace(line))
+		fields := checksumFields(core.Trim(line))
 		if len(fields) < 2 {
 			continue
 		}
 		lookup[ax.Base(fields[len(fields)-1])] = fields[0]
 	}
 	return lookup
+}
+
+func splitArtifactTokens(value string) []string {
+	return splitDelimitedFields(value, func(r rune) bool {
+		return r == '-' || r == '_' || r == '.'
+	})
+}
+
+func checksumFields(value string) []string {
+	return splitDelimitedFields(value, func(r rune) bool {
+		return r == ' ' || r == '\t' || r == '\n' || r == '\r'
+	})
+}
+
+func splitDelimitedFields(value string, separator func(rune) bool) []string {
+	var fields []string
+	start := -1
+	for i, r := range value {
+		if separator(r) {
+			if start >= 0 {
+				fields = append(fields, value[start:i])
+				start = -1
+			}
+			continue
+		}
+		if start < 0 {
+			start = i
+		}
+	}
+	if start >= 0 {
+		fields = append(fields, value[start:])
+	}
+	return fields
 }

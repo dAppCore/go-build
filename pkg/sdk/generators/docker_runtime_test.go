@@ -2,11 +2,10 @@ package generators
 
 import (
 	"context"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 )
 
@@ -38,7 +37,7 @@ func writeFakeDockerRuntime(t *testing.T, dir, script string) string {
 	return dockerPath
 }
 
-func TestSDK_ResolveDockerRuntimeCli_Good(t *testing.T) {
+func TestSDK_ResolveDockerRuntimeCliGood(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "docker")
 	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
@@ -57,7 +56,7 @@ func TestSDK_ResolveDockerRuntimeCli_Good(t *testing.T) {
 
 }
 
-func TestSDK_ResolveDockerRuntimeCli_Bad(t *testing.T) {
+func TestSDK_ResolveDockerRuntimeCliBad(t *testing.T) {
 	t.Setenv("PATH", "")
 	_, err := resolveDockerRuntimeCli(ax.Join(t.TempDir(), "missing-docker"))
 	if err == nil {
@@ -69,7 +68,7 @@ func TestSDK_ResolveDockerRuntimeCli_Bad(t *testing.T) {
 
 }
 
-func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
+func TestSDK_GeneratorAvailabilityUsesDockerFallbackGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -94,7 +93,7 @@ func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityCachesSuccessfulProbe_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityCachesSuccessfulProbeGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -113,13 +112,13 @@ func TestSDK_DockerRuntimeAvailabilityCachesSuccessfulProbe_Good(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(strings.Fields(string(content))) != 1 {
-		t.Fatalf("want len %v, got %v", 1, len(strings.Fields(string(content))))
+	if len(dockerRuntimeFields(string(content))) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(dockerRuntimeFields(string(content))))
 	}
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityCachesFailedProbe_Bad(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityCachesFailedProbeBad(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -138,13 +137,35 @@ func TestSDK_DockerRuntimeAvailabilityCachesFailedProbe_Bad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(strings.Fields(string(content))) != 1 {
-		t.Fatalf("want len %v, got %v", 1, len(strings.Fields(string(content))))
+	if len(dockerRuntimeFields(string(content))) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(dockerRuntimeFields(string(content))))
 	}
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T) {
+func dockerRuntimeFields(value string) []string {
+	value = core.Trim(value)
+	var fields []string
+	start := -1
+	for i, r := range value {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			if start >= 0 {
+				fields = append(fields, value[start:i])
+				start = -1
+			}
+			continue
+		}
+		if start < 0 {
+			start = i
+		}
+	}
+	if start >= 0 {
+		fields = append(fields, value[start:])
+	}
+	return fields
+}
+
+func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextBad(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -163,7 +184,7 @@ func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T)
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextAfterCachedSuccess_Bad(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextAfterCachedSuccessBad(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -182,7 +203,7 @@ func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextAfterCachedSuccess
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeoutBad(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 	setAvailabilityProbeTimeout(t, 20*time.Millisecond)
@@ -201,7 +222,7 @@ func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailure_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailureGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -220,7 +241,7 @@ func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailure_Good(t *testing.T) {
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChanges_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChangesGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -240,7 +261,7 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChanges
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutatesInPlace_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutatesInPlaceGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -263,7 +284,7 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutates
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandKeepsSizeAndMTime_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandKeepsSizeAndMTimeGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -276,14 +297,14 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandKeepsSi
 		t.Fatal("expected true")
 	}
 
-	info, err := os.Stat(dockerPath)
+	info, err := ax.Stat(dockerPath)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if err := ax.WriteFile(dockerPath, []byte(failureScript), 0o755); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if err := os.Chtimes(dockerPath, info.ModTime(), info.ModTime()); err != nil {
+	if err := ax.Chtimes(dockerPath, info.ModTime(), info.ModTime()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if dockerRuntimeAvailable() {

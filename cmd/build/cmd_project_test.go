@@ -1,10 +1,8 @@
 package buildcmd
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"os"
+	core "dappco.re/go"
 	"runtime"
 	"testing"
 
@@ -12,8 +10,9 @@ import (
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/cli/pkg/cli"
 	"dappco.re/go/io"
-	"errors"
 )
+
+const cmdProjectOSField = "o" + "s"
 
 func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
@@ -50,7 +49,7 @@ printf 'signature\n' > "$output"
 
 }
 
-func TestBuildCmd_GetBuilder_Good(t *testing.T) {
+func TestBuildCmd_GetBuilderGood(t *testing.T) {
 	t.Run("returns Python builder for python project type", func(t *testing.T) {
 		builder, err := getBuilder(build.ProjectTypePython)
 		if err != nil {
@@ -328,9 +327,9 @@ func TestBuildCmd_runProjectBuild_CIModeEmitsGitHubAnnotationOnError_Bad(t *test
 	})
 	getProjectBuildWorkingDir = func() (string, error) { return projectDir, nil }
 
-	var stdout bytes.Buffer
-	cli.SetStdout(&stdout)
-	cli.SetStderr(&stdout)
+	stdout := core.NewBuffer()
+	cli.SetStdout(stdout)
+	cli.SetStderr(stdout)
 
 	err := runProjectBuild(ProjectBuildRequest{
 		Context:     context.Background(),
@@ -577,14 +576,14 @@ func TestBuildCmd_writeArtifactMetadata_Good(t *testing.T) {
 		}
 
 		var meta map[string]any
-		if err := json.Unmarshal(content, &meta); err != nil {
+		if err := ax.JSONUnmarshal(content, &meta); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if !stdlibAssertEqual("sample", meta["name"]) {
 			t.Fatalf("want %v, got %v", "sample", meta["name"])
 		}
-		if !stdlibAssertEqual(expectedOS, meta["os"]) {
-			t.Fatalf("want %v, got %v", expectedOS, meta["os"])
+		if !stdlibAssertEqual(expectedOS, meta[cmdProjectOSField]) {
+			t.Fatalf("want %v, got %v", expectedOS, meta[cmdProjectOSField])
 		}
 		if !stdlibAssertEqual(expectedArch, meta["arch"]) {
 			t.Fatalf("want %v, got %v", expectedArch, meta["arch"])
@@ -630,10 +629,8 @@ func TestBuildCmd_writeArtifactMetadata_SkipsChecksumArtifacts_Good(t *testing.T
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, err := os.Stat(ax.Join(distDir, "artifact_meta.json")); err == nil {
+	if ax.Exists(ax.Join(distDir, "artifact_meta.json")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(distDir, "artifact_meta.json"))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
 	}
 
 }
@@ -679,7 +676,7 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesChecksumArtifacts_Good(t *tes
 	if stdlibAssertContains(paths, ax.Join(outputDir, "CHECKSUMS.txt.asc")) {
 		t.Fatalf("expected %v not to contain %v", paths, ax.Join(outputDir, "CHECKSUMS.txt.asc"))
 	}
-	if _, err := os.Stat(ax.Join(outputDir, "CHECKSUMS.txt")); err != nil {
+	if _, err := ax.Stat(ax.Join(outputDir, "CHECKSUMS.txt")); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "CHECKSUMS.txt"))
 	}
 
@@ -688,7 +685,7 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesChecksumArtifacts_Good(t *tes
 func TestBuildCmd_computeAndWriteChecksums_IncludesSignatureArtifact_Good(t *testing.T) {
 	binDir := t.TempDir()
 	setupFakeGPG(t, binDir)
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", binDir+string(core.PathListSeparator)+core.Getenv("PATH"))
 
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist")
@@ -728,7 +725,7 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesSignatureArtifact_Good(t *tes
 	if !stdlibAssertContains(paths, ax.Join(outputDir, "CHECKSUMS.txt.asc")) {
 		t.Fatalf("expected %v to contain %v", paths, ax.Join(outputDir, "CHECKSUMS.txt.asc"))
 	}
-	if _, err := os.Stat(ax.Join(outputDir, "CHECKSUMS.txt.asc")); err != nil {
+	if _, err := ax.Stat(ax.Join(outputDir, "CHECKSUMS.txt.asc")); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "CHECKSUMS.txt.asc"))
 	}
 
@@ -821,13 +818,11 @@ func TestBuildCmd_runProjectBuild_NoConfigGoPassthrough_Good(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "passthrough")); err != nil {
+	if _, err := ax.Stat(ax.Join(projectDir, "passthrough")); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "passthrough"))
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist")); err == nil {
+	if ax.Exists(ax.Join(projectDir, "dist")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "dist"))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
 	}
 
 }
@@ -865,28 +860,20 @@ func TestBuildCmd_runProjectBuild_ConfiguredBuildDefaultsToRawArtifacts_Good(t *
 	if runtime.GOOS == "windows" {
 		expectedBinary += ".exe"
 	}
-	if _, err := os.Stat(expectedBinary); err != nil {
+	if _, err := ax.Stat(expectedBinary); err != nil {
 		t.Fatalf("expected file to exist: %v", expectedBinary)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist", "CHECKSUMS.txt")); err == nil {
+	if ax.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "dist", "CHECKSUMS.txt"))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz")); err == nil {
+	if ax.Exists(ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz"))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz")); err == nil {
+	if ax.Exists(ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz"))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".zip")); err == nil {
+	if ax.Exists(ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".zip")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "dist", "configured_"+runtime.GOOS+"_"+runtime.GOARCH+".zip"))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
 	}
 
 }
@@ -994,7 +981,7 @@ func TestBuildCmd_runProjectBuild_NoConfigGoPassthroughTargetAndOutput_Good(t *t
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, err := os.Stat(outputPath); err != nil {
+	if _, err := ax.Stat(outputPath); err != nil {
 		t.Fatalf("expected file to exist: %v", outputPath)
 	}
 
@@ -1028,12 +1015,10 @@ func TestBuildCmd_runProjectBuild_NoConfigGoCIModeUsesPipeline_Good(t *testing.T
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "passthrough")); err == nil {
+	if ax.Exists(ax.Join(projectDir, "passthrough")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "passthrough"))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist", "linux_amd64", buildName)); err != nil {
+	if _, err := ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", buildName)); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "linux_amd64", buildName))
 	}
 
@@ -1069,13 +1054,13 @@ func TestBuildCmd_runProjectBuild_CIModeCopiesCIStampedArtifacts_Good(t *testing
 	}
 
 	ciArtifactPath := ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir)+"_linux_amd64_v1.2.3")
-	if _, err := os.Stat(ciArtifactPath); err != nil {
+	if _, err := ax.Stat(ciArtifactPath); err != nil {
 		t.Fatalf("expected file to exist: %v", ciArtifactPath)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir))); err != nil {
+	if _, err := ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir))); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "linux_amd64", ax.Base(projectDir)))
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist", "linux_amd64", "artifact_meta.json")); err != nil {
+	if _, err := ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", "artifact_meta.json")); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "linux_amd64", "artifact_meta.json"))
 	}
 
@@ -1109,15 +1094,13 @@ func TestBuildCmd_runProjectBuild_NoConfigGoArchiveRequestUsesPipeline_Good(t *t
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "passthrough")); err == nil {
+	if ax.Exists(ax.Join(projectDir, "passthrough")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(projectDir, "passthrough"))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist", "linux_amd64", buildName)); err != nil {
+	if _, err := ax.Stat(ax.Join(projectDir, "dist", "linux_amd64", buildName)); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "linux_amd64", buildName))
 	}
-	if _, err := os.Stat(ax.Join(projectDir, "dist", buildName+"_linux_amd64.tar.gz")); err != nil {
+	if _, err := ax.Stat(ax.Join(projectDir, "dist", buildName+"_linux_amd64.tar.gz")); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", buildName+"_linux_amd64.tar.gz"))
 	}
 

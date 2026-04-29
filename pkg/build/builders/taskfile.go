@@ -3,7 +3,6 @@ package builders
 
 import (
 	"context"
-	"path"
 	"runtime"
 
 	"dappco.re/go"
@@ -266,8 +265,8 @@ func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string,
 
 // matchPattern implements glob matching for Taskfile artifacts.
 func (b *TaskfileBuilder) matchPattern(name, pattern string) bool {
-	matched, _ := path.Match(pattern, name)
-	return matched
+	matched := core.PathMatch(pattern, name)
+	return matched.OK && matched.Value.(bool)
 }
 
 // resolveTaskCli returns the executable path for the task CLI.

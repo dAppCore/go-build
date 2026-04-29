@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"runtime"
 	"syscall"
+	"time"
 
 	"dappco.re/go"
 	coreio "dappco.re/go/io"
@@ -284,6 +285,32 @@ func Chmod(path string, mode fs.FileMode) error {
 	return nil
 }
 
+// Chtimes updates access and modification times without importing the OS package.
+//
+// Usage example: err := ax.Chtimes("dist/app", modTime, modTime)
+func Chtimes(path string, atime, mtime time.Time) error {
+	times := []syscall.Timespec{
+		syscall.NsecToTimespec(atime.UnixNano()),
+		syscall.NsecToTimespec(mtime.UnixNano()),
+	}
+	if err := syscall.UtimesNano(path, times); err != nil {
+		return coreerr.E("ax.Chtimes", "failed to change timestamps on "+path, err)
+	}
+	return nil
+}
+
+// Readlink reads a symbolic link target without importing the OS package.
+//
+// Usage example: target, err := ax.Readlink("dist/current")
+func Readlink(path string) (string, error) {
+	buffer := make([]byte, 4096)
+	n, err := syscall.Readlink(path, buffer)
+	if err != nil {
+		return "", coreerr.E("ax.Readlink", "failed to read symlink "+path, err)
+	}
+	return string(buffer[:n]), nil
+}
+
 // Getuid returns the current process UID.
 //
 // Usage example: uid := ax.Getuid()
@@ -378,7 +405,7 @@ func Run(ctx context.Context, command string, args ...string) (string, error) {
 
 // RunDir executes a command in the provided directory and returns combined output.
 //
-// Usage example: output, err := ax.RunDir(ctx, repoDir, "git", "log", "--oneline")
+// Usage example: output, err := ax.RunDir(ctx, repoDir, "git", "show", "--stat")
 func RunDir(ctx context.Context, dir, command string, args ...string) (string, error) {
 	program := process.Program{Name: command}
 	return program.RunDir(ctx, dir, args...)

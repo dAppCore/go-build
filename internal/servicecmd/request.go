@@ -1,8 +1,6 @@
 package servicecmd
 
 import (
-	"path/filepath"
-	"strings"
 	"time"
 
 	"dappco.re/go"
@@ -75,8 +73,8 @@ func LoadConfig(req Request, getwd func() (string, error), resolve func(string) 
 	projectDir := req.ProjectDir
 	if projectDir == "" {
 		projectDir = cwd
-	} else if !filepath.IsAbs(projectDir) {
-		projectDir = filepath.Join(cwd, projectDir)
+	} else if !core.PathIsAbs(projectDir) {
+		projectDir = core.PathJoin(cwd, projectDir)
 	}
 
 	cfg, err := resolve(projectDir)
@@ -118,8 +116,8 @@ func ApplyOverrides(cfg *buildservice.Config, req Request) error {
 	}
 	if req.PIDFile != "" {
 		cfg.PIDFile = req.PIDFile
-		if !filepath.IsAbs(cfg.PIDFile) {
-			cfg.PIDFile = filepath.Join(cfg.ProjectDir, cfg.PIDFile)
+		if !core.PathIsAbs(cfg.PIDFile) {
+			cfg.PIDFile = core.PathJoin(cfg.ProjectDir, cfg.PIDFile)
 		}
 	}
 	if req.WatchPaths != "" {
@@ -153,10 +151,10 @@ func ApplyOverrides(cfg *buildservice.Config, req Request) error {
 //	paths := servicecmd.ParseCSV("src, .core/build.yaml")
 //	cfg.WatchPaths = paths
 func ParseCSV(value string) []string {
-	parts := strings.Split(value, ",")
+	parts := core.Split(value, ",")
 	paths := make([]string, 0, len(parts))
 	for _, part := range parts {
-		part = strings.TrimSpace(part)
+		part = core.Trim(part)
 		if part == "" {
 			continue
 		}

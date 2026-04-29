@@ -6,7 +6,7 @@ import (
 	"dappco.re/go/build/pkg/build"
 )
 
-func TestResolver_InitRegistersDefaultBuilderResolver_Good(t *testing.T) {
+func TestResolver_InitRegistersDefaultBuilderResolverGood(t *testing.T) {
 	resolver := build.DefaultBuilderResolver()
 	if stdlibAssertNil(resolver) {
 		t.Fatal("expected non-nil")

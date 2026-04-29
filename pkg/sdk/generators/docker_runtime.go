@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	stdio "io"
 	"strconv"
 	"sync"
 	"time"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	coreerr "dappco.re/go/log"
 )
@@ -100,7 +100,7 @@ func dockerRuntimeCommandState(command string) (string, error) {
 	defer func() { _ = file.Close() }()
 
 	hasher := sha256.New()
-	if _, err := stdio.CopyN(hasher, file, dockerRuntimeFingerprintBytes); err != nil && !errors.Is(err, stdio.EOF) {
+	if _, err := stdio.CopyN(hasher, file, dockerRuntimeFingerprintBytes); err != nil && !core.Is(err, stdio.EOF) {
 		return "", err
 	}
 

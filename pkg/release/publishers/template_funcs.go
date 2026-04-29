@@ -1,11 +1,10 @@
 package publishers
 
 import (
-	"encoding/json"
-	"fmt"
 	"html"
-	"strings"
 	"text/template"
+
+	core "dappco.re/go"
 )
 
 func publisherTemplateFuncs() template.FuncMap {
@@ -16,23 +15,23 @@ func publisherTemplateFuncs() template.FuncMap {
 		"rubyQuote":  rubyQuote,
 		"psQuote":    psQuote,
 		"shellQuote": shellQuote,
-		"printf":     fmt.Sprintf,
+		"printf":     core.Sprintf,
 	}
 }
 
 func jsonString(value string) string {
-	quoted, err := json.Marshal(value)
-	if err != nil {
+	quoted := core.JSONMarshal(value)
+	if !quoted.OK {
 		return `""`
 	}
-	return string(quoted)
+	return string(quoted.Value.([]byte))
 }
 
 func jsComment(value string) string {
-	value = strings.TrimSpace(value)
-	value = strings.ReplaceAll(value, "\r", " ")
-	value = strings.ReplaceAll(value, "\n", " ")
-	value = strings.ReplaceAll(value, "*/", "*\\/")
+	value = core.Trim(value)
+	value = core.Replace(value, "\r", " ")
+	value = core.Replace(value, "\n", " ")
+	value = core.Replace(value, "*/", "*\\/")
 	return value
 }
 
@@ -41,13 +40,13 @@ func xmlEscape(value string) string {
 }
 
 func rubyQuote(value string) string {
-	value = strings.ReplaceAll(value, `\`, `\\`)
-	value = strings.ReplaceAll(value, `'`, `\'`)
+	value = core.Replace(value, `\`, `\\`)
+	value = core.Replace(value, `'`, `\'`)
 	return "'" + value + "'"
 }
 
 func psQuote(value string) string {
-	value = strings.ReplaceAll(value, `'`, `''`)
+	value = core.Replace(value, `'`, `''`)
 	return "'" + value + "'"
 }
 
@@ -56,5 +55,5 @@ func shellQuote(value string) string {
 		return "''"
 	}
 
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+	return "'" + core.Replace(value, "'", `'"'"'`) + "'"
 }

@@ -2,10 +2,9 @@ package service
 
 import (
 	"encoding/xml"
-	"fmt"
-	"path/filepath"
 	"strconv"
-	"strings"
+
+	core "dappco.re/go"
 )
 
 // Export renders a native service definition for cfg.
@@ -37,12 +36,12 @@ func Export(cfg Config, format string) (ExportedConfig, error) {
 			Content:  renderWindows(cfg),
 		}, nil
 	default:
-		return ExportedConfig{}, fmt.Errorf("unsupported native service format: %s", nativeFormat)
+		return ExportedConfig{}, core.Errorf("unsupported native service format: %s", nativeFormat)
 	}
 }
 
 func renderSystemd(cfg Config) string {
-	var b strings.Builder
+	b := core.NewBuilder()
 	b.WriteString("[Unit]\n")
 	b.WriteString("Description=" + cfg.Description + "\n")
 	b.WriteString("After=network-online.target\n")
@@ -66,7 +65,7 @@ func renderSystemd(cfg Config) string {
 }
 
 func renderLaunchd(cfg Config) string {
-	var b strings.Builder
+	b := core.NewBuilder()
 	b.WriteString(xml.Header)
 	b.WriteString(`<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">` + "\n")
 	b.WriteString(`<plist version="1.0">` + "\n")
@@ -98,22 +97,22 @@ func renderLaunchd(cfg Config) string {
 	b.WriteString("    <string>" + xmlEscape(cfg.HealthAddr) + "</string>\n")
 	b.WriteString("  </dict>\n")
 	b.WriteString("  <key>StandardOutPath</key>\n")
-	b.WriteString("  <string>" + xmlEscape(filepath.Join(filepath.Dir(cfg.PIDFile), cfg.Name+".out.log")) + "</string>\n")
+	b.WriteString("  <string>" + xmlEscape(core.PathJoin(core.PathDir(cfg.PIDFile), cfg.Name+".out.log")) + "</string>\n")
 	b.WriteString("  <key>StandardErrorPath</key>\n")
-	b.WriteString("  <string>" + xmlEscape(filepath.Join(filepath.Dir(cfg.PIDFile), cfg.Name+".err.log")) + "</string>\n")
+	b.WriteString("  <string>" + xmlEscape(core.PathJoin(core.PathDir(cfg.PIDFile), cfg.Name+".err.log")) + "</string>\n")
 	b.WriteString("</dict>\n")
 	b.WriteString("</plist>\n")
 	return b.String()
 }
 
 func renderWindows(cfg Config) string {
-	var b strings.Builder
+	b := core.NewBuilder()
 	b.WriteString("$ErrorActionPreference = \"Stop\"\n")
 	b.WriteString("$serviceName = " + strconv.Quote(cfg.Name) + "\n")
 	b.WriteString("$displayName = " + strconv.Quote(cfg.DisplayName) + "\n")
 	b.WriteString("$description = " + strconv.Quote(cfg.Description) + "\n")
 	b.WriteString("$binary = " + strconv.Quote(cfg.Executable) + "\n")
-	b.WriteString("$arguments = " + strconv.Quote(strings.Join(cfg.Arguments, " ")) + "\n")
+	b.WriteString("$arguments = " + strconv.Quote(core.Join(" ", cfg.Arguments...)) + "\n")
 	b.WriteString("sc.exe create $serviceName binPath= ('\"' + $binary + '\" ' + $arguments) start= auto\n")
 	b.WriteString("sc.exe description $serviceName $description\n")
 	return b.String()
@@ -125,12 +124,12 @@ func systemdCommand(executable string, args []string) string {
 	for _, arg := range args {
 		parts = append(parts, strconv.Quote(arg))
 	}
-	return strings.Join(parts, " ")
+	return core.Join(" ", parts...)
 }
 
 func xmlEscape(value string) string {
-	var b strings.Builder
-	if err := xml.EscapeText(&b, []byte(value)); err != nil {
+	b := core.NewBuilder()
+	if err := xml.EscapeText(b, []byte(value)); err != nil {
 		return value
 	}
 	return b.String()

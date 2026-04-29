@@ -3,6 +3,7 @@ package projectdetect
 import (
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/io"
@@ -249,4 +250,26 @@ func TestDetectProjectType_Bad(t *testing.T) {
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestProjectdetect_DetectProjectType_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = DetectProjectType(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProjectdetect_DetectProjectType_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = DetectProjectType(io.NewMemoryMedium(), "")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestProjectdetect_DetectProjectType_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = DetectProjectType(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
 }

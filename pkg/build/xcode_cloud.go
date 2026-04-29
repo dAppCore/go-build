@@ -1,8 +1,6 @@
 package build
 
 import (
-	"strings"
-
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/io"
@@ -137,11 +135,11 @@ func resolveXcodeCloudBuildCommand(cfg *BuildConfig) string {
 		args = append(args, "--team-id", shellQuote(options.TeamID))
 	}
 
-	return strings.Join(args, " ")
+	return core.Join(" ", args...)
 }
 
 func generateXcodeCloudPostCloneScript() string {
-	return strings.TrimSpace(`#!/usr/bin/env bash
+	return core.Trim(`#!/usr/bin/env bash
 set -euo pipefail
 
 export PATH="${HOME}/go/bin:${HOME}/.deno/bin:${HOME}/.bun/bin:${PATH}"
@@ -310,7 +308,7 @@ done < <(find_visible_files 3 -name package.json | sort)
 }
 
 func generateXcodeCloudPreXcodebuildScript(buildCommand string) string {
-	return strings.TrimSpace(core.Sprintf(`#!/usr/bin/env bash
+	return core.Trim(core.Sprintf(`#!/usr/bin/env bash
 set -euo pipefail
 
 export PATH="${HOME}/go/bin:${HOME}/.deno/bin:${HOME}/.bun/bin:${PATH}"
@@ -323,7 +321,7 @@ func generateXcodeCloudPostXcodebuildScript(bundleName string) string {
 	bundlePath := ax.Join("dist", "apple", bundleName+".app")
 	executablePath := ax.Join(bundlePath, "Contents", "MacOS", bundleName)
 
-	return strings.TrimSpace(core.Sprintf(`#!/usr/bin/env bash
+	return core.Trim(core.Sprintf(`#!/usr/bin/env bash
 set -euo pipefail
 
 BUNDLE_PATH=%s
@@ -354,5 +352,5 @@ func shellQuote(value string) string {
 		return "''"
 	}
 
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+	return "'" + core.Replace(value, "'", `'"'"'`) + "'"
 }

@@ -1,8 +1,6 @@
 package build
 
 import (
-	"strings"
-
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	buildinstallers "dappco.re/go/build/pkg/build/installers"
@@ -70,7 +68,7 @@ func installerConfig(version, repo string) buildinstallers.InstallerConfig {
 	repo = core.Trim(repo)
 	binaryName := ""
 	if repo != "" {
-		binaryName = strings.TrimSuffix(ax.Base(repo), ".git")
+		binaryName = core.TrimSuffix(ax.Base(repo), ".git")
 		if binaryName == "" {
 			binaryName = repo
 		}

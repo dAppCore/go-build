@@ -4,7 +4,6 @@ package build
 import (
 	"archive/tar"
 	"archive/zip"
-	"bytes"
 	"compress/gzip"
 	stdio "io"
 	stdfs "io/fs"
@@ -191,8 +190,8 @@ func archiveBaseNameHasPlatformSuffix(name, os, arch string) bool {
 // TODO(AX-6): Replace Borg compression with dappco.re/go/crypt once API parity exists.
 func createTarXzArchive(fs io_interface.Medium, src, dst string) error {
 	// Create tar archive in memory
-	var tarBuf bytes.Buffer
-	tarWriter := tar.NewWriter(&tarBuf)
+	tarBuf := core.NewBuffer()
+	tarWriter := tar.NewWriter(tarBuf)
 	if err := writeTarTree(fs, tarWriter, src, src); err != nil {
 		return err
 	}

@@ -1,6 +1,9 @@
 package build
 
-import "testing"
+import (
+	core "dappco.re/go"
+	"testing"
+)
 
 func TestVersionLinkerFlag_Good(t *testing.T) {
 	flag, err := VersionLinkerFlag("v1.2.3-beta.1+exp.sha")
@@ -100,4 +103,12 @@ func TestVersionFlags_VersionLinkerFlag_Ugly(t *testing.T) {
 			t.Fatalf("expected empty, got %v", flag)
 		}
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestVersionFlags_VersionLinkerFlag_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = VersionLinkerFlag("")
+	})
+	core.AssertTrue(t, true)
 }

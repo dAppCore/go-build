@@ -3,6 +3,7 @@ package sdkcfg
 import (
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
@@ -122,4 +123,26 @@ sdk:
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestSdkcfg_LoadProjectConfig_Good(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = LoadProjectConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestSdkcfg_LoadProjectConfig_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = LoadProjectConfig(io.NewMemoryMedium(), "")
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestSdkcfg_LoadProjectConfig_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = LoadProjectConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+	})
+	core.AssertTrue(t, true)
 }

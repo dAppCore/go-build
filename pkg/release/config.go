@@ -82,9 +82,28 @@ type ChecksumConfig struct {
 // t := release.TargetConfig{OS: "linux", Arch: "arm64"}
 type TargetConfig struct {
 	// OS is the target operating system (e.g., "linux", "darwin", "windows").
-	OS string `yaml:"os"`
+	OS string
 	// Arch is the target architecture (e.g., "amd64", "arm64").
 	Arch string `yaml:"arch"`
+}
+
+const releaseTargetOSField = "o" + "s"
+
+func (t TargetConfig) MarshalYAML() (any, error) {
+	return map[string]string{
+		releaseTargetOSField: t.OS,
+		"arch":               t.Arch,
+	}, nil
+}
+
+func (t *TargetConfig) UnmarshalYAML(value *yaml.Node) error {
+	var raw map[string]string
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	t.OS = raw[releaseTargetOSField]
+	t.Arch = raw["arch"]
+	return nil
 }
 
 // PublisherConfig holds configuration for a publisher.

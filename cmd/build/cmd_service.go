@@ -3,9 +3,7 @@ package buildcmd
 
 import (
 	"context"
-	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -265,10 +263,10 @@ func runServiceExport(req serviceRequest) error {
 	}
 
 	outputPath := req.Output
-	if !filepath.IsAbs(outputPath) {
-		outputPath = filepath.Join(cfg.ProjectDir, outputPath)
+	if !core.PathIsAbs(outputPath) {
+		outputPath = core.PathJoin(cfg.ProjectDir, outputPath)
 	}
-	if err := ax.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+	if err := ax.MkdirAll(core.PathDir(outputPath), 0o755); err != nil {
 		return err
 	}
 	if err := ax.WriteFile(outputPath, []byte(exported.Content), 0o644); err != nil {
@@ -337,13 +335,12 @@ func serviceRunWait(ctx context.Context) func() {
 	}
 
 	return func() {
-		sigChan := make(chan os.Signal, 3)
-		signal.Notify(sigChan, syscall.SIGTERM, os.Interrupt)
-		defer signal.Stop(sigChan)
+		signalContext, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
+		defer stop()
 
 		select {
 		case <-ctx.Done():
-		case <-sigChan:
+		case <-signalContext.Done():
 		}
 	}
 }

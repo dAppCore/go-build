@@ -2,7 +2,6 @@
 package publishers
 
 import (
-	"bytes"         // Note: AX-6 — template rendering writes into an in-memory buffer.
 	"context"       // Note: AX-6 — carries cancellation through publish and git operations.
 	"embed"         // Note: AX-6 — embeds Homebrew templates for release publishing.
 	"text/template" // Note: AX-6 — renders Homebrew formula templates.
@@ -337,8 +336,8 @@ func (p *HomebrewPublisher) renderTemplate(m coreio.Medium, name string, data ho
 		return "", coreerr.E("homebrew.renderTemplate", "failed to parse template "+name, err)
 	}
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	buf := core.NewBuffer()
+	if err := tmpl.Execute(buf, data); err != nil {
 		return "", coreerr.E("homebrew.renderTemplate", "failed to execute template "+name, err)
 	}
 

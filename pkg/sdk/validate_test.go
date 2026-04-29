@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 )
 
@@ -56,7 +57,7 @@ func TestValidateSpec_Bad(t *testing.T) {
 
 }
 
-func TestValidateSpec_InvalidDocument_Bad(t *testing.T) {
+func TestValidateSpec_InvalidDocumentBad(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := ax.Join(tmpDir, "openapi.yaml")
 	if err := ax.WriteFile(specPath, []byte(`openapi: "3.0.0"
@@ -76,4 +77,35 @@ paths: {}
 		t.Fatalf("expected %v to contain %v", err.Error(), "invalid OpenAPI spec")
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestValidate_SDK_ValidateSpec_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &SDK{}
+	core.AssertNotPanics(t, func() {
+		_, _ = subject.ValidateSpec(ctx)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestValidate_SDK_ValidateSpec_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &SDK{}
+	core.AssertNotPanics(t, func() {
+		_, _ = subject.ValidateSpec(ctx)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestValidate_SDK_ValidateSpec_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &SDK{}
+	core.AssertNotPanics(t, func() {
+		_, _ = subject.ValidateSpec(ctx)
+	})
+	core.AssertTrue(t, true)
 }

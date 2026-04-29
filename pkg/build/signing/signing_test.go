@@ -9,7 +9,7 @@ import (
 	"dappco.re/go/io"
 )
 
-func TestSigning_SignBinariesSkipsNonDarwin_Good(t *testing.T) {
+func TestSigning_SignBinariesSkipsNonDarwinGood(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -31,7 +31,7 @@ func TestSigning_SignBinariesSkipsNonDarwin_Good(t *testing.T) {
 	}
 }
 
-func TestSigning_SignBinariesDisabledConfig_Good(t *testing.T) {
+func TestSigning_SignBinariesDisabledConfigGood(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -48,7 +48,7 @@ func TestSigning_SignBinariesDisabledConfig_Good(t *testing.T) {
 	}
 }
 
-func TestSigning_SignBinariesSkipsOnNonMacOS_Good(t *testing.T) {
+func TestSigning_SignBinariesSkipsOnNonMacOSGood(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("Skipping on macOS - this tests non-macOS behavior")
 	}
@@ -72,7 +72,7 @@ func TestSigning_SignBinariesSkipsOnNonMacOS_Good(t *testing.T) {
 	}
 }
 
-func TestSigning_NotarizeBinariesDisabledConfig_Good(t *testing.T) {
+func TestSigning_NotarizeBinariesDisabledConfigGood(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -89,7 +89,7 @@ func TestSigning_NotarizeBinariesDisabledConfig_Good(t *testing.T) {
 	}
 }
 
-func TestSigning_NotarizeBinariesNotarizeDisabled_Good(t *testing.T) {
+func TestSigning_NotarizeBinariesNotarizeDisabledGood(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -109,7 +109,7 @@ func TestSigning_NotarizeBinariesNotarizeDisabled_Good(t *testing.T) {
 	}
 }
 
-func TestSigning_SignChecksumsSkipsNoKey_Good(t *testing.T) {
+func TestSigning_SignChecksumsSkipsNoKeyGood(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -126,7 +126,7 @@ func TestSigning_SignChecksumsSkipsNoKey_Good(t *testing.T) {
 	}
 }
 
-func TestSigning_SignChecksumsDisabled_Good(t *testing.T) {
+func TestSigning_SignChecksumsDisabledGood(t *testing.T) {
 	ctx := context.Background()
 	fs := io.Local
 	cfg := SignConfig{
@@ -150,7 +150,7 @@ func TestSigning_DefaultSignConfig_Good(t *testing.T) {
 
 }
 
-func TestSigning_SignConfigExpandEnv_Good(t *testing.T) {
+func TestSigning_SignConfigExpandEnvGood(t *testing.T) {
 	t.Setenv("TEST_KEY", "ABC")
 	cfg := SignConfig{
 		GPG: GPGConfig{Key: "$TEST_KEY"},
@@ -162,7 +162,7 @@ func TestSigning_SignConfigExpandEnv_Good(t *testing.T) {
 
 }
 
-func TestSigning_WindowsSigner_Good(t *testing.T) {
+func TestSigning_WindowsSignerGood(t *testing.T) {
 	fs := io.Local
 	s := NewWindowsSigner(WindowsConfig{Signtool: true, Certificate: "cert.pfx"})
 	if !stdlibAssertEqual("signtool", s.Name()) {
@@ -185,7 +185,7 @@ func TestSigning_WindowsSigner_Good(t *testing.T) {
 	_ = s.Available()
 }
 
-func TestSigning_WindowsSignerHonoursSigntoolToggle_Good(t *testing.T) {
+func TestSigning_WindowsSignerHonoursSigntoolToggleGood(t *testing.T) {
 	s := NewWindowsSigner(WindowsConfig{
 		Signtool:         false,
 		Certificate:      "cert.pfx",
@@ -222,7 +222,7 @@ func (m *mockSigner) Sign(ctx context.Context, fs io.Medium, path string) error 
 // Verify mockSigner implements Signer
 var _ Signer = (*mockSigner)(nil)
 
-func TestSigning_SignBinariesMockSigner_Good(t *testing.T) {
+func TestSigning_SignBinariesMockSignerGood(t *testing.T) {
 	t.Run("signs only darwin artifacts", func(t *testing.T) {
 		artifacts := []Artifact{
 			{Path: "/dist/linux_amd64/myapp", OS: "linux", Arch: "amd64"},
@@ -294,7 +294,7 @@ func TestSigning_signArtifactsWithSigner_Good(t *testing.T) {
 
 }
 
-func TestSigning_ResolveSigntoolCli_Good(t *testing.T) {
+func TestSigning_ResolveSigntoolCliGood(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := fallbackDir + "/signtool.exe"
 	if err := io.Local.Write(fallbackPath, "#!/bin/sh\nexit 0\n"); err != nil {
@@ -313,7 +313,7 @@ func TestSigning_ResolveSigntoolCli_Good(t *testing.T) {
 
 }
 
-func TestSigning_ResolveSigntoolCli_Bad(t *testing.T) {
+func TestSigning_ResolveSigntoolCliBad(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	_, err := resolveSigntoolCli(t.TempDir() + "/missing-signtool.exe")
@@ -326,7 +326,7 @@ func TestSigning_ResolveSigntoolCli_Bad(t *testing.T) {
 
 }
 
-func TestSigning_SignChecksumsMockSigner_Good(t *testing.T) {
+func TestSigning_SignChecksumsMockSignerGood(t *testing.T) {
 	t.Run("skips when GPG key is empty", func(t *testing.T) {
 		cfg := SignConfig{
 			Enabled: true,
@@ -354,7 +354,7 @@ func TestSigning_SignChecksumsMockSigner_Good(t *testing.T) {
 	})
 }
 
-func TestSigning_NotarizeBinariesMockSigner_Good(t *testing.T) {
+func TestSigning_NotarizeBinariesMockSignerGood(t *testing.T) {
 	t.Run("skips when notarize is false", func(t *testing.T) {
 		cfg := SignConfig{
 			Enabled: true,

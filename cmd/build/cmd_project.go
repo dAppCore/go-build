@@ -11,7 +11,6 @@ package buildcmd
 import (
 	"context"
 	"runtime"
-	"strings"
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -479,16 +478,14 @@ func applyProjectBuildOverrides(cfg *build.BuildConfig, req ProjectBuildRequest)
 }
 
 func parseBuildTagsFlag(value string) []string {
-	if strings.TrimSpace(value) == "" {
+	if core.Trim(value) == "" {
 		return nil
 	}
 
 	seen := make(map[string]struct{})
 	var tags []string
-	for _, part := range strings.FieldsFunc(value, func(r rune) bool {
-		return r == ',' || unicodeIsSpace(r)
-	}) {
-		tag := strings.TrimSpace(part)
+	for _, part := range buildTagFields(value) {
+		tag := core.Trim(part)
 		if tag == "" {
 			continue
 		}
@@ -500,6 +497,27 @@ func parseBuildTagsFlag(value string) []string {
 	}
 
 	return tags
+}
+
+func buildTagFields(value string) []string {
+	var fields []string
+	start := -1
+	for i, r := range value {
+		if r == ',' || unicodeIsSpace(r) {
+			if start >= 0 {
+				fields = append(fields, value[start:i])
+				start = -1
+			}
+			continue
+		}
+		if start < 0 {
+			start = i
+		}
+	}
+	if start >= 0 {
+		fields = append(fields, value[start:])
+	}
+	return fields
 }
 
 func enableDefaultBuildCache(cfg *build.CacheConfig) {

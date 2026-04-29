@@ -1,15 +1,13 @@
 package process
 
 import (
-	"bytes"
 	"context"
-	"errors"
-	"os"
-	"os/exec"
-	"strings"
 	"syscall"
 	"time"
 	"unicode"
+	"unicode/utf8"
+
+	core "dappco.re/go"
 )
 
 type RunOptions struct {
@@ -35,13 +33,13 @@ func (p *Program) Find() error {
 		target = p.Name
 	}
 	if target == "" {
-		return errors.New("program name is empty")
+		return core.NewError("program name is empty")
 	}
-	path, err := exec.LookPath(target)
-	if err != nil {
-		return err
+	found := core.App{}.Find(target, target)
+	if !found.OK {
+		return resultError(found)
 	}
-	p.Path = path
+	p.Path = found.Value.(*core.App).Path
 	return nil
 }
 
@@ -51,45 +49,53 @@ func (p *Program) Run(ctx context.Context, args ...string) (string, error) {
 
 func (p *Program) RunDir(ctx context.Context, dir string, args ...string) (string, error) {
 	if ctx == nil {
-		return "", errors.New("command context is required")
+		return "", core.NewError("command context is required")
 	}
 	binary := p.Path
 	if binary == "" {
 		binary = p.Name
 	}
 	if binary == "" {
-		return "", errors.New("program name is empty")
+		return "", core.NewError("program name is empty")
 	}
-	cmd := exec.CommandContext(ctx, binary, args...)
-	if dir != "" {
-		cmd.Dir = dir
+	resolved, err := resolveExecutable(binary)
+	if err != nil {
+		return "", err
 	}
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	err := cmd.Run()
-	return strings.TrimRightFunc(out.String(), unicode.IsSpace), err
+	out := core.NewBuffer()
+	cmd := &core.Cmd{Path: resolved, Args: append([]string{resolved}, args...), Dir: dir, Stdout: out, Stderr: out}
+	err = runCommand(ctx, cmd)
+	return trimRightSpace(out.String()), err
 }
 
 func RunWithOptions(ctx context.Context, opts RunOptions) (string, error) {
 	if ctx == nil {
-		return "", errors.New("command context is required")
+		return "", core.NewError("command context is required")
 	}
 	if opts.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opts.Timeout)
 		defer cancel()
 	}
-	cmd := exec.CommandContext(ctx, opts.Command, opts.Args...)
+	resolved, err := resolveExecutable(opts.Command)
+	if err != nil {
+		return "", err
+	}
+	cmd := &core.Cmd{Path: resolved, Args: append([]string{resolved}, opts.Args...)}
 	cmd.Dir = opts.Dir
 	if len(opts.Env) > 0 {
-		cmd.Env = append(os.Environ(), opts.Env...)
+		cmd.Env = append(core.Environ(), opts.Env...)
 	}
 	if opts.Detach {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	}
-	out, err := cmd.CombinedOutput()
-	return strings.TrimRightFunc(string(out), unicode.IsSpace), err
+	out := core.NewBuffer()
+	if !opts.DisableCapture {
+		cmd.Stdout = out
+		cmd.Stderr = out
+	}
+	err = runCommand(ctx, cmd)
+	return trimRightSpace(out.String()), err
 }
 
 type DaemonOptions struct {
@@ -111,15 +117,23 @@ func (d *Daemon) Start() error {
 	if d == nil || d.options.PIDFile == "" {
 		return nil
 	}
-	return os.WriteFile(d.options.PIDFile, []byte("0\n"), 0o644)
+	written := core.WriteFile(d.options.PIDFile, []byte("0\n"), 0o644)
+	if !written.OK {
+		return resultError(written)
+	}
+	return nil
 }
 
 func (d *Daemon) Stop() error {
 	if d == nil || d.options.PIDFile == "" {
 		return nil
 	}
-	if err := os.Remove(d.options.PIDFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
+	removed := core.Remove(d.options.PIDFile)
+	if !removed.OK {
+		err := resultError(removed)
+		if !core.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }
@@ -128,4 +142,60 @@ func (d *Daemon) SetReady(ready bool) {
 	if d != nil {
 		d.ready = ready
 	}
+}
+
+func resolveExecutable(name string) (string, error) {
+	if name == "" {
+		return "", core.NewError("program name is empty")
+	}
+	if core.Contains(name, "/") || core.Contains(name, "\\") {
+		return name, nil
+	}
+	found := core.App{}.Find(name, name)
+	if !found.OK {
+		return "", resultError(found)
+	}
+	return found.Value.(*core.App).Path, nil
+}
+
+func runCommand(ctx context.Context, cmd *core.Cmd) error {
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			killErr := cmd.Process.Kill()
+			<-done
+			if killErr != nil {
+				return killErr
+			}
+			return ctx.Err()
+		}
+		return ctx.Err()
+	}
+}
+
+func trimRightSpace(value string) string {
+	for len(value) > 0 {
+		r, size := utf8.DecodeLastRuneInString(value)
+		if !unicode.IsSpace(r) {
+			return value
+		}
+		value = value[:len(value)-size]
+	}
+	return value
+}
+
+func resultError(result core.Result) error {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.NewError(result.Error())
 }

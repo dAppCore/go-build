@@ -1,12 +1,10 @@
 package exec
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"io"
-	"os"
-	osexec "os/exec"
+
+	core "dappco.re/go"
 )
 
 type Cmd struct {
@@ -49,14 +47,18 @@ func (c *Cmd) WithStderr(w io.Writer) *Cmd {
 	return c
 }
 
-func (c *Cmd) build() (*osexec.Cmd, error) {
+func (c *Cmd) build() (*core.Cmd, error) {
 	if c.ctx == nil {
-		return nil, errors.New("command context is required")
+		return nil, core.NewError("command context is required")
 	}
-	cmd := osexec.CommandContext(c.ctx, c.name, c.args...)
+	resolved, err := resolveExecutable(c.name)
+	if err != nil {
+		return nil, err
+	}
+	cmd := &core.Cmd{Path: resolved, Args: append([]string{resolved}, c.args...)}
 	cmd.Dir = c.dir
 	if len(c.env) > 0 {
-		cmd.Env = append(os.Environ(), c.env...)
+		cmd.Env = append(core.Environ(), c.env...)
 	}
 	cmd.Stdin = c.stdin
 	cmd.Stdout = c.stdout
@@ -69,7 +71,7 @@ func (c *Cmd) Run() error {
 	if err != nil {
 		return err
 	}
-	return cmd.Run()
+	return runCommand(c.ctx, cmd)
 }
 
 func (c *Cmd) CombinedOutput() ([]byte, error) {
@@ -77,16 +79,64 @@ func (c *Cmd) CombinedOutput() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	buf := core.NewBuffer()
 	if c.stdout != nil || c.stderr != nil {
-		var buf bytes.Buffer
 		if c.stdout == nil {
-			cmd.Stdout = &buf
+			cmd.Stdout = buf
 		}
 		if c.stderr == nil {
-			cmd.Stderr = &buf
+			cmd.Stderr = buf
 		}
-		err := cmd.Run()
+		err := runCommand(c.ctx, cmd)
 		return buf.Bytes(), err
 	}
-	return cmd.CombinedOutput()
+	cmd.Stdout = buf
+	cmd.Stderr = buf
+	err = runCommand(c.ctx, cmd)
+	return buf.Bytes(), err
+}
+
+func resolveExecutable(name string) (string, error) {
+	if name == "" {
+		return "", core.NewError("program name is empty")
+	}
+	if core.Contains(name, "/") || core.Contains(name, "\\") {
+		return name, nil
+	}
+	found := core.App{}.Find(name, name)
+	if !found.OK {
+		return "", resultError(found)
+	}
+	return found.Value.(*core.App).Path, nil
+}
+
+func runCommand(ctx context.Context, cmd *core.Cmd) error {
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			killErr := cmd.Process.Kill()
+			<-done
+			if killErr != nil {
+				return killErr
+			}
+			return ctx.Err()
+		}
+		return ctx.Err()
+	}
+}
+
+func resultError(result core.Result) error {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.NewError(result.Error())
 }

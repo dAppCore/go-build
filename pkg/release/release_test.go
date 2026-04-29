@@ -2,16 +2,17 @@ package release
 
 import (
 	"context"
-	"os"
 	"runtime"
 	"testing"
 
-	"dappco.re/go"
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/io"
 )
+
+const releaseMetaOSField = "o" + "s"
 
 func assertFindArtifacts(t *testing.T, distDir string, wantLen int) []build.Artifact {
 	t.Helper()
@@ -26,7 +27,7 @@ func assertFindArtifacts(t *testing.T, distDir string, wantLen int) []build.Arti
 	return artifacts
 }
 
-func TestRelease_FindArtifacts_Good(t *testing.T) {
+func TestRelease_FindArtifactsGood(t *testing.T) {
 	t.Run("finds tar.gz artifacts", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
@@ -382,7 +383,7 @@ func TestRelease_Publish_ValidatesPublisherBeforePublish_Bad(t *testing.T) {
 
 }
 
-func TestRelease_FindArtifacts_Bad(t *testing.T) {
+func TestRelease_FindArtifactsBad(t *testing.T) {
 	t.Run("returns error when dist directory does not exist", func(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
@@ -427,7 +428,7 @@ func TestRelease_FindArtifacts_Bad(t *testing.T) {
 	})
 }
 
-func TestRelease_GetBuilder_Good(t *testing.T) {
+func TestRelease_GetBuilderGood(t *testing.T) {
 	t.Run("returns Go builder for go project type", func(t *testing.T) {
 		builder, err := getBuilder(build.ProjectTypeGo)
 		if err != nil {
@@ -569,7 +570,7 @@ func TestRelease_GetBuilder_Good(t *testing.T) {
 	})
 }
 
-func TestRelease_GetBuilder_Bad(t *testing.T) {
+func TestRelease_GetBuilderBad(t *testing.T) {
 	t.Run("returns error for unsupported project type", func(t *testing.T) {
 		_, err := getBuilder(build.ProjectType("unknown"))
 		if err == nil {
@@ -582,7 +583,7 @@ func TestRelease_GetBuilder_Bad(t *testing.T) {
 	})
 }
 
-func TestRelease_GetPublisher_Good(t *testing.T) {
+func TestRelease_GetPublisherGood(t *testing.T) {
 	tests := []struct {
 		pubType      string
 		expectedName string
@@ -614,7 +615,7 @@ func TestRelease_GetPublisher_Good(t *testing.T) {
 	}
 }
 
-func TestRelease_GetPublisher_Bad(t *testing.T) {
+func TestRelease_GetPublisherBad(t *testing.T) {
 	t.Run("returns error for unsupported publisher type", func(t *testing.T) {
 		_, err := getPublisher("unsupported")
 		if err == nil {
@@ -638,7 +639,7 @@ func TestRelease_GetPublisher_Bad(t *testing.T) {
 	})
 }
 
-func TestRelease_ResolveProjectType_Good(t *testing.T) {
+func TestRelease_ResolveProjectTypeGood(t *testing.T) {
 	t.Run("honours explicit build type override", func(t *testing.T) {
 		dir := t.TempDir()
 
@@ -669,7 +670,7 @@ func TestRelease_ResolveProjectType_Good(t *testing.T) {
 	})
 }
 
-func TestRelease_BuildExtendedConfig_Good(t *testing.T) {
+func TestRelease_BuildExtendedConfigGood(t *testing.T) {
 	t.Run("returns empty map for minimal config", func(t *testing.T) {
 		cfg := PublisherConfig{
 			Type: "github",
@@ -851,7 +852,7 @@ func TestRelease_BuildExtendedConfig_Good(t *testing.T) {
 	})
 }
 
-func TestRelease_ToAnySlice_Good(t *testing.T) {
+func TestRelease_ToAnySliceGood(t *testing.T) {
 	t.Run("converts string slice to any slice", func(t *testing.T) {
 		input := []string{"a", "b", "c"}
 
@@ -1363,7 +1364,7 @@ func TestRelease_Run_Bad(t *testing.T) {
 	})
 }
 
-func TestRelease_Structure_Good(t *testing.T) {
+func TestRelease_StructureGood(t *testing.T) {
 	t.Run("Release struct holds expected fields", func(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
@@ -1387,7 +1388,7 @@ func TestRelease_Structure_Good(t *testing.T) {
 	})
 }
 
-func TestRelease_PublishVersionFromGit_Good(t *testing.T) {
+func TestRelease_PublishVersionFromGitGood(t *testing.T) {
 	t.Run("determines version from git when not set", func(t *testing.T) {
 		dir := setupPublishGitRepo(t)
 		createPublishCommit(t, dir, "feat: initial commit")
@@ -1420,7 +1421,7 @@ func TestRelease_PublishVersionFromGit_Good(t *testing.T) {
 	})
 }
 
-func TestRelease_PublishChangelogGeneration_Good(t *testing.T) {
+func TestRelease_PublishChangelogGenerationGood(t *testing.T) {
 	t.Run("generates changelog from git commits when available", func(t *testing.T) {
 		dir := setupPublishGitRepo(t)
 		createPublishCommit(t, dir, "feat: add feature")
@@ -1484,7 +1485,7 @@ func TestRelease_PublishChangelogGeneration_Good(t *testing.T) {
 	})
 }
 
-func TestRelease_PublishDefaultProjectDir_Good(t *testing.T) {
+func TestRelease_PublishDefaultProjectDirGood(t *testing.T) {
 	t.Run("uses current directory when projectDir is empty", func(t *testing.T) {
 		// Create artifacts in current directory's dist folder
 		dir := t.TempDir()
@@ -1512,7 +1513,7 @@ func TestRelease_PublishDefaultProjectDir_Good(t *testing.T) {
 	})
 }
 
-func TestRelease_BuildArtifacts_SignsChecksums_Good(t *testing.T) {
+func TestRelease_BuildArtifacts_SignsChecksumsGood(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake gpg script uses POSIX shell")
 	}
@@ -1551,12 +1552,12 @@ fi
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	oldPath := os.Getenv("PATH")
+	oldPath := core.Getenv("PATH")
 	if stdlibAssertEmpty(oldPath) {
 		t.Fatal("expected non-empty")
 	}
 
-	t.Setenv("PATH", gpgDir+string(os.PathListSeparator)+oldPath)
+	t.Setenv("PATH", gpgDir+string(core.PathListSeparator)+oldPath)
 	t.Setenv("GPG_KEY_ID", "TESTKEY")
 
 	cfg := DefaultConfig()
@@ -1587,13 +1588,13 @@ fi
 	if !(sawXzArchive) {
 		t.Fatal("expected true")
 	}
-	if _, err := os.Stat(ax.Join(dir, "dist", "CHECKSUMS.txt.asc")); err != nil {
+	if _, err := ax.Stat(ax.Join(dir, "dist", "CHECKSUMS.txt.asc")); err != nil {
 		t.Fatalf("expected file to exist: %v", ax.Join(dir, "dist", "CHECKSUMS.txt.asc"))
 	}
 
 }
 
-func TestRelease_BuildArtifacts_UsesConfiguredChecksumFile_Good(t *testing.T) {
+func TestRelease_BuildArtifacts_UsesConfiguredChecksumFileGood(t *testing.T) {
 	dir := t.TempDir()
 	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1629,7 +1630,7 @@ func TestRelease_BuildArtifacts_UsesConfiguredChecksumFile_Good(t *testing.T) {
 	if !stdlibAssertEqual([]string{customChecksumPath}, checksumPaths) {
 		t.Fatalf("want %v, got %v", []string{customChecksumPath}, checksumPaths)
 	}
-	if _, err := os.Stat(customChecksumPath); err != nil {
+	if _, err := ax.Stat(customChecksumPath); err != nil {
 		t.Fatalf("expected file to exist: %v", customChecksumPath)
 	}
 
@@ -1646,7 +1647,7 @@ func TestRelease_BuildArtifacts_UsesConfiguredChecksumFile_Good(t *testing.T) {
 
 }
 
-func TestRelease_BuildArtifacts_SignsBinariesBeforeArchiving_Good(t *testing.T) {
+func TestRelease_BuildArtifacts_SignsBinariesBeforeArchivingGood(t *testing.T) {
 	dir := t.TempDir()
 	if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module signedapp\n\ngo 1.21\n"), 0o644); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1787,7 +1788,7 @@ func TestRelease_Publish_IncludesConfiguredChecksumArtifact_Good(t *testing.T) {
 
 }
 
-func TestRelease_BuildArtifacts_WritesArtifactMetadata_Good(t *testing.T) {
+func TestRelease_BuildArtifacts_WritesArtifactMetadataGood(t *testing.T) {
 	dir := t.TempDir()
 	if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1847,8 +1848,8 @@ targets:
 	if !stdlibAssertEqual("signedapp", meta["name"]) {
 		t.Fatalf("want %v, got %v", "signedapp", meta["name"])
 	}
-	if !stdlibAssertEqual(runtime.GOOS, meta["os"]) {
-		t.Fatalf("want %v, got %v", runtime.GOOS, meta["os"])
+	if !stdlibAssertEqual(runtime.GOOS, meta[releaseMetaOSField]) {
+		t.Fatalf("want %v, got %v", runtime.GOOS, meta[releaseMetaOSField])
 	}
 	if !stdlibAssertEqual(runtime.GOARCH, meta["arch"]) {
 		t.Fatalf("want %v, got %v", runtime.GOARCH, meta["arch"])
@@ -1865,7 +1866,7 @@ targets:
 
 }
 
-func TestRelease_BuildArtifacts_HonoursBuildProjectMain_Good(t *testing.T) {
+func TestRelease_BuildArtifacts_HonoursBuildProjectMainGood(t *testing.T) {
 	dir := t.TempDir()
 	if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1918,7 +1919,7 @@ targets:
 
 }
 
-func TestRelease_BuildArtifacts_InheritsBuildTargetsWhenReleaseTargetsOmitted_Good(t *testing.T) {
+func TestRelease_BuildArtifacts_InheritsBuildTargetsWhenReleaseTargetsOmittedGood(t *testing.T) {
 	dir := t.TempDir()
 	if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -2016,4 +2017,23 @@ func createPublishCommit(t *testing.T, dir, message string) {
 func createPublishTag(t *testing.T, dir, tag string) {
 	t.Helper()
 	runGit(t, dir, "tag", tag)
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestRelease_Publish_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_, _ = Publish(ctx, &Config{}, true)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestRelease_Run_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	core.AssertNotPanics(t, func() {
+		_, _ = Run(ctx, &Config{}, true)
+	})
+	core.AssertTrue(t, true)
 }

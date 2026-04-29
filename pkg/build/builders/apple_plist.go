@@ -1,9 +1,7 @@
 package builders
 
 import (
-	"bytes"
 	"sort"
-	"strings"
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -174,7 +172,7 @@ func encodeApplePlist(values map[string]any) string {
 	}
 	sort.Strings(keys)
 
-	var b strings.Builder
+	b := core.NewBuilder()
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
 	b.WriteString(`<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">` + "\n")
 	b.WriteString(`<plist version="1.0">` + "\n")
@@ -205,7 +203,7 @@ func applePlistValue(value any) string {
 }
 
 func escapeAppleXML(value string) string {
-	var b bytes.Buffer
+	b := core.NewBuilder()
 	for _, r := range value {
 		switch r {
 		case '&':
@@ -235,7 +233,7 @@ func normalizeAppleBuilderVersion(version string) string {
 }
 
 func xcodeCloudPostCloneScript() string {
-	return strings.TrimSpace(`#!/usr/bin/env bash
+	return core.Trim(`#!/usr/bin/env bash
 set -euo pipefail
 
 export PATH="${HOME}/go/bin:${HOME}/.deno/bin:${HOME}/.bun/bin:${PATH}"
@@ -253,7 +251,7 @@ fi
 }
 
 func xcodeCloudPreXcodebuildScript(buildCommand string) string {
-	return strings.TrimSpace(`#!/usr/bin/env bash
+	return core.Trim(`#!/usr/bin/env bash
 set -euo pipefail
 
 export PATH="${HOME}/go/bin:${HOME}/.deno/bin:${HOME}/.bun/bin:${PATH}"
@@ -264,7 +262,7 @@ export PATH="${HOME}/go/bin:${HOME}/.deno/bin:${HOME}/.bun/bin:${PATH}"
 func xcodeCloudPostXcodebuildScript(name string) string {
 	bundlePath := ax.Join("dist", "apple", name+".app")
 	executablePath := ax.Join(bundlePath, "Contents", "MacOS", name)
-	return strings.TrimSpace(`#!/usr/bin/env bash
+	return core.Trim(`#!/usr/bin/env bash
 set -euo pipefail
 
 BUNDLE_PATH=`+shellQuoteApple(bundlePath)+`
@@ -279,5 +277,5 @@ func shellQuoteApple(value string) string {
 	if value == "" {
 		return "''"
 	}
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+	return "'" + core.Replace(value, "'", `'"'"'`) + "'"
 }

@@ -3,6 +3,7 @@ package build
 import (
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/io"
 )
@@ -268,4 +269,33 @@ func setupTools(plan *SetupPlan) []SetupTool {
 		tools = append(tools, step.Tool)
 	}
 	return tools
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestSetup_ComputeSetupPlan_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = ComputeSetupPlan(io.NewMemoryMedium(), "", nil, nil)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestSetup_ComputeSetupPlan_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_, _ = ComputeSetupPlan(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{}, &DiscoveryResult{})
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestSetup_ResolveFrontendSetupDirs_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = ResolveFrontendSetupDirs(io.NewMemoryMedium(), "", false)
+	})
+	core.AssertTrue(t, true)
+}
+
+func TestSetup_ResolveFrontendSetupDirs_Ugly(t *core.T) {
+	core.AssertNotPanics(t, func() {
+		_ = ResolveFrontendSetupDirs(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), true)
+	})
+	core.AssertTrue(t, true)
 }

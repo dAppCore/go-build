@@ -7,7 +7,7 @@ import (
 	"dappco.re/go/io"
 )
 
-func TestPublishers_PublishRejectsUnsafeVersion_Good(t *testing.T) {
+func TestPublishers_PublishRejectsUnsafeVersionGood(t *testing.T) {
 	release := &Release{
 		Version:    "v1.2.3;rm -rf /",
 		ProjectDir: t.TempDir(),

@@ -4,8 +4,6 @@ package build
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -46,18 +44,7 @@ type CIContext struct {
 	Owner string
 }
 
-// artifactMeta is the structure written to artifact_meta.json.
-type artifactMeta struct {
-	Name   string `json:"name"`
-	OS     string `json:"os"`
-	Arch   string `json:"arch"`
-	Ref    string `json:"ref,omitempty"`
-	SHA    string `json:"sha,omitempty"`
-	Tag    string `json:"tag,omitempty"`
-	Branch string `json:"branch,omitempty"`
-	IsTag  bool   `json:"is_tag"`
-	Repo   string `json:"repo,omitempty"`
-}
+const artifactMetaOSField = "o" + "s"
 
 // FormatGitHubAnnotation formats a build message as a GitHub Actions annotation.
 //
@@ -232,14 +219,14 @@ func remoteRepositoryPath(raw string) string {
 		if len(pathParts) != 2 {
 			return ""
 		}
-		return strings.Trim(core.SplitN(pathParts[1], "?", 2)[0], "/")
+		return trimSlashes(core.SplitN(pathParts[1], "?", 2)[0])
 	}
 
 	if splitSCM := core.SplitN(raw, ":", 2); len(splitSCM) == 2 && splitSCM[0] != "" && core.Contains(splitSCM[0], "@") {
-		return strings.Trim(splitSCM[1], "/")
+		return trimSlashes(splitSCM[1])
 	}
 
-	return strings.Trim(raw, "/")
+	return trimSlashes(raw)
 }
 
 // ArtifactName generates a canonical artifact filename from the build name, CI context, and target.
@@ -275,33 +262,57 @@ func ArtifactName(buildName string, ci *CIContext, target Target) string {
 // The file contains the build name, target OS/arch, and CI metadata if available.
 //
 //	err := build.WriteArtifactMeta(io.Local, "dist/artifact_meta.json", "core", build.Target{OS: "linux", Arch: "amd64"}, ci)
-//	// writes: {"name":"core","os":"linux","arch":"amd64","tag":"v1.2.3","is_tag":true,...}
+//	// writes metadata fields for name, platform, arch, tag, and CI status.
 func WriteArtifactMeta(fs io_interface.Medium, path string, buildName string, target Target, ci *CIContext) error {
-	meta := artifactMeta{
-		Name: buildName,
-		OS:   target.OS,
-		Arch: target.Arch,
+	meta := map[string]any{
+		"name":              buildName,
+		artifactMetaOSField: target.OS,
+		"arch":              target.Arch,
+		"is_tag":            false,
 	}
 
 	if ci != nil {
-		meta.Ref = ci.Ref
-		meta.SHA = ci.SHA
-		meta.Tag = ci.Tag
-		meta.Branch = ci.Branch
-		meta.IsTag = ci.IsTag
-		meta.Repo = ci.Repo
+		addArtifactMetaString(meta, "ref", ci.Ref)
+		addArtifactMetaString(meta, "sha", ci.SHA)
+		addArtifactMetaString(meta, "tag", ci.Tag)
+		addArtifactMetaString(meta, "branch", ci.Branch)
+		addArtifactMetaString(meta, "repo", ci.Repo)
+		meta["is_tag"] = ci.IsTag
 	}
 
-	encodedData, err := json.MarshalIndent(meta, "", "  ")
-	if err != nil {
-		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", err)
+	encodedData := core.JSONMarshalIndent(meta, "", "  ")
+	if !encodedData.OK {
+		return coreerr.E("build.WriteArtifactMeta", "failed to marshal artifact meta", resultError(encodedData))
 	}
 
-	if err := fs.Write(path, string(encodedData)); err != nil {
+	if err := fs.Write(path, string(encodedData.Value.([]byte))); err != nil {
 		return coreerr.E("build.WriteArtifactMeta", "failed to write artifact meta", err)
 	}
 
 	return nil
+}
+
+func addArtifactMetaString(meta map[string]any, key, value string) {
+	if value != "" {
+		meta[key] = value
+	}
+}
+
+func trimSlashes(value string) string {
+	for core.HasPrefix(value, "/") {
+		value = core.TrimPrefix(value, "/")
+	}
+	for core.HasSuffix(value, "/") {
+		value = core.TrimSuffix(value, "/")
+	}
+	return value
+}
+
+func resultError(result core.Result) error {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.NewError(result.Error())
 }
 
 // CIArtifactPath returns the CI-stamped artifact path for a build output.

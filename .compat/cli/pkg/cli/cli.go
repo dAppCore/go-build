@@ -2,10 +2,9 @@ package cli
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
-	"os"
+
+	core "dappco.re/go"
 )
 
 type Style struct{}
@@ -22,13 +21,13 @@ var (
 )
 
 var (
-	stdout io.Writer = os.Stdout
-	stderr io.Writer = os.Stderr
+	stdout io.Writer = core.Stdout()
+	stderr io.Writer = core.Stderr()
 )
 
 func SetStdout(w io.Writer) {
 	if w == nil {
-		stdout = os.Stdout
+		stdout = core.Stdout()
 		return
 	}
 	stdout = w
@@ -36,26 +35,32 @@ func SetStdout(w io.Writer) {
 
 func SetStderr(w io.Writer) {
 	if w == nil {
-		stderr = os.Stderr
+		stderr = core.Stderr()
 		return
 	}
 	stderr = w
 }
 
 func Print(format string, args ...any) {
-	_, _ = fmt.Fprintf(stdout, format, args...)
+	if written := core.WriteString(stdout, core.Sprintf(format, args...)); !written.OK {
+		return
+	}
 }
 
 func Text(text string) {
-	_, _ = fmt.Fprintln(stdout, text)
+	if written := core.WriteString(stdout, text+"\n"); !written.OK {
+		return
+	}
 }
 
 func Blank() {
-	_, _ = fmt.Fprintln(stdout)
+	if written := core.WriteString(stdout, "\n"); !written.OK {
+		return
+	}
 }
 
 func Err(format string, args ...any) error {
-	return fmt.Errorf(format, args...)
+	return core.Errorf(format, args...)
 }
 
 func Wrap(err error, message string) error {
@@ -65,14 +70,14 @@ func Wrap(err error, message string) error {
 	if message == "" {
 		return err
 	}
-	return fmt.Errorf("%s: %w", message, err)
+	return core.Errorf("%s: %w", message, err)
 }
 
 func WrapVerb(err error, verb, subject string) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("failed to %s %s: %w", verb, subject, err)
+	return core.Errorf("failed to %s %s: %w", verb, subject, err)
 }
 
 type ExitError struct {
@@ -87,7 +92,7 @@ func (e *ExitError) Error() string {
 	if e.Err != nil {
 		return e.Err.Error()
 	}
-	return fmt.Sprintf("exit %d", e.Code)
+	return core.Sprintf("exit %d", e.Code)
 }
 
 func (e *ExitError) Unwrap() error {
@@ -99,7 +104,7 @@ func (e *ExitError) Unwrap() error {
 
 func Exit(code int, err error) error {
 	if err == nil {
-		err = errors.New("exit")
+		err = core.NewError("exit")
 	}
 	return &ExitError{Code: code, Err: err}
 }

@@ -1,8 +1,7 @@
 package build
 
 import (
-	"strings"
-
+	core "dappco.re/go"
 	"dappco.re/go/io"
 )
 
@@ -122,10 +121,10 @@ func stripVersionTemplateValues(values []string) []string {
 }
 
 func containsVersionTemplate(value string) bool {
-	return strings.Contains(value, "v{{.Version}}") ||
-		strings.Contains(value, "v{{Version}}") ||
-		strings.Contains(value, "{{.Tag}}") ||
-		strings.Contains(value, "{{Tag}}") ||
-		strings.Contains(value, "{{.Version}}") ||
-		strings.Contains(value, "{{Version}}")
+	return core.Contains(value, "v{{.Version}}") ||
+		core.Contains(value, "v{{Version}}") ||
+		core.Contains(value, "{{.Tag}}") ||
+		core.Contains(value, "{{Tag}}") ||
+		core.Contains(value, "{{.Version}}") ||
+		core.Contains(value, "{{Version}}")
 }

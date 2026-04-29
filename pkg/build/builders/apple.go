@@ -3,10 +3,7 @@ package builders
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	stdio "io"
-	"os"
 	"runtime"
 
 	"dappco.re/go"
@@ -120,7 +117,7 @@ func NewAppleBuilder(options ...AppleBuilderOption) *AppleBuilder {
 	builder := &AppleBuilder{
 		Options:    DefaultAppleBuilderOptions(),
 		hostOS:     runtime.GOOS,
-		todoWriter: os.Stdout,
+		todoWriter: core.Stdout(),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -427,12 +424,16 @@ func (b *AppleBuilder) printTODO(step string, opts process.RunOptions) {
 		message.Requirement = "this requires macOS; sandbox stub did not execute external CLI"
 	}
 
-	encoded, err := json.Marshal(message)
-	if err != nil {
-		fmt.Fprintf(writer, `{"level":"todo","component":"apple-build","step":%q}`+"\n", step)
+	encoded := core.JSONMarshal(message)
+	if !encoded.OK {
+		if written := core.WriteString(writer, core.Sprintf(`{"level":"todo","component":"apple-build","step":%q}`+"\n", step)); !written.OK {
+			return
+		}
 		return
 	}
-	fmt.Fprintln(writer, string(encoded))
+	if written := core.WriteString(writer, string(encoded.Value.([]byte))+"\n"); !written.OK {
+		return
+	}
 }
 
 func (b *AppleBuilder) options() AppleOptions {
