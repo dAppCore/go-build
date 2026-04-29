@@ -266,24 +266,30 @@ func TestDetect_DetectSpecScrambleOverwritesExistingSpecGood(t *testing.T) {
 // --- v0.9.0 generated compliance triplets ---
 func TestDetect_SDK_DetectSpec_Good(t *core.T) {
 	subject := &SDK{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.DetectSpec()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestDetect_SDK_DetectSpec_Bad(t *core.T) {
 	subject := &SDK{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.DetectSpec()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestDetect_SDK_DetectSpec_Ugly(t *core.T) {
 	subject := &SDK{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.DetectSpec()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

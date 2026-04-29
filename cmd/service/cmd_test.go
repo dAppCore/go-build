@@ -240,22 +240,28 @@ func TestRunServiceInstall_BubblesManagerErrorBad(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestCmd_AddServiceCommands_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddServiceCommands(core.New())
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCmd_AddServiceCommands_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddServiceCommands(core.New())
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCmd_AddServiceCommands_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddServiceCommands(core.New())
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

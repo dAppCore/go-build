@@ -12,43 +12,55 @@ func generatedWorkflowContentForCompliance() string {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestWorkflow_AssertReleaseWorkflowContent_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		AssertReleaseWorkflowContent(t, generatedWorkflowContentForCompliance())
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestWorkflow_AssertReleaseWorkflowContent_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		AssertReleaseWorkflowContent(t, generatedWorkflowContentForCompliance())
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestWorkflow_AssertReleaseWorkflowContent_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		AssertReleaseWorkflowContent(t, generatedWorkflowContentForCompliance())
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestWorkflow_AssertReleaseWorkflowTriggers_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		AssertReleaseWorkflowTriggers(t, generatedWorkflowContentForCompliance())
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestWorkflow_AssertReleaseWorkflowTriggers_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		AssertReleaseWorkflowTriggers(t, generatedWorkflowContentForCompliance())
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestWorkflow_AssertReleaseWorkflowTriggers_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		AssertReleaseWorkflowTriggers(t, generatedWorkflowContentForCompliance())
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

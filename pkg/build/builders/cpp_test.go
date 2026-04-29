@@ -584,100 +584,124 @@ func TestCPP_CPPBuilderInterfaceGood(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestCpp_NewCPPBuilder_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewCPPBuilder()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCpp_NewCPPBuilder_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewCPPBuilder()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCpp_NewCPPBuilder_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewCPPBuilder()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCpp_CPPBuilder_Name_Good(t *core.T) {
 	subject := &CPPBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCpp_CPPBuilder_Name_Bad(t *core.T) {
 	subject := &CPPBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCpp_CPPBuilder_Name_Ugly(t *core.T) {
 	subject := &CPPBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCpp_CPPBuilder_Detect_Good(t *core.T) {
 	subject := &CPPBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCpp_CPPBuilder_Detect_Bad(t *core.T) {
 	subject := &CPPBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCpp_CPPBuilder_Detect_Ugly(t *core.T) {
 	subject := &CPPBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCpp_CPPBuilder_Build_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &CPPBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCpp_CPPBuilder_Build_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &CPPBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCpp_CPPBuilder_Build_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &CPPBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -296,124 +296,154 @@ func TestTypeScript_TypeScriptGeneratorGenerateBad(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestTypescript_NewTypeScriptGenerator_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewTypeScriptGenerator()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestTypescript_NewTypeScriptGenerator_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewTypeScriptGenerator()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestTypescript_NewTypeScriptGenerator_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewTypeScriptGenerator()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Language_Good(t *core.T) {
 	subject := &TypeScriptGenerator{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Language()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Language_Bad(t *core.T) {
 	subject := &TypeScriptGenerator{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Language()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Language_Ugly(t *core.T) {
 	subject := &TypeScriptGenerator{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Language()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Available_Good(t *core.T) {
 	subject := &TypeScriptGenerator{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Available_Bad(t *core.T) {
 	subject := &TypeScriptGenerator{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Available_Ugly(t *core.T) {
 	subject := &TypeScriptGenerator{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Install_Good(t *core.T) {
 	subject := &TypeScriptGenerator{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Install()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Install_Bad(t *core.T) {
 	subject := &TypeScriptGenerator{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Install()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Install_Ugly(t *core.T) {
 	subject := &TypeScriptGenerator{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Install()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Generate_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &TypeScriptGenerator{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Generate(ctx, Options{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Generate_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &TypeScriptGenerator{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Generate(ctx, Options{})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestTypescript_TypeScriptGenerator_Generate_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &TypeScriptGenerator{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Generate(ctx, Options{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

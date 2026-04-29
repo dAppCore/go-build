@@ -86,169 +86,217 @@ func TestBuild_LinuxKitBaseTemplate_Good(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestLinuxkitImage_DefaultLinuxKitConfig_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultLinuxKitConfig()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_DefaultLinuxKitConfig_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultLinuxKitConfig()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_DefaultLinuxKitConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultLinuxKitConfig()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_LinuxKit_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = LinuxKit()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_LinuxKit_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = LinuxKit()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_LinuxKit_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = LinuxKit()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_WithBase_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithBase("agent")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_WithBase_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithBase("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_WithBase_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithBase("agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_WithPackages_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithPackages()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_WithPackages_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithPackages()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_WithPackages_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithPackages()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_WithMount_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithMount(core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_WithMount_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithMount("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_WithMount_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithMount(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_WithGPU_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithGPU(true)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_WithGPU_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithGPU(false)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_WithGPU_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithGPU(true)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_WithFormats_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithFormats()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_WithFormats_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithFormats()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_WithFormats_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithFormats()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_WithRegistry_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithRegistry("agent")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_WithRegistry_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithRegistry("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_WithRegistry_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithRegistry("agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

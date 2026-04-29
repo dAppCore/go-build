@@ -748,100 +748,124 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 
 // --- v0.9.0 generated compliance triplets ---
 func TestTaskfile_NewTaskfileBuilder_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewTaskfileBuilder()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestTaskfile_NewTaskfileBuilder_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewTaskfileBuilder()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestTaskfile_NewTaskfileBuilder_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewTaskfileBuilder()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestTaskfile_TaskfileBuilder_Name_Good(t *core.T) {
 	subject := &TaskfileBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestTaskfile_TaskfileBuilder_Name_Bad(t *core.T) {
 	subject := &TaskfileBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestTaskfile_TaskfileBuilder_Name_Ugly(t *core.T) {
 	subject := &TaskfileBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestTaskfile_TaskfileBuilder_Detect_Good(t *core.T) {
 	subject := &TaskfileBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestTaskfile_TaskfileBuilder_Detect_Bad(t *core.T) {
 	subject := &TaskfileBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestTaskfile_TaskfileBuilder_Detect_Ugly(t *core.T) {
 	subject := &TaskfileBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestTaskfile_TaskfileBuilder_Build_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &TaskfileBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestTaskfile_TaskfileBuilder_Build_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &TaskfileBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestTaskfile_TaskfileBuilder_Build_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &TaskfileBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

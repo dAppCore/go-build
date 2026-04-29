@@ -497,26 +497,32 @@ paths:
 func TestSdk_RunSDK_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = RunSDK(ctx, &Config{}, true)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_RunSDK_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = RunSDK(ctx, nil, true)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_RunSDK_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = RunSDK(ctx, &Config{}, true)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

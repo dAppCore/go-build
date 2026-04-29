@@ -130,78 +130,96 @@ func TestSigntool_ResolveSigntoolCliBad(t *testing.T) {
 // --- v0.9.0 generated compliance triplets ---
 func TestSigntool_WindowsSigner_Name_Good(t *core.T) {
 	subject := &WindowsSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSigntool_WindowsSigner_Name_Bad(t *core.T) {
 	subject := &WindowsSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSigntool_WindowsSigner_Name_Ugly(t *core.T) {
 	subject := &WindowsSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSigntool_WindowsSigner_Available_Good(t *core.T) {
 	subject := &WindowsSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSigntool_WindowsSigner_Available_Bad(t *core.T) {
 	subject := &WindowsSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSigntool_WindowsSigner_Available_Ugly(t *core.T) {
 	subject := &WindowsSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSigntool_WindowsSigner_Sign_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &WindowsSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSigntool_WindowsSigner_Sign_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &WindowsSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Sign(ctx, io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSigntool_WindowsSigner_Sign_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &WindowsSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

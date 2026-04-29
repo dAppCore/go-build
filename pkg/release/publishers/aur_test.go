@@ -348,130 +348,160 @@ func TestAUR_AURConfigDefaultsGood(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestAur_NewAURPublisher_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewAURPublisher()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestAur_NewAURPublisher_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewAURPublisher()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestAur_NewAURPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewAURPublisher()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestAur_AURPublisher_Name_Good(t *core.T) {
 	subject := &AURPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestAur_AURPublisher_Name_Bad(t *core.T) {
 	subject := &AURPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestAur_AURPublisher_Name_Ugly(t *core.T) {
 	subject := &AURPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestAur_AURPublisher_Validate_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AURPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestAur_AURPublisher_Validate_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AURPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestAur_AURPublisher_Validate_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AURPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestAur_AURPublisher_Supports_Good(t *core.T) {
 	subject := &AURPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("linux")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestAur_AURPublisher_Supports_Bad(t *core.T) {
 	subject := &AURPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestAur_AURPublisher_Supports_Ugly(t *core.T) {
 	subject := &AURPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("linux")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestAur_AURPublisher_Publish_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AURPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestAur_AURPublisher_Publish_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AURPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestAur_AURPublisher_Publish_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AURPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -107,8 +107,10 @@ func TestVersionFlags_VersionLinkerFlag_Ugly(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestVersionFlags_VersionLinkerFlag_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = VersionLinkerFlag("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }

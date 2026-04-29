@@ -124,50 +124,62 @@ func TestDefaultRunWatchedBuild_WithoutBuildConfig_UsesLocalTargetGood(t *testin
 func TestDaemon_Run_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = Run(ctx, Config{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestDaemon_Run_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = Run(ctx, Config{})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestDaemon_Run_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = Run(ctx, Config{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestDaemon_EventEmitter_Emit_Good(t *core.T) {
 	subject := daemonEventEmitter{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.Emit("agent", "agent")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestDaemon_EventEmitter_Emit_Bad(t *core.T) {
 	subject := daemonEventEmitter{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.Emit("", "agent")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestDaemon_EventEmitter_Emit_Ugly(t *core.T) {
 	subject := daemonEventEmitter{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.Emit("agent", "agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

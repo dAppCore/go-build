@@ -726,100 +726,124 @@ func TestNode_NodeBuilderBuild_Good_NestedProject(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestNode_NewNodeBuilder_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewNodeBuilder()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestNode_NewNodeBuilder_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewNodeBuilder()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestNode_NewNodeBuilder_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewNodeBuilder()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestNode_NodeBuilder_Name_Good(t *core.T) {
 	subject := &NodeBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestNode_NodeBuilder_Name_Bad(t *core.T) {
 	subject := &NodeBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestNode_NodeBuilder_Name_Ugly(t *core.T) {
 	subject := &NodeBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestNode_NodeBuilder_Detect_Good(t *core.T) {
 	subject := &NodeBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestNode_NodeBuilder_Detect_Bad(t *core.T) {
 	subject := &NodeBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestNode_NodeBuilder_Detect_Ugly(t *core.T) {
 	subject := &NodeBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestNode_NodeBuilder_Build_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &NodeBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestNode_NodeBuilder_Build_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &NodeBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestNode_NodeBuilder_Build_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &NodeBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

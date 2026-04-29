@@ -429,22 +429,28 @@ func TestChecksum_WriteChecksumFile_Bad(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestChecksum_Checksum_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = Checksum(io.NewMemoryMedium(), Artifact{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestChecksum_ChecksumAll_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ChecksumAll(io.NewMemoryMedium(), nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestChecksum_WriteChecksumFile_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WriteChecksumFile(io.NewMemoryMedium(), nil, core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

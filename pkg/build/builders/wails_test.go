@@ -2129,130 +2129,160 @@ func TestWails_WailsBuilderUgly(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestWails_NewWailsBuilder_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewWailsBuilder()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestWails_NewWailsBuilder_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewWailsBuilder()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestWails_NewWailsBuilder_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewWailsBuilder()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestWails_WailsBuilder_Name_Good(t *core.T) {
 	subject := &WailsBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestWails_WailsBuilder_Name_Bad(t *core.T) {
 	subject := &WailsBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestWails_WailsBuilder_Name_Ugly(t *core.T) {
 	subject := &WailsBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestWails_WailsBuilder_Detect_Good(t *core.T) {
 	subject := &WailsBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestWails_WailsBuilder_Detect_Bad(t *core.T) {
 	subject := &WailsBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestWails_WailsBuilder_Detect_Ugly(t *core.T) {
 	subject := &WailsBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestWails_WailsBuilder_Build_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &WailsBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestWails_WailsBuilder_Build_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &WailsBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestWails_WailsBuilder_Build_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &WailsBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestWails_WailsBuilder_PreBuild_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &WailsBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.PreBuild(ctx, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestWails_WailsBuilder_PreBuild_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &WailsBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.PreBuild(ctx, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestWails_WailsBuilder_PreBuild_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &WailsBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.PreBuild(ctx, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

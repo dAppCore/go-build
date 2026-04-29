@@ -270,100 +270,124 @@ func TestDocs_DocsBuilderBuildBad(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestDocs_NewDocsBuilder_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewDocsBuilder()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestDocs_NewDocsBuilder_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewDocsBuilder()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestDocs_NewDocsBuilder_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewDocsBuilder()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestDocs_DocsBuilder_Name_Good(t *core.T) {
 	subject := &DocsBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestDocs_DocsBuilder_Name_Bad(t *core.T) {
 	subject := &DocsBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestDocs_DocsBuilder_Name_Ugly(t *core.T) {
 	subject := &DocsBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestDocs_DocsBuilder_Detect_Good(t *core.T) {
 	subject := &DocsBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestDocs_DocsBuilder_Detect_Bad(t *core.T) {
 	subject := &DocsBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestDocs_DocsBuilder_Detect_Ugly(t *core.T) {
 	subject := &DocsBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestDocs_DocsBuilder_Build_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &DocsBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestDocs_DocsBuilder_Build_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &DocsBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestDocs_DocsBuilder_Build_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &DocsBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

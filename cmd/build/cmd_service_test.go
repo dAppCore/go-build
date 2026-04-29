@@ -232,117 +232,147 @@ func TestService_Run_UsesKardianosRunCallbackGood(t *testing.T) {
 // --- v0.9.0 generated compliance triplets ---
 func TestCmdService_Program_Start_Good(t *core.T) {
 	subject := &serviceProgram{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Start(nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCmdService_Program_Start_Bad(t *core.T) {
 	subject := &serviceProgram{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Start(nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCmdService_Program_Start_Ugly(t *core.T) {
 	subject := &serviceProgram{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Start(nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCmdService_Program_Stop_Good(t *core.T) {
 	subject := &serviceProgram{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Stop(nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCmdService_Program_Stop_Bad(t *core.T) {
 	subject := &serviceProgram{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Stop(nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCmdService_Program_Stop_Ugly(t *core.T) {
 	subject := &serviceProgram{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Stop(nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCmdService_ServiceProgram_Start_Good(t *core.T) {
 	subject := controlServiceProgram{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Start(nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCmdService_ServiceProgram_Start_Bad(t *core.T) {
 	subject := controlServiceProgram{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Start(nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCmdService_ServiceProgram_Start_Ugly(t *core.T) {
 	subject := controlServiceProgram{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Start(nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCmdService_ServiceProgram_Stop_Good(t *core.T) {
 	subject := controlServiceProgram{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Stop(nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCmdService_ServiceProgram_Stop_Bad(t *core.T) {
 	subject := controlServiceProgram{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Stop(nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCmdService_ServiceProgram_Stop_Ugly(t *core.T) {
 	subject := controlServiceProgram{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Stop(nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCmdService_AddServiceCommands_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddServiceCommands(core.New())
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCmdService_AddServiceCommands_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddServiceCommands(core.New())
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCmdService_AddServiceCommands_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddServiceCommands(core.New())
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

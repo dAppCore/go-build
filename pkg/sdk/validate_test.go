@@ -84,28 +84,34 @@ func TestValidate_SDK_ValidateSpec_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.ValidateSpec(ctx)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestValidate_SDK_ValidateSpec_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.ValidateSpec(ctx)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestValidate_SDK_ValidateSpec_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.ValidateSpec(ctx)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

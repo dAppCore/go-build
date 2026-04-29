@@ -1554,168 +1554,210 @@ func (b *capturingBuilder) Build(ctx context.Context, cfg *build.Config, targets
 
 // --- v0.9.0 generated compliance triplets ---
 func TestProvider_NewProvider_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewProvider(core.Path(t.TempDir(), "go-build-compliance"), nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestProvider_NewProvider_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewProvider("", nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestProvider_NewProvider_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewProvider(core.Path(t.TempDir(), "go-build-compliance"), nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestProvider_BuildProvider_Name_Good(t *core.T) {
 	subject := &BuildProvider{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestProvider_BuildProvider_Name_Bad(t *core.T) {
 	subject := &BuildProvider{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestProvider_BuildProvider_Name_Ugly(t *core.T) {
 	subject := &BuildProvider{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestProvider_BuildProvider_BasePath_Good(t *core.T) {
 	subject := &BuildProvider{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.BasePath()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestProvider_BuildProvider_BasePath_Bad(t *core.T) {
 	subject := &BuildProvider{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.BasePath()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestProvider_BuildProvider_BasePath_Ugly(t *core.T) {
 	subject := &BuildProvider{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.BasePath()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestProvider_BuildProvider_Element_Good(t *core.T) {
 	subject := &BuildProvider{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Element()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestProvider_BuildProvider_Element_Bad(t *core.T) {
 	subject := &BuildProvider{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Element()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestProvider_BuildProvider_Element_Ugly(t *core.T) {
 	subject := &BuildProvider{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Element()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestProvider_BuildProvider_Channels_Good(t *core.T) {
 	subject := &BuildProvider{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Channels()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestProvider_BuildProvider_Channels_Bad(t *core.T) {
 	subject := &BuildProvider{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Channels()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestProvider_BuildProvider_Channels_Ugly(t *core.T) {
 	subject := &BuildProvider{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Channels()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestProvider_BuildProvider_RegisterRoutes_Good(t *core.T) {
 	subject := &BuildProvider{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.RegisterRoutes(gin.New().Group("/build"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestProvider_BuildProvider_RegisterRoutes_Bad(t *core.T) {
 	subject := &BuildProvider{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.RegisterRoutes(gin.New().Group("/build"))
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestProvider_BuildProvider_RegisterRoutes_Ugly(t *core.T) {
 	subject := &BuildProvider{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.RegisterRoutes(gin.New().Group("/build"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestProvider_BuildProvider_Describe_Good(t *core.T) {
 	subject := &BuildProvider{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Describe()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestProvider_BuildProvider_Describe_Bad(t *core.T) {
 	subject := &BuildProvider{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Describe()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestProvider_BuildProvider_Describe_Ugly(t *core.T) {
 	subject := &BuildProvider{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Describe()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestProvider_Info_MarshalJSON_Good(t *core.T) {

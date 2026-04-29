@@ -85,100 +85,124 @@ func TestGPG_ResolveGpgCliBad(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestGpg_NewGPGSigner_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewGPGSigner("agent")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestGpg_NewGPGSigner_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewGPGSigner("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestGpg_NewGPGSigner_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewGPGSigner("agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestGpg_GPGSigner_Name_Good(t *core.T) {
 	subject := &GPGSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestGpg_GPGSigner_Name_Bad(t *core.T) {
 	subject := &GPGSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestGpg_GPGSigner_Name_Ugly(t *core.T) {
 	subject := &GPGSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestGpg_GPGSigner_Available_Good(t *core.T) {
 	subject := &GPGSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestGpg_GPGSigner_Available_Bad(t *core.T) {
 	subject := &GPGSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestGpg_GPGSigner_Available_Ugly(t *core.T) {
 	subject := &GPGSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestGpg_GPGSigner_Sign_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &GPGSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestGpg_GPGSigner_Sign_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &GPGSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Sign(ctx, io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestGpg_GPGSigner_Sign_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &GPGSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

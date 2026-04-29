@@ -247,22 +247,28 @@ func TestBuild_RuntimeConfigFromBuildConfig_UsesRFCPreBuildAliases_Good(t *testi
 
 // --- v0.9.0 generated compliance triplets ---
 func TestRuntimeConfig_RuntimeConfigFromBuildConfig_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = RuntimeConfigFromBuildConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{}, true, "agent", "v1.2.3")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestRuntimeConfig_RuntimeConfigFromBuildConfig_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = RuntimeConfigFromBuildConfig(io.NewMemoryMedium(), "", "", "", nil, false, "", "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestRuntimeConfig_RuntimeConfigFromBuildConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = RuntimeConfigFromBuildConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{}, true, "agent", "v1.2.3")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

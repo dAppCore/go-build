@@ -192,264 +192,330 @@ func TestApple_AppleCommandRunnerFunc_Run_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) (string, error) { return "ok", nil })
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Run(ctx, process.RunOptions{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_AppleCommandRunnerFunc_Run_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) (string, error) { return "ok", nil })
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Run(ctx, process.RunOptions{})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_AppleCommandRunnerFunc_Run_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) (string, error) { return "ok", nil })
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Run(ctx, process.RunOptions{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_GoProcessAppleRunner_Run_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := GoProcessAppleRunner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Run(ctx, process.RunOptions{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_GoProcessAppleRunner_Run_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := GoProcessAppleRunner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Run(ctx, process.RunOptions{})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_GoProcessAppleRunner_Run_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := GoProcessAppleRunner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Run(ctx, process.RunOptions{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_NewAppleBuilder_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewAppleBuilder()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_NewAppleBuilder_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewAppleBuilder()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_NewAppleBuilder_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewAppleBuilder()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_WithAppleOptions_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleOptions(AppleOptions{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_WithAppleOptions_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleOptions(AppleOptions{})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_WithAppleOptions_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleOptions(AppleOptions{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_WithAppleCommandRunner_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleCommandRunner(nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_WithAppleCommandRunner_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleCommandRunner(nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_WithAppleCommandRunner_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleCommandRunner(nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_WithAppleHostOS_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleHostOS("linux")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_WithAppleHostOS_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleHostOS("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_WithAppleHostOS_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleHostOS("linux")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_WithAppleTODOWriter_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleTODOWriter(core.NewBuffer())
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_WithAppleTODOWriter_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleTODOWriter(core.NewBuffer())
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_WithAppleTODOWriter_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WithAppleTODOWriter(core.NewBuffer())
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_DefaultAppleBuilderOptions_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultAppleBuilderOptions()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_DefaultAppleBuilderOptions_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultAppleBuilderOptions()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_DefaultAppleBuilderOptions_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultAppleBuilderOptions()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_AppleBuilder_Name_Good(t *core.T) {
 	subject := &AppleBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_AppleBuilder_Name_Bad(t *core.T) {
 	subject := &AppleBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_AppleBuilder_Name_Ugly(t *core.T) {
 	subject := &AppleBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_AppleBuilder_Detect_Good(t *core.T) {
 	subject := &AppleBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_AppleBuilder_Detect_Bad(t *core.T) {
 	subject := &AppleBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(coreio.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_AppleBuilder_Detect_Ugly(t *core.T) {
 	subject := &AppleBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_AppleBuilder_Build_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AppleBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_AppleBuilder_Build_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AppleBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_AppleBuilder_Build_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AppleBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_AppleBuilder_BuildWailsMacOS_Good(t *core.T) {
@@ -457,10 +523,12 @@ func TestApple_AppleBuilder_BuildWailsMacOS_Good(t *core.T) {
 	cancel()
 	subject := NewAppleBuilder(WithAppleTODOWriter(nil))
 	cfg := &build.Config{ProjectDir: t.TempDir()}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.BuildWailsMacOS(ctx, coreio.NewMemoryMedium(), cfg, core.Path(t.TempDir(), "go-build-compliance"), "agent", "amd64")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_AppleBuilder_BuildWailsMacOS_Bad(t *core.T) {
@@ -468,10 +536,12 @@ func TestApple_AppleBuilder_BuildWailsMacOS_Bad(t *core.T) {
 	cancel()
 	subject := NewAppleBuilder(WithAppleTODOWriter(nil))
 	cfg := &build.Config{ProjectDir: t.TempDir()}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.BuildWailsMacOS(ctx, coreio.NewMemoryMedium(), cfg, "", "", "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_AppleBuilder_BuildWailsMacOS_Ugly(t *core.T) {
@@ -479,59 +549,73 @@ func TestApple_AppleBuilder_BuildWailsMacOS_Ugly(t *core.T) {
 	cancel()
 	subject := NewAppleBuilder(WithAppleTODOWriter(nil))
 	cfg := &build.Config{ProjectDir: t.TempDir()}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.BuildWailsMacOS(ctx, coreio.NewMemoryMedium(), cfg, core.Path(t.TempDir(), "go-build-compliance"), "agent", "amd64")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_AppleBuilder_CreateUniversal_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AppleBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.CreateUniversal(ctx, coreio.NewMemoryMedium(), coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), "agent")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_AppleBuilder_CreateUniversal_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AppleBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.CreateUniversal(ctx, coreio.NewMemoryMedium(), coreio.NewMemoryMedium(), "", "", "", "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_AppleBuilder_CreateUniversal_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &AppleBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.CreateUniversal(ctx, coreio.NewMemoryMedium(), coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), "agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestApple_ValidateAppleOptions_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ValidateAppleOptions(AppleOptions{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestApple_ValidateAppleOptions_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ValidateAppleOptions(AppleOptions{})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestApple_ValidateAppleOptions_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ValidateAppleOptions(AppleOptions{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

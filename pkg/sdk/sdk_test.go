@@ -265,280 +265,346 @@ func TestSDK_NilSafetyGood(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestSdk_New_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = New(core.Path(t.TempDir(), "go-build-compliance"), &Config{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_New_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = New("", nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_New_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = New(core.Path(t.TempDir(), "go-build-compliance"), &Config{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_CloneConfig_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = CloneConfig(&Config{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_CloneConfig_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = CloneConfig(nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_CloneConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = CloneConfig(&Config{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_SDK_Config_Good(t *core.T) {
 	subject := &SDK{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Config()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_SDK_Config_Bad(t *core.T) {
 	subject := &SDK{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Config()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_SDK_Config_Ugly(t *core.T) {
 	subject := &SDK{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Config()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_Config_ApplyDefaults_Good(t *core.T) {
 	subject := &Config{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.ApplyDefaults()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_Config_ApplyDefaults_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.ApplyDefaults()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_Config_ApplyDefaults_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.ApplyDefaults()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_SDK_SetVersion_Good(t *core.T) {
 	subject := &SDK{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetVersion("v1.2.3")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_SDK_SetVersion_Bad(t *core.T) {
 	subject := &SDK{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetVersion("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_SDK_SetVersion_Ugly(t *core.T) {
 	subject := &SDK{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetVersion("v1.2.3")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_DefaultConfig_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultConfig()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_DefaultConfig_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultConfig()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_DefaultConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultConfig()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_DiffConfig_UnmarshalYAML_Good(t *core.T) {
 	subject := &DiffConfig{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_DiffConfig_UnmarshalYAML_Bad(t *core.T) {
 	subject := &DiffConfig{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_DiffConfig_UnmarshalYAML_Ugly(t *core.T) {
 	subject := &DiffConfig{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_SDK_Generate_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Generate(ctx)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_SDK_Generate_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Generate(ctx)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_SDK_Generate_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Generate(ctx)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_SDK_GenerateWithStatus_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.GenerateWithStatus(ctx)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_SDK_GenerateWithStatus_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.GenerateWithStatus(ctx)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_SDK_GenerateWithStatus_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.GenerateWithStatus(ctx)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_SDK_GenerateLanguage_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.GenerateLanguage(ctx, "go")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_SDK_GenerateLanguage_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.GenerateLanguage(ctx, "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_SDK_GenerateLanguage_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.GenerateLanguage(ctx, "go")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestSdk_SDK_GenerateLanguageWithStatus_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.GenerateLanguageWithStatus(ctx, "go")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestSdk_SDK_GenerateLanguageWithStatus_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.GenerateLanguageWithStatus(ctx, "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestSdk_SDK_GenerateLanguageWithStatus_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &SDK{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.GenerateLanguageWithStatus(ctx, "go")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

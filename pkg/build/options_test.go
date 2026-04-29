@@ -623,24 +623,30 @@ func TestOptions_String_Ugly(t *testing.T) {
 // --- v0.9.0 generated compliance triplets ---
 func TestOptions_BuildOptions_String_Good(t *core.T) {
 	subject := &BuildOptions{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.String()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestOptions_BuildOptions_String_Bad(t *core.T) {
 	subject := &BuildOptions{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.String()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestOptions_BuildOptions_String_Ugly(t *core.T) {
 	subject := &BuildOptions{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.String()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -1523,130 +1523,160 @@ exit 0
 
 // --- v0.9.0 generated compliance triplets ---
 func TestLinuxkit_NewLinuxKitPublisher_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewLinuxKitPublisher()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkit_NewLinuxKitPublisher_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewLinuxKitPublisher()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkit_NewLinuxKitPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewLinuxKitPublisher()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Name_Good(t *core.T) {
 	subject := &LinuxKitPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Name_Bad(t *core.T) {
 	subject := &LinuxKitPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Name_Ugly(t *core.T) {
 	subject := &LinuxKitPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Validate_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &LinuxKitPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Validate_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &LinuxKitPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Validate_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &LinuxKitPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Supports_Good(t *core.T) {
 	subject := &LinuxKitPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("linux")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Supports_Bad(t *core.T) {
 	subject := &LinuxKitPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Supports_Ugly(t *core.T) {
 	subject := &LinuxKitPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("linux")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Publish_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &LinuxKitPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Publish_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &LinuxKitPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkit_LinuxKitPublisher_Publish_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &LinuxKitPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

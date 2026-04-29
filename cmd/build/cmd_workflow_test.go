@@ -450,22 +450,28 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestCmdWorkflow_AddWorkflowCommand_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddWorkflowCommand(core.New())
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCmdWorkflow_AddWorkflowCommand_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddWorkflowCommand(core.New())
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCmdWorkflow_AddWorkflowCommand_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddWorkflowCommand(core.New())
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

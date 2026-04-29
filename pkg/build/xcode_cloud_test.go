@@ -200,36 +200,46 @@ func boolPtr(value bool) *bool {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestXcodeCloud_HasXcodeCloudConfig_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = HasXcodeCloudConfig(nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestXcodeCloud_HasXcodeCloudConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = HasXcodeCloudConfig(&BuildConfig{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestXcodeCloud_GenerateXcodeCloudScripts_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = GenerateXcodeCloudScripts("", nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestXcodeCloud_GenerateXcodeCloudScripts_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = GenerateXcodeCloudScripts(core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestXcodeCloud_WriteXcodeCloudScripts_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = WriteXcodeCloudScripts(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

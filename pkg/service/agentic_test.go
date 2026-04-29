@@ -113,52 +113,64 @@ func TestAgentic_Agentic_Run_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.Run(ctx)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestAgentic_Agentic_Run_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.Run(ctx)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestAgentic_Agentic_Run_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.Run(ctx)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestAgentic_Agentic_Notify_Good(t *core.T) {
 	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.Notify("agent", "agent")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestAgentic_Agentic_Notify_Bad(t *core.T) {
 	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.Notify("", "agent")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestAgentic_Agentic_Notify_Ugly(t *core.T) {
 	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.Notify("agent", "agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -409,22 +409,28 @@ func TestBuildCmd_publishOCIImageArchive_Good(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestCmdImage_AddImageCommand_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddImageCommand(core.New())
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCmdImage_AddImageCommand_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddImageCommand(core.New())
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCmdImage_AddImageCommand_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		AddImageCommand(core.New())
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

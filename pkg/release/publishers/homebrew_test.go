@@ -506,130 +506,160 @@ func TestHomebrew_HomebrewConfigDefaultsGood(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestHomebrew_NewHomebrewPublisher_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewHomebrewPublisher()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestHomebrew_NewHomebrewPublisher_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewHomebrewPublisher()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestHomebrew_NewHomebrewPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewHomebrewPublisher()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Name_Good(t *core.T) {
 	subject := &HomebrewPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Name_Bad(t *core.T) {
 	subject := &HomebrewPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Name_Ugly(t *core.T) {
 	subject := &HomebrewPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Validate_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &HomebrewPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Validate_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &HomebrewPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Validate_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &HomebrewPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Supports_Good(t *core.T) {
 	subject := &HomebrewPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("linux")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Supports_Bad(t *core.T) {
 	subject := &HomebrewPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Supports_Ugly(t *core.T) {
 	subject := &HomebrewPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("linux")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Publish_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &HomebrewPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Publish_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &HomebrewPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestHomebrew_HomebrewPublisher_Publish_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &HomebrewPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

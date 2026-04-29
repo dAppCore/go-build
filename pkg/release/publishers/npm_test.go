@@ -410,130 +410,160 @@ func TestNpm_NpmTemplateDataGood(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestNpm_NewNpmPublisher_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewNpmPublisher()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestNpm_NewNpmPublisher_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewNpmPublisher()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestNpm_NewNpmPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewNpmPublisher()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestNpm_NpmPublisher_Name_Good(t *core.T) {
 	subject := &NpmPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestNpm_NpmPublisher_Name_Bad(t *core.T) {
 	subject := &NpmPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestNpm_NpmPublisher_Name_Ugly(t *core.T) {
 	subject := &NpmPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestNpm_NpmPublisher_Validate_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &NpmPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestNpm_NpmPublisher_Validate_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &NpmPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestNpm_NpmPublisher_Validate_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &NpmPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestNpm_NpmPublisher_Supports_Good(t *core.T) {
 	subject := &NpmPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("linux")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestNpm_NpmPublisher_Supports_Bad(t *core.T) {
 	subject := &NpmPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestNpm_NpmPublisher_Supports_Ugly(t *core.T) {
 	subject := &NpmPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Supports("linux")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestNpm_NpmPublisher_Publish_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &NpmPublisher{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestNpm_NpmPublisher_Publish_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &NpmPublisher{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestNpm_NpmPublisher_Publish_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &NpmPublisher{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

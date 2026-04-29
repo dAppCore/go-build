@@ -937,76 +937,94 @@ func TestChangelog_GenerateWithConfigEdgeCasesUgly(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestChangelog_Generate_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = Generate(core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestChangelog_GenerateWithContext_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = GenerateWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestChangelog_GenerateWithContext_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = GenerateWithContext(ctx, "", "", "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestChangelog_GenerateWithContext_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = GenerateWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestChangelog_GenerateWithConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = GenerateWithConfig(core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestChangelog_GenerateWithConfigWithContext_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = GenerateWithConfigWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestChangelog_GenerateWithConfigWithContext_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = GenerateWithConfigWithContext(ctx, "", "", "", nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestChangelog_GenerateWithConfigWithContext_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = GenerateWithConfigWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"), "agent", "agent", &ChangelogConfig{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestChangelog_ParseCommitType_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ParseCommitType("agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

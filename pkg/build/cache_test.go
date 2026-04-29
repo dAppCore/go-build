@@ -483,105 +483,133 @@ func TestCache_CacheRestoreKeys_Ugly(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestCache_DefaultBuildCachePaths_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultBuildCachePaths(core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCache_DefaultBuildCachePaths_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultBuildCachePaths("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCache_DefaultBuildCachePaths_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultBuildCachePaths(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCache_CacheConfig_MarshalYAML_Good(t *core.T) {
 	subject := CacheConfig{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.MarshalYAML()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCache_CacheConfig_MarshalYAML_Bad(t *core.T) {
 	subject := CacheConfig{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.MarshalYAML()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCache_CacheConfig_MarshalYAML_Ugly(t *core.T) {
 	subject := CacheConfig{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.MarshalYAML()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCache_CacheConfig_UnmarshalYAML_Good(t *core.T) {
 	subject := &CacheConfig{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCache_CacheConfig_UnmarshalYAML_Bad(t *core.T) {
 	subject := &CacheConfig{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCache_CacheConfig_UnmarshalYAML_Ugly(t *core.T) {
 	subject := &CacheConfig{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.UnmarshalYAML(&yaml.Node{Kind: yaml.ScalarNode, Value: "false"})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCache_SetupBuildCache_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = SetupBuildCache(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCache_CacheKey_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = CacheKey(io.NewMemoryMedium(), "", "", "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCache_CacheKey_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = CacheKey(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), "linux", "amd64")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCache_CacheEnvironment_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = CacheEnvironment(nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCache_CacheEnvironment_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = CacheEnvironment(&CacheConfig{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -847,113 +847,145 @@ func verifyTarXzContent(t *testing.T, archivePath, expectedName string) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestArchive_ParseArchiveFormat_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ParseArchiveFormat("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestArchive_ParseArchiveFormat_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ParseArchiveFormat("agent")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestArchive_Archive_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = Archive(io_interface.NewMemoryMedium(), Artifact{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestArchive_ArchiveXZ_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveXZ(io_interface.NewMemoryMedium(), Artifact{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestArchive_ArchiveXZ_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveXZ(io_interface.NewMemoryMedium(), Artifact{})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestArchive_ArchiveXZ_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveXZ(io_interface.NewMemoryMedium(), Artifact{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestArchive_ArchiveWithFormat_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveWithFormat(io_interface.NewMemoryMedium(), Artifact{}, ArchiveFormat("linux"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestArchive_ArchiveWithFormat_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveWithFormat(io_interface.NewMemoryMedium(), Artifact{}, ArchiveFormat("linux"))
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestArchive_ArchiveWithFormat_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveWithFormat(io_interface.NewMemoryMedium(), Artifact{}, ArchiveFormat("linux"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestArchive_ArchiveAll_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveAll(io_interface.NewMemoryMedium(), nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestArchive_ArchiveAllXZ_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveAllXZ(io_interface.NewMemoryMedium(), nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestArchive_ArchiveAllXZ_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveAllXZ(io_interface.NewMemoryMedium(), nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestArchive_ArchiveAllXZ_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveAllXZ(io_interface.NewMemoryMedium(), nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestArchive_ArchiveAllWithFormat_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveAllWithFormat(io_interface.NewMemoryMedium(), nil, ArchiveFormat("linux"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestArchive_ArchiveAllWithFormat_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveAllWithFormat(io_interface.NewMemoryMedium(), nil, ArchiveFormat("linux"))
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestArchive_ArchiveAllWithFormat_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ArchiveAllWithFormat(io_interface.NewMemoryMedium(), nil, ArchiveFormat("linux"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

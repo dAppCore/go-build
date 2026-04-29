@@ -220,124 +220,154 @@ func TestLinuxKitImage_LinuxKitImageBuilderBuildGood(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestLinuxkitImage_NewLinuxKitImageBuilder_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewLinuxKitImageBuilder()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_NewLinuxKitImageBuilder_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewLinuxKitImageBuilder()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_NewLinuxKitImageBuilder_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewLinuxKitImageBuilder()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_Name_Good(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_Name_Bad(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_Name_Ugly(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_ListBaseImages_Good(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.ListBaseImages()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_ListBaseImages_Bad(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.ListBaseImages()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_ListBaseImages_Ugly(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.ListBaseImages()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_ArtifactPath_Good(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.ArtifactPath(core.Path(t.TempDir(), "go-build-compliance"), "agent", "tar.gz")
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_ArtifactPath_Bad(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.ArtifactPath("", "", "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_ArtifactPath_Ugly(t *core.T) {
 	subject := &LinuxKitImageBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.ArtifactPath(core.Path(t.TempDir(), "go-build-compliance"), "agent", "tar.gz")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_Build_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &LinuxKitImageBuilder{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil)
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_Build_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &LinuxKitImageBuilder{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestLinuxkitImage_LinuxKitImageBuilder_Build_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &LinuxKitImageBuilder{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = subject.Build(ctx, nil)
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

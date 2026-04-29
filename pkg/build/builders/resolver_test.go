@@ -42,22 +42,28 @@ func TestResolveBuilder_Bad(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestResolver_ResolveBuilder_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ResolveBuilder(build.ProjectType("linux"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestResolver_ResolveBuilder_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ResolveBuilder(build.ProjectType("linux"))
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestResolver_ResolveBuilder_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = ResolveBuilder(build.ProjectType("linux"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

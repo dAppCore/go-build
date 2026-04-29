@@ -184,154 +184,190 @@ func TestCodesign_ResolveXcrunCliBad(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestCodesign_NewMacOSSigner_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewMacOSSigner(MacOSConfig{})
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCodesign_NewMacOSSigner_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewMacOSSigner(MacOSConfig{})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCodesign_NewMacOSSigner_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = NewMacOSSigner(MacOSConfig{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCodesign_MacOSSigner_Name_Good(t *core.T) {
 	subject := &MacOSSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCodesign_MacOSSigner_Name_Bad(t *core.T) {
 	subject := &MacOSSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCodesign_MacOSSigner_Name_Ugly(t *core.T) {
 	subject := &MacOSSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Name()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCodesign_MacOSSigner_Available_Good(t *core.T) {
 	subject := &MacOSSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCodesign_MacOSSigner_Available_Bad(t *core.T) {
 	subject := &MacOSSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCodesign_MacOSSigner_Available_Ugly(t *core.T) {
 	subject := &MacOSSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Available()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCodesign_MacOSSigner_Sign_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &MacOSSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCodesign_MacOSSigner_Sign_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &MacOSSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Sign(ctx, io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCodesign_MacOSSigner_Sign_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &MacOSSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCodesign_MacOSSigner_Notarize_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &MacOSSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Notarize(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCodesign_MacOSSigner_Notarize_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &MacOSSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Notarize(ctx, io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCodesign_MacOSSigner_Notarize_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
 	subject := &MacOSSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.Notarize(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCodesign_MacOSSigner_ShouldNotarize_Good(t *core.T) {
 	subject := &MacOSSigner{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.ShouldNotarize()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestCodesign_MacOSSigner_ShouldNotarize_Bad(t *core.T) {
 	subject := &MacOSSigner{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.ShouldNotarize()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCodesign_MacOSSigner_ShouldNotarize_Ugly(t *core.T) {
 	subject := &MacOSSigner{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.ShouldNotarize()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -948,290 +948,366 @@ func TestConfig_ApplyDefaultsGood(t *testing.T) {
 // --- v0.9.0 generated compliance triplets ---
 func TestConfig_Config_PublishersIter_Good(t *core.T) {
 	subject := &Config{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.PublishersIter()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestConfig_Config_PublishersIter_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.PublishersIter()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_Config_PublishersIter_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.PublishersIter()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_LoadConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = LoadConfig(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_LoadConfigWithMedium_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = LoadConfigWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestConfig_LoadConfigWithMedium_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = LoadConfigWithMedium(io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_LoadConfigWithMedium_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = LoadConfigWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_LoadConfigAtPath_Good(t *core.T) {
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = LoadConfigAtPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestConfig_LoadConfigAtPath_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = LoadConfigAtPath(io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_LoadConfigAtPath_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_, _ = LoadConfigAtPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_DefaultConfig_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultConfig()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_DefaultConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DefaultConfig()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_ScaffoldConfig_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ScaffoldConfig()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_ScaffoldConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ScaffoldConfig()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_Config_ExpandEnv_Good(t *core.T) {
 	subject := &Config{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.ExpandEnv()
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestConfig_Config_ExpandEnv_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.ExpandEnv()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_Config_ExpandEnv_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.ExpandEnv()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_Config_SetProjectDir_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetProjectDir("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_Config_SetProjectDir_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetProjectDir(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_Config_SetVersion_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetVersion("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_Config_SetVersion_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetVersion("v1.2.3")
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_Config_SetOutput_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetOutput(io.NewMemoryMedium(), "")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_Config_SetOutput_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetOutput(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_Config_SetOutputMedium_Good(t *core.T) {
 	subject := &Config{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetOutputMedium(io.NewMemoryMedium())
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestConfig_Config_SetOutputMedium_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetOutputMedium(io.NewMemoryMedium())
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_Config_SetOutputMedium_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetOutputMedium(io.NewMemoryMedium())
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_Config_SetOutputDir_Good(t *core.T) {
 	subject := &Config{}
+	goodCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetOutputDir(core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, goodCalls)
 }
 
 func TestConfig_Config_SetOutputDir_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetOutputDir("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_Config_SetOutputDir_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		subject.SetOutputDir(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_ConfigPath_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ConfigPath("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_ConfigPath_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ConfigPath(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_ConfigExists_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ConfigExists("")
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_ConfigExists_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = ConfigExists(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_Config_GetRepository_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.GetRepository()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_Config_GetRepository_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.GetRepository()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_Config_GetProjectName_Bad(t *core.T) {
 	subject := &Config{}
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.GetProjectName()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestConfig_Config_GetProjectName_Ugly(t *core.T) {
 	subject := &Config{}
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = subject.GetProjectName()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_WriteConfig_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WriteConfig(&Config{}, core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestConfig_TargetConfig_MarshalYAML_Good(t *core.T) {

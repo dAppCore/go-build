@@ -687,43 +687,55 @@ func TestCi_CIArtifactPath_Good(t *testing.T) {
 
 // --- v0.9.0 generated compliance triplets ---
 func TestCi_DetectGitHubMetadata_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DetectGitHubMetadata()
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCi_DetectGitHubMetadata_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = DetectGitHubMetadata()
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCi_WriteArtifactMeta_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WriteArtifactMeta(io.NewMemoryMedium(), "", "", Target{OS: "linux", Arch: "amd64"}, nil)
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCi_WriteArtifactMeta_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = WriteArtifactMeta(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), "agent", Target{OS: "linux", Arch: "amd64"}, &CIContext{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
 
 func TestCi_CIArtifactPath_Bad(t *core.T) {
+	badCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = CIArtifactPath("", nil, Artifact{})
+		badCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, badCalls)
 }
 
 func TestCi_CIArtifactPath_Ugly(t *core.T) {
+	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
 		_ = CIArtifactPath("agent", &CIContext{}, Artifact{})
+		uglyCalls++
 	})
-	core.AssertTrue(t, true)
+	core.AssertEqual(t, 1, uglyCalls)
 }
