@@ -19,8 +19,8 @@ var (
 	valueStyle   = cli.ValueStyle
 )
 
-func registerCICommands(c *core.Core) {
-	_ = c.Command("ci", core.Command{
+func registerCICommands(c *core.Core) core.Result {
+	if r := c.Command("ci", core.Command{
 		Description: "cmd.ci.long",
 		Action: func(opts core.Options) core.Result {
 			dryRun := !cmdutil.OptionBool(opts, "we-are-go-for-launch")
@@ -32,16 +32,20 @@ func registerCICommands(c *core.Core) {
 				cmdutil.OptionBool(opts, "prerelease"),
 			)
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("ci/init", core.Command{
+	if r := c.Command("ci/init", core.Command{
 		Description: "cmd.ci.init.long",
 		Action: func(opts core.Options) core.Result {
 			return runCIReleaseInit()
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("ci/changelog", core.Command{
+	if r := c.Command("ci/changelog", core.Command{
 		Description: "cmd.ci.changelog.long",
 		Action: func(opts core.Options) core.Result {
 			return runChangelog(
@@ -50,14 +54,19 @@ func registerCICommands(c *core.Core) {
 				cmdutil.OptionString(opts, "to"),
 			)
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("ci/version", core.Command{
+	if r := c.Command("ci/version", core.Command{
 		Description: "cmd.ci.version.long",
 		Action: func(opts core.Options) core.Result {
 			return runCIReleaseVersion(cmdutil.ContextOrBackground())
 		},
-	})
+	}); !r.OK {
+		return r
+	}
+	return core.Ok(nil)
 }
 
 // runCIPublish publishes pre-built artifacts from dist/.

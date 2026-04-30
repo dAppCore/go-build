@@ -57,7 +57,7 @@ func Blank() {
 }
 
 func Err(format string, args ...any) core.Result {
-	return core.Fail(core.Errorf(format, args...))
+	return core.Fail(core.E("cli.Err", core.Sprintf(format, args...), nil))
 }
 
 func Wrap(cause any, message string) core.Result {
@@ -71,7 +71,7 @@ func Wrap(cause any, message string) core.Result {
 	if message == "" {
 		return core.Fail(err)
 	}
-	return core.Fail(core.Errorf("%s: %w", message, err))
+	return core.Fail(core.E("cli.Wrap", message, err))
 }
 
 func WrapVerb(cause any, verb, subject string) core.Result {
@@ -82,7 +82,7 @@ func WrapVerb(cause any, verb, subject string) core.Result {
 	if !ok {
 		err = core.NewError(core.Sprintf("%v", cause))
 	}
-	return core.Fail(core.Errorf("failed to %s %s: %w", verb, subject, err))
+	return core.Fail(core.E("cli.WrapVerb", core.Sprintf("failed to %s %s", verb, subject), err))
 }
 
 type ExitError struct {

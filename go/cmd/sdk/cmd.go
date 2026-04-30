@@ -33,11 +33,15 @@ var (
 // AddSDKCommands registers the 'sdk' command and all subcommands.
 //
 // sdkcmd.AddSDKCommands(root)
-func AddSDKCommands(c *core.Core) {
-	registerSDKGenerateCommand(c, "sdk")
-	registerSDKGenerateCommand(c, "sdk/generate")
+func AddSDKCommands(c *core.Core) core.Result {
+	if r := registerSDKGenerateCommand(c, "sdk"); !r.OK {
+		return r
+	}
+	if r := registerSDKGenerateCommand(c, "sdk/generate"); !r.OK {
+		return r
+	}
 
-	_ = c.Command("sdk/diff", core.Command{
+	if r := c.Command("sdk/diff", core.Command{
 		Description: "cmd.sdk.diff.long",
 		Action: func(opts core.Options) core.Result {
 			return runSDKDiff(
@@ -46,20 +50,25 @@ func AddSDKCommands(c *core.Core) {
 				cmdutil.OptionBool(opts, "fail-on-warn", "fail_on_warn"),
 			)
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("sdk/validate", core.Command{
+	if r := c.Command("sdk/validate", core.Command{
 		Description: "cmd.sdk.validate.long",
 		Action: func(opts core.Options) core.Result {
 			return runSDKValidate(
 				cmdutil.OptionString(opts, "spec"),
 			)
 		},
-	})
+	}); !r.OK {
+		return r
+	}
+	return core.Ok(nil)
 }
 
-func registerSDKGenerateCommand(c *core.Core, path string) {
-	_ = c.Command(path, core.Command{
+func registerSDKGenerateCommand(c *core.Core, path string) core.Result {
+	return c.Command(path, core.Command{
 		Description: "cmd.sdk.long",
 		Action: func(opts core.Options) core.Result {
 			return runSDKGenerate(

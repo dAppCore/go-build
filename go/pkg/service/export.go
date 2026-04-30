@@ -37,7 +37,7 @@ func Export(cfg Config, format string) core.Result {
 			Content:  renderWindows(cfg),
 		})
 	default:
-		return core.Fail(core.Errorf("unsupported native service format: %s", nativeFormat))
+		return core.Fail(core.E("service.Export", "unsupported native service format: "+string(nativeFormat), nil))
 	}
 }
 

@@ -28,56 +28,71 @@ var (
 type serviceRequest = servicecommon.Request
 
 // AddServiceCommands registers `core service` commands.
-func AddServiceCommands(c *core.Core) {
-	_ = c.Command("service", core.Command{
+func AddServiceCommands(c *core.Core) core.Result {
+	if r := c.Command("service", core.Command{
 		Description: "cmd.service.long",
 		Action: func(opts core.Options) core.Result {
 			return core.Fail(core.E("service", "use a subcommand: install, start, stop, uninstall, export", nil))
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("service/install", core.Command{
+	if r := c.Command("service/install", core.Command{
 		Description: "cmd.service.install.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceInstall(requestFromOptions(opts))
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("service/start", core.Command{
+	if r := c.Command("service/start", core.Command{
 		Description: "cmd.service.start.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceStart(requestFromOptions(opts))
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("service/stop", core.Command{
+	if r := c.Command("service/stop", core.Command{
 		Description: "cmd.service.stop.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceStop(requestFromOptions(opts))
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("service/uninstall", core.Command{
+	if r := c.Command("service/uninstall", core.Command{
 		Description: "cmd.service.uninstall.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceUninstall(requestFromOptions(opts))
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("service/export", core.Command{
+	if r := c.Command("service/export", core.Command{
 		Description: "cmd.service.export.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceExport(requestFromOptions(opts))
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	_ = c.Command("service/run", core.Command{
+	if r := c.Command("service/run", core.Command{
 		Description: "cmd.service.run.long",
 		Hidden:      true,
 		Action: func(opts core.Options) core.Result {
 			return runServiceRun(cmdutil.ContextOrBackground(), requestFromOptions(opts))
 		},
-	})
+	}); !r.OK {
+		return r
+	}
+	return core.Ok(nil)
 }
 
 func requestFromOptions(opts core.Options) serviceRequest {
