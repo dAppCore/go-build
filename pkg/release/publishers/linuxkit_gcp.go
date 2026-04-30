@@ -5,7 +5,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/log"
 )
 
 func (p *LinuxKitPublisher) publishGCP(ctx context.Context, release *Release, cfg LinuxKitConfig, artifactPath string) core.Result {
@@ -16,7 +15,7 @@ func (p *LinuxKitPublisher) publishGCP(ctx context.Context, release *Release, cf
 
 	targets := linuxKitCloudTargets(cfg, "gcp")
 	if len(targets) == 0 {
-		return core.Fail(coreerr.E("linuxkit.publishGCP", "gcp target bucket is required", nil))
+		return core.Fail(core.E("linuxkit.publishGCP", "gcp target bucket is required", nil))
 	}
 
 	for _, target := range targets {
@@ -31,7 +30,7 @@ func (p *LinuxKitPublisher) publishGCP(ctx context.Context, release *Release, cf
 
 func (p *LinuxKitPublisher) uploadLinuxKitGCS(ctx context.Context, release *Release, target LinuxKitTarget, artifactPath string) core.Result {
 	if target.Bucket == "" {
-		return core.Fail(coreerr.E("linuxkit.uploadGCS", "gcp target bucket is required", nil))
+		return core.Fail(core.E("linuxkit.uploadGCS", "gcp target bucket is required", nil))
 	}
 
 	gcloudCommandResult := resolveGCloudCli()
@@ -44,7 +43,7 @@ func (p *LinuxKitPublisher) uploadLinuxKitGCS(ctx context.Context, release *Rele
 	destination := linuxKitCloudURI("gs", target.Bucket, objectKey)
 	uploaded := publisherRun(ctx, release.ProjectDir, nil, gcloudCommand, "storage", "cp", artifactPath, destination)
 	if !uploaded.OK {
-		return core.Fail(coreerr.E("linuxkit.uploadGCS", "failed to upload "+ax.Base(artifactPath)+" to "+destination, core.NewError(uploaded.Error())))
+		return core.Fail(core.E("linuxkit.uploadGCS", "failed to upload "+ax.Base(artifactPath)+" to "+destination, core.NewError(uploaded.Error())))
 	}
 
 	publisherPrint("Uploaded LinuxKit GCP image: %s", destination)
@@ -62,7 +61,7 @@ func resolveGCloudCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("gcloud", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("linuxkit.resolveGCloudCli", "gcloud CLI not found. Install it from https://cloud.google.com/sdk/docs/install", core.NewError(command.Error())))
+		return core.Fail(core.E("linuxkit.resolveGCloudCli", "gcloud CLI not found. Install it from https://cloud.google.com/sdk/docs/install", core.NewError(command.Error())))
 	}
 
 	return command

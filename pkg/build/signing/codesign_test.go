@@ -7,7 +7,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestCodesign_MacOSSignerNameGood(t *testing.T) {
@@ -45,7 +45,7 @@ func TestCodesign_MacOSSignerSignBad(t *testing.T) {
 		if runtime.GOOS == "darwin" {
 			t.Skip("skipping on macOS")
 		}
-		fs := io.Local
+		fs := storage.Local
 		s := NewMacOSSigner(MacOSConfig{Identity: "test"})
 		result := s.Sign(context.Background(), fs, "test")
 		if result.OK {
@@ -59,7 +59,7 @@ func TestCodesign_MacOSSignerSignBad(t *testing.T) {
 }
 
 func TestCodesign_MacOSSignerNotarizeBad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("fails with missing credentials", func(t *testing.T) {
 		s := NewMacOSSigner(MacOSConfig{})
 		result := s.Notarize(context.Background(), fs, "test")
@@ -279,7 +279,7 @@ func TestCodesign_MacOSSigner_Sign_Good(t *core.T) {
 	subject := &MacOSSigner{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -291,7 +291,7 @@ func TestCodesign_MacOSSigner_Sign_Bad(t *core.T) {
 	subject := &MacOSSigner{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, io.NewMemoryMedium(), "")
+		_ = subject.Sign(ctx, storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -303,7 +303,7 @@ func TestCodesign_MacOSSigner_Sign_Ugly(t *core.T) {
 	subject := &MacOSSigner{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -315,7 +315,7 @@ func TestCodesign_MacOSSigner_Notarize_Good(t *core.T) {
 	subject := &MacOSSigner{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Notarize(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Notarize(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -327,7 +327,7 @@ func TestCodesign_MacOSSigner_Notarize_Bad(t *core.T) {
 	subject := &MacOSSigner{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Notarize(ctx, io.NewMemoryMedium(), "")
+		_ = subject.Notarize(ctx, storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -339,7 +339,7 @@ func TestCodesign_MacOSSigner_Notarize_Ugly(t *core.T) {
 	subject := &MacOSSigner{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Notarize(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Notarize(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

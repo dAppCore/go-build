@@ -5,7 +5,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // MacOSSigner signs binaries using macOS codesign.
@@ -47,8 +47,8 @@ func (s *MacOSSigner) Available() bool {
 
 // Sign codesigns a binary with hardened runtime.
 //
-// err := s.Sign(ctx, io.Local, "dist/myapp")
-func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) core.Result {
+// err := s.Sign(ctx, storage.Local, "dist/myapp")
+func (s *MacOSSigner) Sign(ctx context.Context, fs storage.Medium, binary string) core.Result {
 	if !s.Available() {
 		if core.Env("GOOS") != "darwin" {
 			return core.Fail(core.E("codesign.Sign", "codesign is only available on macOS", nil))
@@ -81,8 +81,8 @@ func (s *MacOSSigner) Sign(ctx context.Context, fs io.Medium, binary string) cor
 // Notarize submits binary to Apple for notarization and staples the ticket.
 // This blocks until Apple responds (typically 1-5 minutes).
 //
-// err := s.Notarize(ctx, io.Local, "dist/myapp")
-func (s *MacOSSigner) Notarize(ctx context.Context, fs io.Medium, binary string) core.Result {
+// err := s.Notarize(ctx, storage.Local, "dist/myapp")
+func (s *MacOSSigner) Notarize(ctx context.Context, fs storage.Medium, binary string) core.Result {
 	if s.config.AppleID == "" || s.config.TeamID == "" || s.config.AppPassword == "" {
 		return core.Fail(core.E("codesign.Notarize", "missing Apple credentials (apple_id, team_id, app_password)", nil))
 	}

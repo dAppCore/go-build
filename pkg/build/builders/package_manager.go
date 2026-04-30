@@ -3,7 +3,7 @@ package builders
 import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 type packageJSONManifest struct {
@@ -12,8 +12,8 @@ type packageJSONManifest struct {
 
 // detectDeclaredPackageManager reads package.json and returns the declared package manager.
 //
-// manager := detectDeclaredPackageManager(io.Local, ".")
-func detectDeclaredPackageManager(fs io.Medium, dir string) string {
+// manager := detectDeclaredPackageManager(storage.Local, ".")
+func detectDeclaredPackageManager(fs storage.Medium, dir string) string {
 	contentResult := fs.Read(ax.Join(dir, "package.json"))
 	if !contentResult.OK {
 		return ""

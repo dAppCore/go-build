@@ -8,8 +8,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	build "dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 // AppleOptions aliases the core Apple pipeline options.
@@ -103,7 +102,7 @@ var (
 // builders registry when the host Core exposes one.
 func Register(c *core.Core) core.Result {
 	if c == nil {
-		return core.Fail(coreerr.E("apple.Register", "core is nil", nil))
+		return core.Fail(core.E("apple.Register", "core is nil", nil))
 	}
 
 	builder := New()
@@ -575,7 +574,7 @@ func resolveBuildNumber(ctx context.Context, projectDir string) core.Result {
 
 func validateBuildNumber(value string) core.Result {
 	if !buildNumberPattern.MatchString(value) {
-		return core.Fail(coreerr.E("apple.validateBuildNumber", "build number must be a positive integer", nil))
+		return core.Fail(core.E("apple.validateBuildNumber", "build number must be a positive integer", nil))
 	}
 	return core.Ok(nil)
 }

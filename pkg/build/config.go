@@ -10,7 +10,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 	"gopkg.in/yaml.v3" // Note: AX-6 — no core YAMLUnmarshal yet.
 )
 
@@ -27,7 +27,7 @@ const ConfigDir = ".core"
 // BuildConfig holds the complete build configuration loaded from .core/build.yaml.
 // This is distinct from Config which holds runtime build parameters.
 //
-// cfg, err := build.LoadConfig(io.Local, ".")
+// cfg, err := build.LoadConfig(storage.Local, ".")
 type BuildConfig struct {
 	// Version is the config file format version.
 	Version int `json:"version" yaml:"version"`
@@ -462,10 +462,10 @@ func buildYAMLFromBuild(value Build) buildYAML {
 // If the config file does not exist, it returns DefaultConfig().
 // Returns an error if the file exists but cannot be parsed.
 //
-// cfg, err := build.LoadConfig(io.Local, ".")
-func LoadConfig(fs io.Medium, dir string) core.Result {
+// cfg, err := build.LoadConfig(storage.Local, ".")
+func LoadConfig(fs storage.Medium, dir string) core.Result {
 	if fs == nil {
-		fs = io.Local
+		fs = storage.Local
 	}
 	return LoadConfigAtPath(fs, ax.Join(dir, ConfigDir, ConfigFileName))
 }
@@ -474,10 +474,10 @@ func LoadConfig(fs io.Medium, dir string) core.Result {
 // If the file does not exist, it returns DefaultConfig().
 // Returns an error if the file exists but cannot be parsed.
 //
-// cfg, err := build.LoadConfigAtPath(io.Local, "/tmp/project/build.yaml")
-func LoadConfigAtPath(fs io.Medium, configPath string) core.Result {
+// cfg, err := build.LoadConfigAtPath(storage.Local, "/tmp/project/build.yaml")
+func LoadConfigAtPath(fs storage.Medium, configPath string) core.Result {
 	if fs == nil {
-		fs = io.Local
+		fs = storage.Local
 	}
 
 	content := fs.Read(configPath)
@@ -535,20 +535,20 @@ func DefaultConfig() *BuildConfig {
 }
 
 // ResolveOutputMedium returns the artifact output medium for a runtime build
-// config, falling back to io.Local when no explicit medium was provided.
-func ResolveOutputMedium(cfg *Config) io.Medium {
+// config, falling back to storage.Local when no explicit medium was provided.
+func ResolveOutputMedium(cfg *Config) storage.Medium {
 	if cfg == nil || cfg.OutputMedium == nil {
-		return io.Local
+		return storage.Local
 	}
 	return cfg.OutputMedium
 }
 
 // MediumIsLocal reports whether a medium is the package-level local filesystem.
-func MediumIsLocal(medium io.Medium) bool {
-	return outputMediumEquals(medium, io.Local)
+func MediumIsLocal(medium storage.Medium) bool {
+	return outputMediumEquals(medium, storage.Local)
 }
 
-func outputMediumEquals(left, right io.Medium) bool {
+func outputMediumEquals(left, right storage.Medium) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil
 	}
@@ -564,12 +564,12 @@ func outputMediumEquals(left, right io.Medium) bool {
 
 // CopyMediumPath copies a file or directory tree between media while preserving
 // file modes where the source medium exposes them.
-func CopyMediumPath(source io.Medium, sourcePath string, destination io.Medium, destinationPath string) core.Result {
+func CopyMediumPath(source storage.Medium, sourcePath string, destination storage.Medium, destinationPath string) core.Result {
 	if source == nil {
-		source = io.Local
+		source = storage.Local
 	}
 	if destination == nil {
-		destination = io.Local
+		destination = storage.Local
 	}
 
 	info := source.Stat(sourcePath)
@@ -602,7 +602,7 @@ func CopyMediumPath(source io.Medium, sourcePath string, destination io.Medium, 
 	return core.Ok(nil)
 }
 
-func copyMediumDirectory(source io.Medium, sourcePath string, destination io.Medium, destinationPath string) core.Result {
+func copyMediumDirectory(source storage.Medium, sourcePath string, destination storage.Medium, destinationPath string) core.Result {
 	if destinationPath != "" && destinationPath != "." {
 		created := destination.EnsureDir(destinationPath)
 		if !created.OK {
@@ -1031,8 +1031,8 @@ func ConfigPath(dir string) string {
 
 // ConfigExists checks if a build config file exists in the given directory.
 //
-// if build.ConfigExists(io.Local, ".") { ... }
-func ConfigExists(fs io.Medium, dir string) bool {
+// if build.ConfigExists(storage.Local, ".") { ... }
+func ConfigExists(fs storage.Medium, dir string) bool {
 	if fs == nil {
 		return false
 	}

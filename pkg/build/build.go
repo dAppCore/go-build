@@ -7,7 +7,7 @@ import (
 	"context"
 
 	core "dappco.re/go"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // ProjectType represents a detected project type.
@@ -68,12 +68,12 @@ type Artifact struct {
 
 // Config holds build configuration.
 //
-// cfg := &build.Config{FS: io.Local, ProjectDir: ".", OutputDir: "dist", Name: "myapp"}
+// cfg := &build.Config{FS: storage.Local, ProjectDir: ".", OutputDir: "dist", Name: "myapp"}
 type Config struct {
 	// FS is the medium used for file operations.
-	FS io.Medium
+	FS storage.Medium
 	// OutputMedium is the medium used for build artifact output.
-	OutputMedium io.Medium
+	OutputMedium storage.Medium
 	// Project holds build-time project metadata.
 	Project Project
 	// ProjectDir is the root directory of the project.
@@ -130,7 +130,7 @@ type Builder interface {
 	// Name returns the builder's identifier.
 	Name() string
 	// Detect checks if this builder can handle the project in the given directory.
-	Detect(fs io.Medium, dir string) core.Result
+	Detect(fs storage.Medium, dir string) core.Result
 	// Build compiles the project for the specified targets.
 	Build(ctx context.Context, cfg *Config, targets []Target) core.Result
 }

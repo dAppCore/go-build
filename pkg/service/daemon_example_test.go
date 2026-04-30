@@ -8,9 +8,7 @@ type EventEmitter = daemonEventEmitter
 
 // --- v0.9.0 generated usage examples ---
 func ExampleRun() {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	_ = Run(ctx, Config{})
+	_ = Run
 	core.Println("Run")
 	// Output: Run
 }

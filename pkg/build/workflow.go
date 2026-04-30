@@ -7,7 +7,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	io_interface "dappco.re/go/io"
+	io_interface "dappco.re/go/build/pkg/storage"
 )
 
 //go:embed templates/release.yml

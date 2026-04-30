@@ -8,8 +8,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // SDKRelease holds the result of an SDK release.
@@ -29,7 +28,7 @@ type SDKRelease struct {
 // result := release.RunSDK(ctx, cfg, false) // dryRun=true to preview
 func RunSDK(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("release.RunSDK", "config is nil", nil))
+		return core.Fail(core.E("release.RunSDK", "config is nil", nil))
 	}
 
 	projectDir := cfg.projectDir
@@ -46,7 +45,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	s := sdk.New(projectDir, sdkConfig)
 	sdkConfig = s.Config()
 	if sdkConfig == nil {
-		return core.Fail(coreerr.E("release.RunSDK", "failed to resolve sdk config", nil))
+		return core.Fail(core.E("release.RunSDK", "failed to resolve sdk config", nil))
 	}
 
 	// Determine version
@@ -54,13 +53,13 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	if version == "" {
 		versionResult := DetermineVersionWithContext(ctx, projectDir)
 		if !versionResult.OK {
-			return core.Fail(coreerr.E("release.RunSDK", "failed to determine version", core.NewError(versionResult.Error())))
+			return core.Fail(core.E("release.RunSDK", "failed to determine version", core.NewError(versionResult.Error())))
 		}
 		version = versionResult.Value.(string)
 	}
 	validatedVersion := ValidateVersionIdentifier(version)
 	if !validatedVersion.OK {
-		return core.Fail(coreerr.E("release.RunSDK", "invalid SDK release version override", core.NewError(validatedVersion.Error())))
+		return core.Fail(core.E("release.RunSDK", "invalid SDK release version override", core.NewError(validatedVersion.Error())))
 	}
 
 	// Run diff check if enabled
@@ -68,13 +67,13 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 		breakingResult := checkBreakingChanges(ctx, projectDir, sdkConfig)
 		if !breakingResult.OK {
 			if ctx.Err() != nil {
-				return core.Fail(coreerr.E("release.RunSDK", "diff check cancelled", ctx.Err()))
+				return core.Fail(core.E("release.RunSDK", "diff check cancelled", ctx.Err()))
 			}
 			// Non-fatal: warn and continue
 			core.Print(nil, "Warning: diff check failed: %v", breakingResult.Error())
 		} else if breakingResult.Value.(bool) {
 			if sdkConfig.Diff.FailOnBreaking {
-				return core.Fail(coreerr.E("release.RunSDK", "breaking API changes detected", nil))
+				return core.Fail(core.E("release.RunSDK", "breaking API changes detected", nil))
 			}
 			core.Print(nil, "Warning: breaking API changes detected")
 		}
@@ -98,7 +97,7 @@ func RunSDK(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 
 	generated := s.Generate(ctx)
 	if !generated.OK {
-		return core.Fail(coreerr.E("release.RunSDK", "generation failed", core.NewError(generated.Error())))
+		return core.Fail(core.E("release.RunSDK", "generation failed", core.NewError(generated.Error())))
 	}
 
 	return core.Ok(result)
@@ -130,7 +129,7 @@ func checkBreakingChanges(ctx context.Context, projectDir string, cfg *SDKConfig
 	// Get previous tag for comparison (uses getPreviousTag from changelog.go)
 	prevTagResult := getPreviousTagWithContext(ctx, projectDir, "HEAD")
 	if !prevTagResult.OK {
-		return core.Fail(coreerr.E("release.checkBreakingChanges", "no previous tag found", core.NewError(prevTagResult.Error())))
+		return core.Fail(core.E("release.checkBreakingChanges", "no previous tag found", core.NewError(prevTagResult.Error())))
 	}
 	prevTag := prevTagResult.Value.(string)
 
@@ -175,20 +174,20 @@ type taggedSDKSpec struct {
 func materializeTaggedSDKSpec(ctx context.Context, projectDir, tag, specPath string) core.Result {
 	relativeSpecPathResult := ax.Rel(projectDir, specPath)
 	if !relativeSpecPathResult.OK {
-		return core.Fail(coreerr.E("release.materializeTaggedSDKSpec", "spec path must be inside the project directory", core.NewError(relativeSpecPathResult.Error())))
+		return core.Fail(core.E("release.materializeTaggedSDKSpec", "spec path must be inside the project directory", core.NewError(relativeSpecPathResult.Error())))
 	}
 	relativeSpecPath := relativeSpecPathResult.Value.(string)
 
 	gitSpecPath := core.Replace(relativeSpecPath, ax.DS(), "/")
 	contentResult := ax.RunDir(ctx, projectDir, "git", "show", core.Sprintf("%s:%s", tag, gitSpecPath))
 	if !contentResult.OK {
-		return core.Fail(coreerr.E("release.materializeTaggedSDKSpec", "failed to load spec from "+tag, core.NewError(contentResult.Error())))
+		return core.Fail(core.E("release.materializeTaggedSDKSpec", "failed to load spec from "+tag, core.NewError(contentResult.Error())))
 	}
 	content := contentResult.Value.(string)
 
 	tempDirResult := ax.TempDir("core-build-sdk-diff-*")
 	if !tempDirResult.OK {
-		return core.Fail(coreerr.E("release.materializeTaggedSDKSpec", "failed to create temp dir", core.NewError(tempDirResult.Error())))
+		return core.Fail(core.E("release.materializeTaggedSDKSpec", "failed to create temp dir", core.NewError(tempDirResult.Error())))
 	}
 	tempDir := tempDirResult.Value.(string)
 
@@ -197,9 +196,9 @@ func materializeTaggedSDKSpec(ctx context.Context, projectDir, tag, specPath str
 	if !written.OK {
 		cleaned := ax.RemoveAll(tempDir)
 		if !cleaned.OK {
-			return core.Fail(coreerr.E("release.materializeTaggedSDKSpec", "failed to clean up temp dir", core.NewError(cleaned.Error())))
+			return core.Fail(core.E("release.materializeTaggedSDKSpec", "failed to clean up temp dir", core.NewError(cleaned.Error())))
 		}
-		return core.Fail(coreerr.E("release.materializeTaggedSDKSpec", "failed to write tagged spec", core.NewError(written.Error())))
+		return core.Fail(core.E("release.materializeTaggedSDKSpec", "failed to write tagged spec", core.NewError(written.Error())))
 	}
 
 	return core.Ok(taggedSDKSpec{path: tempPath, cleanup: func() { ax.RemoveAll(tempDir) }})
@@ -212,9 +211,9 @@ func resolveReleaseSDKConfig(projectDir string, cfg *Config) core.Result {
 		return core.Ok(resolved)
 	}
 
-	buildCfgResult := build.LoadConfig(io.Local, projectDir)
+	buildCfgResult := build.LoadConfig(storage.Local, projectDir)
 	if !buildCfgResult.OK {
-		return core.Fail(coreerr.E("release.resolveReleaseSDKConfig", "failed to load build config", core.NewError(buildCfgResult.Error())))
+		return core.Fail(core.E("release.resolveReleaseSDKConfig", "failed to load build config", core.NewError(buildCfgResult.Error())))
 	}
 	buildCfg := buildCfgResult.Value.(*build.BuildConfig)
 	if buildCfg != nil && buildCfg.SDK != nil {

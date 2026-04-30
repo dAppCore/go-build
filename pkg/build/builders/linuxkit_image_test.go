@@ -7,7 +7,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func setupFakeLinuxKitImageToolchain(t *testing.T, binDir string) {
@@ -188,7 +188,7 @@ func TestLinuxKitImage_LinuxKitImageBuilderBuildGood(t *testing.T) {
 
 	builder := NewLinuxKitImageBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "core-dev",

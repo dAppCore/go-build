@@ -6,7 +6,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestGPG_GPGSignerNameGood(t *testing.T) {
@@ -37,7 +37,7 @@ func TestGPG_GPGSignerNoKeyBad(t *testing.T) {
 }
 
 func TestGPG_GPGSignerSignBad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("fails when no key", func(t *testing.T) {
 		s := NewGPGSigner("")
 		result := s.Sign(context.Background(), fs, "test.txt")
@@ -178,7 +178,7 @@ func TestGpg_GPGSigner_Sign_Good(t *core.T) {
 	subject := &GPGSigner{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -190,7 +190,7 @@ func TestGpg_GPGSigner_Sign_Bad(t *core.T) {
 	subject := &GPGSigner{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, io.NewMemoryMedium(), "")
+		_ = subject.Sign(ctx, storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -202,7 +202,7 @@ func TestGpg_GPGSigner_Sign_Ugly(t *core.T) {
 	subject := &GPGSigner{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

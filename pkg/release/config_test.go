@@ -5,7 +5,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 	"gopkg.in/yaml.v3"
 )
 
@@ -292,7 +292,7 @@ checksum:
 	})
 
 	t.Run("loads config from a custom medium", func(t *testing.T) {
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 		dir := "project"
 		configPath := ConfigPath(dir)
 		requireReleaseConfigOKResult(t, medium.EnsureDir(ax.Dir(configPath)))
@@ -334,7 +334,7 @@ sdk:
 	t.Run("returns defaults from a custom medium when config is missing", func(t *testing.T) {
 		dir := "virtual-project"
 
-		cfg := requireReleaseConfig(t, LoadConfigWithMedium(io.NewMemoryMedium(), dir))
+		cfg := requireReleaseConfig(t, LoadConfigWithMedium(storage.NewMemoryMedium(), dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -778,7 +778,7 @@ func TestConfig_PublishersIter_NilSafe(t *testing.T) {
 func TestConfig_SetOutput_Good(t *testing.T) {
 	t.Run("sets output medium and directory", func(t *testing.T) {
 		cfg := &Config{}
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 
 		cfg.SetOutput(medium, "releases")
 		if !stdlibAssertEqual(medium, cfg.output) {
@@ -792,7 +792,7 @@ func TestConfig_SetOutput_Good(t *testing.T) {
 
 	t.Run("sets output medium only", func(t *testing.T) {
 		cfg := &Config{}
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 
 		cfg.SetOutputMedium(medium)
 		if !stdlibAssertEqual(medium, cfg.output) {
@@ -931,7 +931,7 @@ func TestConfig_LoadConfig_Ugly(t *core.T) {
 func TestConfig_LoadConfigWithMedium_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadConfigWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadConfigWithMedium(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -940,7 +940,7 @@ func TestConfig_LoadConfigWithMedium_Good(t *core.T) {
 func TestConfig_LoadConfigWithMedium_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadConfigWithMedium(io.NewMemoryMedium(), "")
+		_ = LoadConfigWithMedium(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -949,7 +949,7 @@ func TestConfig_LoadConfigWithMedium_Bad(t *core.T) {
 func TestConfig_LoadConfigWithMedium_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadConfigWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadConfigWithMedium(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -958,7 +958,7 @@ func TestConfig_LoadConfigWithMedium_Ugly(t *core.T) {
 func TestConfig_LoadConfigAtPath_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadConfigAtPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadConfigAtPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -967,7 +967,7 @@ func TestConfig_LoadConfigAtPath_Good(t *core.T) {
 func TestConfig_LoadConfigAtPath_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadConfigAtPath(io.NewMemoryMedium(), "")
+		_ = LoadConfigAtPath(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -976,7 +976,7 @@ func TestConfig_LoadConfigAtPath_Bad(t *core.T) {
 func TestConfig_LoadConfigAtPath_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadConfigAtPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadConfigAtPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1092,7 +1092,7 @@ func TestConfig_Config_SetOutput_Bad(t *core.T) {
 	subject := &Config{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		subject.SetOutput(io.NewMemoryMedium(), "")
+		subject.SetOutput(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1102,7 +1102,7 @@ func TestConfig_Config_SetOutput_Ugly(t *core.T) {
 	subject := &Config{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		subject.SetOutput(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		subject.SetOutput(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1112,7 +1112,7 @@ func TestConfig_Config_SetOutputMedium_Good(t *core.T) {
 	subject := &Config{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		subject.SetOutputMedium(io.NewMemoryMedium())
+		subject.SetOutputMedium(storage.NewMemoryMedium())
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1122,7 +1122,7 @@ func TestConfig_Config_SetOutputMedium_Bad(t *core.T) {
 	subject := &Config{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		subject.SetOutputMedium(io.NewMemoryMedium())
+		subject.SetOutputMedium(storage.NewMemoryMedium())
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1132,7 +1132,7 @@ func TestConfig_Config_SetOutputMedium_Ugly(t *core.T) {
 	subject := &Config{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		subject.SetOutputMedium(io.NewMemoryMedium())
+		subject.SetOutputMedium(storage.NewMemoryMedium())
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

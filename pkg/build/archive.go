@@ -11,8 +11,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	io_interface "dappco.re/go/io"
-	// TODO(AX-6): Replace with dappco.re/go/crypt when it exposes Compress/Decompress API parity.
+	io_interface "dappco.re/go/build/pkg/storage"
 	"github.com/Snider/Borg/pkg/compress"
 )
 
@@ -187,7 +186,6 @@ func archiveBaseNameHasPlatformSuffix(name, os, arch string) bool {
 }
 
 // createTarXzArchive creates a tar.xz archive containing a file or directory tree.
-// TODO(AX-6): Replace Borg compression with dappco.re/go/crypt once API parity exists.
 func createTarXzArchive(fs io_interface.Medium, src, dst string) core.Result {
 	// Create tar archive in memory
 	tarBuf := core.NewBuffer()
@@ -201,7 +199,7 @@ func createTarXzArchive(fs io_interface.Medium, src, dst string) core.Result {
 		return core.Fail(core.E("build.createTarXzArchive", "failed to close tar writer", err))
 	}
 
-	// Compress with xz using the deferred Borg API.
+	// Compress with xz using the external compression library.
 	xzData, err := compress.Compress(tarBuf.Bytes(), "xz")
 	if err != nil {
 		return core.Fail(core.E("build.createTarXzArchive", "failed to compress with xz", err))

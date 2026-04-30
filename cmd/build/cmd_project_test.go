@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 const cmdProjectOSField = "o" + "s"
@@ -85,7 +85,7 @@ func TestBuildCmd_buildRuntimeConfig_Good(t *testing.T) {
 		},
 	}
 
-	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, false, "", "v1.2.3")
+	cfg := buildRuntimeConfig(storage.Local, "/project", "/project/dist", "binary", buildConfig, false, "", "v1.2.3")
 	if !stdlibAssertEqual([]string{"-s", "-w"}, cfg.LDFlags) {
 		t.Fatalf("want %v, got %v", []string{"-s", "-w"}, cfg.LDFlags)
 	}
@@ -153,7 +153,7 @@ func TestBuildCmd_buildRuntimeConfig_ImageOverride_Good(t *testing.T) {
 		},
 	}
 
-	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, true, "cli/image", "v2.0.0")
+	cfg := buildRuntimeConfig(storage.Local, "/project", "/project/dist", "binary", buildConfig, true, "cli/image", "v2.0.0")
 	if !stdlibAssertEqual("cli/image", cfg.Image) {
 		t.Fatalf("want %v, got %v", "cli/image", cfg.Image)
 	}
@@ -173,7 +173,7 @@ func TestBuildCmd_buildRuntimeConfig_ClonesBuildArgs_Good(t *testing.T) {
 		},
 	}
 
-	cfg := buildRuntimeConfig(io.Local, "/project", "/project/dist", "binary", buildConfig, false, "", "v1.2.3")
+	cfg := buildRuntimeConfig(storage.Local, "/project", "/project/dist", "binary", buildConfig, false, "", "v1.2.3")
 	if stdlibAssertNil(cfg.BuildArgs) {
 		t.Fatal("expected non-nil")
 	}
@@ -527,7 +527,7 @@ func TestBuildCmd_writeArtifactMetadata_Good(t *testing.T) {
 	t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
 	t.Setenv("GITHUB_REPOSITORY", "owner/repo")
 
-	fs := io.Local
+	fs := storage.Local
 	dir := t.TempDir()
 
 	linuxDir := ax.Join(dir, "linux_amd64")
@@ -574,7 +574,7 @@ func TestBuildCmd_writeArtifactMetadata_SkipsChecksumArtifacts_Good(t *testing.T
 	t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
 	t.Setenv("GITHUB_REPOSITORY", "owner/repo")
 
-	fs := io.Local
+	fs := storage.Local
 	dir := t.TempDir()
 	distDir := ax.Join(dir, "dist")
 	requireBuildCmdOK(t, ax.MkdirAll(distDir, 0o755))
@@ -606,7 +606,7 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesChecksumArtifacts_Good(t *tes
 
 	artifacts := requireBuildCmdArtifacts(t, computeAndWriteChecksums(
 		context.Background(),
-		io.Local,
+		storage.Local,
 		projectDir,
 		outputDir,
 		[]build.Artifact{{Path: artifactPath, OS: "linux", Arch: "amd64"}},
@@ -649,7 +649,7 @@ func TestBuildCmd_computeAndWriteChecksums_IncludesSignatureArtifact_Good(t *tes
 
 	artifacts := requireBuildCmdArtifacts(t, computeAndWriteChecksums(
 		context.Background(),
-		io.Local,
+		storage.Local,
 		projectDir,
 		outputDir,
 		[]build.Artifact{{Path: artifactPath, OS: "linux", Arch: "amd64"}},
@@ -797,35 +797,35 @@ func TestBuildCmd_shouldUseGoBuildPassthrough_Good(t *testing.T) {
 	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
 	t.Run("keeps simple no-config go builds on passthrough", func(t *testing.T) {
-		if !(shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{})) {
+		if !(shouldUseGoBuildPassthrough(storage.Local, projectDir, ProjectBuildRequest{})) {
 			t.Fatal("expected true")
 		}
 
 	})
 
 	t.Run("uses the pipeline for ci mode", func(t *testing.T) {
-		if (shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{CIMode: true})) {
+		if (shouldUseGoBuildPassthrough(storage.Local, projectDir, ProjectBuildRequest{CIMode: true})) {
 			t.Fatal("expected false")
 		}
 
 	})
 
 	t.Run("uses the pipeline for explicit archive requests", func(t *testing.T) {
-		if (shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{ArchiveOutput: true, ArchiveOutputSet: true})) {
+		if (shouldUseGoBuildPassthrough(storage.Local, projectDir, ProjectBuildRequest{ArchiveOutput: true, ArchiveOutputSet: true})) {
 			t.Fatal("expected false")
 		}
 
 	})
 
 	t.Run("uses the pipeline for explicit package requests", func(t *testing.T) {
-		if (shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{ArchiveOutput: true, ChecksumOutput: true, PackageSet: true})) {
+		if (shouldUseGoBuildPassthrough(storage.Local, projectDir, ProjectBuildRequest{ArchiveOutput: true, ChecksumOutput: true, PackageSet: true})) {
 			t.Fatal("expected false")
 		}
 
 	})
 
 	t.Run("uses the pipeline for explicit versioning", func(t *testing.T) {
-		if (shouldUseGoBuildPassthrough(io.Local, projectDir, ProjectBuildRequest{Version: "v1.2.3"})) {
+		if (shouldUseGoBuildPassthrough(storage.Local, projectDir, ProjectBuildRequest{Version: "v1.2.3"})) {
 			t.Fatal("expected false")
 		}
 
@@ -835,7 +835,7 @@ func TestBuildCmd_shouldUseGoBuildPassthrough_Good(t *testing.T) {
 		wailsDir := t.TempDir()
 		requireBuildCmdOK(t, ax.WriteFile(ax.Join(wailsDir, "go.mod"), []byte("module example.com/wails\n\ngo 1.24\n"), 0o644))
 		requireBuildCmdOK(t, ax.WriteFile(ax.Join(wailsDir, "wails.json"), []byte(`{"name":"demo"}`), 0o644))
-		if (shouldUseGoBuildPassthrough(io.Local, wailsDir, ProjectBuildRequest{})) {
+		if (shouldUseGoBuildPassthrough(storage.Local, wailsDir, ProjectBuildRequest{})) {
 			t.Fatal("expected false")
 		}
 
@@ -845,7 +845,7 @@ func TestBuildCmd_shouldUseGoBuildPassthrough_Good(t *testing.T) {
 		stackDir := t.TempDir()
 		requireBuildCmdOK(t, ax.WriteFile(ax.Join(stackDir, "go.mod"), []byte("module example.com/fullstack\n\ngo 1.24\n"), 0o644))
 		requireBuildCmdOK(t, ax.WriteFile(ax.Join(stackDir, "package.json"), []byte(`{"name":"fullstack"}`), 0o644))
-		if (shouldUseGoBuildPassthrough(io.Local, stackDir, ProjectBuildRequest{})) {
+		if (shouldUseGoBuildPassthrough(storage.Local, stackDir, ProjectBuildRequest{})) {
 			t.Fatal("expected false")
 		}
 

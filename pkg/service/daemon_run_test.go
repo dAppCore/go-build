@@ -7,10 +7,9 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreapi "dappco.re/go/api"
-	providerpkg "dappco.re/go/api/pkg/provider"
-	"dappco.re/go/process"
-	"dappco.re/go/ws"
+	coreapi "dappco.re/go/build/pkg/api"
+	providerpkg "dappco.re/go/build/pkg/api/provider"
+	events "dappco.re/go/build/pkg/events"
 )
 
 type stubAPIEngine struct {
@@ -94,8 +93,8 @@ func TestRun_WiresMCPAndAgenticGood(t *testing.T) {
 	engine := &stubAPIEngine{serveStarted: make(chan struct{})}
 	agentic := &stubAgenticOrchestrator{runStarted: make(chan struct{})}
 
-	newHub = ws.NewHub
-	newBuildProvider = func(projectDir string, hub *ws.Hub) providerpkg.Provider {
+	newHub = events.NewHub
+	newBuildProvider = func(projectDir string, hub *events.Hub) providerpkg.Provider {
 		return stubDaemonProvider{
 			name:     "build",
 			basePath: "/api/v1/build",
@@ -106,21 +105,21 @@ func TestRun_WiresMCPAndAgenticGood(t *testing.T) {
 	newAPIEngine = func(opts ...coreapi.Option) core.Result {
 		return core.Ok(engine)
 	}
-	newMCPServer = func(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) coreapi.RouteGroup {
+	newMCPServer = func(cfg Config, registry *providerpkg.Registry, hub *events.Hub) coreapi.RouteGroup {
 		if stdlibAssertNil(registry.Get("build")) {
 			t.Fatal("expected non-nil")
 		}
 
 		return stubRouteGroup{name: "mcp", basePath: "/api/v1/mcp"}
 	}
-	newAgenticOrchestrator = func(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) agenticOrchestrator {
+	newAgenticOrchestrator = func(cfg Config, registry *providerpkg.Registry, hub *events.Hub) agenticOrchestrator {
 		if stdlibAssertNil(registry.Get("build")) {
 			t.Fatal("expected non-nil")
 		}
 
 		return agentic
 	}
-	newProcessDaemon = func(opts process.DaemonOptions) processDaemon {
+	newProcessDaemon = func(opts daemonOptions) processDaemon {
 		return stubDaemon
 	}
 

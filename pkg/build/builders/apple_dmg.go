@@ -5,9 +5,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
-	"dappco.re/go/process"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 // CreateDMG records the hdiutil DMG creation flow and writes a placeholder DMG.
@@ -16,10 +14,10 @@ func (b *AppleBuilder) CreateDMG(ctx context.Context, filesystem coreio.Medium, 
 		filesystem = coreio.Local
 	}
 	if appPath == "" {
-		return core.Fail(coreerr.E("AppleBuilder.CreateDMG", "app path is required", nil))
+		return core.Fail(core.E("AppleBuilder.CreateDMG", "app path is required", nil))
 	}
 	if cfg.OutputPath == "" {
-		return core.Fail(coreerr.E("AppleBuilder.CreateDMG", "output path is required", nil))
+		return core.Fail(core.E("AppleBuilder.CreateDMG", "output path is required", nil))
 	}
 	if cfg.VolumeName == "" {
 		cfg.VolumeName = core.TrimSuffix(ax.Base(appPath), ".app")
@@ -35,7 +33,7 @@ func (b *AppleBuilder) CreateDMG(ctx context.Context, filesystem coreio.Medium, 
 	if outputDir != "" && outputDir != "." {
 		created := filesystem.EnsureDir(outputDir)
 		if !created.OK {
-			return core.Fail(coreerr.E("AppleBuilder.CreateDMG", "failed to create DMG output directory", core.NewError(created.Error())))
+			return core.Fail(core.E("AppleBuilder.CreateDMG", "failed to create DMG output directory", core.NewError(created.Error())))
 		}
 	}
 
@@ -43,8 +41,8 @@ func (b *AppleBuilder) CreateDMG(ctx context.Context, filesystem coreio.Medium, 
 	mountPoint := cfg.OutputPath + ".mount"
 
 	// TODO(#484): hdiutil requires macOS. The skeleton records each
-	// go-process invocation and writes a placeholder DMG for downstream lanes.
-	created := b.runExternal(ctx, "hdiutil-create", process.RunOptions{
+	// command invocation and writes a placeholder DMG for downstream lanes.
+	created := b.runExternal(ctx, "hdiutil-create", RunOptions{
 		Command: "hdiutil",
 		Args: []string{
 			"create",
@@ -59,7 +57,7 @@ func (b *AppleBuilder) CreateDMG(ctx context.Context, filesystem coreio.Medium, 
 		return created
 	}
 
-	attached := b.runExternal(ctx, "hdiutil-attach", process.RunOptions{
+	attached := b.runExternal(ctx, "hdiutil-attach", RunOptions{
 		Command: "hdiutil",
 		Args: []string{
 			"attach",
@@ -74,7 +72,7 @@ func (b *AppleBuilder) CreateDMG(ctx context.Context, filesystem coreio.Medium, 
 		return attached
 	}
 
-	detached := b.runExternal(ctx, "hdiutil-detach", process.RunOptions{
+	detached := b.runExternal(ctx, "hdiutil-detach", RunOptions{
 		Command: "hdiutil",
 		Args:    []string{"detach", mountPoint},
 	})
@@ -82,7 +80,7 @@ func (b *AppleBuilder) CreateDMG(ctx context.Context, filesystem coreio.Medium, 
 		return detached
 	}
 
-	converted := b.runExternal(ctx, "hdiutil-convert", process.RunOptions{
+	converted := b.runExternal(ctx, "hdiutil-convert", RunOptions{
 		Command: "hdiutil",
 		Args: []string{
 			"convert",
@@ -104,7 +102,7 @@ func (b *AppleBuilder) CreateDMG(ctx context.Context, filesystem coreio.Medium, 
 	)
 	written := filesystem.WriteMode(cfg.OutputPath, placeholder, 0o644)
 	if !written.OK {
-		return core.Fail(coreerr.E("AppleBuilder.CreateDMG", "failed to write placeholder DMG", core.NewError(written.Error())))
+		return core.Fail(core.E("AppleBuilder.CreateDMG", "failed to write placeholder DMG", core.NewError(written.Error())))
 	}
 
 	return core.Ok(nil)

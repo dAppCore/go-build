@@ -8,8 +8,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // PythonBuilder builds Python projects with pyproject.toml or requirements.txt markers.
@@ -33,8 +32,8 @@ func (b *PythonBuilder) Name() string {
 
 // Detect checks if this builder can handle the project in the given directory.
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *PythonBuilder) Detect(fs io.Medium, dir string) core.Result {
+// ok, err := b.Detect(storage.Local, ".")
+func (b *PythonBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(build.IsPythonProject(fs, dir))
 }
 
@@ -43,7 +42,7 @@ func (b *PythonBuilder) Detect(fs io.Medium, dir string) core.Result {
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *PythonBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("PythonBuilder.Build", "config is nil", nil))
+		return core.Fail(core.E("PythonBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
@@ -94,7 +93,7 @@ func (b *PythonBuilder) bundleName(cfg *build.Config) string {
 }
 
 // bundleProject creates a zip bundle containing the Python project tree.
-func (b *PythonBuilder) bundleProject(fs io.Medium, projectDir, outputDir, bundlePath string) core.Result {
+func (b *PythonBuilder) bundleProject(fs storage.Medium, projectDir, outputDir, bundlePath string) core.Result {
 	exclude := func(path string) bool {
 		return b.isExcludedPath(path, outputDir, bundlePath)
 	}

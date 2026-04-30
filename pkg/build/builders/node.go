@@ -9,8 +9,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // NodeBuilder builds Node.js projects with the detected package manager.
@@ -34,8 +33,8 @@ func (b *NodeBuilder) Name() string {
 
 // Detect checks if this builder can handle the project in the given directory.
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *NodeBuilder) Detect(fs io.Medium, dir string) core.Result {
+// ok, err := b.Detect(storage.Local, ".")
+func (b *NodeBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(build.IsNodeProject(fs, dir))
 }
 
@@ -45,7 +44,7 @@ func (b *NodeBuilder) Detect(fs io.Medium, dir string) core.Result {
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("NodeBuilder.Build", "config is nil", nil))
+		return core.Fail(core.E("NodeBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
@@ -85,7 +84,7 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 
 		output := ax.CombinedOutput(ctx, projectDir, env, command, args...)
 		if !output.OK {
-			return core.Fail(coreerr.E("NodeBuilder.Build", command+" build failed: "+output.Error(), core.NewError(output.Error())))
+			return core.Fail(core.E("NodeBuilder.Build", command+" build failed: "+output.Error(), core.NewError(output.Error())))
 		}
 
 		found := b.findArtifactsForTarget(cfg.FS, outputDir, target)
@@ -97,7 +96,7 @@ func (b *NodeBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 
 // resolveNodeProjectDir locates the directory containing package.json.
 // It prefers the project root, then searches nested directories to depth 2.
-func (b *NodeBuilder) resolveNodeProjectDir(fs io.Medium, projectDir string) string {
+func (b *NodeBuilder) resolveNodeProjectDir(fs storage.Medium, projectDir string) string {
 	if b.hasNodeManifest(fs, projectDir) {
 		return projectDir
 	}
@@ -106,7 +105,7 @@ func (b *NodeBuilder) resolveNodeProjectDir(fs io.Medium, projectDir string) str
 }
 
 // findNodeProjectDir searches for a package.json within nested directories.
-func (b *NodeBuilder) findNodeProjectDir(fs io.Medium, dir string, depth int) string {
+func (b *NodeBuilder) findNodeProjectDir(fs storage.Medium, dir string, depth int) string {
 	if depth >= 2 {
 		return ""
 	}
@@ -140,18 +139,18 @@ func (b *NodeBuilder) findNodeProjectDir(fs io.Medium, dir string, depth int) st
 	return ""
 }
 
-func (b *NodeBuilder) hasNodeManifest(fs io.Medium, dir string) bool {
+func (b *NodeBuilder) hasNodeManifest(fs storage.Medium, dir string) bool {
 	return fs.IsFile(ax.Join(dir, "package.json")) || b.hasDenoConfig(fs, dir)
 }
 
-func (b *NodeBuilder) hasDenoConfig(fs io.Medium, dir string) bool {
+func (b *NodeBuilder) hasDenoConfig(fs storage.Medium, dir string) bool {
 	return fs.IsFile(ax.Join(dir, "deno.json")) || fs.IsFile(ax.Join(dir, "deno.jsonc"))
 }
 
 // resolvePackageManager selects the package manager from lockfiles.
 //
-// packageManager := b.resolvePackageManager(io.Local, ".")
-func (b *NodeBuilder) resolvePackageManager(fs io.Medium, projectDir string) core.Result {
+// packageManager := b.resolvePackageManager(storage.Local, ".")
+func (b *NodeBuilder) resolvePackageManager(fs storage.Medium, projectDir string) core.Result {
 	if declared := detectDeclaredPackageManager(fs, projectDir); declared != "" {
 		return core.Ok(declared)
 	}
@@ -173,7 +172,7 @@ func (b *NodeBuilder) resolvePackageManager(fs io.Medium, projectDir string) cor
 // resolveBuildCommand returns the executable and arguments for the selected package manager.
 //
 // command, args, err := b.resolveBuildCommand("npm")
-func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, projectDir string) core.Result {
+func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs storage.Medium, projectDir string) core.Result {
 	configuredDenoBuild := ""
 	if cfg != nil {
 		configuredDenoBuild = cfg.DenoBuild
@@ -208,7 +207,7 @@ func (b *NodeBuilder) resolveBuildCommand(cfg *build.Config, fs io.Medium, proje
 
 	command := ax.ResolveCommand(packageManager, paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("NodeBuilder.resolveBuildCommand", packageManager+" CLI not found", core.NewError(command.Error())))
+		return core.Fail(core.E("NodeBuilder.resolveBuildCommand", packageManager+" CLI not found", core.NewError(command.Error())))
 	}
 
 	switch packageManager {
@@ -236,7 +235,7 @@ func (b *NodeBuilder) resolveDenoCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("deno", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("NodeBuilder.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", core.NewError(command.Error())))
+		return core.Fail(core.E("NodeBuilder.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", core.NewError(command.Error())))
 	}
 
 	return command
@@ -252,7 +251,7 @@ func (b *NodeBuilder) resolveNpmCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("npm", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("NodeBuilder.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", core.NewError(command.Error())))
+		return core.Fail(core.E("NodeBuilder.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", core.NewError(command.Error())))
 	}
 
 	return command
@@ -260,8 +259,8 @@ func (b *NodeBuilder) resolveNpmCli(paths ...string) core.Result {
 
 // findArtifactsForTarget searches for build outputs in the target-specific output directory.
 //
-// artifacts := b.findArtifactsForTarget(io.Local, "dist", build.Target{OS: "linux", Arch: "amd64"})
-func (b *NodeBuilder) findArtifactsForTarget(fs io.Medium, outputDir string, target build.Target) []build.Artifact {
+// artifacts := b.findArtifactsForTarget(storage.Local, "dist", build.Target{OS: "linux", Arch: "amd64"})
+func (b *NodeBuilder) findArtifactsForTarget(fs storage.Medium, outputDir string, target build.Target) []build.Artifact {
 	var artifacts []build.Artifact
 
 	platformDir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))

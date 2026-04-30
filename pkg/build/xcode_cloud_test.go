@@ -5,7 +5,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func requireXcodeCloudPaths(t *testing.T, result core.Result) []string {
@@ -177,7 +177,7 @@ func TestXcodeCloud_GenerateXcodeCloudScripts_QuotesShellValues(t *testing.T) {
 func TestXcodeCloud_WriteXcodeCloudScripts_Good(t *testing.T) {
 	projectDir := t.TempDir()
 
-	paths := requireXcodeCloudPaths(t, WriteXcodeCloudScripts(io.Local, projectDir, &BuildConfig{
+	paths := requireXcodeCloudPaths(t, WriteXcodeCloudScripts(storage.Local, projectDir, &BuildConfig{
 		Project: Project{
 			Name:   "Core",
 			Binary: "Core",
@@ -193,12 +193,12 @@ func TestXcodeCloud_WriteXcodeCloudScripts_Good(t *testing.T) {
 	}
 
 	for _, path := range paths {
-		content := requireXcodeCloudString(t, io.Local.Read(path))
+		content := requireXcodeCloudString(t, storage.Local.Read(path))
 		if stdlibAssertEmpty(content) {
 			t.Fatal("expected non-empty")
 		}
 
-		info := requireXcodeCloudFileInfo(t, io.Local.Stat(path))
+		info := requireXcodeCloudFileInfo(t, storage.Local.Stat(path))
 		if !stdlibAssertEqual(0o755, int(info.Mode().Perm())) {
 			t.Fatalf("want %v, got %v", 0o755, int(info.Mode().Perm()))
 		}
@@ -258,7 +258,7 @@ func TestXcodeCloud_GenerateXcodeCloudScripts_Ugly(t *core.T) {
 func TestXcodeCloud_WriteXcodeCloudScripts_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteXcodeCloudScripts(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
+		_ = WriteXcodeCloudScripts(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

@@ -5,13 +5,13 @@ import (
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // LoadProjectConfig resolves SDK settings from build config first, then falls
 // back to release config, and finally the SDK defaults when neither file
 // defines an sdk section.
-func LoadProjectConfig(fs io.Medium, projectDir string) core.Result {
+func LoadProjectConfig(fs storage.Medium, projectDir string) core.Result {
 	buildLoaded := build.LoadConfig(fs, projectDir)
 	if !buildLoaded.OK {
 		return buildLoaded

@@ -5,7 +5,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // Marker files for project type detection.
@@ -43,12 +43,12 @@ const (
 
 type discoveryRule struct {
 	projectType ProjectType
-	matches     func(io.Medium, string) bool
+	matches     func(storage.Medium, string) bool
 }
 
 var discoveryRules = []discoveryRule{
 	{projectType: ProjectTypeWails, matches: IsWailsProject},
-	{projectType: ProjectTypeGo, matches: func(fs io.Medium, dir string) bool {
+	{projectType: ProjectTypeGo, matches: func(fs storage.Medium, dir string) bool {
 		return fileExists(fs, ax.Join(dir, markerGoMod)) || fileExists(fs, ax.Join(dir, markerGoWork))
 	}},
 	{projectType: ProjectTypeNode, matches: IsNodeProject},
@@ -78,8 +78,8 @@ var discoveryMarkerPaths = []string{
 // Returns a slice of detected project types, ordered by priority (most specific first).
 // For example, a Wails project returns [wails, go] since it has both wails.json and go.mod.
 //
-// types, err := build.Discover(io.Local, "/home/user/my-project") // → [go]
-func Discover(fs io.Medium, dir string) core.Result {
+// types, err := build.Discover(storage.Local, "/home/user/my-project") // → [go]
+func Discover(fs storage.Medium, dir string) core.Result {
 	var detected []ProjectType
 
 	if configuredType, ok := configuredProjectType(fs, dir); ok {
@@ -103,8 +103,8 @@ func Discover(fs io.Medium, dir string) core.Result {
 // PrimaryType returns the most specific project type detected in the directory.
 // Returns empty string if no project type is detected.
 //
-// pt, err := build.PrimaryType(io.Local, ".") // → "go"
-func PrimaryType(fs io.Medium, dir string) core.Result {
+// pt, err := build.PrimaryType(storage.Local, ".") // → "go"
+func PrimaryType(fs storage.Medium, dir string) core.Result {
 	typesResult := Discover(fs, dir)
 	if !typesResult.OK {
 		return typesResult
@@ -118,8 +118,8 @@ func PrimaryType(fs io.Medium, dir string) core.Result {
 
 // IsGoProject checks if the directory contains a Go project (go.mod, go.work, or wails.json).
 //
-// if build.IsGoProject(io.Local, ".") { ... }
-func IsGoProject(fs io.Medium, dir string) bool {
+// if build.IsGoProject(storage.Local, ".") { ... }
+func IsGoProject(fs storage.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerGoMod)) ||
 		fileExists(fs, ax.Join(dir, markerGoWork)) ||
 		fileExists(fs, ax.Join(dir, markerWails))
@@ -127,8 +127,8 @@ func IsGoProject(fs io.Medium, dir string) bool {
 
 // IsWailsProject checks if the directory contains a Wails project.
 //
-// if build.IsWailsProject(io.Local, ".") { ... }
-func IsWailsProject(fs io.Medium, dir string) bool {
+// if build.IsWailsProject(storage.Local, ".") { ... }
+func IsWailsProject(fs storage.Medium, dir string) bool {
 	if fileExists(fs, ax.Join(dir, markerWails)) {
 		return true
 	}
@@ -145,8 +145,8 @@ func IsWailsProject(fs io.Medium, dir string) bool {
 // IsNodeProject checks if the directory contains a Node.js or Deno frontend
 // project at the root, under frontend/, or in a visible nested subtree.
 //
-// if build.IsNodeProject(io.Local, ".") { ... }
-func IsNodeProject(fs io.Medium, dir string) bool {
+// if build.IsNodeProject(storage.Local, ".") { ... }
+func IsNodeProject(fs storage.Medium, dir string) bool {
 	return hasFrontendManifest(fs, dir) ||
 		hasFrontendManifest(fs, ax.Join(dir, "frontend")) ||
 		hasSubtreeFrontendManifest(fs, dir)
@@ -154,36 +154,36 @@ func IsNodeProject(fs io.Medium, dir string) bool {
 
 // IsPHPProject checks if the directory contains a PHP project.
 //
-// if build.IsPHPProject(io.Local, ".") { ... }
-func IsPHPProject(fs io.Medium, dir string) bool {
+// if build.IsPHPProject(storage.Local, ".") { ... }
+func IsPHPProject(fs storage.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerComposer))
 }
 
 // IsCPPProject checks if the directory contains a C++ project (CMakeLists.txt).
 //
-// if build.IsCPPProject(io.Local, ".") { ... }
-func IsCPPProject(fs io.Medium, dir string) bool {
+// if build.IsCPPProject(storage.Local, ".") { ... }
+func IsCPPProject(fs storage.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, "CMakeLists.txt"))
 }
 
 // IsMkDocsProject checks for MkDocs config at the project root or in docs/.
 //
-//	ok := build.IsMkDocsProject(io.Local, ".")
-func IsMkDocsProject(fs io.Medium, dir string) bool {
+//	ok := build.IsMkDocsProject(storage.Local, ".")
+func IsMkDocsProject(fs storage.Medium, dir string) bool {
 	return ResolveMkDocsConfigPath(fs, dir) != ""
 }
 
 // IsDocsProject is the predictable alias for IsMkDocsProject.
 //
-//	ok := build.IsDocsProject(io.Local, ".")
-func IsDocsProject(fs io.Medium, dir string) bool {
+//	ok := build.IsDocsProject(storage.Local, ".")
+func IsDocsProject(fs storage.Medium, dir string) bool {
 	return IsMkDocsProject(fs, dir)
 }
 
 // ResolveMkDocsConfigPath returns the first MkDocs config path that exists.
 //
-//	configPath := build.ResolveMkDocsConfigPath(io.Local, ".")
-func ResolveMkDocsConfigPath(fs io.Medium, dir string) string {
+//	configPath := build.ResolveMkDocsConfigPath(storage.Local, ".")
+func ResolveMkDocsConfigPath(fs storage.Medium, dir string) string {
 	for _, path := range []string{
 		ax.Join(dir, markerMkDocs),
 		ax.Join(dir, markerMkDocsYAML),
@@ -207,8 +207,8 @@ func ResolveMkDocsConfigPath(fs io.Medium, dir string) string {
 // directories, and node_modules directories.
 // Returns true when a monorepo-style nested package.json is found.
 //
-//	ok := build.HasSubtreeNpm(io.Local, ".") // true if apps/web/package.json exists
-func HasSubtreeNpm(fs io.Medium, dir string) bool {
+//	ok := build.HasSubtreeNpm(storage.Local, ".") // true if apps/web/package.json exists
+func HasSubtreeNpm(fs storage.Medium, dir string) bool {
 	if fs == nil {
 		return false
 	}
@@ -259,22 +259,22 @@ func HasSubtreeNpm(fs io.Medium, dir string) bool {
 
 // IsPythonProject checks for pyproject.toml or requirements.txt at the project root.
 //
-//	ok := build.IsPythonProject(io.Local, ".")
-func IsPythonProject(fs io.Medium, dir string) bool {
+//	ok := build.IsPythonProject(storage.Local, ".")
+func IsPythonProject(fs storage.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerPyProject)) ||
 		fileExists(fs, ax.Join(dir, markerRequirements))
 }
 
 // IsRustProject checks for Cargo.toml at the project root.
 //
-//	ok := build.IsRustProject(io.Local, ".")
-func IsRustProject(fs io.Medium, dir string) bool {
+//	ok := build.IsRustProject(storage.Local, ".")
+func IsRustProject(fs storage.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerCargo))
 }
 
 // DiscoveryResult holds the full project analysis from DiscoverFull().
 //
-//	result, err := build.DiscoverFull(io.Local, ".")
+//	result, err := build.DiscoverFull(storage.Local, ".")
 //	fmt.Println(result.PrimaryStack) // "wails"
 type DiscoveryResult struct {
 	// Types lists all detected project types in priority order.
@@ -364,9 +364,9 @@ type DiscoveryResult struct {
 
 // DiscoverFull returns a rich discovery result with all markers and metadata.
 //
-//	result, err := build.DiscoverFull(io.Local, ".")
+//	result, err := build.DiscoverFull(storage.Local, ".")
 //	if result.HasFrontend { ... }
-func DiscoverFull(fs io.Medium, dir string) core.Result {
+func DiscoverFull(fs storage.Medium, dir string) core.Result {
 	typesResult := Discover(fs, dir)
 	if !typesResult.OK {
 		return typesResult
@@ -514,7 +514,7 @@ func SuggestStack(types []ProjectType) string {
 	}
 }
 
-func configuredProjectType(fs io.Medium, dir string) (ProjectType, bool) {
+func configuredProjectType(fs storage.Medium, dir string) (ProjectType, bool) {
 	if fs == nil || !ConfigExists(fs, dir) {
 		return "", false
 	}
@@ -585,7 +585,7 @@ func containsProjectType(types []ProjectType, projectType ProjectType) bool {
 }
 
 // hasFrontendManifest reports whether a frontend directory contains a supported manifest.
-func hasFrontendManifest(fs io.Medium, dir string) bool {
+func hasFrontendManifest(fs storage.Medium, dir string) bool {
 	if fs == nil {
 		return false
 	}
@@ -595,7 +595,7 @@ func hasFrontendManifest(fs io.Medium, dir string) bool {
 }
 
 // hasSubtreeFrontendManifest checks for package.json or deno.json within depth 2 subdirectories.
-func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
+func hasSubtreeFrontendManifest(fs storage.Medium, dir string) bool {
 	if fs == nil {
 		return false
 	}
@@ -639,8 +639,8 @@ func hasSubtreeFrontendManifest(fs io.Medium, dir string) bool {
 	return false
 }
 
-func hasSubtreeDenoManifest(fs io.Medium, dir string) bool {
-	return hasSubtreeManifest(fs, dir, 0, func(fs io.Medium, candidate string) bool {
+func hasSubtreeDenoManifest(fs storage.Medium, dir string) bool {
+	return hasSubtreeManifest(fs, dir, 0, func(fs storage.Medium, candidate string) bool {
 		if fs == nil {
 			return false
 		}
@@ -648,7 +648,7 @@ func hasSubtreeDenoManifest(fs io.Medium, dir string) bool {
 	})
 }
 
-func findMkDocsConfigInSubtree(fs io.Medium, dir string, depth int) string {
+func findMkDocsConfigInSubtree(fs storage.Medium, dir string, depth int) string {
 	if fs == nil {
 		return ""
 	}
@@ -686,8 +686,8 @@ func findMkDocsConfigInSubtree(fs io.Medium, dir string, depth int) string {
 	return ""
 }
 
-func hasNestedGoToolchain(fs io.Medium, dir string, depth int) bool {
-	return hasSubtreeManifest(fs, dir, depth, func(fs io.Medium, candidate string) bool {
+func hasNestedGoToolchain(fs storage.Medium, dir string, depth int) bool {
+	return hasSubtreeManifest(fs, dir, depth, func(fs storage.Medium, candidate string) bool {
 		if fs == nil {
 			return false
 		}
@@ -695,7 +695,7 @@ func hasNestedGoToolchain(fs io.Medium, dir string, depth int) bool {
 	}, 4)
 }
 
-func hasSubtreeManifest(fs io.Medium, dir string, depth int, match func(io.Medium, string) bool, maxDepth ...int) bool {
+func hasSubtreeManifest(fs storage.Medium, dir string, depth int, match func(storage.Medium, string) bool, maxDepth ...int) bool {
 	if fs == nil || match == nil {
 		return false
 	}
@@ -773,20 +773,20 @@ func firstString(values []string) string {
 }
 
 // hasGoRootMarker reports whether the project root contains a Go module or workspace marker.
-func hasGoRootMarker(fs io.Medium, dir string) bool {
+func hasGoRootMarker(fs storage.Medium, dir string) bool {
 	return fileExists(fs, ax.Join(dir, markerGoMod)) ||
 		fileExists(fs, ax.Join(dir, markerGoWork))
 }
 
 // fileExists checks if a file exists and is not a directory.
-func fileExists(fs io.Medium, path string) bool {
+func fileExists(fs storage.Medium, path string) bool {
 	if fs == nil {
 		return false
 	}
 	return fs.IsFile(path)
 }
 
-func collectMarkerPresence(fs io.Medium, dir string, paths []string) map[string]bool {
+func collectMarkerPresence(fs storage.Medium, dir string, paths []string) map[string]bool {
 	markers := make(map[string]bool, len(paths))
 	for _, path := range paths {
 		markers[path] = fileExists(fs, ax.Join(dir, path))
@@ -800,8 +800,8 @@ func shouldSkipSubtreeDir(name string) bool {
 
 // ResolveDockerfilePath returns the first Docker manifest path that exists.
 //
-//	dockerfile := build.ResolveDockerfilePath(io.Local, ".")
-func ResolveDockerfilePath(fs io.Medium, dir string) string {
+//	dockerfile := build.ResolveDockerfilePath(storage.Local, ".")
+func ResolveDockerfilePath(fs storage.Medium, dir string) string {
 	for _, path := range []string{
 		ax.Join(dir, "Dockerfile"),
 		ax.Join(dir, "Containerfile"),
@@ -817,15 +817,15 @@ func ResolveDockerfilePath(fs io.Medium, dir string) string {
 
 // IsDockerProject checks if the directory contains a Dockerfile or Containerfile.
 //
-//	if build.IsDockerProject(io.Local, ".") { ... }
-func IsDockerProject(fs io.Medium, dir string) bool {
+//	if build.IsDockerProject(storage.Local, ".") { ... }
+func IsDockerProject(fs storage.Medium, dir string) bool {
 	return ResolveDockerfilePath(fs, dir) != ""
 }
 
 // IsLinuxKitProject checks for linuxkit.yml or .core/linuxkit/*.yml.
 //
-//	ok := build.IsLinuxKitProject(io.Local, ".")
-func IsLinuxKitProject(fs io.Medium, dir string) bool {
+//	ok := build.IsLinuxKitProject(storage.Local, ".")
+func IsLinuxKitProject(fs storage.Medium, dir string) bool {
 	if fileExists(fs, ax.Join(dir, markerLinuxKitYAML)) ||
 		fileExists(fs, ax.Join(dir, markerLinuxKitYAMLAlt)) {
 		return true
@@ -835,8 +835,8 @@ func IsLinuxKitProject(fs io.Medium, dir string) bool {
 
 // IsTaskfileProject checks for supported Taskfile names in the project root.
 //
-//	ok := build.IsTaskfileProject(io.Local, ".")
-func IsTaskfileProject(fs io.Medium, dir string) bool {
+//	ok := build.IsTaskfileProject(storage.Local, ".")
+func IsTaskfileProject(fs storage.Medium, dir string) bool {
 	for _, name := range []string{
 		markerTaskfileYML,
 		markerTaskfileYAML,
@@ -852,7 +852,7 @@ func IsTaskfileProject(fs io.Medium, dir string) bool {
 }
 
 // hasYAMLInDir reports whether a directory contains at least one YAML file.
-func hasYAMLInDir(fs io.Medium, dir string) bool {
+func hasYAMLInDir(fs storage.Medium, dir string) bool {
 	if fs == nil {
 		return false
 	}
@@ -879,7 +879,7 @@ func hasYAMLInDir(fs io.Medium, dir string) bool {
 }
 
 // detectDistroVersion extracts the Ubuntu VERSION_ID from os-release data.
-func detectDistroVersion(fs io.Medium) string {
+func detectDistroVersion(fs storage.Medium) string {
 	if fs == nil {
 		return ""
 	}

@@ -7,7 +7,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/io"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 var defaultBuilderResolver BuilderResolver

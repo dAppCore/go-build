@@ -13,7 +13,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 const (
@@ -331,7 +331,7 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 		return core.Fail(core.E("build.BuildApple", "config is nil", nil))
 	}
 	if cfg.FS == nil {
-		cfg.FS = io.Local
+		cfg.FS = storage.Local
 	}
 
 	if options.BundleID == "" {
@@ -646,19 +646,19 @@ func BuildWailsApp(ctx context.Context, cfg WailsBuildConfig) core.Result {
 		return core.Ok(sourcePath)
 	}
 
-	created := io.Local.EnsureDir(cfg.OutputDir)
+	created := storage.Local.EnsureDir(cfg.OutputDir)
 	if !created.OK {
 		return core.Fail(core.E("build.BuildWailsApp", "failed to create Wails output directory", core.NewError(created.Error())))
 	}
 
 	destPath := ax.Join(cfg.OutputDir, name+".app")
-	if io.Local.Exists(destPath) {
-		deleted := io.Local.DeleteAll(destPath)
+	if storage.Local.Exists(destPath) {
+		deleted := storage.Local.DeleteAll(destPath)
 		if !deleted.OK {
 			return core.Fail(core.E("build.BuildWailsApp", "failed to replace existing app bundle", core.NewError(deleted.Error())))
 		}
 	}
-	copied := copyPath(io.Local, sourcePath, destPath)
+	copied := copyPath(storage.Local, sourcePath, destPath)
 	if !copied.OK {
 		return core.Fail(core.E("build.BuildWailsApp", "failed to copy built app bundle", core.NewError(copied.Error())))
 	}
@@ -694,11 +694,11 @@ type wailsFrontendBuild struct {
 }
 
 func resolveWailsFrontendBuild(cfg WailsBuildConfig) core.Result {
-	frontendDir := resolveFrontendDir(io.Local, cfg.ProjectDir)
+	frontendDir := resolveFrontendDir(storage.Local, cfg.ProjectDir)
 	if frontendDir == "" {
 		if DenoRequested(cfg.DenoBuild) {
 			frontendDir = cfg.ProjectDir
-			if io.Local.IsDir(ax.Join(cfg.ProjectDir, "frontend")) {
+			if storage.Local.IsDir(ax.Join(cfg.ProjectDir, "frontend")) {
 				frontendDir = ax.Join(cfg.ProjectDir, "frontend")
 			}
 		} else {
@@ -706,7 +706,7 @@ func resolveWailsFrontendBuild(cfg WailsBuildConfig) core.Result {
 		}
 	}
 
-	if hasDenoConfig(io.Local, frontendDir) || DenoRequested(cfg.DenoBuild) {
+	if hasDenoConfig(storage.Local, frontendDir) || DenoRequested(cfg.DenoBuild) {
 		denoBuild := resolveDenoBuildCommand(cfg)
 		if !denoBuild.OK {
 			return denoBuild
@@ -715,14 +715,14 @@ func resolveWailsFrontendBuild(cfg WailsBuildConfig) core.Result {
 		return core.Ok(wailsFrontendBuild{dir: frontendDir, command: resolved.command, args: resolved.args})
 	}
 
-	if io.Local.IsFile(ax.Join(frontendDir, "package.json")) {
-		return resolvePackageManagerBuild(frontendDir, detectPackageManager(io.Local, frontendDir))
+	if storage.Local.IsFile(ax.Join(frontendDir, "package.json")) {
+		return resolvePackageManagerBuild(frontendDir, detectPackageManager(storage.Local, frontendDir))
 	}
 
 	return core.Ok(wailsFrontendBuild{})
 }
 
-func resolveFrontendDir(filesystem io.Medium, projectDir string) string {
+func resolveFrontendDir(filesystem storage.Medium, projectDir string) string {
 	frontendDir := ax.Join(projectDir, "frontend")
 	if filesystem.IsDir(frontendDir) && (hasDenoConfig(filesystem, frontendDir) || filesystem.IsFile(ax.Join(frontendDir, "package.json"))) {
 		return frontendDir
@@ -746,15 +746,15 @@ func resolveFrontendDir(filesystem io.Medium, projectDir string) string {
 	return ""
 }
 
-func hasDenoConfig(filesystem io.Medium, dir string) bool {
+func hasDenoConfig(filesystem storage.Medium, dir string) bool {
 	return filesystem.IsFile(ax.Join(dir, "deno.json")) || filesystem.IsFile(ax.Join(dir, "deno.jsonc"))
 }
 
-func resolveSubtreeFrontendDir(filesystem io.Medium, projectDir string) string {
+func resolveSubtreeFrontendDir(filesystem storage.Medium, projectDir string) string {
 	return findFrontendDir(filesystem, projectDir, 0)
 }
 
-func findFrontendDir(filesystem io.Medium, dir string, depth int) string {
+func findFrontendDir(filesystem storage.Medium, dir string, depth int) string {
 	if depth >= 2 {
 		return ""
 	}
@@ -817,7 +817,7 @@ func resolvePackageManagerBuild(frontendDir, packageManager string) core.Result 
 	}
 }
 
-func detectPackageManager(filesystem io.Medium, dir string) string {
+func detectPackageManager(filesystem storage.Medium, dir string) string {
 	if declared := detectDeclaredPackageManager(filesystem, dir); declared != "" {
 		return declared
 	}
@@ -846,7 +846,7 @@ type packageJSONManifest struct {
 	PackageManager string `json:"packageManager"`
 }
 
-func detectDeclaredPackageManager(filesystem io.Medium, dir string) string {
+func detectDeclaredPackageManager(filesystem storage.Medium, dir string) string {
 	content := filesystem.Read(ax.Join(dir, "package.json"))
 	if !content.OK {
 		return ""
@@ -967,18 +967,18 @@ func CreateUniversal(arm64Path, amd64Path, outputPath string) core.Result {
 		return core.Fail(core.E("build.CreateUniversal", "arm64, amd64, and output paths are required", nil))
 	}
 
-	if io.Local.Exists(outputPath) {
-		deleted := io.Local.DeleteAll(outputPath)
+	if storage.Local.Exists(outputPath) {
+		deleted := storage.Local.DeleteAll(outputPath)
 		if !deleted.OK {
 			return core.Fail(core.E("build.CreateUniversal", "failed to replace existing output bundle", core.NewError(deleted.Error())))
 		}
 	}
 
-	created := io.Local.EnsureDir(ax.Dir(outputPath))
+	created := storage.Local.EnsureDir(ax.Dir(outputPath))
 	if !created.OK {
 		return core.Fail(core.E("build.CreateUniversal", "failed to create universal output directory", core.NewError(created.Error())))
 	}
-	copied := copyPath(io.Local, arm64Path, outputPath)
+	copied := copyPath(storage.Local, arm64Path, outputPath)
 	if !copied.OK {
 		return core.Fail(core.E("build.CreateUniversal", "failed to copy arm64 bundle", core.NewError(copied.Error())))
 	}
@@ -989,7 +989,7 @@ func CreateUniversal(arm64Path, amd64Path, outputPath string) core.Result {
 	}
 	lipoCommand := lipoCommandResult.Value.(string)
 
-	for _, candidate := range universalMergeCandidates(io.Local, arm64Path, amd64Path) {
+	for _, candidate := range universalMergeCandidates(storage.Local, arm64Path, amd64Path) {
 		armCandidate := ax.Join(arm64Path, candidate)
 		amdCandidate := ax.Join(amd64Path, candidate)
 		outputCandidate := ax.Join(outputPath, candidate)
@@ -1017,7 +1017,7 @@ func Sign(ctx context.Context, cfg SignConfig) core.Result {
 	}
 	codesignCommand := codesignCommandResult.Value.(string)
 
-	if !io.Local.IsDir(cfg.AppPath) || !core.HasSuffix(cfg.AppPath, ".app") {
+	if !storage.Local.IsDir(cfg.AppPath) || !core.HasSuffix(cfg.AppPath, ".app") {
 		output := appleCombinedOutput(ctx, "", nil, codesignCommand, codesignArgs(cfg, cfg.AppPath, cfg.Entitlements)...)
 		if !output.OK {
 			return core.Fail(core.E("build.Sign", "codesign failed for "+cfg.AppPath, core.NewError(output.Error())))
@@ -1158,14 +1158,14 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) core.Result {
 	stageDir := ax.Join(tempDir, "stage")
 	mountDir := ax.Join(tempDir, "mount")
 	rwDMGPath := ax.Join(tempDir, "staging.dmg")
-	created := io.Local.EnsureDir(stageDir)
+	created := storage.Local.EnsureDir(stageDir)
 	if !created.OK {
 		return core.Fail(core.E("build.CreateDMG", "failed to create DMG stage directory", core.NewError(created.Error())))
 	}
 
 	appName := ax.Base(cfg.AppPath)
 	stageAppPath := ax.Join(stageDir, appName)
-	copied := copyPath(io.Local, cfg.AppPath, stageAppPath)
+	copied := copyPath(storage.Local, cfg.AppPath, stageAppPath)
 	if !copied.OK {
 		return core.Fail(core.E("build.CreateDMG", "failed to stage app bundle", core.NewError(copied.Error())))
 	}
@@ -1176,17 +1176,17 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) core.Result {
 
 	if cfg.Background != "" {
 		backgroundDir := ax.Join(stageDir, ".background")
-		backgroundCreated := io.Local.EnsureDir(backgroundDir)
+		backgroundCreated := storage.Local.EnsureDir(backgroundDir)
 		if !backgroundCreated.OK {
 			return core.Fail(core.E("build.CreateDMG", "failed to create DMG background directory", core.NewError(backgroundCreated.Error())))
 		}
-		backgroundCopied := copyPath(io.Local, cfg.Background, ax.Join(backgroundDir, ax.Base(cfg.Background)))
+		backgroundCopied := copyPath(storage.Local, cfg.Background, ax.Join(backgroundDir, ax.Base(cfg.Background)))
 		if !backgroundCopied.OK {
 			return core.Fail(core.E("build.CreateDMG", "failed to stage DMG background", core.NewError(backgroundCopied.Error())))
 		}
 	}
 
-	outputCreated := io.Local.EnsureDir(ax.Dir(cfg.OutputPath))
+	outputCreated := storage.Local.EnsureDir(ax.Dir(cfg.OutputPath))
 	if !outputCreated.OK {
 		return core.Fail(core.E("build.CreateDMG", "failed to create DMG output directory", core.NewError(outputCreated.Error())))
 	}
@@ -1216,7 +1216,7 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) core.Result {
 		return core.Fail(core.E("build.CreateDMG", "hdiutil failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
-	mountCreated := io.Local.EnsureDir(mountDir)
+	mountCreated := storage.Local.EnsureDir(mountDir)
 	if !mountCreated.OK {
 		return core.Fail(core.E("build.CreateDMG", "failed to create DMG mount directory", core.NewError(mountCreated.Error())))
 	}
@@ -1244,7 +1244,7 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) core.Result {
 
 	scriptPath := ax.Join(tempDir, "layout.applescript")
 	script := buildDMGAppleScript(volumeName, appName, cfg)
-	written := io.Local.WriteMode(scriptPath, script, 0o644)
+	written := storage.Local.WriteMode(scriptPath, script, 0o644)
 	if !written.OK {
 		return core.Fail(core.E("build.CreateDMG", "failed to write DMG layout script", core.NewError(written.Error())))
 	}
@@ -1464,9 +1464,9 @@ func SubmitAppStore(ctx context.Context, cfg AppStoreConfig) core.Result {
 }
 
 // WriteInfoPlist writes the app bundle Info.plist and returns its path.
-func WriteInfoPlist(filesystem io.Medium, appPath string, plist InfoPlist) core.Result {
+func WriteInfoPlist(filesystem storage.Medium, appPath string, plist InfoPlist) core.Result {
 	if filesystem == nil {
-		filesystem = io.Local
+		filesystem = storage.Local
 	}
 
 	plistPath := ax.Join(appPath, "Contents", "Info.plist")
@@ -1488,9 +1488,9 @@ func WriteInfoPlist(filesystem io.Medium, appPath string, plist InfoPlist) core.
 }
 
 // WriteEntitlements writes an entitlements plist file.
-func WriteEntitlements(filesystem io.Medium, path string, entitlements Entitlements) core.Result {
+func WriteEntitlements(filesystem storage.Medium, path string, entitlements Entitlements) core.Result {
 	if filesystem == nil {
-		filesystem = io.Local
+		filesystem = storage.Local
 	}
 	if path == "" {
 		return core.Fail(core.E("build.WriteEntitlements", "entitlements path is required", nil))
@@ -1618,7 +1618,7 @@ func findBuiltAppBundle(projectDir, name string) core.Result {
 		ax.Join(projectDir, "dist", name+".app"),
 		ax.Join(projectDir, name+".app"),
 	} {
-		if io.Local.Exists(candidate) {
+		if storage.Local.Exists(candidate) {
 			return core.Ok(candidate)
 		}
 	}
@@ -1628,7 +1628,7 @@ func findBuiltAppBundle(projectDir, name string) core.Result {
 func bundleExecutablePath(appPath string) string {
 	executableName := core.TrimSuffix(ax.Base(appPath), ".app")
 	infoPlistPath := ax.Join(appPath, "Contents", "Info.plist")
-	if content := io.Local.Read(infoPlistPath); content.OK {
+	if content := storage.Local.Read(infoPlistPath); content.OK {
 		if name := plistStringValue(content.Value.(string), "CFBundleExecutable"); name != "" {
 			executableName = name
 		}
@@ -1636,7 +1636,7 @@ func bundleExecutablePath(appPath string) string {
 	return ax.Join(appPath, "Contents", "MacOS", executableName)
 }
 
-func universalMergeCandidates(filesystem io.Medium, arm64Path, amd64Path string) []string {
+func universalMergeCandidates(filesystem storage.Medium, arm64Path, amd64Path string) []string {
 	candidates := map[string]struct{}{}
 	seedUniversalMergeCandidates(filesystem, arm64Path, amd64Path, "", candidates)
 
@@ -1648,7 +1648,7 @@ func universalMergeCandidates(filesystem io.Medium, arm64Path, amd64Path string)
 	return paths
 }
 
-func seedUniversalMergeCandidates(filesystem io.Medium, arm64Path, amd64Path, relativePath string, candidates map[string]struct{}) {
+func seedUniversalMergeCandidates(filesystem storage.Medium, arm64Path, amd64Path, relativePath string, candidates map[string]struct{}) {
 	currentPath := arm64Path
 	if relativePath != "" {
 		currentPath = ax.Join(arm64Path, relativePath)
@@ -1682,7 +1682,7 @@ func seedUniversalMergeCandidates(filesystem io.Medium, arm64Path, amd64Path, re
 	}
 }
 
-func shouldMergeUniversalPath(filesystem io.Medium, path, relativePath string) bool {
+func shouldMergeUniversalPath(filesystem storage.Medium, path, relativePath string) bool {
 	info := filesystem.Stat(path)
 	if info.OK && info.Value.(fs.FileInfo).Mode()&0o111 != 0 {
 		return true
@@ -1724,9 +1724,9 @@ func plistStringValue(content, key string) string {
 	return core.Trim(endParts[0])
 }
 
-func copyPath(filesystem io.Medium, sourcePath, destPath string) core.Result {
+func copyPath(filesystem storage.Medium, sourcePath, destPath string) core.Result {
 	if filesystem == nil {
-		filesystem = io.Local
+		filesystem = storage.Local
 	}
 
 	if filesystem.IsDir(sourcePath) {
@@ -1762,11 +1762,11 @@ func copyPath(filesystem io.Medium, sourcePath, destPath string) core.Result {
 
 func signFrameworkPaths(appPath string) []string {
 	frameworksDir := ax.Join(appPath, "Contents", "Frameworks")
-	if !io.Local.IsDir(frameworksDir) {
+	if !storage.Local.IsDir(frameworksDir) {
 		return nil
 	}
 
-	entriesResult := io.Local.List(frameworksDir)
+	entriesResult := storage.Local.List(frameworksDir)
 	if !entriesResult.OK {
 		return nil
 	}
@@ -1782,11 +1782,11 @@ func signFrameworkPaths(appPath string) []string {
 
 func signHelperBinaryPaths(appPath, mainBinary string) []string {
 	macOSDir := ax.Join(appPath, "Contents", "MacOS")
-	if !io.Local.IsDir(macOSDir) {
+	if !storage.Local.IsDir(macOSDir) {
 		return nil
 	}
 
-	entriesResult := io.Local.List(macOSDir)
+	entriesResult := storage.Local.List(macOSDir)
 	if !entriesResult.OK {
 		return nil
 	}
@@ -1876,9 +1876,9 @@ func isDeveloperIDIdentity(identity string) bool {
 	return core.Contains(core.Lower(identity), "developer id")
 }
 
-func validateAppStorePreflight(filesystem io.Medium, projectDir, bundlePath string, options AppleOptions) core.Result {
+func validateAppStorePreflight(filesystem storage.Medium, projectDir, bundlePath string, options AppleOptions) core.Result {
 	if filesystem == nil {
-		filesystem = io.Local
+		filesystem = storage.Local
 	}
 
 	metadata := validateAppStoreMetadata(filesystem, projectDir, options.MetadataPath)
@@ -1893,7 +1893,7 @@ func validateAppStorePreflight(filesystem io.Medium, projectDir, bundlePath stri
 	return core.Ok(nil)
 }
 
-func validateAppStoreMetadata(filesystem io.Medium, projectDir, configuredPath string) core.Result {
+func validateAppStoreMetadata(filesystem storage.Medium, projectDir, configuredPath string) core.Result {
 	metadataPath := resolveAppStoreMetadataPath(filesystem, projectDir, configuredPath)
 	if metadataPath == "" {
 		return core.Fail(core.E("build.validateAppStoreMetadata", "App Store submissions require metadata_path or a standard metadata directory (.core/apple/appstore, .core/appstore, or appstore)", nil))
@@ -1909,7 +1909,7 @@ func validateAppStoreMetadata(filesystem io.Medium, projectDir, configuredPath s
 	return core.Ok(nil)
 }
 
-func resolveAppStoreMetadataPath(filesystem io.Medium, projectDir, configuredPath string) string {
+func resolveAppStoreMetadataPath(filesystem storage.Medium, projectDir, configuredPath string) string {
 	candidates := []string{}
 	if configuredPath != "" {
 		if ax.IsAbs(configuredPath) {
@@ -1933,7 +1933,7 @@ func resolveAppStoreMetadataPath(filesystem io.Medium, projectDir, configuredPat
 	return ""
 }
 
-func hasAppStoreDescription(filesystem io.Medium, metadataPath string) bool {
+func hasAppStoreDescription(filesystem storage.Medium, metadataPath string) bool {
 	for _, name := range []string{"description.txt", "description.md", "description.markdown"} {
 		if filesystem.IsFile(ax.Join(metadataPath, name)) {
 			return true
@@ -1942,7 +1942,7 @@ func hasAppStoreDescription(filesystem io.Medium, metadataPath string) bool {
 	return false
 }
 
-func hasAppStoreScreenshots(filesystem io.Medium, metadataPath string) bool {
+func hasAppStoreScreenshots(filesystem storage.Medium, metadataPath string) bool {
 	screenshotsDir := ax.Join(metadataPath, "screenshots")
 	if !filesystem.IsDir(screenshotsDir) {
 		return false
@@ -1993,7 +1993,7 @@ func validatePrivacyPolicyURL(raw string) core.Result {
 	return core.Ok(nil)
 }
 
-func scanBundleForPrivateAPIUsage(filesystem io.Medium, bundlePath string) core.Result {
+func scanBundleForPrivateAPIUsage(filesystem storage.Medium, bundlePath string) core.Result {
 	if bundlePath == "" {
 		return core.Fail(core.E("build.scanBundleForPrivateAPIUsage", "bundle path is required", nil))
 	}
@@ -2020,7 +2020,7 @@ func privateAPIScanRoots(bundlePath string) []string {
 	}
 }
 
-func collectBundleFiles(filesystem io.Medium, root string) []string {
+func collectBundleFiles(filesystem storage.Medium, root string) []string {
 	if filesystem == nil || !filesystem.Exists(root) {
 		return nil
 	}
@@ -2225,7 +2225,7 @@ func prepareASCAPIKeyEnv(apiKeyID, apiKeyPath string) core.Result {
 		return core.Ok(ascAPIKeyEnv{env: []string{"API_PRIVATE_KEYS_DIR=" + ax.Dir(apiKeyPath)}, cleanup: func() {}})
 	}
 
-	content := io.Local.Read(apiKeyPath)
+	content := storage.Local.Read(apiKeyPath)
 	if !content.OK {
 		return core.Fail(core.E("build.prepareASCAPIKeyEnv", "failed to read App Store Connect API key", core.NewError(content.Error())))
 	}
@@ -2237,7 +2237,7 @@ func prepareASCAPIKeyEnv(apiKeyID, apiKeyPath string) core.Result {
 	tempDir := tempDirResult.Value.(string)
 
 	stagedPath := ax.Join(tempDir, expectedName)
-	written := io.Local.WriteMode(stagedPath, content.Value.(string), 0o600)
+	written := storage.Local.WriteMode(stagedPath, content.Value.(string), 0o600)
 	if !written.OK {
 		cleaned := ax.RemoveAll(tempDir)
 		if !cleaned.OK {

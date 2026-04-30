@@ -7,7 +7,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestScoop_ScoopPublisherNameGood(t *testing.T) {
@@ -132,7 +132,7 @@ func TestScoop_ScoopPublisherRenderTemplateGood(t *testing.T) {
 			},
 		}
 
-		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data))
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/scoop/manifest.json.tmpl", data))
 		if !stdlibAssertContains(result, `"version": "1.2.3"`) {
 			t.Fatalf("expected %v to contain %v", result, `"version": "1.2.3"`)
 		}
@@ -180,7 +180,7 @@ func TestScoop_ScoopPublisherRenderTemplateGood(t *testing.T) {
 			Checksums:   ChecksumMap{},
 		}
 
-		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data))
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/scoop/manifest.json.tmpl", data))
 		if !stdlibAssertContains(result, `"checkver"`) {
 			t.Fatalf("expected %v to contain %v", result, `"checkver"`)
 		}
@@ -199,7 +199,7 @@ func TestScoop_ScoopPublisherRenderTemplateBad(t *testing.T) {
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := scoopTemplateData{}
-		err := requirePublisherError(t, p.renderTemplate(io.Local, "templates/scoop/nonexistent.tmpl", data))
+		err := requirePublisherError(t, p.renderTemplate(storage.Local, "templates/scoop/nonexistent.tmpl", data))
 		if !stdlibAssertContains(err, "failed to read template") {
 			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
@@ -224,7 +224,7 @@ func TestScoop_ScoopPublisherDryRunPublishGood(t *testing.T) {
 
 		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			publishResult = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
 		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Scoop Publish") {
@@ -270,7 +270,7 @@ func TestScoop_ScoopPublisherDryRunPublishGood(t *testing.T) {
 
 		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			publishResult = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
 		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/scoop/path") {
@@ -296,7 +296,7 @@ func TestScoop_ScoopPublisherDryRunPublishGood(t *testing.T) {
 
 		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			publishResult = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
 		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/scoop/path") {
@@ -323,7 +323,7 @@ func TestScoop_ScoopPublisherDryRunPublishGood(t *testing.T) {
 
 		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			publishResult = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
 		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: dist/scoop") {
@@ -340,7 +340,7 @@ func TestScoop_ScoopPublisherPublishBad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "scoop"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
@@ -359,7 +359,7 @@ func TestScoop_ScoopPublisherPublishBad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: projectDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "dist/myapp-windows-amd64.zip", OS: "windows", Arch: "amd64", Checksum: "abc123"},
 			},

@@ -6,7 +6,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/log"
 )
 
 // LinuxKitConfig holds configuration for the LinuxKit publisher.
@@ -72,10 +71,10 @@ func (p *LinuxKitPublisher) Validate(ctx context.Context, release *Release, pubC
 
 	lkCfg := p.parseConfig(pubCfg, release.ProjectDir)
 	if !release.FS.Exists(lkCfg.Config) {
-		return core.Fail(coreerr.E("linuxkit.Validate", "config file not found: "+lkCfg.Config, nil))
+		return core.Fail(core.E("linuxkit.Validate", "config file not found: "+lkCfg.Config, nil))
 	}
 	if len(lkCfg.Formats) == 0 {
-		return core.Fail(coreerr.E("linuxkit.Validate", "at least one LinuxKit format is required", nil))
+		return core.Fail(core.E("linuxkit.Validate", "at least one LinuxKit format is required", nil))
 	}
 
 	return core.Ok(nil)
@@ -106,10 +105,10 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 
 	// Validate config file exists
 	if release.FS == nil {
-		return core.Fail(coreerr.E("linuxkit.Publish", "release filesystem (FS) is nil", nil))
+		return core.Fail(core.E("linuxkit.Publish", "release filesystem (FS) is nil", nil))
 	}
 	if !release.FS.Exists(lkCfg.Config) {
-		return core.Fail(coreerr.E("linuxkit.Publish", "config file not found: "+lkCfg.Config, nil))
+		return core.Fail(core.E("linuxkit.Publish", "config file not found: "+lkCfg.Config, nil))
 	}
 
 	// Determine repository for dry-run display.
@@ -120,7 +119,7 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 	if repo == "" && dryRun {
 		detectedRepoResult := detectRepository(ctx, release.ProjectDir)
 		if !detectedRepoResult.OK {
-			return core.Fail(coreerr.E("linuxkit.Publish", "could not determine repository", core.NewError(detectedRepoResult.Error())))
+			return core.Fail(core.E("linuxkit.Publish", "could not determine repository", core.NewError(detectedRepoResult.Error())))
 		}
 		repo = detectedRepoResult.Value.(string)
 	}
@@ -241,7 +240,7 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 	// Create output directory
 	created := release.FS.EnsureDir(outputDir)
 	if !created.OK {
-		return core.Fail(coreerr.E("linuxkit.Publish", "failed to create output directory", core.NewError(created.Error())))
+		return core.Fail(core.E("linuxkit.Publish", "failed to create output directory", core.NewError(created.Error())))
 	}
 
 	baseName := p.buildBaseName(release.Version)
@@ -262,7 +261,7 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 			publisherPrint("Building LinuxKit image: %s (%s)", outputName, format)
 			built := publisherRun(ctx, release.ProjectDir, nil, linuxkitCommand, args...)
 			if !built.OK {
-				return core.Fail(coreerr.E("linuxkit.Publish", "build failed for "+platform+"/"+format, core.NewError(built.Error())))
+				return core.Fail(core.E("linuxkit.Publish", "build failed for "+platform+"/"+format, core.NewError(built.Error())))
 			}
 
 			// Track artifact for upload
@@ -354,7 +353,7 @@ func resolveLinuxKitCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("linuxkit", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("linuxkit.resolveLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", core.NewError(command.Error())))
+		return core.Fail(core.E("linuxkit.resolveLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", core.NewError(command.Error())))
 	}
 
 	return command
@@ -364,7 +363,7 @@ func resolveLinuxKitCli(paths ...string) core.Result {
 func validateLinuxKitCli() core.Result {
 	resolved := resolveLinuxKitCli()
 	if !resolved.OK {
-		return core.Fail(coreerr.E("linuxkit.validateLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", core.NewError(resolved.Error())))
+		return core.Fail(core.E("linuxkit.validateLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", core.NewError(resolved.Error())))
 	}
 	return core.Ok(nil)
 }

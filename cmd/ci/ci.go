@@ -5,11 +5,9 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
-	coreerr "dappco.re/go/log"
 )
 
 // Style aliases used by CI command output.
@@ -91,33 +89,33 @@ func runCIPublish(ctx context.Context, dryRun bool, version string, draft, prere
 		}
 	}
 
-	cli.Print("%s %s\n", headerStyle.Render(i18n.T("cmd.ci.label.ci")), i18n.T("cmd.ci.publishing"))
+	cli.Print("%s %s\n", headerStyle.Render("CI"), "Publishing release")
 	if dryRun {
-		cli.Print("  %s\n", dimStyle.Render(i18n.T("cmd.ci.dry_run_hint")))
+		cli.Print("  %s\n", dimStyle.Render("Dry run: no publishers will be changed"))
 	} else {
-		cli.Print("  %s\n", successStyle.Render(i18n.T("cmd.ci.go_for_launch")))
+		cli.Print("  %s\n", successStyle.Render("Publishing enabled"))
 	}
 	cli.Blank()
 
 	if len(cfg.Publishers) == 0 {
-		return core.Fail(coreerr.E("ci.Publish", i18n.T("cmd.ci.error.no_publishers"), nil))
+		return core.Fail(core.E("ci.Publish", "no publishers configured", nil))
 	}
 
 	relResult := release.Publish(ctx, cfg, dryRun)
 	if !relResult.OK {
-		cli.Print("%s %v\n", errorStyle.Render(i18n.Label("error")), relResult.Error())
+		cli.Print("%s %v\n", errorStyle.Render("error:"), relResult.Error())
 		return relResult
 	}
 	rel := relResult.Value.(*release.Release)
 
 	cli.Blank()
-	cli.Print("%s %s\n", successStyle.Render(i18n.T("i18n.done.pass")), i18n.T("cmd.ci.publish_completed"))
-	cli.Print("  %s   %s\n", i18n.Label("version"), valueStyle.Render(rel.Version))
-	cli.Print("  %s %d\n", i18n.T("cmd.ci.label.artifacts"), len(rel.Artifacts))
+	cli.Print("%s %s\n", successStyle.Render("Done"), "Publish completed")
+	cli.Print("  %s   %s\n", "version:", valueStyle.Render(rel.Version))
+	cli.Print("  %s %d\n", "artifacts", len(rel.Artifacts))
 
 	if !dryRun {
 		for _, pub := range cfg.Publishers {
-			cli.Print("  %s %s\n", i18n.T("cmd.ci.label.published"), valueStyle.Render(pub.Type))
+			cli.Print("  %s %s\n", "published", valueStyle.Render(pub.Type))
 		}
 	}
 
@@ -128,7 +126,7 @@ func runCIPublish(ctx context.Context, dryRun bool, version string, draft, prere
 func runCIReleaseInit() core.Result {
 	cwdResult := ax.Getwd()
 	if !cwdResult.OK {
-		return cli.Wrap(core.NewError(cwdResult.Error()), i18n.T("i18n.fail.get", "working directory"))
+		return cli.Wrap(core.NewError(cwdResult.Error()), "failed to get working directory")
 	}
 	cwd := cwdResult.Value.(string)
 
@@ -136,25 +134,25 @@ func runCIReleaseInit() core.Result {
 }
 
 func runCIReleaseInitInDir(cwd string) core.Result {
-	cli.Print("%s %s\n\n", dimStyle.Render(i18n.Label("init")), i18n.T("cmd.ci.init.initializing"))
+	cli.Print("%s %s\n\n", dimStyle.Render("init:"), "Initializing release config")
 
 	if release.ConfigExists(cwd) {
-		cli.Text(i18n.T("cmd.ci.init.already_initialised"))
+		cli.Text("Release config already initialised")
 		return core.Ok(nil)
 	}
 
 	cfg := release.ScaffoldConfig()
 	written := release.WriteConfig(cfg, cwd)
 	if !written.OK {
-		return cli.Wrap(core.NewError(written.Error()), i18n.T("i18n.fail.create", "config"))
+		return cli.Wrap(core.NewError(written.Error()), "failed to create config")
 	}
 
 	cli.Blank()
-	cli.Print("%s %s\n", successStyle.Render("v"), i18n.T("cmd.ci.init.created_config"))
+	cli.Print("%s %s\n", successStyle.Render("v"), "Created .core/release.yaml")
 	cli.Blank()
-	cli.Text(i18n.T("cmd.ci.init.next_steps"))
-	cli.Print("  %s\n", i18n.T("cmd.ci.init.edit_config"))
-	cli.Print("  %s\n", i18n.T("cmd.ci.init.run_ci"))
+	cli.Text("Next steps")
+	cli.Print("  %s\n", "Edit .core/release.yaml")
+	cli.Print("  %s\n", "Run core ci")
 
 	return core.Ok(nil)
 }
@@ -163,7 +161,7 @@ func runCIReleaseInitInDir(cwd string) core.Result {
 func runChangelog(ctx context.Context, fromRef, toRef string) core.Result {
 	cwdResult := ax.Getwd()
 	if !cwdResult.OK {
-		return cli.Wrap(core.NewError(cwdResult.Error()), i18n.T("i18n.fail.get", "working directory"))
+		return cli.Wrap(core.NewError(cwdResult.Error()), "failed to get working directory")
 	}
 	cwd := cwdResult.Value.(string)
 
@@ -181,16 +179,16 @@ func runChangelog(ctx context.Context, fromRef, toRef string) core.Result {
 			if ctx.Err() != nil {
 				return core.Fail(ctx.Err())
 			}
-			cli.Text(i18n.T("cmd.ci.changelog.no_tags"))
+			cli.Text("No tags found")
 			return core.Ok(nil)
 		}
 	}
 
-	cli.Print("%s %s..%s\n\n", dimStyle.Render(i18n.T("cmd.ci.changelog.generating")), fromRef, toRef)
+	cli.Print("%s %s..%s\n\n", dimStyle.Render("Generating changelog"), fromRef, toRef)
 
 	changelogResult := release.GenerateWithContext(ctx, cwd, fromRef, toRef)
 	if !changelogResult.OK {
-		return cli.Wrap(core.NewError(changelogResult.Error()), i18n.T("i18n.fail.generate", "changelog"))
+		return cli.Wrap(core.NewError(changelogResult.Error()), "failed to generate changelog")
 	}
 	changelog := changelogResult.Value.(string)
 
@@ -212,7 +210,7 @@ func runCIReleaseVersion(ctx context.Context) core.Result {
 	}
 	version := versionResult.Value.(string)
 
-	cli.Print("%s %s\n", i18n.Label("version"), valueStyle.Render(version))
+	cli.Print("%s %s\n", "version:", valueStyle.Render(version))
 	return core.Ok(nil)
 }
 

@@ -8,7 +8,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func setupFakeNodeToolchain(t *testing.T, binDir string) {
@@ -112,7 +112,7 @@ func TestNode_NodeBuilderNameGood(t *testing.T) {
 }
 
 func TestNode_NodeBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("detects package.json projects", func(t *testing.T) {
 		dir := t.TempDir()
@@ -195,7 +195,7 @@ func TestNode_NodeBuilderBuildGood(t *testing.T) {
 
 	builder := NewNodeBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "testapp",
@@ -275,7 +275,7 @@ func TestNode_NodeBuilderBuild_Good_Deno(t *testing.T) {
 
 	builder := NewNodeBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "denoapp",
@@ -316,7 +316,7 @@ func TestNode_NodeBuilderBuild_Good_DenoOverrideFromConfig(t *testing.T) {
 
 	builder := NewNodeBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "denoapp",
@@ -356,7 +356,7 @@ func TestNode_NodeBuilderBuild_Good_DenoOverrideFromEnvWins(t *testing.T) {
 
 	builder := NewNodeBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "denoapp",
@@ -394,7 +394,7 @@ func TestNode_NodeBuilderBuild_Good_NpmOverrideFromConfig(t *testing.T) {
 
 	builder := NewNodeBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "npmapp",
@@ -432,7 +432,7 @@ func TestNode_NodeBuilderBuild_Good_DenoEnableWithoutManifest(t *testing.T) {
 
 	builder := NewNodeBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "denoapp",
@@ -469,7 +469,7 @@ func TestNode_NodeBuilderBuild_Good_DenoOverrideWithoutManifest(t *testing.T) {
 
 	builder := NewNodeBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "denoapp",
@@ -486,7 +486,7 @@ func TestNode_NodeBuilderBuild_Good_DenoOverrideWithoutManifest(t *testing.T) {
 }
 
 func TestNode_ResolvePackageManagerGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	builder := NewNodeBuilder()
 
 	t.Run("prefers packageManager declaration over lockfiles", func(t *testing.T) {
@@ -523,7 +523,7 @@ func TestNode_ResolvePackageManagerGood(t *testing.T) {
 }
 
 func TestNode_NodeBuilderFindArtifactsForTargetGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	builder := NewNodeBuilder()
 
 	t.Run("finds files in platform subdirectory", func(t *testing.T) {
@@ -614,7 +614,7 @@ func TestNode_NodeBuilderBuildDefaultsGood(t *testing.T) {
 
 	builder := NewNodeBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Env:        []string{"FOO=bar"},
@@ -664,7 +664,7 @@ func TestNode_NodeBuilderBuild_Good_NestedProject(t *testing.T) {
 
 	builder := NewNodeBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "nested-app",
@@ -754,7 +754,7 @@ func TestNode_NodeBuilder_Detect_Good(t *core.T) {
 	subject := &NodeBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -764,7 +764,7 @@ func TestNode_NodeBuilder_Detect_Bad(t *core.T) {
 	subject := &NodeBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -774,7 +774,7 @@ func TestNode_NodeBuilder_Detect_Ugly(t *core.T) {
 	subject := &NodeBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

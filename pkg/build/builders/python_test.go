@@ -9,7 +9,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func setupPythonTestProject(t *testing.T) string {
@@ -41,7 +41,7 @@ func TestPython_PythonBuilderNameGood(t *testing.T) {
 }
 
 func TestPython_PythonBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("detects pyproject.toml projects", func(t *testing.T) {
 		dir := t.TempDir()
@@ -89,7 +89,7 @@ func TestPython_PythonBuilderBuildGood(t *testing.T) {
 
 	builder := NewPythonBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "demo-app",
@@ -142,7 +142,7 @@ func TestPython_PythonBuilderBuildDefaultsGood(t *testing.T) {
 
 	builder := NewPythonBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 	}
@@ -168,7 +168,7 @@ func TestPython_PythonBuilderBuildIsDeterministicGood(t *testing.T) {
 		t.Helper()
 
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "demo-app",
@@ -264,7 +264,7 @@ func TestPython_PythonBuilder_Detect_Good(t *core.T) {
 	subject := &PythonBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -274,7 +274,7 @@ func TestPython_PythonBuilder_Detect_Bad(t *core.T) {
 	subject := &PythonBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -284,7 +284,7 @@ func TestPython_PythonBuilder_Detect_Ugly(t *core.T) {
 	subject := &PythonBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

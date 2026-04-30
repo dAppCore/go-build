@@ -7,17 +7,16 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	coreio "dappco.re/go/io"
-	"dappco.re/go/process"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 var _ build.Builder = (*AppleBuilder)(nil)
 
 type recordingAppleRunner struct {
-	calls []process.RunOptions
+	calls []RunOptions
 }
 
-func (runner *recordingAppleRunner) Run(ctx context.Context, opts process.RunOptions) core.Result {
+func (runner *recordingAppleRunner) Run(ctx context.Context, opts RunOptions) core.Result {
 	runner.calls = append(runner.calls, opts)
 	return core.Ok("ok")
 }
@@ -186,7 +185,7 @@ func TestAppleBuilder_Ugly(t *testing.T) {
 		t.Fatalf("want %v, got %v", ax.Join(outputDir, "Core.app"), artifacts[0].Path)
 	}
 	if !stdlibAssertEqual(0, len(runner.calls)) {
-		t.Fatalf("want no go-process calls outside macOS, got %v", runner.calls)
+		t.Fatalf("want no command calls outside macOS, got %v", runner.calls)
 	}
 	if !core.Contains(todo.String(), "this requires macOS") {
 		t.Fatalf("expected non-macOS TODO, got %s", todo.String())
@@ -197,10 +196,10 @@ func TestAppleBuilder_Ugly(t *testing.T) {
 func TestApple_AppleCommandRunnerFunc_Run_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) core.Result { return core.Ok("ok") })
+	subject := AppleCommandRunnerFunc(func(core.Context, RunOptions) core.Result { return core.Ok("ok") })
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, RunOptions{})
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -209,10 +208,10 @@ func TestApple_AppleCommandRunnerFunc_Run_Good(t *core.T) {
 func TestApple_AppleCommandRunnerFunc_Run_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) core.Result { return core.Ok("ok") })
+	subject := AppleCommandRunnerFunc(func(core.Context, RunOptions) core.Result { return core.Ok("ok") })
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, RunOptions{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -221,10 +220,10 @@ func TestApple_AppleCommandRunnerFunc_Run_Bad(t *core.T) {
 func TestApple_AppleCommandRunnerFunc_Run_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	subject := AppleCommandRunnerFunc(func(core.Context, process.RunOptions) core.Result { return core.Ok("ok") })
+	subject := AppleCommandRunnerFunc(func(core.Context, RunOptions) core.Result { return core.Ok("ok") })
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, RunOptions{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -236,7 +235,7 @@ func TestApple_GoProcessAppleRunner_Run_Good(t *core.T) {
 	subject := GoProcessAppleRunner{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, RunOptions{})
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -248,7 +247,7 @@ func TestApple_GoProcessAppleRunner_Run_Bad(t *core.T) {
 	subject := GoProcessAppleRunner{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, RunOptions{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -260,7 +259,7 @@ func TestApple_GoProcessAppleRunner_Run_Ugly(t *core.T) {
 	subject := GoProcessAppleRunner{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Run(ctx, process.RunOptions{})
+		_ = subject.Run(ctx, RunOptions{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

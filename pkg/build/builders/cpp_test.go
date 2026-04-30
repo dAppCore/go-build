@@ -9,7 +9,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func setupFakeCPPCommand(t *testing.T, binDir, name, script string) {
@@ -78,7 +78,7 @@ func TestCPP_CPPBuilderNameGood(t *testing.T) {
 }
 
 func TestCPP_CPPBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("detects C++ project with CMakeLists.txt", func(t *testing.T) {
 		dir := t.TempDir()
@@ -176,7 +176,7 @@ exit 0
 
 		builder := NewCPPBuilder()
 		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  ax.Join(projectDir, "dist"),
 			Name:       "testapp",
@@ -188,7 +188,7 @@ exit 0
 			t.Fatalf("want %v, got %v", ax.Join(projectDir, "build", "packages", "test-1.0.tar.gz"), artifacts[0].Path)
 		}
 
-		content := requireCPPString(t, io.Local.Read(logPath))
+		content := requireCPPString(t, storage.Local.Read(logPath))
 		if !stdlibAssertContains(content, "make configure") {
 			t.Fatalf("expected %v to contain %v", content, "make configure")
 		}
@@ -243,7 +243,7 @@ exit 1
 		target := build.Target{OS: runtime.GOOS, Arch: runtime.GOARCH}
 		builder := NewCPPBuilder()
 		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  ax.Join(projectDir, "dist"),
 			Name:       "testapp",
@@ -255,7 +255,7 @@ exit 1
 			t.Fatalf("want %v, got %v", ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path)
 		}
 
-		content := requireCPPString(t, io.Local.Read(logPath))
+		content := requireCPPString(t, storage.Local.Read(logPath))
 		if !stdlibAssertContains(content, "cmake -S") {
 			t.Fatalf("expected %v to contain %v", content, "cmake -S")
 		}
@@ -334,7 +334,7 @@ exit 1
 		target := cppCrossTarget()
 		builder := NewCPPBuilder()
 		artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  ax.Join(projectDir, "dist"),
 			Name:       "testapp",
@@ -346,7 +346,7 @@ exit 1
 			t.Fatalf("want %v, got %v", ax.Join(projectDir, "dist", target.OS+"_"+target.Arch, "testapp"), artifacts[0].Path)
 		}
 
-		content := requireCPPString(t, io.Local.Read(logPath))
+		content := requireCPPString(t, storage.Local.Read(logPath))
 		if !stdlibAssertContains(content, "conan install . --output-folder "+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch)+" --build=missing --profile:host "+builder.targetToProfile(target)) {
 			t.Fatalf("expected %v to contain %v", content, "conan install . --output-folder "+ax.Join(projectDir, "build", "cmake", target.OS+"_"+target.Arch)+" --build=missing --profile:host "+builder.targetToProfile(target))
 		}
@@ -411,7 +411,7 @@ func TestCPP_CPPBuilderTargetToProfileBad(t *testing.T) {
 }
 
 func TestCPP_CPPBuilderFindArtifactsGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("finds packages in build/packages", func(t *testing.T) {
 		dir := t.TempDir()
@@ -614,7 +614,7 @@ func TestCpp_CPPBuilder_Detect_Good(t *core.T) {
 	subject := &CPPBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -624,7 +624,7 @@ func TestCpp_CPPBuilder_Detect_Bad(t *core.T) {
 	subject := &CPPBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -634,7 +634,7 @@ func TestCpp_CPPBuilder_Detect_Ugly(t *core.T) {
 	subject := &CPPBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

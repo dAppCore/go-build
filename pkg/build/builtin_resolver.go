@@ -6,7 +6,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func resolveBuiltinBuilder(projectType ProjectType) core.Result {
@@ -26,7 +26,7 @@ type builtinGoBuilder struct{}
 
 func (b *builtinGoBuilder) Name() string { return "go" }
 
-func (b *builtinGoBuilder) Detect(fs io.Medium, dir string) core.Result {
+func (b *builtinGoBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(IsGoProject(fs, dir))
 }
 
@@ -41,7 +41,7 @@ func (b *builtinGoBuilder) Build(ctx context.Context, cfg *Config, targets []Tar
 
 	filesystem := cfg.FS
 	if filesystem == nil {
-		filesystem = io.Local
+		filesystem = storage.Local
 	}
 
 	outputDir := cfg.OutputDir
@@ -65,7 +65,7 @@ func (b *builtinGoBuilder) Build(ctx context.Context, cfg *Config, targets []Tar
 	return core.Ok(artifacts)
 }
 
-func (b *builtinGoBuilder) buildTarget(ctx context.Context, filesystem io.Medium, cfg *Config, outputDir string, target Target) core.Result {
+func (b *builtinGoBuilder) buildTarget(ctx context.Context, filesystem storage.Medium, cfg *Config, outputDir string, target Target) core.Result {
 	binaryName := cfg.Name
 	if binaryName == "" {
 		binaryName = cfg.Project.Binary

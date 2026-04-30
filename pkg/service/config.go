@@ -8,7 +8,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 const (
@@ -70,7 +70,7 @@ func ResolveConfig(projectDir string) core.Result {
 	projectDir = core.PathJoin(projectDir)
 	cfg := DefaultConfig(projectDir)
 
-	loaded := build.LoadConfig(io.Local, projectDir)
+	loaded := build.LoadConfig(storage.Local, projectDir)
 	if !loaded.OK {
 		return core.Fail(core.E("service.ResolveConfig", "failed to load build config", core.NewError(loaded.Error())))
 	}

@@ -2,12 +2,12 @@ package build
 
 import (
 	core "dappco.re/go"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // RuntimeConfigFromBuildConfig maps persisted build settings onto a runtime
 // builder config while preserving the caller's output/name/version overrides.
-func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, binaryName string, buildConfig *BuildConfig, push bool, imageName string, version string) *Config {
+func RuntimeConfigFromBuildConfig(filesystem storage.Medium, projectDir, outputDir, binaryName string, buildConfig *BuildConfig, push bool, imageName string, version string) *Config {
 	if buildConfig == nil {
 		buildConfig = DefaultConfig()
 	}

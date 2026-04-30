@@ -6,7 +6,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // BuilderResolver resolves a project type into a concrete builder.
@@ -22,9 +22,9 @@ type VersionResolver func(context.Context, string) core.Result
 // Pipeline coordinates the action-style gateway phases for a build request:
 // discovery, option computation, setup planning, builder resolution, and build.
 //
-//	pipeline := &build.Pipeline{FS: io.Local, ResolveBuilder: resolver}
+//	pipeline := &build.Pipeline{FS: storage.Local, ResolveBuilder: resolver}
 type Pipeline struct {
-	FS             io.Medium
+	FS             storage.Medium
 	ResolveBuilder BuilderResolver
 	ResolveVersion VersionResolver
 }
@@ -90,7 +90,7 @@ func (p *Pipeline) Plan(ctx context.Context, req PipelineRequest) core.Result {
 
 	filesystem := p.FS
 	if filesystem == nil {
-		filesystem = io.Local
+		filesystem = storage.Local
 	}
 
 	projectDir := req.ProjectDir
@@ -277,7 +277,7 @@ func ResolveBuildName(projectDir string, cfg *BuildConfig, override string) stri
 	return ax.Base(projectDir)
 }
 
-func (p *Pipeline) loadBuildConfig(filesystem io.Medium, projectDir string, req PipelineRequest) core.Result {
+func (p *Pipeline) loadBuildConfig(filesystem storage.Medium, projectDir string, req PipelineRequest) core.Result {
 	if req.BuildConfig != nil {
 		return core.Ok(req.BuildConfig)
 	}
@@ -322,7 +322,7 @@ func (p *Pipeline) resolveBuilder(projectType ProjectType) core.Result {
 	return core.Ok(builder)
 }
 
-func resolvePipelineProjectTypes(filesystem io.Medium, projectDir, buildType string, cfg *BuildConfig) core.Result {
+func resolvePipelineProjectTypes(filesystem storage.Medium, projectDir, buildType string, cfg *BuildConfig) core.Result {
 	if value := normalisePipelineBuildType(buildType); value != "" {
 		return core.Ok([]ProjectType{ProjectType(value)})
 	}
@@ -344,7 +344,7 @@ func resolvePipelineProjectTypes(filesystem io.Medium, projectDir, buildType str
 	return projectTypesResult
 }
 
-func shouldUseLocalTargetByDefault(filesystem io.Medium, projectDir string, req PipelineRequest) bool {
+func shouldUseLocalTargetByDefault(filesystem storage.Medium, projectDir string, req PipelineRequest) bool {
 	if req.BuildConfig != nil || req.ConfigPath != "" {
 		return false
 	}

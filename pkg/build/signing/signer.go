@@ -5,20 +5,20 @@ import (
 	"context"
 
 	"dappco.re/go"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // Signer defines the interface for code signing implementations.
 //
 // var s signing.Signer = signing.NewGPGSigner(keyID)
-// err := s.Sign(ctx, io.Local, "dist/myapp")
+// err := s.Sign(ctx, storage.Local, "dist/myapp")
 type Signer interface {
 	// Name returns the signer's identifier.
 	Name() string
 	// Available checks if this signer can be used.
 	Available() bool
 	// Sign signs the artifact at the given path.
-	Sign(ctx context.Context, fs io.Medium, path string) core.Result
+	Sign(ctx context.Context, fs storage.Medium, path string) core.Result
 }
 
 // SignConfig holds signing configuration from .core/build.yaml.

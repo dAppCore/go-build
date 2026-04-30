@@ -8,7 +8,7 @@ import (
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func requireSDKCfgOK(t *testing.T, result core.Result) {
@@ -18,7 +18,7 @@ func requireSDKCfgOK(t *testing.T, result core.Result) {
 	}
 }
 
-func requireSDKCfgLoadProjectConfig(t *testing.T, medium io.Medium, projectDir string) *sdk.Config {
+func requireSDKCfgLoadProjectConfig(t *testing.T, medium storage.Medium, projectDir string) *sdk.Config {
 	t.Helper()
 
 	result := LoadProjectConfig(medium, projectDir)
@@ -30,7 +30,7 @@ func requireSDKCfgLoadProjectConfig(t *testing.T, medium io.Medium, projectDir s
 
 func TestLoadProjectConfig_Good(t *testing.T) {
 	t.Run("falls back to release config in the provided medium", func(t *testing.T) {
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 		projectDir := "project"
 		requireSDKCfgOK(t, medium.EnsureDir(ax.Join(projectDir, release.ConfigDir)))
 		requireSDKCfgOK(t, medium.Write(release.ConfigPath(projectDir), `
@@ -58,7 +58,7 @@ sdk:
 	})
 
 	t.Run("prefers build config over release config in the provided medium", func(t *testing.T) {
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 		projectDir := "project"
 		requireSDKCfgOK(t, medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)))
 		requireSDKCfgOK(t, medium.Write(build.ConfigPath(projectDir), `
@@ -89,7 +89,7 @@ sdk:
 	})
 
 	t.Run("applies documented defaults to partial sdk config", func(t *testing.T) {
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 		projectDir := "project"
 		requireSDKCfgOK(t, medium.EnsureDir(ax.Join(projectDir, build.ConfigDir)))
 		requireSDKCfgOK(t, medium.Write(build.ConfigPath(projectDir), `
@@ -122,7 +122,7 @@ sdk:
 func TestSdkcfg_LoadProjectConfig_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadProjectConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadProjectConfig(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -131,7 +131,7 @@ func TestSdkcfg_LoadProjectConfig_Good(t *core.T) {
 func TestSdkcfg_LoadProjectConfig_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadProjectConfig(io.NewMemoryMedium(), "")
+		_ = LoadProjectConfig(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -140,7 +140,7 @@ func TestSdkcfg_LoadProjectConfig_Bad(t *core.T) {
 func TestSdkcfg_LoadProjectConfig_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadProjectConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadProjectConfig(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

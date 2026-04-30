@@ -3,7 +3,7 @@ module dappco.re/go/build
 go 1.26.0
 
 require (
-	github.com/Snider/Borg v0.2.0 // Note: AX-6 deferred — awaiting dappco.re/go/crypt API parity
+	github.com/Snider/Borg v0.2.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kardianos/service v1.2.4
@@ -19,13 +19,6 @@ require (
 require (
 	cloud.google.com/go v0.123.0 // indirect
 	dappco.re/go v0.9.0
-	dappco.re/go/api v0.0.0
-	dappco.re/go/cli v0.0.0
-	dappco.re/go/i18n v0.0.0
-	dappco.re/go/io v0.0.0
-	dappco.re/go/log v0.0.0
-	dappco.re/go/process v0.0.0
-	dappco.re/go/ws v0.0.0
 	github.com/TwiN/go-color v1.4.1 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
@@ -73,17 +66,3 @@ require (
 )
 
 require github.com/rogpeppe/go-internal v1.14.1 // indirect
-
-replace dappco.re/go/io => ./.compat/io
-
-replace dappco.re/go/log => ./.compat/log
-
-replace dappco.re/go/process => ./.compat/process
-
-replace dappco.re/go/cli => ./.compat/cli
-
-replace dappco.re/go/i18n => ./.compat/i18n
-
-replace dappco.re/go/api => ./.compat/api
-
-replace dappco.re/go/ws => ./.compat/ws

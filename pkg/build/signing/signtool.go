@@ -6,7 +6,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // WindowsSigner signs binaries using Windows signtool.
@@ -51,8 +51,8 @@ func (s *WindowsSigner) Available() bool {
 
 // Sign signs a binary using signtool and a PFX certificate.
 //
-// err := s.Sign(ctx, io.Local, "dist/myapp.exe")
-func (s *WindowsSigner) Sign(ctx context.Context, fs io.Medium, binary string) core.Result {
+// err := s.Sign(ctx, storage.Local, "dist/myapp.exe")
+func (s *WindowsSigner) Sign(ctx context.Context, fs storage.Medium, binary string) core.Result {
 	_ = fs
 
 	if !s.Available() {

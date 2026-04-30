@@ -14,8 +14,7 @@ import (
 	"dappco.re/go/build/pkg/build/builders"     // Note: AX-6 — resolves project builders for release artifact generation.
 	"dappco.re/go/build/pkg/build/signing"      // Note: AX-6 — wires release signing and notarization hooks.
 	"dappco.re/go/build/pkg/release/publishers" // Note: AX-6 — publishes completed release artifacts to configured targets.
-	"dappco.re/go/io"                           // Note: AX-6 — Medium abstraction for release filesystem access.
-	coreerr "dappco.re/go/log"                  // Note: AX-6 — wraps release errors with Core logging semantics.
+	storage "dappco.re/go/build/pkg/storage"    // Note: AX-6 — Medium abstraction for release filesystem access.
 )
 
 // release signing hooks allow tests to observe the release pipeline without
@@ -42,9 +41,9 @@ type Release struct {
 	// ProjectDir is the root directory of the project.
 	ProjectDir string
 	// FS is the project filesystem used for local project file access.
-	FS io.Medium
+	FS storage.Medium
 	// ArtifactFS is the medium backing the release artifact paths.
-	ArtifactFS io.Medium
+	ArtifactFS storage.Medium
 }
 
 // Publish publishes pre-built artifacts from dist/ to configured targets.
@@ -53,10 +52,10 @@ type Release struct {
 // result := release.Publish(ctx, cfg, false) // dryRun=true to preview
 func Publish(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("release.Publish", "config is nil", nil))
+		return core.Fail(core.E("release.Publish", "config is nil", nil))
 	}
 
-	projectFS := io.Local
+	projectFS := storage.Local
 	artifactFS := resolveReleaseOutputMedium(cfg)
 
 	projectDir := cfg.projectDir
@@ -67,7 +66,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	// Resolve to absolute path
 	absProjectDirResult := ax.Abs(projectDir)
 	if !absProjectDirResult.OK {
-		return core.Fail(coreerr.E("release.Publish", "failed to resolve project directory", core.NewError(absProjectDirResult.Error())))
+		return core.Fail(core.E("release.Publish", "failed to resolve project directory", core.NewError(absProjectDirResult.Error())))
 	}
 	absProjectDir := absProjectDirResult.Value.(string)
 
@@ -76,26 +75,26 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	if version == "" {
 		versionResult := DetermineVersionWithContext(ctx, absProjectDir)
 		if !versionResult.OK {
-			return core.Fail(coreerr.E("release.Publish", "failed to determine version", core.NewError(versionResult.Error())))
+			return core.Fail(core.E("release.Publish", "failed to determine version", core.NewError(versionResult.Error())))
 		}
 		version = versionResult.Value.(string)
 	}
 	validatedVersion := ValidateVersionIdentifier(version)
 	if !validatedVersion.OK {
-		return core.Fail(coreerr.E("release.Publish", "invalid release version override", core.NewError(validatedVersion.Error())))
+		return core.Fail(core.E("release.Publish", "invalid release version override", core.NewError(validatedVersion.Error())))
 	}
 
 	// Step 2: Find pre-built artifacts in dist/
 	distDir := resolveReleaseOutputRoot(absProjectDir, cfg, artifactFS)
 	artifactsResult := findArtifacts(artifactFS, distDir)
 	if !artifactsResult.OK {
-		return core.Fail(coreerr.E("release.Publish", "failed to find artifacts", core.NewError(artifactsResult.Error())))
+		return core.Fail(core.E("release.Publish", "failed to find artifacts", core.NewError(artifactsResult.Error())))
 	}
 	artifacts := artifactsResult.Value.([]build.Artifact)
 	artifacts = appendConfiguredChecksumArtifacts(artifactFS, distDir, artifacts, cfg)
 
 	if len(artifacts) == 0 {
-		return core.Fail(coreerr.E("release.Publish", "no artifacts found in dist/\nRun 'core build' first to create artifacts", nil))
+		return core.Fail(core.E("release.Publish", "no artifacts found in dist/\nRun 'core build' first to create artifacts", nil))
 	}
 
 	// Step 3: Generate changelog
@@ -103,7 +102,7 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	changelog := ""
 	if !changelogResult.OK {
 		if ctx.Err() != nil {
-			return core.Fail(coreerr.E("release.Publish", "changelog generation cancelled", ctx.Err()))
+			return core.Fail(core.E("release.Publish", "changelog generation cancelled", ctx.Err()))
 		}
 		// Non-fatal: continue with empty changelog
 		changelog = core.Sprintf("Release %s", version)
@@ -127,22 +126,22 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 		for _, publisherConfig := range cfg.Publishers {
 			publisherResult := getPublisher(publisherConfig.Type)
 			if !publisherResult.OK {
-				return core.Fail(coreerr.E("release.Publish", "unsupported publisher", core.NewError(publisherResult.Error())))
+				return core.Fail(core.E("release.Publish", "unsupported publisher", core.NewError(publisherResult.Error())))
 			}
 			publisher := publisherResult.Value.(publishers.Publisher)
 
 			extendedConfig := buildExtendedConfig(publisherConfig)
 			publisherRuntimeConfig := publishers.NewPublisherConfig(publisherConfig.Type, publisherConfig.Prerelease, publisherConfig.Draft, extendedConfig)
 			if !publisher.Supports(publisherConfig.Type) {
-				return core.Fail(coreerr.E("release.Publish", "publisher does not support target "+publisherConfig.Type, nil))
+				return core.Fail(core.E("release.Publish", "publisher does not support target "+publisherConfig.Type, nil))
 			}
 			validated := publisher.Validate(ctx, pubRelease, publisherRuntimeConfig, cfg)
 			if !validated.OK {
-				return core.Fail(coreerr.E("release.Publish", "validate publisher "+publisherConfig.Type+" failed", core.NewError(validated.Error())))
+				return core.Fail(core.E("release.Publish", "validate publisher "+publisherConfig.Type+" failed", core.NewError(validated.Error())))
 			}
 			published := publisher.Publish(ctx, pubRelease, publisherRuntimeConfig, cfg, dryRun)
 			if !published.OK {
-				return core.Fail(coreerr.E("release.Publish", "publish to "+publisherConfig.Type+" failed", core.NewError(published.Error())))
+				return core.Fail(core.E("release.Publish", "publish to "+publisherConfig.Type+" failed", core.NewError(published.Error())))
 			}
 		}
 	}
@@ -151,9 +150,9 @@ func Publish(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 }
 
 // findArtifacts discovers pre-built artifacts in the dist directory.
-func findArtifacts(filesystem io.Medium, distDir string) core.Result {
+func findArtifacts(filesystem storage.Medium, distDir string) core.Result {
 	if distDir != "" && !filesystem.IsDir(distDir) {
-		return core.Fail(coreerr.E("release.findArtifacts", "dist/ directory not found", nil))
+		return core.Fail(core.E("release.findArtifacts", "dist/ directory not found", nil))
 	}
 
 	releaseArtifactsResult := findReleaseArtifacts(filesystem, distDir)
@@ -181,10 +180,10 @@ func findArtifacts(filesystem io.Medium, distDir string) core.Result {
 	}
 }
 
-func findReleaseArtifacts(filesystem io.Medium, currentDir string) core.Result {
+func findReleaseArtifacts(filesystem storage.Medium, currentDir string) core.Result {
 	entriesResult := filesystem.List(currentDir)
 	if !entriesResult.OK {
-		return core.Fail(coreerr.E("release.findArtifacts", "failed to read dist/", core.NewError(entriesResult.Error())))
+		return core.Fail(core.E("release.findArtifacts", "failed to read dist/", core.NewError(entriesResult.Error())))
 	}
 	entries := entriesResult.Value.([]stdfs.DirEntry)
 
@@ -209,7 +208,7 @@ func findReleaseArtifacts(filesystem io.Medium, currentDir string) core.Result {
 	return core.Ok(artifacts)
 }
 
-func findPlatformArtifacts(filesystem io.Medium, distDir string) core.Result {
+func findPlatformArtifacts(filesystem storage.Medium, distDir string) core.Result {
 	var artifacts []build.Artifact
 	collected := collectPlatformArtifacts(filesystem, distDir, &artifacts)
 	if !collected.OK {
@@ -220,10 +219,10 @@ func findPlatformArtifacts(filesystem io.Medium, distDir string) core.Result {
 	return core.Ok(artifacts)
 }
 
-func collectPlatformArtifacts(filesystem io.Medium, currentDir string, artifacts *[]build.Artifact) core.Result {
+func collectPlatformArtifacts(filesystem storage.Medium, currentDir string, artifacts *[]build.Artifact) core.Result {
 	entriesResult := filesystem.List(currentDir)
 	if !entriesResult.OK {
-		return core.Fail(coreerr.E("release.findArtifacts", "failed to read dist/", core.NewError(entriesResult.Error())))
+		return core.Fail(core.E("release.findArtifacts", "failed to read dist/", core.NewError(entriesResult.Error())))
 	}
 	entries := entriesResult.Value.([]stdfs.DirEntry)
 
@@ -353,10 +352,10 @@ func parsePlatformDir(name string) (string, string, bool) {
 // result := release.Run(ctx, cfg, false) // dryRun=true to preview
 func Run(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("release.Run", "config is nil", nil))
+		return core.Fail(core.E("release.Run", "config is nil", nil))
 	}
 
-	projectFS := io.Local
+	projectFS := storage.Local
 	artifactFS := resolveReleaseOutputMedium(cfg)
 
 	projectDir := cfg.projectDir
@@ -367,7 +366,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	// Resolve to absolute path
 	absProjectDirResult := ax.Abs(projectDir)
 	if !absProjectDirResult.OK {
-		return core.Fail(coreerr.E("release.Run", "failed to resolve project directory", core.NewError(absProjectDirResult.Error())))
+		return core.Fail(core.E("release.Run", "failed to resolve project directory", core.NewError(absProjectDirResult.Error())))
 	}
 	absProjectDir := absProjectDirResult.Value.(string)
 
@@ -376,13 +375,13 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	if version == "" {
 		versionResult := DetermineVersionWithContext(ctx, absProjectDir)
 		if !versionResult.OK {
-			return core.Fail(coreerr.E("release.Run", "failed to determine version", core.NewError(versionResult.Error())))
+			return core.Fail(core.E("release.Run", "failed to determine version", core.NewError(versionResult.Error())))
 		}
 		version = versionResult.Value.(string)
 	}
 	validatedVersion := ValidateVersionIdentifier(version)
 	if !validatedVersion.OK {
-		return core.Fail(coreerr.E("release.Run", "invalid release version override", core.NewError(validatedVersion.Error())))
+		return core.Fail(core.E("release.Run", "invalid release version override", core.NewError(validatedVersion.Error())))
 	}
 
 	// Step 2: Generate changelog
@@ -390,7 +389,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	changelog := ""
 	if !changelogResult.OK {
 		if ctx.Err() != nil {
-			return core.Fail(coreerr.E("release.Run", "changelog generation cancelled", ctx.Err()))
+			return core.Fail(core.E("release.Run", "changelog generation cancelled", ctx.Err()))
 		}
 		// Non-fatal: continue with empty changelog
 		changelog = core.Sprintf("Release %s", version)
@@ -402,7 +401,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 	outputDir := resolveReleaseOutputRoot(absProjectDir, cfg, artifactFS)
 	artifactsResult := buildArtifacts(ctx, projectFS, cfg, absProjectDir, outputDir, version)
 	if !artifactsResult.OK {
-		return core.Fail(coreerr.E("release.Run", "build failed", core.NewError(artifactsResult.Error())))
+		return core.Fail(core.E("release.Run", "build failed", core.NewError(artifactsResult.Error())))
 	}
 	artifacts := artifactsResult.Value.([]build.Artifact)
 
@@ -423,7 +422,7 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 		for _, publisherConfig := range cfg.Publishers {
 			publisherResult := getPublisher(publisherConfig.Type)
 			if !publisherResult.OK {
-				return core.Fail(coreerr.E("release.Run", "unsupported publisher", core.NewError(publisherResult.Error())))
+				return core.Fail(core.E("release.Run", "unsupported publisher", core.NewError(publisherResult.Error())))
 			}
 			publisher := publisherResult.Value.(publishers.Publisher)
 
@@ -431,15 +430,15 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 			extendedConfig := buildExtendedConfig(publisherConfig)
 			publisherRuntimeConfig := publishers.NewPublisherConfig(publisherConfig.Type, publisherConfig.Prerelease, publisherConfig.Draft, extendedConfig)
 			if !publisher.Supports(publisherConfig.Type) {
-				return core.Fail(coreerr.E("release.Run", "publisher does not support target "+publisherConfig.Type, nil))
+				return core.Fail(core.E("release.Run", "publisher does not support target "+publisherConfig.Type, nil))
 			}
 			validated := publisher.Validate(ctx, pubRelease, publisherRuntimeConfig, cfg)
 			if !validated.OK {
-				return core.Fail(coreerr.E("release.Run", "validate publisher "+publisherConfig.Type+" failed", core.NewError(validated.Error())))
+				return core.Fail(core.E("release.Run", "validate publisher "+publisherConfig.Type+" failed", core.NewError(validated.Error())))
 			}
 			published := publisher.Publish(ctx, pubRelease, publisherRuntimeConfig, cfg, dryRun)
 			if !published.OK {
-				return core.Fail(coreerr.E("release.Run", "publish to "+publisherConfig.Type+" failed", core.NewError(published.Error())))
+				return core.Fail(core.E("release.Run", "publish to "+publisherConfig.Type+" failed", core.NewError(published.Error())))
 			}
 		}
 	}
@@ -448,19 +447,19 @@ func Run(ctx context.Context, cfg *Config, dryRun bool) core.Result {
 }
 
 // buildArtifacts builds all artifacts for the release.
-func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, projectDir, outputDir, version string) core.Result {
+func buildArtifacts(ctx context.Context, filesystem storage.Medium, cfg *Config, projectDir, outputDir, version string) core.Result {
 	artifactFS := resolveReleaseOutputMedium(cfg)
 
 	// Load build configuration
 	buildConfigResult := build.LoadConfig(filesystem, projectDir)
 	if !buildConfigResult.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "failed to load build config", core.NewError(buildConfigResult.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "failed to load build config", core.NewError(buildConfigResult.Error())))
 	}
 	buildConfig := buildConfigResult.Value.(*build.BuildConfig)
 
 	cacheSetup := build.SetupBuildCache(filesystem, projectDir, buildConfig)
 	if !cacheSetup.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "failed to set up build cache", core.NewError(cacheSetup.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "failed to set up build cache", core.NewError(cacheSetup.Error())))
 	}
 
 	// Determine targets
@@ -507,7 +506,7 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 		Version:     version,
 	})
 	if !planResult.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "failed to plan build", core.NewError(planResult.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "failed to plan build", core.NewError(planResult.Error())))
 	}
 	plan := planResult.Value.(*build.PipelinePlan)
 	plan.OutputDir = outputDir
@@ -516,14 +515,14 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 
 	pipelineRunResult := pipeline.Run(ctx, plan)
 	if !pipelineRunResult.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "build failed", core.NewError(pipelineRunResult.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "build failed", core.NewError(pipelineRunResult.Error())))
 	}
 	pipelineResult := pipelineRunResult.Value.(*build.PipelineResult)
 	artifacts := pipelineResult.Artifacts
 
 	metadataWritten := writeArtifactMetadata(artifactFS, binaryName, artifacts)
 	if !metadataWritten.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "failed to write artifact metadata", core.NewError(metadataWritten.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "failed to write artifact metadata", core.NewError(metadataWritten.Error())))
 	}
 
 	signingArtifacts := make([]signing.Artifact, len(artifacts))
@@ -538,12 +537,12 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	if buildConfig.Sign.Enabled {
 		signed := signReleaseBinaries(ctx, artifactFS, buildConfig.Sign, signingArtifacts)
 		if !signed.OK {
-			return core.Fail(coreerr.E("release.buildArtifacts", "failed to sign binaries", core.NewError(signed.Error())))
+			return core.Fail(core.E("release.buildArtifacts", "failed to sign binaries", core.NewError(signed.Error())))
 		}
 
 		notarized := notarizeReleaseBinaries(ctx, artifactFS, buildConfig.Sign, signingArtifacts)
 		if !notarized.OK {
-			return core.Fail(coreerr.E("release.buildArtifacts", "failed to notarise binaries", core.NewError(notarized.Error())))
+			return core.Fail(core.E("release.buildArtifacts", "failed to notarise binaries", core.NewError(notarized.Error())))
 		}
 	}
 
@@ -555,20 +554,20 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 
 	archiveFormatResult := build.ParseArchiveFormat(archiveFormatValue)
 	if !archiveFormatResult.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "invalid archive format", core.NewError(archiveFormatResult.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "invalid archive format", core.NewError(archiveFormatResult.Error())))
 	}
 	archiveFormat := archiveFormatResult.Value.(build.ArchiveFormat)
 
 	archivedArtifactsResult := build.ArchiveAllWithFormat(artifactFS, artifacts, archiveFormat)
 	if !archivedArtifactsResult.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "archive failed", core.NewError(archivedArtifactsResult.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "archive failed", core.NewError(archivedArtifactsResult.Error())))
 	}
 	archivedArtifacts := archivedArtifactsResult.Value.([]build.Artifact)
 
 	// Compute checksums
 	checksummedArtifactsResult := build.ChecksumAll(artifactFS, archivedArtifacts)
 	if !checksummedArtifactsResult.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "checksum failed", core.NewError(checksummedArtifactsResult.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "checksum failed", core.NewError(checksummedArtifactsResult.Error())))
 	}
 	checksummedArtifacts := checksummedArtifactsResult.Value.([]build.Artifact)
 
@@ -580,13 +579,13 @@ func buildArtifacts(ctx context.Context, filesystem io.Medium, cfg *Config, proj
 	checksumPath := resolveChecksumPath(outputDir, cfg)
 	wroteChecksums := build.WriteChecksumFile(artifactFS, checksummedArtifacts, checksumPath)
 	if !wroteChecksums.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "failed to write checksums file", core.NewError(wroteChecksums.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "failed to write checksums file", core.NewError(wroteChecksums.Error())))
 	}
 
 	// Sign CHECKSUMS.txt when signing is configured.
 	signedChecksums := signReleaseChecksums(ctx, artifactFS, buildConfig.Sign, checksumPath)
 	if !signedChecksums.OK {
-		return core.Fail(coreerr.E("release.buildArtifacts", "failed to sign checksums file", core.NewError(signedChecksums.Error())))
+		return core.Fail(core.E("release.buildArtifacts", "failed to sign checksums file", core.NewError(signedChecksums.Error())))
 	}
 
 	// Add CHECKSUMS.txt as an artifact
@@ -612,7 +611,7 @@ func validateChecksumAlgorithm(cfg *Config) core.Result {
 	case "", "sha256":
 		return core.Ok(nil)
 	default:
-		return core.Fail(coreerr.E("release.buildArtifacts", "unsupported checksum algorithm: "+algorithm, nil))
+		return core.Fail(core.E("release.buildArtifacts", "unsupported checksum algorithm: "+algorithm, nil))
 	}
 }
 
@@ -637,7 +636,7 @@ func resolveChecksumPath(outputDir string, cfg *Config) string {
 	return joinReleasePath(outputDir, fileName)
 }
 
-func appendConfiguredChecksumArtifacts(filesystem io.Medium, distDir string, artifacts []build.Artifact, cfg *Config) []build.Artifact {
+func appendConfiguredChecksumArtifacts(filesystem storage.Medium, distDir string, artifacts []build.Artifact, cfg *Config) []build.Artifact {
 	checksumPath := resolveChecksumPath(distDir, cfg)
 	if !filesystem.Exists(checksumPath) || containsArtifactPath(artifacts, checksumPath) {
 		return artifacts
@@ -670,7 +669,7 @@ func generateReleaseChangelog(ctx context.Context, projectDir, version string, c
 
 // writeArtifactMetadata writes artifact_meta.json files next to built artifacts
 // when GitHub metadata is available.
-func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []build.Artifact) core.Result {
+func writeArtifactMetadata(filesystem storage.Medium, buildName string, artifacts []build.Artifact) core.Result {
 	ci := build.DetectCI()
 	if ci == nil {
 		ci = build.DetectGitHubMetadata()
@@ -697,14 +696,14 @@ func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []b
 func getBuilder(projectType build.ProjectType) core.Result {
 	builder := builders.ResolveBuilder(projectType)
 	if !builder.OK {
-		return core.Fail(coreerr.E("release.getBuilder", "unsupported project type: "+string(projectType), core.NewError(builder.Error())))
+		return core.Fail(core.E("release.getBuilder", "unsupported project type: "+string(projectType), core.NewError(builder.Error())))
 	}
 	return builder
 }
 
 // resolveProjectType determines which builder type to use for release builds.
 // An explicit build type in .core/build.yaml takes precedence over marker-based detection.
-func resolveProjectType(filesystem io.Medium, projectDir, buildType string) core.Result {
+func resolveProjectType(filesystem storage.Medium, projectDir, buildType string) core.Result {
 	if buildType != "" {
 		return core.Ok(build.ProjectType(buildType))
 	}
@@ -732,7 +731,7 @@ func getPublisher(publisherType string) core.Result {
 	case "chocolatey":
 		return core.Ok(publishers.NewChocolateyPublisher())
 	default:
-		return core.Fail(coreerr.E("release.getPublisher", "unsupported publisher type: "+publisherType, nil))
+		return core.Fail(core.E("release.getPublisher", "unsupported publisher type: "+publisherType, nil))
 	}
 }
 

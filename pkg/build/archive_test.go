@@ -11,9 +11,8 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 
-	io_interface "dappco.re/go/io"
-	// TODO(AX-6): Replace with dappco.re/go/crypt when it exposes Compress/Decompress API parity.
 	core "dappco.re/go"
+	io_interface "dappco.re/go/build/pkg/storage"
 	"github.com/Snider/Borg/pkg/compress"
 )
 

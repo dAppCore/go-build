@@ -7,8 +7,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/sdk"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	coreio "dappco.re/go/build/pkg/storage"
 	"gopkg.in/yaml.v3" // Note: AX-6 — no core YAMLUnmarshal yet.
 )
 
@@ -245,19 +244,19 @@ func LoadConfigAtPath(filesystem coreio.Medium, configPath string) core.Result {
 		if !filesystem.IsFile(configPath) {
 			return core.Ok(DefaultConfig())
 		}
-		return core.Fail(coreerr.E("release.LoadConfigAtPath", "failed to read config file", core.NewError(contentResult.Error())))
+		return core.Fail(core.E("release.LoadConfigAtPath", "failed to read config file", core.NewError(contentResult.Error())))
 	}
 	content := contentResult.Value.(string)
 
 	var node yaml.Node
 	if parseFailure := yaml.Unmarshal([]byte(content), &node); parseFailure != nil {
-		return core.Fail(coreerr.E("release.LoadConfigAtPath", "failed to parse config file", parseFailure))
+		return core.Fail(core.E("release.LoadConfigAtPath", "failed to parse config file", parseFailure))
 	}
 	diffConfigured, diffEnabled, scalarDiff := normalizeReleaseSDKDiffDocument(&node)
 
 	var cfg Config
 	if parseFailure := node.Decode(&cfg); parseFailure != nil {
-		return core.Fail(coreerr.E("release.LoadConfigAtPath", "failed to parse config file", parseFailure))
+		return core.Fail(core.E("release.LoadConfigAtPath", "failed to parse config file", parseFailure))
 	}
 	if diffConfigured && cfg.SDK != nil {
 		cfg.SDK.Diff.EnabledConfigured = true
@@ -602,7 +601,7 @@ func WriteConfig(cfg *Config, dir string) core.Result {
 	// Resolve path with AX-aware helpers.
 	absPathResult := ax.Abs(configPath)
 	if !absPathResult.OK {
-		return core.Fail(coreerr.E("release.WriteConfig", "failed to resolve path", core.NewError(absPathResult.Error())))
+		return core.Fail(core.E("release.WriteConfig", "failed to resolve path", core.NewError(absPathResult.Error())))
 	}
 	absPath := absPathResult.Value.(string)
 
@@ -610,17 +609,17 @@ func WriteConfig(cfg *Config, dir string) core.Result {
 	configDir := ax.Dir(absPath)
 	created := ax.MkdirAll(configDir, 0o755)
 	if !created.OK {
-		return core.Fail(coreerr.E("release.WriteConfig", "failed to create directory", core.NewError(created.Error())))
+		return core.Fail(core.E("release.WriteConfig", "failed to create directory", core.NewError(created.Error())))
 	}
 
 	data, marshalFailure := yaml.Marshal(cfg)
 	if marshalFailure != nil {
-		return core.Fail(coreerr.E("release.WriteConfig", "failed to marshal config", marshalFailure))
+		return core.Fail(core.E("release.WriteConfig", "failed to marshal config", marshalFailure))
 	}
 
 	written := ax.WriteString(absPath, string(data), 0o644)
 	if !written.OK {
-		return core.Fail(coreerr.E("release.WriteConfig", "failed to write config file", core.NewError(written.Error())))
+		return core.Fail(core.E("release.WriteConfig", "failed to write config file", core.NewError(written.Error())))
 	}
 
 	return core.Ok(nil)

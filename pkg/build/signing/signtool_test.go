@@ -7,7 +7,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestSigntool_NewWindowsSigner_Good(t *testing.T) {
@@ -70,7 +70,7 @@ func TestSigntool_Sign_Bad(t *testing.T) {
 			Certificate: "cert.pfx",
 		})
 
-		result := signer.Sign(context.Background(), io.Local, "test.exe")
+		result := signer.Sign(context.Background(), storage.Local, "test.exe")
 		if result.OK {
 			t.Fatal("expected error")
 		}
@@ -83,7 +83,7 @@ func TestSigntool_Sign_Bad(t *testing.T) {
 
 func TestSigntool_Sign_Good(t *testing.T) {
 	signer := NewWindowsSigner(WindowsConfig{Signtool: true, Certificate: "cert.pfx"})
-	result := signer.Sign(context.Background(), io.Local, "test.exe")
+	result := signer.Sign(context.Background(), storage.Local, "test.exe")
 	if runtime.GOOS != "windows" {
 		if result.OK {
 			t.Fatal("expected non-Windows platform guard")
@@ -195,7 +195,7 @@ func TestSigntool_WindowsSigner_Sign_Good(t *core.T) {
 	subject := &WindowsSigner{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -207,7 +207,7 @@ func TestSigntool_WindowsSigner_Sign_Bad(t *core.T) {
 	subject := &WindowsSigner{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, io.NewMemoryMedium(), "")
+		_ = subject.Sign(ctx, storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -219,7 +219,7 @@ func TestSigntool_WindowsSigner_Sign_Ugly(t *core.T) {
 	subject := &WindowsSigner{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

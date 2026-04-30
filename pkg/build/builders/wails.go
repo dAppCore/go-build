@@ -9,8 +9,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // WailsBuilder implements the Builder interface for Wails v3 projects.
@@ -34,8 +33,8 @@ func (b *WailsBuilder) Name() string {
 
 // Detect checks if this builder can handle the project (checks for wails.json).
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *WailsBuilder) Detect(fs io.Medium, dir string) core.Result {
+// ok, err := b.Detect(storage.Local, ".")
+func (b *WailsBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(build.IsWailsProject(fs, dir))
 }
 
@@ -45,12 +44,12 @@ func (b *WailsBuilder) Detect(fs io.Medium, dir string) core.Result {
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "darwin", Arch: "arm64"}})
 func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("WailsBuilder.Build", "config is nil", nil))
+		return core.Fail(core.E("WailsBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
 	if len(targets) == 0 {
-		return core.Fail(coreerr.E("WailsBuilder.Build", "no targets specified", nil))
+		return core.Fail(core.E("WailsBuilder.Build", "no targets specified", nil))
 	}
 
 	if versionFlag := build.VersionLinkerFlag(cfg.Version); !versionFlag.OK {
@@ -82,7 +81,7 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 		for _, target := range targets {
 			artifactResult := b.buildV3Target(ctx, cfg, target)
 			if !artifactResult.OK {
-				return core.Fail(coreerr.E("WailsBuilder.Build", "failed to build "+target.String(), core.NewError(artifactResult.Error())))
+				return core.Fail(core.E("WailsBuilder.Build", "failed to build "+target.String(), core.NewError(artifactResult.Error())))
 			}
 			artifacts = append(artifacts, artifactResult.Value.(build.Artifact))
 		}
@@ -99,7 +98,7 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	// Ensure output directory exists
 	created := filesystem.EnsureDir(cfg.OutputDir)
 	if !created.OK {
-		return core.Fail(coreerr.E("WailsBuilder.Build", "failed to create output directory", core.NewError(created.Error())))
+		return core.Fail(core.E("WailsBuilder.Build", "failed to create output directory", core.NewError(created.Error())))
 	}
 
 	// Note: Wails v2 handles frontend installation/building automatically via wails.json config
@@ -109,7 +108,7 @@ func (b *WailsBuilder) Build(ctx context.Context, cfg *build.Config, targets []b
 	for _, target := range targets {
 		artifactResult := b.buildV2Target(ctx, cfg, target)
 		if !artifactResult.OK {
-			return core.Fail(coreerr.E("WailsBuilder.Build", "failed to build "+target.String(), core.NewError(artifactResult.Error())))
+			return core.Fail(core.E("WailsBuilder.Build", "failed to build "+target.String(), core.NewError(artifactResult.Error())))
 		}
 		artifacts = append(artifacts, artifactResult.Value.(build.Artifact))
 	}
@@ -193,7 +192,7 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 
 	output := ax.CombinedOutput(ctx, cfg.ProjectDir, env, wailsCommand, args...)
 	if !output.OK {
-		return core.Fail(coreerr.E("WailsBuilder.buildV3Target", "wails3 "+verb+" failed: "+output.Error(), core.NewError(output.Error())))
+		return core.Fail(core.E("WailsBuilder.buildV3Target", "wails3 "+verb+" failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
 	sourcePathResult := b.findV3Artifact(filesystem, cfg.ProjectDir, binaryName, target, verb == "package")
@@ -205,13 +204,13 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 	created := filesystem.EnsureDir(platformDir)
 	if !created.OK {
-		return core.Fail(coreerr.E("WailsBuilder.buildV3Target", "failed to create output dir", core.NewError(created.Error())))
+		return core.Fail(core.E("WailsBuilder.buildV3Target", "failed to create output dir", core.NewError(created.Error())))
 	}
 
 	destPath := ax.Join(platformDir, ax.Base(sourcePath))
 	copied := copyBuildArtifact(filesystem, sourcePath, destPath)
 	if !copied.OK {
-		return core.Fail(coreerr.E("WailsBuilder.buildV3Target", "failed to copy artifact "+sourcePath, core.NewError(copied.Error())))
+		return core.Fail(core.E("WailsBuilder.buildV3Target", "failed to copy artifact "+sourcePath, core.NewError(copied.Error())))
 	}
 
 	return core.Ok(build.Artifact{
@@ -226,7 +225,7 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 // err := b.PreBuild(ctx, cfg) // runs `deno task build` or `npm run build`
 func (b *WailsBuilder) PreBuild(ctx context.Context, cfg *build.Config) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("WailsBuilder.PreBuild", "config is nil", nil))
+		return core.Fail(core.E("WailsBuilder.PreBuild", "config is nil", nil))
 	}
 
 	frontendResult := b.resolveFrontendBuild(cfg)
@@ -243,14 +242,14 @@ func (b *WailsBuilder) PreBuild(ctx context.Context, cfg *build.Config) core.Res
 
 	output := ax.CombinedOutput(ctx, frontendDir, build.BuildEnvironment(cfg), command, args...)
 	if !output.OK {
-		return core.Fail(coreerr.E("WailsBuilder.PreBuild", command+" build failed: "+output.Error(), core.NewError(output.Error())))
+		return core.Fail(core.E("WailsBuilder.PreBuild", command+" build failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
 	return core.Ok(nil)
 }
 
 // isWailsV3 checks if the project uses Wails v3 by inspecting go.mod.
-func (b *WailsBuilder) isWailsV3(fs io.Medium, dir string) bool {
+func (b *WailsBuilder) isWailsV3(fs storage.Medium, dir string) bool {
 	goModPath := ax.Join(dir, "go.mod")
 	content := fs.Read(goModPath)
 	if !content.OK {
@@ -270,12 +269,12 @@ type frontendBuild struct {
 
 func (b *WailsBuilder) resolveFrontendBuild(cfg *build.Config) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("WailsBuilder.resolveFrontendBuild", "config is nil", nil))
+		return core.Fail(core.E("WailsBuilder.resolveFrontendBuild", "config is nil", nil))
 	}
 
 	fs := cfg.FS
 	if fs == nil {
-		fs = io.Local
+		fs = storage.Local
 	}
 	projectDir := cfg.ProjectDir
 	frontendDir := b.resolveFrontendDir(fs, projectDir)
@@ -348,7 +347,7 @@ func (b *WailsBuilder) resolvePackageManagerBuild(frontendDir, packageManager st
 }
 
 // resolveFrontendDir returns the directory that contains the frontend build manifest.
-func (b *WailsBuilder) resolveFrontendDir(fs io.Medium, projectDir string) string {
+func (b *WailsBuilder) resolveFrontendDir(fs storage.Medium, projectDir string) string {
 	frontendDir := ax.Join(projectDir, "frontend")
 	if fs.IsDir(frontendDir) && (b.hasDenoConfig(fs, frontendDir) || fs.IsFile(ax.Join(frontendDir, "package.json"))) {
 		return frontendDir
@@ -373,20 +372,20 @@ func (b *WailsBuilder) resolveFrontendDir(fs io.Medium, projectDir string) strin
 }
 
 // hasDenoConfig reports whether the frontend directory contains a Deno manifest.
-func (b *WailsBuilder) hasDenoConfig(fs io.Medium, dir string) bool {
+func (b *WailsBuilder) hasDenoConfig(fs storage.Medium, dir string) bool {
 	return fs.IsFile(ax.Join(dir, "deno.json")) || fs.IsFile(ax.Join(dir, "deno.jsonc"))
 }
 
 // resolveSubtreeFrontendDir finds a nested frontend manifest within the project tree.
 // This supports monorepo layouts such as apps/web/package.json or apps/web/deno.json
 // when frontend/ is absent.
-func (b *WailsBuilder) resolveSubtreeFrontendDir(fs io.Medium, projectDir string) string {
+func (b *WailsBuilder) resolveSubtreeFrontendDir(fs storage.Medium, projectDir string) string {
 	return b.findFrontendDir(fs, projectDir, 0)
 }
 
 // findFrontendDir walks nested directories until it finds a frontend manifest.
 // The v3 discovery contract only scans to depth 2 for monorepo frontends.
-func (b *WailsBuilder) findFrontendDir(fs io.Medium, dir string, depth int) string {
+func (b *WailsBuilder) findFrontendDir(fs storage.Medium, dir string, depth int) string {
 	if depth >= 2 {
 		return ""
 	}
@@ -490,7 +489,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Capture output for error messages
 	output := ax.CombinedOutput(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), wailsCommand, args...)
 	if !output.OK {
-		return core.Fail(coreerr.E("WailsBuilder.buildV2Target", "wails build failed: "+output.Error(), core.NewError(output.Error())))
+		return core.Fail(core.E("WailsBuilder.buildV2Target", "wails build failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
 	// Wails v2 typically outputs to build/bin
@@ -502,7 +501,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Find the artifact in Wails output dir
 	sourcePathResult := b.findArtifact(filesystem, wailsOutputDir, binaryName, target)
 	if !sourcePathResult.OK {
-		return core.Fail(coreerr.E("WailsBuilder.buildV2Target", "failed to find Wails v2 build artifact", core.NewError(sourcePathResult.Error())))
+		return core.Fail(core.E("WailsBuilder.buildV2Target", "failed to find Wails v2 build artifact", core.NewError(sourcePathResult.Error())))
 	}
 	sourcePath := sourcePathResult.Value.(string)
 
@@ -511,7 +510,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	platformDir := ax.Join(cfg.OutputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 	created := filesystem.EnsureDir(platformDir)
 	if !created.OK {
-		return core.Fail(coreerr.E("WailsBuilder.buildV2Target", "failed to create output dir", core.NewError(created.Error())))
+		return core.Fail(core.E("WailsBuilder.buildV2Target", "failed to create output dir", core.NewError(created.Error())))
 	}
 
 	destPath := ax.Join(platformDir, ax.Base(sourcePath))
@@ -519,7 +518,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 	// Copy the selected artifact, preserving directory bundles such as .app packages.
 	copied := copyBuildArtifact(filesystem, sourcePath, destPath)
 	if !copied.OK {
-		return core.Fail(coreerr.E("WailsBuilder.buildV2Target", "failed to copy artifact "+sourcePath, core.NewError(copied.Error())))
+		return core.Fail(core.E("WailsBuilder.buildV2Target", "failed to copy artifact "+sourcePath, core.NewError(copied.Error())))
 	}
 
 	return core.Ok(build.Artifact{
@@ -530,7 +529,7 @@ func (b *WailsBuilder) buildV2Target(ctx context.Context, cfg *build.Config, tar
 }
 
 // findArtifact locates the built artifact based on the target platform.
-func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string, target build.Target) core.Result {
+func (b *WailsBuilder) findArtifact(fs storage.Medium, platformDir, binaryName string, target build.Target) core.Result {
 	var candidates []string
 
 	switch target.OS {
@@ -565,7 +564,7 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 	// If no specific candidate found, try to find any executable or package in the directory
 	entriesResult := fs.List(platformDir)
 	if !entriesResult.OK {
-		return core.Fail(coreerr.E("WailsBuilder.findArtifact", "failed to read platform directory", core.NewError(entriesResult.Error())))
+		return core.Fail(core.E("WailsBuilder.findArtifact", "failed to read platform directory", core.NewError(entriesResult.Error())))
 	}
 	entries := entriesResult.Value.([]stdfs.DirEntry)
 
@@ -593,10 +592,10 @@ func (b *WailsBuilder) findArtifact(fs io.Medium, platformDir, binaryName string
 		}
 	}
 
-	return core.Fail(coreerr.E("WailsBuilder.findArtifact", "no artifact found in "+platformDir, nil))
+	return core.Fail(core.E("WailsBuilder.findArtifact", "no artifact found in "+platformDir, nil))
 }
 
-func (b *WailsBuilder) findV3Artifact(fs io.Medium, projectDir, binaryName string, target build.Target, packaged bool) core.Result {
+func (b *WailsBuilder) findV3Artifact(fs storage.Medium, projectDir, binaryName string, target build.Target, packaged bool) core.Result {
 	if packaged && target.OS == "windows" {
 		for _, candidate := range []string{
 			ax.Join(projectDir, "build", "windows", "nsis", binaryName+"-installer.exe"),
@@ -618,13 +617,13 @@ func (b *WailsBuilder) findV3Artifact(fs io.Medium, projectDir, binaryName strin
 		}
 	}
 
-	return core.Fail(coreerr.E("WailsBuilder.findV3Artifact", "no artifact found for "+target.String(), nil))
+	return core.Fail(core.E("WailsBuilder.findV3Artifact", "no artifact found for "+target.String(), nil))
 }
 
 // copyBuildArtifact copies a file or directory artifact into the build output tree.
 //
-// err := copyBuildArtifact(io.Local, "/tmp/source.app", "/tmp/dist/source.app")
-func copyBuildArtifact(fs io.Medium, sourcePath, destPath string) core.Result {
+// err := copyBuildArtifact(storage.Local, "/tmp/source.app", "/tmp/dist/source.app")
+func copyBuildArtifact(fs storage.Medium, sourcePath, destPath string) core.Result {
 	if fs.IsDir(sourcePath) {
 		created := fs.EnsureDir(destPath)
 		if !created.OK {
@@ -683,7 +682,7 @@ func (b *WailsBuilder) resolveWailsCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("wails", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("WailsBuilder.resolveWailsCli", "wails CLI not found. Install it with: go install github.com/wailsapp/wails/v2/cmd/wails@latest", core.NewError(command.Error())))
+		return core.Fail(core.E("WailsBuilder.resolveWailsCli", "wails CLI not found. Install it with: go install github.com/wailsapp/wails/v2/cmd/wails@latest", core.NewError(command.Error())))
 	}
 
 	return command
@@ -703,7 +702,7 @@ func (b *WailsBuilder) resolveWails3Cli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("wails3", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("WailsBuilder.resolveWails3Cli", "wails3 CLI not found. Install Wails v3 or expose it on PATH.", core.NewError(command.Error())))
+		return core.Fail(core.E("WailsBuilder.resolveWails3Cli", "wails3 CLI not found. Install Wails v3 or expose it on PATH.", core.NewError(command.Error())))
 	}
 
 	return command
@@ -824,7 +823,7 @@ func (b *WailsBuilder) prepareV3Obfuscation(env []string) core.Result {
 
 	shimDirResult := ax.TempDir("core-build-wails3-go-*")
 	if !shimDirResult.OK {
-		return core.Fail(coreerr.E("WailsBuilder.prepareV3Obfuscation", "failed to create garble shim directory", core.NewError(shimDirResult.Error())))
+		return core.Fail(core.E("WailsBuilder.prepareV3Obfuscation", "failed to create garble shim directory", core.NewError(shimDirResult.Error())))
 	}
 	shimDir := shimDirResult.Value.(string)
 
@@ -832,7 +831,7 @@ func (b *WailsBuilder) prepareV3Obfuscation(env []string) core.Result {
 	if !written.OK {
 		cleaned := ax.RemoveAll(shimDir)
 		if !cleaned.OK {
-			return core.Fail(coreerr.E("WailsBuilder.prepareV3Obfuscation", "failed to clean up garble shim directory", core.NewError(cleaned.Error())))
+			return core.Fail(core.E("WailsBuilder.prepareV3Obfuscation", "failed to clean up garble shim directory", core.NewError(cleaned.Error())))
 		}
 		return written
 	}
@@ -857,7 +856,7 @@ func resolveGoCli() core.Result {
 
 	command := ax.ResolveCommand("go", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("WailsBuilder.resolveGoCli", "go CLI not found. Install Go from https://go.dev/dl/", core.NewError(command.Error())))
+		return core.Fail(core.E("WailsBuilder.resolveGoCli", "go CLI not found. Install Go from https://go.dev/dl/", core.NewError(command.Error())))
 	}
 
 	return command
@@ -875,14 +874,14 @@ func writeGoShim(dir, goCommand, garbleCommand string) core.Result {
 		for _, name := range []string{"go.bat", "go.cmd"} {
 			written := ax.WriteFile(ax.Join(dir, name), []byte(content), 0o755)
 			if !written.OK {
-				return core.Fail(coreerr.E("WailsBuilder.writeGoShim", "failed to write Windows go shim", core.NewError(written.Error())))
+				return core.Fail(core.E("WailsBuilder.writeGoShim", "failed to write Windows go shim", core.NewError(written.Error())))
 			}
 		}
 	default:
 		content := "#!/bin/sh\nset -eu\nif [ \"${1:-}\" = \"build\" ]; then\n  exec \"" + garbleCommand + "\" \"$@\"\nfi\nexec \"" + goCommand + "\" \"$@\"\n"
 		written := ax.WriteFile(ax.Join(dir, "go"), []byte(content), 0o755)
 		if !written.OK {
-			return core.Fail(coreerr.E("WailsBuilder.writeGoShim", "failed to write go shim", core.NewError(written.Error())))
+			return core.Fail(core.E("WailsBuilder.writeGoShim", "failed to write go shim", core.NewError(written.Error())))
 		}
 	}
 
@@ -954,7 +953,7 @@ func validateWebView2Mode(mode string) core.Result {
 	case "", "download", "embed", "browser", "error":
 		return core.Ok(nil)
 	default:
-		return core.Fail(coreerr.E("WailsBuilder.validateWebView2Mode", "webview2 must be one of download, embed, browser, or error", nil))
+		return core.Fail(core.E("WailsBuilder.validateWebView2Mode", "webview2 must be one of download, embed, browser, or error", nil))
 	}
 }
 
@@ -969,7 +968,7 @@ func (b *WailsBuilder) resolveDenoCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("deno", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("WailsBuilder.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", core.NewError(command.Error())))
+		return core.Fail(core.E("WailsBuilder.resolveDenoCli", "deno CLI not found. Install it from https://deno.com/runtime", core.NewError(command.Error())))
 	}
 
 	return command
@@ -986,7 +985,7 @@ func (b *WailsBuilder) resolveNpmCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("npm", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("WailsBuilder.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", core.NewError(command.Error())))
+		return core.Fail(core.E("WailsBuilder.resolveNpmCli", "npm CLI not found. Install Node.js from https://nodejs.org/", core.NewError(command.Error())))
 	}
 
 	return command
@@ -1003,7 +1002,7 @@ func (b *WailsBuilder) resolveBunCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("bun", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("WailsBuilder.resolveBunCli", "bun CLI not found. Install it from https://bun.sh/", core.NewError(command.Error())))
+		return core.Fail(core.E("WailsBuilder.resolveBunCli", "bun CLI not found. Install it from https://bun.sh/", core.NewError(command.Error())))
 	}
 
 	return command
@@ -1020,7 +1019,7 @@ func (b *WailsBuilder) resolvePnpmCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("pnpm", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("WailsBuilder.resolvePnpmCli", "pnpm CLI not found. Install it from https://pnpm.io/installation", core.NewError(command.Error())))
+		return core.Fail(core.E("WailsBuilder.resolvePnpmCli", "pnpm CLI not found. Install it from https://pnpm.io/installation", core.NewError(command.Error())))
 	}
 
 	return command
@@ -1037,7 +1036,7 @@ func (b *WailsBuilder) resolveYarnCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("yarn", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("WailsBuilder.resolveYarnCli", "yarn CLI not found. Install it from https://yarnpkg.com/getting-started/install", core.NewError(command.Error())))
+		return core.Fail(core.E("WailsBuilder.resolveYarnCli", "yarn CLI not found. Install it from https://yarnpkg.com/getting-started/install", core.NewError(command.Error())))
 	}
 
 	return command
@@ -1045,7 +1044,7 @@ func (b *WailsBuilder) resolveYarnCli(paths ...string) core.Result {
 
 // detectPackageManager detects the frontend package manager based on lock files.
 // Returns "bun", "pnpm", "yarn", or "npm" (default).
-func detectPackageManager(fs io.Medium, dir string) string {
+func detectPackageManager(fs storage.Medium, dir string) string {
 	if declared := detectDeclaredPackageManager(fs, dir); declared != "" {
 		return declared
 	}

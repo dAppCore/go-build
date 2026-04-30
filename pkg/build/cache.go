@@ -5,7 +5,7 @@ package build
 import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 	"gopkg.in/yaml.v3"
 )
 
@@ -13,7 +13,7 @@ import (
 // no cache directory is supplied.
 //
 //	cfg := build.CacheConfig{Enabled: true}
-//	// SetupCache(io.Local, ".", &cfg) -> ".core/cache"
+//	// SetupCache(storage.Local, ".", &cfg) -> ".core/cache"
 const DefaultCacheDirectory = ".core/cache"
 
 // DefaultProcessCacheDirectory is the RFC-documented cache directory used by
@@ -115,7 +115,7 @@ func (c *CacheConfig) UnmarshalYAML(value *yaml.Node) core.Result {
 //
 // The canonical form is the 3-argument variant:
 //
-//	err := build.SetupCache(io.Local, ".", &build.CacheConfig{
+//	err := build.SetupCache(storage.Local, ".", &build.CacheConfig{
 //	    Enabled: true,
 //	    Paths: []string{"~/.cache/go-build", "~/go/pkg/mod"},
 //	})
@@ -143,7 +143,7 @@ func SetupCache(args ...any) core.Result {
 		applyCacheEnvironment(cfg)
 		return core.Ok(nil)
 	case 3:
-		fs, _ := args[0].(io.Medium)
+		fs, _ := args[0].(storage.Medium)
 		dir, _ := args[1].(string)
 		cfg, ok := args[2].(*CacheConfig)
 		if !ok {
@@ -166,7 +166,7 @@ func cacheConfigArg(arg any) (*CacheConfig, bool) {
 	}
 }
 
-func setupCacheWithMedium(fs io.Medium, dir string, cfg *CacheConfig) core.Result {
+func setupCacheWithMedium(fs storage.Medium, dir string, cfg *CacheConfig) core.Result {
 	if fs == nil || cfg == nil || !cfg.Enabled {
 		return core.Ok(nil)
 	}
@@ -206,8 +206,8 @@ func setupCacheWithMedium(fs io.Medium, dir string, cfg *CacheConfig) core.Resul
 
 // SetupBuildCache prepares the cache configuration stored on a build config.
 //
-//	err := build.SetupBuildCache(io.Local, ".", cfg)
-func SetupBuildCache(fs io.Medium, dir string, cfg *BuildConfig) core.Result {
+//	err := build.SetupBuildCache(storage.Local, ".", cfg)
+func SetupBuildCache(fs storage.Medium, dir string, cfg *BuildConfig) core.Result {
 	if fs == nil || cfg == nil {
 		return core.Ok(nil)
 	}
@@ -217,8 +217,8 @@ func SetupBuildCache(fs io.Medium, dir string, cfg *BuildConfig) core.Result {
 
 // CacheKey returns a deterministic cache key from go.sum, go.work.sum, and the target platform.
 //
-//	key := build.CacheKey(io.Local, ".", "linux", "amd64") // "go-linux-amd64-abc123..."
-func CacheKey(fs io.Medium, dir, goos, goarch string) string {
+//	key := build.CacheKey(storage.Local, ".", "linux", "amd64") // "go-linux-amd64-abc123..."
+func CacheKey(fs storage.Medium, dir, goos, goarch string) string {
 	var seed []byte
 
 	if fs != nil {
@@ -245,9 +245,9 @@ func CacheKey(fs io.Medium, dir, goos, goarch string) string {
 // CacheKeyWithConfig returns a deterministic cache key and applies the optional
 // cache key prefix from configuration.
 //
-//	key := build.CacheKeyWithConfig(io.Local, ".", "linux", "amd64", &cfg.Cache)
+//	key := build.CacheKeyWithConfig(storage.Local, ".", "linux", "amd64", &cfg.Cache)
 //	// "demo-go-linux-amd64-abc123..."
-func CacheKeyWithConfig(fs io.Medium, dir, goos, goarch string, cfg *CacheConfig) string {
+func CacheKeyWithConfig(fs storage.Medium, dir, goos, goarch string, cfg *CacheConfig) string {
 	key := CacheKey(fs, dir, goos, goarch)
 	if cfg == nil {
 		return key

@@ -6,10 +6,10 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
-func requireDetectedProjectType(t *testing.T, fs io.Medium, dir string) build.ProjectType {
+func requireDetectedProjectType(t *testing.T, fs storage.Medium, dir string) build.ProjectType {
 	t.Helper()
 
 	result := DetectProjectType(fs, dir)
@@ -20,7 +20,7 @@ func requireDetectedProjectType(t *testing.T, fs io.Medium, dir string) build.Pr
 }
 
 func TestDetectProjectType_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("prefers configured build type from .core/build.yaml even without markers", func(t *testing.T) {
 		dir := t.TempDir()
@@ -212,7 +212,7 @@ func TestDetectProjectType_Good(t *testing.T) {
 }
 
 func TestDetectProjectType_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("returns empty type for empty directory", func(t *testing.T) {
 		projectType := requireDetectedProjectType(t, fs, t.TempDir())
@@ -227,7 +227,7 @@ func TestDetectProjectType_Bad(t *testing.T) {
 func TestProjectdetect_DetectProjectType_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = DetectProjectType(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = DetectProjectType(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -236,7 +236,7 @@ func TestProjectdetect_DetectProjectType_Good(t *core.T) {
 func TestProjectdetect_DetectProjectType_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = DetectProjectType(io.NewMemoryMedium(), "")
+		_ = DetectProjectType(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -245,7 +245,7 @@ func TestProjectdetect_DetectProjectType_Bad(t *core.T) {
 func TestProjectdetect_DetectProjectType_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = DetectProjectType(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = DetectProjectType(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

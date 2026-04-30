@@ -7,7 +7,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 
 	core "dappco.re/go"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // setupTestDir creates a temporary directory with the specified marker files.
@@ -75,7 +75,7 @@ func writeDiscoveryFile(t *testing.T, dir string, relPath string, content string
 	requireDiscoveryOKResult(t, ax.WriteFile(path, []byte(content), 0o644))
 }
 
-func assertDiscoverTypes(t *testing.T, fs io.Medium, dir string, want []ProjectType) {
+func assertDiscoverTypes(t *testing.T, fs storage.Medium, dir string, want []ProjectType) {
 	t.Helper()
 
 	types := requireDiscoveryTypes(t, Discover(fs, dir))
@@ -84,7 +84,7 @@ func assertDiscoverTypes(t *testing.T, fs io.Medium, dir string, want []ProjectT
 	}
 }
 
-func assertDiscoverEmpty(t *testing.T, fs io.Medium, dir string) {
+func assertDiscoverEmpty(t *testing.T, fs storage.Medium, dir string) {
 	t.Helper()
 
 	types := requireDiscoveryTypes(t, Discover(fs, dir))
@@ -93,7 +93,7 @@ func assertDiscoverEmpty(t *testing.T, fs io.Medium, dir string) {
 	}
 }
 
-func assertDiscoverFullStack(t *testing.T, fs io.Medium, dir string, want []ProjectType, wantStack string, markers ...string) *DiscoveryResult {
+func assertDiscoverFullStack(t *testing.T, fs storage.Medium, dir string, want []ProjectType, wantStack string, markers ...string) *DiscoveryResult {
 	t.Helper()
 
 	result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
@@ -112,7 +112,7 @@ func assertDiscoverFullStack(t *testing.T, fs io.Medium, dir string, want []Proj
 }
 
 func TestDiscovery_Discover_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	_ = requireDiscoveryTypes(t, Discover(fs, setupTestDir(t, "go.mod")))
 
 	t.Run("prefers configured build type from .core/build.yaml", func(t *testing.T) {
@@ -368,7 +368,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 }
 
 func TestDiscovery_Discover_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("non-existent directory returns empty slice", func(t *testing.T) {
 		types := requireDiscoveryTypes(t, Discover(fs, "/non/existent/path"))
 		if !stdlibAssertEmpty(types) {
@@ -398,7 +398,7 @@ func TestDiscovery_Discover_Bad(t *testing.T) {
 }
 
 func TestDiscovery_PrimaryType_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("returns configured build type from .core/build.yaml", func(t *testing.T) {
 		dir := t.TempDir()
 		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
@@ -500,7 +500,7 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsGoProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with go.mod", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
 		if !(IsGoProject(fs, dir)) {
@@ -535,7 +535,7 @@ func TestDiscovery_IsGoProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsWailsProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with wails.json", func(t *testing.T) {
 		dir := setupTestDir(t, "wails.json")
 		if !(IsWailsProject(fs, dir)) {
@@ -588,7 +588,7 @@ func TestDiscovery_IsWailsProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsNodeProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("true with package.json", func(t *testing.T) {
 		dir := setupTestDir(t, "package.json")
@@ -656,7 +656,7 @@ func TestDiscovery_IsNodeProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsPHPProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with composer.json", func(t *testing.T) {
 		dir := setupTestDir(t, "composer.json")
 		if !(IsPHPProject(fs, dir)) {
@@ -683,7 +683,7 @@ func TestDiscovery_Target_Good(t *testing.T) {
 }
 
 func TestDiscovery_FileExistsGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("returns true for existing file", func(t *testing.T) {
 		dir := t.TempDir()
 		path := ax.Join(dir, "test.txt")
@@ -713,7 +713,7 @@ func TestDiscovery_FileExistsGood(t *testing.T) {
 // TestDiscover_Testdata tests discovery using the testdata fixtures.
 // These serve as integration tests with realistic project structures.
 func TestDiscovery_DiscoverTestdataGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	testdataDir := requireDiscoveryString(t, ax.Abs("testdata"))
 
 	tests := []struct {
@@ -753,7 +753,7 @@ func TestDiscovery_DiscoverTestdataGood(t *testing.T) {
 }
 
 func TestDiscovery_IsMkDocsProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with mkdocs.yml", func(t *testing.T) {
 		dir := setupTestDir(t, "mkdocs.yml")
 		if !(IsMkDocsProject(fs, dir)) {
@@ -791,7 +791,7 @@ func TestDiscovery_IsMkDocsProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsMkDocsProject_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false for non-existent directory", func(t *testing.T) {
 		if IsMkDocsProject(fs, "/non/existent/path") {
 			t.Fatal("expected false")
@@ -801,7 +801,7 @@ func TestDiscovery_IsMkDocsProject_Bad(t *testing.T) {
 }
 
 func TestDiscovery_IsMkDocsProject_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false when mkdocs.yml is a directory", func(t *testing.T) {
 		dir := t.TempDir()
 		requireDiscoveryOKResult(t, ax.Mkdir(ax.Join(dir, "mkdocs.yml"), 0755))
@@ -813,7 +813,7 @@ func TestDiscovery_IsMkDocsProject_Ugly(t *testing.T) {
 }
 
 func TestDiscovery_HasSubtreeNpm_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with depth 1 nested package.json", func(t *testing.T) {
 		dir := t.TempDir()
 		subdir := ax.Join(dir, "packages", "web")
@@ -867,7 +867,7 @@ func TestDiscovery_HasSubtreeNpm_Good(t *testing.T) {
 }
 
 func TestDiscovery_HasSubtreeNpm_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false for non-existent directory", func(t *testing.T) {
 		if HasSubtreeNpm(fs, "/non/existent/path") {
 			t.Fatal("expected false")
@@ -913,7 +913,7 @@ func TestDiscovery_HasSubtreeNpm_Bad(t *testing.T) {
 }
 
 func TestDiscovery_HasSubtreeNpm_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false when nested package.json is beyond depth 2", func(t *testing.T) {
 		dir := t.TempDir()
 		deep := ax.Join(dir, "a", "b", "c")
@@ -928,7 +928,7 @@ func TestDiscovery_HasSubtreeNpm_Ugly(t *testing.T) {
 }
 
 func TestDiscovery_IsPythonProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with pyproject.toml", func(t *testing.T) {
 		dir := setupTestDir(t, "pyproject.toml")
 		if !(IsPythonProject(fs, dir)) {
@@ -963,7 +963,7 @@ func TestDiscovery_IsPythonProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsPythonProject_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false for non-existent directory", func(t *testing.T) {
 		if IsPythonProject(fs, "/non/existent/path") {
 			t.Fatal("expected false")
@@ -973,7 +973,7 @@ func TestDiscovery_IsPythonProject_Bad(t *testing.T) {
 }
 
 func TestDiscovery_IsPythonProject_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false when pyproject.toml is a directory", func(t *testing.T) {
 		dir := t.TempDir()
 		requireDiscoveryOKResult(t, ax.Mkdir(ax.Join(dir, "pyproject.toml"), 0755))
@@ -985,7 +985,7 @@ func TestDiscovery_IsPythonProject_Ugly(t *testing.T) {
 }
 
 func TestDiscovery_IsRustProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with Cargo.toml", func(t *testing.T) {
 		dir := setupTestDir(t, "Cargo.toml")
 		if !(IsRustProject(fs, dir)) {
@@ -1004,7 +1004,7 @@ func TestDiscovery_IsRustProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsRustProject_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false for non-existent directory", func(t *testing.T) {
 		if IsRustProject(fs, "/non/existent/path") {
 			t.Fatal("expected false")
@@ -1014,7 +1014,7 @@ func TestDiscovery_IsRustProject_Bad(t *testing.T) {
 }
 
 func TestDiscovery_IsRustProject_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false when Cargo.toml is a directory", func(t *testing.T) {
 		dir := t.TempDir()
 		requireDiscoveryOKResult(t, ax.Mkdir(ax.Join(dir, "Cargo.toml"), 0755))
@@ -1026,7 +1026,7 @@ func TestDiscovery_IsRustProject_Ugly(t *testing.T) {
 }
 
 func TestDiscovery_DiscoverFull_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("configured build type stays authoritative in full discovery", func(t *testing.T) {
 		dir := t.TempDir()
 		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
@@ -1638,7 +1638,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	})
 
 	t.Run("reports distro-aware Linux packages for Wails projects", func(t *testing.T) {
-		mock := io.NewMemoryMedium()
+		mock := storage.NewMemoryMedium()
 		requireDiscoveryOKResult(t, mock.EnsureDir("/project"))
 		requireDiscoveryOKResult(t, mock.Write("/project/go.mod", "module example"))
 		requireDiscoveryOKResult(t, mock.Write("/project/package.json", "{}"))
@@ -1862,7 +1862,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 }
 
 func TestDiscovery_DiscoverFull_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("non-existent directory returns empty result", func(t *testing.T) {
 		result := requireDiscoveryFull(t, DiscoverFull(fs, "/non/existent/path"))
 		if !stdlibAssertEmpty(result.Types) {
@@ -1876,7 +1876,7 @@ func TestDiscovery_DiscoverFull_Bad(t *testing.T) {
 }
 
 func TestDiscovery_DiscoverFull_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("markers map is never nil even for empty directory", func(t *testing.T) {
 		dir := t.TempDir()
 		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
@@ -1995,7 +1995,7 @@ ID=ubuntu
 }
 
 func TestDiscovery_DetectDistroVersionGood(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	requireDiscoveryOKResult(t, fs.Write("/etc/os-release", `
 ID=ubuntu
 VERSION_ID="24.04"
@@ -2007,7 +2007,7 @@ VERSION_ID="24.04"
 }
 
 func TestDiscovery_DetectDistroVersionBad(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	requireDiscoveryOKResult(t, fs.Write("/etc/os-release", `
 ID=fedora
 VERSION_ID=41
@@ -2040,7 +2040,7 @@ func TestDiscovery_NilMediumGood(t *testing.T) {
 func TestDiscovery_Discover_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = Discover(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = Discover(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2049,7 +2049,7 @@ func TestDiscovery_Discover_Ugly(t *core.T) {
 func TestDiscovery_PrimaryType_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = PrimaryType(io.NewMemoryMedium(), "")
+		_ = PrimaryType(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2058,7 +2058,7 @@ func TestDiscovery_PrimaryType_Bad(t *core.T) {
 func TestDiscovery_PrimaryType_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = PrimaryType(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = PrimaryType(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2067,7 +2067,7 @@ func TestDiscovery_PrimaryType_Ugly(t *core.T) {
 func TestDiscovery_IsGoProject_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsGoProject(io.NewMemoryMedium(), "")
+		_ = IsGoProject(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2076,7 +2076,7 @@ func TestDiscovery_IsGoProject_Bad(t *core.T) {
 func TestDiscovery_IsGoProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsGoProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsGoProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2085,7 +2085,7 @@ func TestDiscovery_IsGoProject_Ugly(t *core.T) {
 func TestDiscovery_IsWailsProject_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsWailsProject(io.NewMemoryMedium(), "")
+		_ = IsWailsProject(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2094,7 +2094,7 @@ func TestDiscovery_IsWailsProject_Bad(t *core.T) {
 func TestDiscovery_IsWailsProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsWailsProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsWailsProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2103,7 +2103,7 @@ func TestDiscovery_IsWailsProject_Ugly(t *core.T) {
 func TestDiscovery_IsNodeProject_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsNodeProject(io.NewMemoryMedium(), "")
+		_ = IsNodeProject(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2112,7 +2112,7 @@ func TestDiscovery_IsNodeProject_Bad(t *core.T) {
 func TestDiscovery_IsNodeProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsNodeProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsNodeProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2121,7 +2121,7 @@ func TestDiscovery_IsNodeProject_Ugly(t *core.T) {
 func TestDiscovery_IsPHPProject_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsPHPProject(io.NewMemoryMedium(), "")
+		_ = IsPHPProject(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2130,7 +2130,7 @@ func TestDiscovery_IsPHPProject_Bad(t *core.T) {
 func TestDiscovery_IsPHPProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsPHPProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsPHPProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2139,7 +2139,7 @@ func TestDiscovery_IsPHPProject_Ugly(t *core.T) {
 func TestDiscovery_IsCPPProject_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsCPPProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsCPPProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -2148,7 +2148,7 @@ func TestDiscovery_IsCPPProject_Good(t *core.T) {
 func TestDiscovery_IsCPPProject_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsCPPProject(io.NewMemoryMedium(), "")
+		_ = IsCPPProject(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2157,7 +2157,7 @@ func TestDiscovery_IsCPPProject_Bad(t *core.T) {
 func TestDiscovery_IsCPPProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsCPPProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsCPPProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2166,7 +2166,7 @@ func TestDiscovery_IsCPPProject_Ugly(t *core.T) {
 func TestDiscovery_IsDocsProject_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsDocsProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsDocsProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -2175,7 +2175,7 @@ func TestDiscovery_IsDocsProject_Good(t *core.T) {
 func TestDiscovery_IsDocsProject_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsDocsProject(io.NewMemoryMedium(), "")
+		_ = IsDocsProject(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2184,7 +2184,7 @@ func TestDiscovery_IsDocsProject_Bad(t *core.T) {
 func TestDiscovery_IsDocsProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsDocsProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsDocsProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2193,7 +2193,7 @@ func TestDiscovery_IsDocsProject_Ugly(t *core.T) {
 func TestDiscovery_ResolveMkDocsConfigPath_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveMkDocsConfigPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveMkDocsConfigPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -2202,7 +2202,7 @@ func TestDiscovery_ResolveMkDocsConfigPath_Good(t *core.T) {
 func TestDiscovery_ResolveMkDocsConfigPath_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveMkDocsConfigPath(io.NewMemoryMedium(), "")
+		_ = ResolveMkDocsConfigPath(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2211,7 +2211,7 @@ func TestDiscovery_ResolveMkDocsConfigPath_Bad(t *core.T) {
 func TestDiscovery_ResolveMkDocsConfigPath_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveMkDocsConfigPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveMkDocsConfigPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2256,7 +2256,7 @@ func TestDiscovery_ResolveLinuxPackages_Ugly(t *core.T) {
 func TestDiscovery_ResolveDockerfilePath_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveDockerfilePath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveDockerfilePath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -2265,7 +2265,7 @@ func TestDiscovery_ResolveDockerfilePath_Good(t *core.T) {
 func TestDiscovery_ResolveDockerfilePath_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveDockerfilePath(io.NewMemoryMedium(), "")
+		_ = ResolveDockerfilePath(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2274,7 +2274,7 @@ func TestDiscovery_ResolveDockerfilePath_Bad(t *core.T) {
 func TestDiscovery_ResolveDockerfilePath_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveDockerfilePath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveDockerfilePath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2283,7 +2283,7 @@ func TestDiscovery_ResolveDockerfilePath_Ugly(t *core.T) {
 func TestDiscovery_IsDockerProject_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsDockerProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsDockerProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -2292,7 +2292,7 @@ func TestDiscovery_IsDockerProject_Good(t *core.T) {
 func TestDiscovery_IsDockerProject_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsDockerProject(io.NewMemoryMedium(), "")
+		_ = IsDockerProject(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2301,7 +2301,7 @@ func TestDiscovery_IsDockerProject_Bad(t *core.T) {
 func TestDiscovery_IsDockerProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsDockerProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsDockerProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2310,7 +2310,7 @@ func TestDiscovery_IsDockerProject_Ugly(t *core.T) {
 func TestDiscovery_IsLinuxKitProject_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsLinuxKitProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsLinuxKitProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -2319,7 +2319,7 @@ func TestDiscovery_IsLinuxKitProject_Good(t *core.T) {
 func TestDiscovery_IsLinuxKitProject_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsLinuxKitProject(io.NewMemoryMedium(), "")
+		_ = IsLinuxKitProject(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2328,7 +2328,7 @@ func TestDiscovery_IsLinuxKitProject_Bad(t *core.T) {
 func TestDiscovery_IsLinuxKitProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsLinuxKitProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsLinuxKitProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -2337,7 +2337,7 @@ func TestDiscovery_IsLinuxKitProject_Ugly(t *core.T) {
 func TestDiscovery_IsTaskfileProject_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsTaskfileProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsTaskfileProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -2346,7 +2346,7 @@ func TestDiscovery_IsTaskfileProject_Good(t *core.T) {
 func TestDiscovery_IsTaskfileProject_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsTaskfileProject(io.NewMemoryMedium(), "")
+		_ = IsTaskfileProject(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2355,7 +2355,7 @@ func TestDiscovery_IsTaskfileProject_Bad(t *core.T) {
 func TestDiscovery_IsTaskfileProject_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = IsTaskfileProject(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = IsTaskfileProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

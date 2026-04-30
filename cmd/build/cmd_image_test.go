@@ -8,7 +8,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func setupFakeLinuxKitImageCLI(t *testing.T, binDir string) {
@@ -254,21 +254,21 @@ func TestBuildCmd_allImageArtifactsExist_RequiresMatchingCacheMetadata_Good(t *t
 	}
 	requireBuildCmdOK(t, ax.WriteFile(ax.Join(outputDir, "core-dev.tar"), []byte("oci image"), 0o644))
 	requireBuildCmdOK(t, ax.WriteFile(ax.Join(outputDir, "core-dev.aci"), []byte("apple image"), 0o644))
-	requireBuildCmdOK(t, writeImageBuildCacheMetadata(io.Local, outputDir, imageName, cfg, "v1.2.3"))
-	if !(allImageArtifactsExist(io.Local, builder, outputDir, imageName, cfg, "v1.2.3")) {
+	requireBuildCmdOK(t, writeImageBuildCacheMetadata(storage.Local, outputDir, imageName, cfg, "v1.2.3"))
+	if !(allImageArtifactsExist(storage.Local, builder, outputDir, imageName, cfg, "v1.2.3")) {
 		t.Fatal("expected true")
 	}
-	if allImageArtifactsExist(io.Local, builder, outputDir, imageName, cfg, "v1.2.4") {
+	if allImageArtifactsExist(storage.Local, builder, outputDir, imageName, cfg, "v1.2.4") {
 		t.Fatal("expected false")
 	}
 
 	changedCfg := cfg
 	changedCfg.GPU = true
-	if allImageArtifactsExist(io.Local, builder, outputDir, imageName, changedCfg, "v1.2.3") {
+	if allImageArtifactsExist(storage.Local, builder, outputDir, imageName, changedCfg, "v1.2.3") {
 		t.Fatal("expected false")
 	}
-	requireBuildCmdOK(t, io.Local.Delete(imageBuildCacheMetadataPath(outputDir, imageName)))
-	if allImageArtifactsExist(io.Local, builder, outputDir, imageName, cfg, "v1.2.3") {
+	requireBuildCmdOK(t, storage.Local.Delete(imageBuildCacheMetadataPath(outputDir, imageName)))
+	if allImageArtifactsExist(storage.Local, builder, outputDir, imageName, cfg, "v1.2.3") {
 		t.Fatal("expected false")
 	}
 
@@ -286,14 +286,14 @@ func TestBuildCmd_allImageArtifactsExist_ValidatesVersionlessCacheMetadata_Good(
 	}
 	requireBuildCmdOK(t, ax.WriteFile(ax.Join(outputDir, "core-dev.tar"), []byte("oci image"), 0o644))
 	requireBuildCmdOK(t, ax.WriteFile(ax.Join(outputDir, "core-dev.aci"), []byte("apple image"), 0o644))
-	requireBuildCmdOK(t, writeImageBuildCacheMetadata(io.Local, outputDir, imageName, cfg, ""))
-	if !(allImageArtifactsExist(io.Local, builder, outputDir, imageName, cfg, "")) {
+	requireBuildCmdOK(t, writeImageBuildCacheMetadata(storage.Local, outputDir, imageName, cfg, ""))
+	if !(allImageArtifactsExist(storage.Local, builder, outputDir, imageName, cfg, "")) {
 		t.Fatal("expected true")
 	}
 
 	changedCfg := cfg
 	changedCfg.GPU = true
-	if allImageArtifactsExist(io.Local, builder, outputDir, imageName, changedCfg, "") {
+	if allImageArtifactsExist(storage.Local, builder, outputDir, imageName, changedCfg, "") {
 		t.Fatal("expected false")
 	}
 
@@ -306,7 +306,7 @@ func TestBuildCmd_retainVersionedImageArtifacts_Good(t *testing.T) {
 	requireBuildCmdOK(t, ax.WriteFile(tarPath, []byte("oci image"), 0o644))
 	requireBuildCmdOK(t, ax.WriteFile(aciPath, []byte("apple image"), 0o644))
 
-	versionedPathsResult := retainVersionedImageArtifacts(io.Local, []build.Artifact{
+	versionedPathsResult := retainVersionedImageArtifacts(storage.Local, []build.Artifact{
 		{Path: tarPath},
 		{Path: aciPath},
 	}, "v1.2.3")

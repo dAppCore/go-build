@@ -8,8 +8,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // DockerBuilder builds Docker images.
@@ -33,8 +32,8 @@ func (b *DockerBuilder) Name() string {
 
 // Detect checks if a Dockerfile or Containerfile exists in the directory.
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *DockerBuilder) Detect(fs io.Medium, dir string) core.Result {
+// ok, err := b.Detect(storage.Local, ".")
+func (b *DockerBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	if build.ResolveDockerfilePath(fs, dir) != "" {
 		return core.Ok(true)
 	}
@@ -46,7 +45,7 @@ func (b *DockerBuilder) Detect(fs io.Medium, dir string) core.Result {
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("DockerBuilder.Build", "config is nil", nil))
+		return core.Fail(core.E("DockerBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
@@ -72,7 +71,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Validate Dockerfile exists
 	if dockerfile == "" || !filesystem.IsFile(dockerfile) {
-		return core.Fail(coreerr.E("DockerBuilder.Build", "Dockerfile or Containerfile not found", nil))
+		return core.Fail(core.E("DockerBuilder.Build", "Dockerfile or Containerfile not found", nil))
 	}
 
 	// Determine image name
@@ -169,7 +168,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	// Create output directory
 	created := filesystem.EnsureDir(cfg.OutputDir)
 	if !created.OK {
-		return core.Fail(coreerr.E("DockerBuilder.Build", "failed to create output directory", core.NewError(created.Error())))
+		return core.Fail(core.E("DockerBuilder.Build", "failed to create output directory", core.NewError(created.Error())))
 	}
 
 	core.Print(nil, "Building Docker image: %s", imageName)
@@ -180,7 +179,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	// multi-arch image or OCI archive from the combined platform list.
 	executed := ax.ExecWithEnv(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), dockerCommand, args...)
 	if !executed.OK {
-		return core.Fail(coreerr.E("DockerBuilder.Build", "buildx build failed", core.NewError(executed.Error())))
+		return core.Fail(core.E("DockerBuilder.Build", "buildx build failed", core.NewError(executed.Error())))
 	}
 
 	artifactPath := imageRefs[0]
@@ -208,7 +207,7 @@ func (b *DockerBuilder) resolveDockerCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("docker", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("DockerBuilder.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", core.NewError(command.Error())))
+		return core.Fail(core.E("DockerBuilder.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", core.NewError(command.Error())))
 	}
 
 	return command
@@ -219,7 +218,7 @@ func (b *DockerBuilder) ensureBuildx(ctx context.Context, dockerCommand string) 
 	// Check if buildx is available
 	version := ax.Exec(ctx, dockerCommand, "buildx", "version")
 	if !version.OK {
-		return core.Fail(coreerr.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", core.NewError(version.Error())))
+		return core.Fail(core.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", core.NewError(version.Error())))
 	}
 
 	// Check if we have a builder, create one if not
@@ -228,7 +227,7 @@ func (b *DockerBuilder) ensureBuildx(ctx context.Context, dockerCommand string) 
 		// Try to create a builder
 		created := ax.Exec(ctx, dockerCommand, "buildx", "create", "--use", "--bootstrap")
 		if !created.OK {
-			return core.Fail(coreerr.E("DockerBuilder.ensureBuildx", "failed to create buildx builder", core.NewError(created.Error())))
+			return core.Fail(core.E("DockerBuilder.ensureBuildx", "failed to create buildx builder", core.NewError(created.Error())))
 		}
 	}
 

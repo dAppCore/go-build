@@ -4,7 +4,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	coreio "dappco.re/go/io"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 func TestApplePlist_GenerateAppleInfoPlist_Good(t *core.T) {

@@ -8,7 +8,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestGitHub_ParseGitHubRepoGood(t *testing.T) {
@@ -98,7 +98,7 @@ func TestGitHub_GitHubPublisherNameGood(t *testing.T) {
 
 func TestGitHub_NewRelease_Good(t *testing.T) {
 	t.Run("creates release struct", func(t *testing.T) {
-		r := NewRelease("v1.0.0", nil, "changelog", "/project", io.Local)
+		r := NewRelease("v1.0.0", nil, "changelog", "/project", storage.Local)
 		if !stdlibAssertEqual("v1.0.0", r.Version) {
 			t.Fatalf("want %v, got %v", "v1.0.0", r.Version)
 		}
@@ -111,8 +111,8 @@ func TestGitHub_NewRelease_Good(t *testing.T) {
 		if !stdlibAssertNil(r.Artifacts) {
 			t.Fatalf("expected nil, got %v", r.Artifacts)
 		}
-		if !stdlibAssertEqual(io.Local, r.ArtifactFS) {
-			t.Fatalf("want %v, got %v", io.Local, r.ArtifactFS)
+		if !stdlibAssertEqual(storage.Local, r.ArtifactFS) {
+			t.Fatalf("want %v, got %v", storage.Local, r.ArtifactFS)
 		}
 
 	})
@@ -156,7 +156,7 @@ func TestGitHub_BuildCreateArgsGood(t *testing.T) {
 		release := &Release{
 			Version:   "v1.0.0",
 			Changelog: "## v1.0.0\n\nChanges",
-			FS:        io.Local,
+			FS:        storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
@@ -190,7 +190,7 @@ func TestGitHub_BuildCreateArgsGood(t *testing.T) {
 	t.Run("with draft flag", func(t *testing.T) {
 		release := &Release{
 			Version: "v1.0.0",
-			FS:      io.Local,
+			FS:      storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:  "github",
@@ -207,7 +207,7 @@ func TestGitHub_BuildCreateArgsGood(t *testing.T) {
 	t.Run("with prerelease flag", func(t *testing.T) {
 		release := &Release{
 			Version: "v1.0.0",
-			FS:      io.Local,
+			FS:      storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:       "github",
@@ -224,7 +224,7 @@ func TestGitHub_BuildCreateArgsGood(t *testing.T) {
 	t.Run("auto-detects prerelease from semver version", func(t *testing.T) {
 		release := &Release{
 			Version: "v1.0.0-beta.1",
-			FS:      io.Local,
+			FS:      storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
@@ -241,7 +241,7 @@ func TestGitHub_BuildCreateArgsGood(t *testing.T) {
 		release := &Release{
 			Version:   "v1.0.0",
 			Changelog: "",
-			FS:        io.Local,
+			FS:        storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
@@ -257,7 +257,7 @@ func TestGitHub_BuildCreateArgsGood(t *testing.T) {
 	t.Run("with draft and prerelease flags", func(t *testing.T) {
 		release := &Release{
 			Version: "v1.0.0-alpha",
-			FS:      io.Local,
+			FS:      storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:       "github",
@@ -279,7 +279,7 @@ func TestGitHub_BuildCreateArgsGood(t *testing.T) {
 		release := &Release{
 			Version:   "v2.0.0",
 			Changelog: "Some changes",
-			FS:        io.Local,
+			FS:        storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
@@ -310,7 +310,7 @@ func TestGitHub_GitHubPublisherDryRunPublishGood(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "## Changes\n\n- Feature A\n- Bug fix B",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:       "github",
@@ -361,7 +361,7 @@ func TestGitHub_GitHubPublisherDryRunPublishGood(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/dist/myapp-darwin-amd64.tar.gz"},
 				{Path: "/dist/myapp-linux-amd64.tar.gz"},
@@ -391,7 +391,7 @@ func TestGitHub_GitHubPublisherDryRunPublishGood(t *testing.T) {
 			Version:    "v1.0.0-beta",
 			Changelog:  "Beta release",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:       "github",
@@ -424,7 +424,7 @@ func TestGitHub_GitHubPublisherDryRunPublishGood(t *testing.T) {
 			Version:    "v1.0.0-rc.1",
 			Changelog:  "Release candidate",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
@@ -453,7 +453,7 @@ func TestGitHub_GitHubPublisherPublishGood(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: "custom/repo"}
@@ -485,7 +485,7 @@ func TestGitHub_GitHubPublisherPublishBad(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: "/nonexistent",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
@@ -502,7 +502,7 @@ func TestGitHub_GitHubPublisherPublishBad(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: ""} // Empty repository
@@ -723,14 +723,14 @@ func TestGitHub_GitHubPublisherExecutePublishGood(t *testing.T) {
 			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		artifactFS := io.NewMemoryMedium()
+		artifactFS := storage.NewMemoryMedium()
 		requirePublisherOK(t, artifactFS.Write("releases/app-linux-amd64.tar.gz", "artifact"))
 
 		release := &Release{
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: t.TempDir(),
-			FS:         io.Local,
+			FS:         storage.Local,
 			ArtifactFS: artifactFS,
 			Artifacts: []build.Artifact{
 				{Path: "releases/app-linux-amd64.tar.gz"},
@@ -770,7 +770,7 @@ func TestGitHub_GitHubPublisherExecutePublishGood(t *testing.T) {
 			Version:    "v999.999.999-test-nonexistent",
 			Changelog:  "Test changelog",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/tmp/nonexistent-artifact.tar.gz"},
 			},

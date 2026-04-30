@@ -5,7 +5,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/log"
 )
 
 func (p *LinuxKitPublisher) publishLinuxKitArtifact(ctx context.Context, release *Release, cfg LinuxKitConfig, format, artifactPath string) core.Result {
@@ -46,10 +45,10 @@ func (p *LinuxKitPublisher) publishLocalLinuxKitArtifact(release *Release, artif
 
 func (p *LinuxKitPublisher) ensureLinuxKitArtifact(release *Release, artifactPath string) core.Result {
 	if release == nil || release.FS == nil {
-		return core.Fail(coreerr.E("linuxkit.Publish", "release filesystem (FS) is nil", nil))
+		return core.Fail(core.E("linuxkit.Publish", "release filesystem (FS) is nil", nil))
 	}
 	if !release.FS.Exists(artifactPath) {
-		return core.Fail(coreerr.E("linuxkit.Publish", "artifact not found after build: "+artifactPath, nil))
+		return core.Fail(core.E("linuxkit.Publish", "artifact not found after build: "+artifactPath, nil))
 	}
 	return core.Ok(nil)
 }

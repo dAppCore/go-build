@@ -7,7 +7,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/buildtest"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestBuildCmd_resolveReleaseWorkflowOutputPathInputGood(t *testing.T) {
@@ -136,7 +136,7 @@ func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_AbsoluteEquivalent_Goo
 func TestBuildCmd_resolveReleaseWorkflowOutputPathAliases_AbsoluteDirectory_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	absoluteDir := ax.Join(projectDir, "ops")
-	requireBuildCmdOK(t, io.Local.EnsureDir(absoluteDir))
+	requireBuildCmdOK(t, storage.Local.EnsureDir(absoluteDir))
 
 	path := requireBuildCmdString(t, resolveReleaseWorkflowOutputPathAliases(projectDir, "", "", "", "", absoluteDir, "", "", "", ""))
 	if !stdlibAssertEqual(ax.Join(absoluteDir, "release.yml"), path) {
@@ -182,7 +182,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "", ""))
 
 		path := build.ReleaseWorkflowPath(projectDir)
-		content := requireBuildCmdString(t, io.Local.Read(path))
+		content := requireBuildCmdString(t, storage.Local.Read(path))
 		buildtest.AssertReleaseWorkflowContent(t, content)
 
 	})
@@ -213,7 +213,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 		customPath := "ci/release.yml"
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, customPath, ""))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, customPath)))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, customPath)))
 		buildtest.AssertReleaseWorkflowContent(t, content)
 
 	})
@@ -222,17 +222,17 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 		customPath := "ci/"
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, customPath, ""))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, "ci", "release.yml")))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, "ci", "release.yml")))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
 
 	t.Run("writes release.yml inside an existing directory without a trailing slash", func(t *testing.T) {
-		requireBuildCmdOK(t, io.Local.EnsureDir(ax.Join(projectDir, "ops")))
+		requireBuildCmdOK(t, storage.Local.EnsureDir(ax.Join(projectDir, "ops")))
 
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "ops", ""))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, "ops", "release.yml")))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, "ops", "release.yml")))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
@@ -240,7 +240,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 	t.Run("writes release.yml inside a bare directory-style path", func(t *testing.T) {
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "ci", ""))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, "ci", "release.yml")))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, "ci", "release.yml")))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
@@ -248,7 +248,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 	t.Run("writes release.yml inside a current-directory-prefixed directory-style path", func(t *testing.T) {
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "./ci", ""))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, "ci", "release.yml")))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, "ci", "release.yml")))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
@@ -256,7 +256,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 	t.Run("writes release.yml inside the conventional workflows directory", func(t *testing.T) {
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, ".github/workflows", ""))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, ".github", "workflows", "release.yml")))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, ".github", "workflows", "release.yml")))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
@@ -264,7 +264,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 	t.Run("writes release.yml inside a current-directory-prefixed workflows directory", func(t *testing.T) {
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "./.github/workflows", ""))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, ".github", "workflows", "release.yml")))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, ".github", "workflows", "release.yml")))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
@@ -273,7 +273,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 		customPath := "ci/alias-release.yml"
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "", customPath))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, customPath)))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, customPath)))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
@@ -282,7 +282,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 		customPath := "ci/output-path-release.yml"
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "", customPath))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, customPath)))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, customPath)))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
@@ -291,7 +291,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 		customPath := "ci/output_path-release.yml"
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "", customPath))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, customPath)))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, customPath)))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
@@ -300,7 +300,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 		customPath := "ci/workflow-output-release.yml"
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "", customPath))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, customPath)))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, customPath)))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})
@@ -309,7 +309,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 		customPath := "ci/workflow_output-release.yml"
 		requireBuildCmdOK(t, runReleaseWorkflowInDir(projectDir, "", customPath))
 
-		content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, customPath)))
+		content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, customPath)))
 		buildtest.AssertReleaseWorkflowTriggers(t, content)
 
 	})

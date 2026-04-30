@@ -8,7 +8,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func setupFakeLinuxKitToolchain(t *testing.T, binDir string) {
@@ -55,7 +55,7 @@ func TestLinuxKit_LinuxKitBuilderNameGood(t *testing.T) {
 }
 
 func TestLinuxKit_LinuxKitBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("detects linuxkit.yml in root", func(t *testing.T) {
 		dir := t.TempDir()
@@ -386,7 +386,7 @@ func TestLinuxKit_LinuxKitBuilderBuild_ResolvesRelativeConfigPathGood(t *testing
 	outputDir := t.TempDir()
 	builder := NewLinuxKitBuilder()
 	cfg := &build.Config{
-		FS:             io.Local,
+		FS:             storage.Local,
 		ProjectDir:     projectDir,
 		OutputDir:      outputDir,
 		Name:           "sample",
@@ -410,7 +410,7 @@ func TestLinuxKit_LinuxKitBuilderBuild_ResolvesRelativeConfigPathGood(t *testing
 }
 
 func TestLinuxKit_LinuxKitBuilderFindArtifactGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	builder := NewLinuxKitBuilder()
 
 	t.Run("finds artifact with exact extension", func(t *testing.T) {
@@ -600,7 +600,7 @@ func TestLinuxkit_LinuxKitBuilder_Detect_Good(t *core.T) {
 	subject := &LinuxKitBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -610,7 +610,7 @@ func TestLinuxkit_LinuxKitBuilder_Detect_Bad(t *core.T) {
 	subject := &LinuxKitBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -620,7 +620,7 @@ func TestLinuxkit_LinuxKitBuilder_Detect_Ugly(t *core.T) {
 	subject := &LinuxKitBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

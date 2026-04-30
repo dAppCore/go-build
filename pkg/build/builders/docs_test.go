@@ -10,7 +10,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestDocs_DocsBuilderNameGood(t *testing.T) {
@@ -22,7 +22,7 @@ func TestDocs_DocsBuilderNameGood(t *testing.T) {
 }
 
 func TestDocs_DocsBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("detects mkdocs.yml", func(t *testing.T) {
 		dir := t.TempDir()
@@ -83,7 +83,7 @@ func TestDocs_DocsBuilderBuildGood(t *testing.T) {
 	logPath := ax.Join(t.TempDir(), "docs.env")
 
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: dir,
 		OutputDir:  ax.Join(dir, "dist"),
 		Name:       "demo-site",
@@ -187,7 +187,7 @@ func TestDocs_DocsBuilderBuild_Good_NestedConfig(t *testing.T) {
 	logPath := ax.Join(t.TempDir(), "docs.args")
 
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: dir,
 		OutputDir:  ax.Join(dir, "dist"),
 		Name:       "demo-site",
@@ -226,7 +226,7 @@ func TestDocs_DocsBuilderBuildBad(t *testing.T) {
 
 	t.Run("returns error when mkdocs.yml is missing", func(t *testing.T) {
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: t.TempDir(),
 			OutputDir:  t.TempDir(),
 		}
@@ -301,7 +301,7 @@ func TestDocs_DocsBuilder_Detect_Good(t *core.T) {
 	subject := &DocsBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -311,7 +311,7 @@ func TestDocs_DocsBuilder_Detect_Bad(t *core.T) {
 	subject := &DocsBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -321,7 +321,7 @@ func TestDocs_DocsBuilder_Detect_Ugly(t *core.T) {
 	subject := &DocsBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

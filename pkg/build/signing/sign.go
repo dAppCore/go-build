@@ -5,7 +5,7 @@ import (
 	"runtime"
 
 	"dappco.re/go"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // Artifact represents a build output that can be signed.
@@ -22,8 +22,8 @@ type Artifact struct {
 // On macOS it signs darwin artifacts with codesign; on Windows it signs windows
 // artifacts with signtool when the relevant credentials are configured.
 //
-// err := signing.SignBinaries(ctx, io.Local, cfg, artifacts)
-func SignBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts []Artifact) core.Result {
+// err := signing.SignBinaries(ctx, storage.Local, cfg, artifacts)
+func SignBinaries(ctx context.Context, fs storage.Medium, cfg SignConfig, artifacts []Artifact) core.Result {
 	if !cfg.Enabled {
 		return core.Ok(nil)
 	}
@@ -51,8 +51,8 @@ func SignBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts [
 
 // NotarizeBinaries notarizes macOS binaries if enabled.
 //
-// err := signing.NotarizeBinaries(ctx, io.Local, cfg, artifacts)
-func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifacts []Artifact) core.Result {
+// err := signing.NotarizeBinaries(ctx, storage.Local, cfg, artifacts)
+func NotarizeBinaries(ctx context.Context, fs storage.Medium, cfg SignConfig, artifacts []Artifact) core.Result {
 	if !cfg.Enabled || !cfg.MacOS.Notarize {
 		return core.Ok(nil)
 	}
@@ -86,8 +86,8 @@ func NotarizeBinaries(ctx context.Context, fs io.Medium, cfg SignConfig, artifac
 
 // SignChecksums signs the checksums file with GPG.
 //
-// err := signing.SignChecksums(ctx, io.Local, cfg, "dist/CHECKSUMS.txt")
-func SignChecksums(ctx context.Context, fs io.Medium, cfg SignConfig, checksumFile string) core.Result {
+// err := signing.SignChecksums(ctx, storage.Local, cfg, "dist/CHECKSUMS.txt")
+func SignChecksums(ctx context.Context, fs storage.Medium, cfg SignConfig, checksumFile string) core.Result {
 	if !cfg.Enabled {
 		return core.Ok(nil)
 	}
@@ -106,7 +106,7 @@ func SignChecksums(ctx context.Context, fs io.Medium, cfg SignConfig, checksumFi
 	return core.Ok(nil)
 }
 
-func signArtifactsWithSigner(ctx context.Context, fs io.Medium, signer Signer, targetOS string, artifacts []Artifact) core.Result {
+func signArtifactsWithSigner(ctx context.Context, fs storage.Medium, signer Signer, targetOS string, artifacts []Artifact) core.Result {
 	_ = fs
 
 	for _, artifact := range artifacts {

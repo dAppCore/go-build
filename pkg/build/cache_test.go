@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	core "dappco.re/go"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -24,7 +24,7 @@ func requireCacheError(t *testing.T, result core.Result) string {
 }
 
 func TestCache_SetupCache_Good(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	cfg := &CacheConfig{
 		Enabled: true,
 		Paths: []string{
@@ -56,7 +56,7 @@ func TestCache_SetupCache_Good(t *testing.T) {
 }
 
 func TestCache_SetupBuildCache_Good(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	cfg := &BuildConfig{
 		Build: Build{
 			Cache: CacheConfig{
@@ -88,7 +88,7 @@ func TestCache_SetupBuildCache_Good(t *testing.T) {
 }
 
 func TestCache_SetupCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	cfg := &CacheConfig{
 		Enabled: true,
 	}
@@ -116,7 +116,7 @@ func TestCache_SetupCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
 }
 
 func TestCache_SetupBuildCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	cfg := &BuildConfig{
 		Build: Build{
 			Cache: CacheConfig{
@@ -148,7 +148,7 @@ func TestCache_SetupBuildCache_Good_DefaultPathsWhenEnabled(t *testing.T) {
 }
 
 func TestCache_SetupCache_Good_Disabled(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	cfg := &CacheConfig{
 		Enabled: false,
 		Paths:   []string{"cache/go-build"},
@@ -180,7 +180,7 @@ func TestCache_SetupCache_Bad(t *testing.T) {
 	})
 
 	t.Run("rejects a non-cache third argument", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 		err := requireCacheError(t, SetupCache(fs, "/workspace/project", CacheConfig{}))
 		if !stdlibAssertContains(err, "third argument must be *CacheConfig") {
 			t.Fatalf("expected %v to contain %v", err, "third argument must be *CacheConfig")
@@ -193,7 +193,7 @@ func TestCache_SetupCache_Ugly(t *testing.T) {
 	t.Run("normalises home and absolute cache paths", func(t *testing.T) {
 		t.Setenv("HOME", "/home/tester")
 
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 		cfg := &CacheConfig{
 			Enabled: true,
 			Paths: []string{
@@ -250,7 +250,7 @@ func TestCache_SetupCache_Ugly(t *testing.T) {
 }
 
 func TestCache_SetupBuildCache_Good_Disabled(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	cfg := &BuildConfig{
 		Build: Build{
 			Cache: CacheConfig{
@@ -292,7 +292,7 @@ func TestCache_SetupBuildCache_Bad(t *testing.T) {
 	})
 
 	t.Run("nil config is a no-op", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		requireCacheOK(t, SetupBuildCache(fs, "/workspace/project", nil))
 
@@ -300,7 +300,7 @@ func TestCache_SetupBuildCache_Bad(t *testing.T) {
 }
 
 func TestCache_CacheKey_Good(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	requireCacheOK(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
 	requireCacheOK(t, fs.Write("/workspace/project/go.work.sum", "workspace.example v1.0.0 h1:def456"))
 
@@ -320,7 +320,7 @@ func TestCache_CacheKey_Good(t *testing.T) {
 }
 
 func TestCache_CacheKey_Good_GoWorkSumChangesKey(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	requireCacheOK(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
 
 	baseline := CacheKey(fs, "/workspace/project", "linux", "amd64")
@@ -358,7 +358,7 @@ func TestCache_CacheEnvironment_Good(t *testing.T) {
 }
 
 func TestCache_CacheKeyWithConfig_Good(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	requireCacheOK(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
 
 	base := CacheKey(fs, "/workspace/project", "linux", "amd64")
@@ -372,7 +372,7 @@ func TestCache_CacheKeyWithConfig_Good(t *testing.T) {
 }
 
 func TestCache_CacheKeyWithConfig_Bad(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	requireCacheOK(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
 
 	base := CacheKey(fs, "/workspace/project", "linux", "amd64")
@@ -393,7 +393,7 @@ func TestCache_CacheKeyWithConfig_Bad(t *testing.T) {
 }
 
 func TestCache_CacheKeyWithConfig_Ugly(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 	requireCacheOK(t, fs.Write("/workspace/project/go.sum", "module.example v1.0.0 h1:abc123"))
 
 	base := CacheKey(fs, "/workspace/project", "linux", "amd64")
@@ -538,7 +538,7 @@ func TestCache_CacheConfig_UnmarshalYAML_Ugly(t *core.T) {
 func TestCache_SetupBuildCache_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = SetupBuildCache(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
+		_ = SetupBuildCache(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -547,7 +547,7 @@ func TestCache_SetupBuildCache_Ugly(t *core.T) {
 func TestCache_CacheKey_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = CacheKey(io.NewMemoryMedium(), "", "", "")
+		_ = CacheKey(storage.NewMemoryMedium(), "", "", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -556,7 +556,7 @@ func TestCache_CacheKey_Bad(t *core.T) {
 func TestCache_CacheKey_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = CacheKey(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), "linux", "amd64")
+		_ = CacheKey(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), "linux", "amd64")
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

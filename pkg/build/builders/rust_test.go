@@ -7,7 +7,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func setupFakeRustToolchain(t *testing.T, binDir string) {
@@ -90,7 +90,7 @@ func TestRust_RustBuilderNameGood(t *testing.T) {
 }
 
 func TestRust_RustBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("detects Cargo.toml projects", func(t *testing.T) {
 		dir := t.TempDir()
@@ -134,7 +134,7 @@ func TestRust_RustBuilderBuildGood(t *testing.T) {
 
 	builder := NewRustBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "testapp",
@@ -262,7 +262,7 @@ func TestRust_RustBuilder_Detect_Good(t *core.T) {
 	subject := &RustBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -272,7 +272,7 @@ func TestRust_RustBuilder_Detect_Bad(t *core.T) {
 	subject := &RustBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -282,7 +282,7 @@ func TestRust_RustBuilder_Detect_Ugly(t *core.T) {
 	subject := &RustBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

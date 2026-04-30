@@ -9,7 +9,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func setupFakePHPToolchain(t *testing.T, binDir string) {
@@ -84,7 +84,7 @@ func TestPHP_PHPBuilderNameGood(t *testing.T) {
 }
 
 func TestPHP_PHPBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("detects composer.json projects", func(t *testing.T) {
 		dir := t.TempDir()
@@ -128,7 +128,7 @@ func TestPHP_PHPBuilderBuildGood(t *testing.T) {
 
 	builder := NewPHPBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "testapp",
@@ -196,7 +196,7 @@ func TestPHP_PHPBuilderBuildFallbackBundleGood(t *testing.T) {
 
 	builder := NewPHPBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "testapp",
@@ -252,7 +252,7 @@ func TestPHP_PHPBuilderBuildDefaultsGood(t *testing.T) {
 
 	builder := NewPHPBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Env:        []string{"FOO=bar"},
@@ -345,7 +345,7 @@ func TestPhp_PHPBuilder_Detect_Good(t *core.T) {
 	subject := &PHPBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -355,7 +355,7 @@ func TestPhp_PHPBuilder_Detect_Bad(t *core.T) {
 	subject := &PHPBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -365,7 +365,7 @@ func TestPhp_PHPBuilder_Detect_Ugly(t *core.T) {
 	subject := &PHPBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

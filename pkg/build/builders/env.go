@@ -10,7 +10,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // appendConfiguredEnv returns a fresh environment slice that includes the
@@ -21,14 +21,14 @@ func appendConfiguredEnv(cfg *build.Config, extra ...string) []string {
 }
 
 // ensureBuildFilesystem returns the filesystem associated with cfg, falling
-// back to io.Local for zero-value configs. When cfg is non-nil, the fallback is
+// back to storage.Local for zero-value configs. When cfg is non-nil, the fallback is
 // also written back so downstream helpers that read cfg.FS stay safe.
-func ensureBuildFilesystem(cfg *build.Config) io.Medium {
+func ensureBuildFilesystem(cfg *build.Config) storage.Medium {
 	if cfg == nil {
-		return io.Local
+		return storage.Local
 	}
 	if cfg.FS == nil {
-		cfg.FS = io.Local
+		cfg.FS = storage.Local
 	}
 	return cfg.FS
 }
@@ -69,7 +69,7 @@ func defaultOutputDir(cfg *build.Config) string {
 	return ax.Join(cfg.ProjectDir, "dist")
 }
 
-func ensureOutputDir(fs io.Medium, outputDir, operation string) core.Result {
+func ensureOutputDir(fs storage.Medium, outputDir, operation string) core.Result {
 	if outputDir == "" {
 		return core.Ok(nil)
 	}
@@ -92,7 +92,7 @@ func platformDir(outputDir string, target build.Target) string {
 	return ax.Join(outputDir, name)
 }
 
-func ensurePlatformDir(fs io.Medium, outputDir string, target build.Target, operation string) core.Result {
+func ensurePlatformDir(fs storage.Medium, outputDir string, target build.Target, operation string) core.Result {
 	dir := platformDir(outputDir, target)
 	created := fs.EnsureDir(dir)
 	if !created.OK {
@@ -140,11 +140,11 @@ func cgoEnvValue(enabled bool) string {
 type stagedOutput struct {
 	outputDir        string
 	commandOutputDir string
-	commandFS        io.Medium
+	commandFS        storage.Medium
 	cleanup          func()
 }
 
-func prepareStagedOutput(outputDir string, artifactFS io.Medium, tempPattern, operation string) core.Result {
+func prepareStagedOutput(outputDir string, artifactFS storage.Medium, tempPattern, operation string) core.Result {
 	stage := stagedOutput{
 		outputDir:        outputDir,
 		commandOutputDir: outputDir,
@@ -161,14 +161,14 @@ func prepareStagedOutput(outputDir string, artifactFS io.Medium, tempPattern, op
 	}
 	stageDir := stageDirResult.Value.(string)
 	stage.commandOutputDir = stageDir
-	stage.commandFS = io.Local
+	stage.commandFS = storage.Local
 	stage.cleanup = func() { ax.RemoveAll(stageDir) }
 	return core.Ok(stage)
 }
 
 type zipExcludeFunc func(path string) bool
 
-func bundleZipTree(fs io.Medium, rootDir, bundlePath, operation string, exclude zipExcludeFunc) core.Result {
+func bundleZipTree(fs storage.Medium, rootDir, bundlePath, operation string, exclude zipExcludeFunc) core.Result {
 	created := fs.EnsureDir(ax.Dir(bundlePath))
 	if !created.OK {
 		return core.Fail(core.E(operation, "failed to create bundle directory", core.NewError(created.Error())))
@@ -187,7 +187,7 @@ func bundleZipTree(fs io.Medium, rootDir, bundlePath, operation string, exclude 
 	return writeZipTree(fs, writer, rootDir, rootDir, operation, exclude)
 }
 
-func writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, currentDir, operation string, exclude zipExcludeFunc) core.Result {
+func writeZipTree(fs storage.Medium, writer *zip.Writer, rootDir, currentDir, operation string, exclude zipExcludeFunc) core.Result {
 	entriesResult := fs.List(currentDir)
 	if !entriesResult.OK {
 		return core.Fail(core.E(operation, "failed to list directory", core.NewError(entriesResult.Error())))
@@ -227,7 +227,7 @@ func writeZipTree(fs io.Medium, writer *zip.Writer, rootDir, currentDir, operati
 	return core.Ok(nil)
 }
 
-func writeZipEntry(fs io.Medium, writer *zip.Writer, rootDir, entryPath, operation string) core.Result {
+func writeZipEntry(fs storage.Medium, writer *zip.Writer, rootDir, entryPath, operation string) core.Result {
 	relPathResult := ax.Rel(rootDir, entryPath)
 	if !relPathResult.OK {
 		return core.Fail(core.E(operation, "failed to relativise bundle path", core.NewError(relPathResult.Error())))

@@ -5,7 +5,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // GPGSigner signs files using GPG.
@@ -45,8 +45,8 @@ func (s *GPGSigner) Available() bool {
 // Sign creates a detached ASCII-armored signature.
 // For file.txt, creates file.txt.asc
 //
-// err := s.Sign(ctx, io.Local, "dist/CHECKSUMS.txt") // creates CHECKSUMS.txt.asc
-func (s *GPGSigner) Sign(ctx context.Context, fs io.Medium, file string) core.Result {
+// err := s.Sign(ctx, storage.Local, "dist/CHECKSUMS.txt") // creates CHECKSUMS.txt.asc
+func (s *GPGSigner) Sign(ctx context.Context, fs storage.Medium, file string) core.Result {
 	if s.KeyID == "" {
 		return core.Fail(core.E("gpg.Sign", "gpg not available or key not configured", nil))
 	}

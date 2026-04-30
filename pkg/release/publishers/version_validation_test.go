@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestPublishers_PublishRejectsUnsafeVersionGood(t *testing.T) {
 	release := &Release{
 		Version:    "v1.2.3;rm -rf /",
 		ProjectDir: t.TempDir(),
-		FS:         io.Local,
+		FS:         storage.Local,
 	}
 
 	relCfg := &mockReleaseConfig{

@@ -9,7 +9,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -87,7 +86,7 @@ func GenerateWithContext(ctx context.Context, dir, fromRef, toRef string) core.R
 		prevTagResult := getPreviousTagWithContext(ctx, dir, toRef)
 		if !prevTagResult.OK {
 			if ctx.Err() != nil {
-				return core.Fail(coreerr.E("changelog.Generate", "generation cancelled", ctx.Err()))
+				return core.Fail(core.E("changelog.Generate", "generation cancelled", ctx.Err()))
 			}
 			// No previous tag, use initial commit
 			fromRef = ""
@@ -99,7 +98,7 @@ func GenerateWithContext(ctx context.Context, dir, fromRef, toRef string) core.R
 	// Get commits between refs
 	commitsResult := getCommitsWithContext(ctx, dir, fromRef, toRef)
 	if !commitsResult.OK {
-		return core.Fail(coreerr.E("changelog.Generate", "failed to get commits", core.NewError(commitsResult.Error())))
+		return core.Fail(core.E("changelog.Generate", "failed to get commits", core.NewError(commitsResult.Error())))
 	}
 	commits := commitsResult.Value.([]string)
 
@@ -140,7 +139,7 @@ func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef stri
 		prevTagResult := getPreviousTagWithContext(ctx, dir, toRef)
 		if !prevTagResult.OK {
 			if ctx.Err() != nil {
-				return core.Fail(coreerr.E("changelog.GenerateWithConfig", "generation cancelled", ctx.Err()))
+				return core.Fail(core.E("changelog.GenerateWithConfig", "generation cancelled", ctx.Err()))
 			}
 			fromRef = ""
 		} else {
@@ -151,7 +150,7 @@ func GenerateWithConfigWithContext(ctx context.Context, dir, fromRef, toRef stri
 	// Get commits between refs
 	commitsResult := getCommitsWithContext(ctx, dir, fromRef, toRef)
 	if !commitsResult.OK {
-		return core.Fail(coreerr.E("changelog.GenerateWithConfig", "failed to get commits", core.NewError(commitsResult.Error())))
+		return core.Fail(core.E("changelog.GenerateWithConfig", "failed to get commits", core.NewError(commitsResult.Error())))
 	}
 	commits := commitsResult.Value.([]string)
 

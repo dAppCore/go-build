@@ -19,8 +19,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/i18n"
-	coreerr "dappco.re/go/log"
 	"github.com/leaanthony/debme"
 	"github.com/leaanthony/gosod"
 	"golang.org/x/net/html"
@@ -28,9 +26,9 @@ import (
 
 // Error sentinels for build commands
 var (
-	errPathRequired     = coreerr.E("buildcmd.Init", "the --path flag is required", nil)
-	errURLRequired      = coreerr.E("buildcmd.Init", "the --url flag is required", nil)
-	errPWAInputRequired = coreerr.E("buildcmd.Init", "either --path or --url is required", nil)
+	errPathRequired     = core.E("buildcmd.Init", "the --path flag is required", nil)
+	errURLRequired      = core.E("buildcmd.Init", "the --url flag is required", nil)
+	errPWAInputRequired = core.E("buildcmd.Init", "either --path or --url is required", nil)
 )
 
 // runLocalPwaBuild points at the local PWA build entrypoint.
@@ -64,19 +62,19 @@ type pwaManifestFetch struct {
 
 // runPwaBuild downloads a PWA from URL and builds it.
 func runPwaBuild(ctx context.Context, pwaURL string) core.Result {
-	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.starting"), pwaURL)
+	core.Print(nil, "%s %s", "Building PWA", pwaURL)
 
 	tempDirResult := ax.TempDir("core-pwa-build-*")
 	if !tempDirResult.OK {
-		return core.Fail(coreerr.E("pwa.runPwaBuild", i18n.T("common.error.failed", map[string]any{"Action": "create temporary directory"}), core.NewError(tempDirResult.Error())))
+		return core.Fail(core.E("pwa.runPwaBuild", "failed to create temporary directory", core.NewError(tempDirResult.Error())))
 	}
 	tempDir := tempDirResult.Value.(string)
 	// defer os.RemoveAll(tempDir) // Keep temp dir for debugging
-	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.downloading_to"), tempDir)
+	core.Print(nil, "%s %s", "Downloading to", tempDir)
 
 	downloaded := downloadPWA(ctx, pwaURL, tempDir)
 	if !downloaded.OK {
-		return core.Fail(coreerr.E("pwa.runPwaBuild", i18n.T("common.error.failed", map[string]any{"Action": "download PWA"}), core.NewError(downloaded.Error())))
+		return core.Fail(core.E("pwa.runPwaBuild", "failed to download PWA", core.NewError(downloaded.Error())))
 	}
 
 	return runBuild(ctx, tempDir)
@@ -86,18 +84,18 @@ func runPwaBuild(ctx context.Context, pwaURL string) core.Result {
 func downloadPWA(ctx context.Context, baseURL, destDir string) core.Result {
 	respResult := getWithContext(ctx, baseURL)
 	if !respResult.OK {
-		return core.Fail(coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch URL"})+" "+baseURL, core.NewError(respResult.Error())))
+		return core.Fail(core.E("pwa.downloadPWA", "failed to fetch URL "+baseURL, core.NewError(respResult.Error())))
 	}
 	resp := respResult.Value.(*http.Response)
 	bodyResult := readAllBytes(resp.Body)
 	if !bodyResult.OK {
-		return core.Fail(coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "read response body"}), core.NewError(bodyResult.Error())))
+		return core.Fail(core.E("pwa.downloadPWA", "failed to read response body", core.NewError(bodyResult.Error())))
 	}
 	body := bodyResult.Value.([]byte)
 
 	extractedResult := extractHTMLMetadataAndAssets(string(body), baseURL)
 	if !extractedResult.OK {
-		return core.Fail(coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "parse HTML entry point"}), core.NewError(extractedResult.Error())))
+		return core.Fail(core.E("pwa.downloadPWA", "failed to parse HTML entry point", core.NewError(extractedResult.Error())))
 	}
 	extracted := extractedResult.Value.(pwaHTMLExtraction)
 	pageMetadata := extracted.Metadata
@@ -105,7 +103,7 @@ func downloadPWA(ctx context.Context, baseURL, destDir string) core.Result {
 
 	writtenIndex := ax.WriteFile(ax.Join(destDir, "index.html"), body, 0o644)
 	if !writtenIndex.OK {
-		return core.Fail(coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), core.NewError(writtenIndex.Error())))
+		return core.Fail(core.E("pwa.downloadPWA", "failed to write index.html", core.NewError(writtenIndex.Error())))
 	}
 
 	downloaded := map[string]struct{}{
@@ -113,19 +111,19 @@ func downloadPWA(ctx context.Context, baseURL, destDir string) core.Result {
 	}
 
 	if pageMetadata.ManifestURL == "" {
-		core.Print(nil, "%s %s", i18n.T("common.label.warning"), i18n.T("cmd.build.pwa.no_manifest"))
+		core.Print(nil, "%s %s", "warning", "no manifest found")
 	} else {
-		core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.found_manifest"), pageMetadata.ManifestURL)
+		core.Print(nil, "%s %s", "Found manifest", pageMetadata.ManifestURL)
 
 		manifestResult := fetchManifest(ctx, pageMetadata.ManifestURL)
 		if !manifestResult.OK {
-			return core.Fail(coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch or parse manifest"}), core.NewError(manifestResult.Error())))
+			return core.Fail(core.E("pwa.downloadPWA", "failed to fetch or parse manifest", core.NewError(manifestResult.Error())))
 		}
 		manifestFetch := manifestResult.Value.(pwaManifestFetch)
 
 		manifestWritten := writeURLAsset(destDir, pageMetadata.ManifestURL, manifestFetch.Body)
 		if !manifestWritten.OK {
-			return core.Fail(coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write manifest"}), core.NewError(manifestWritten.Error())))
+			return core.Fail(core.E("pwa.downloadPWA", "failed to write manifest", core.NewError(manifestWritten.Error())))
 		}
 		downloaded[normalizeAssetURL(pageMetadata.ManifestURL)] = struct{}{}
 		assets = append(assets, collectAssets(manifestFetch.Manifest, pageMetadata.ManifestURL)...)
@@ -142,15 +140,15 @@ func downloadPWA(ctx context.Context, baseURL, destDir string) core.Result {
 		assetDownloaded := downloadAsset(ctx, assetURL, destDir)
 		if !assetDownloaded.OK {
 			if ctx.Err() != nil {
-				return core.Fail(coreerr.E("pwa.downloadPWA", "download cancelled", ctx.Err()))
+				return core.Fail(core.E("pwa.downloadPWA", "download cancelled", ctx.Err()))
 			}
-			core.Print(nil, "%s %s %s: %v", i18n.T("common.label.warning"), i18n.T("common.error.failed", map[string]any{"Action": "download asset"}), assetURL, assetDownloaded.Error())
+			core.Print(nil, "%s %s %s: %v", "warning", "failed to download asset", assetURL, assetDownloaded.Error())
 			continue
 		}
 		downloaded[normalized] = struct{}{}
 	}
 
-	core.Println(i18n.T("cmd.build.pwa.download_complete"))
+	core.Println("PWA download complete")
 	return core.Ok(nil)
 }
 
@@ -162,7 +160,7 @@ func findManifestURL(htmlContent, baseURL string) core.Result {
 	}
 	metadata := extracted.Value.(pwaHTMLExtraction).Metadata
 	if metadata.ManifestURL == "" {
-		return core.Fail(coreerr.E("pwa.findManifestURL", i18n.T("cmd.build.pwa.error.no_manifest_tag"), nil))
+		return core.Fail(core.E("pwa.findManifestURL", "manifest tag not found", nil))
 	}
 	return core.Ok(metadata.ManifestURL)
 }
@@ -305,10 +303,10 @@ func writeURLAsset(destDir, assetURL string, body []byte) core.Result {
 
 // runBuild builds a desktop application from a local directory.
 func runBuild(ctx context.Context, fromPath string) core.Result {
-	core.Print(nil, "%s %s", i18n.T("cmd.build.from_path.starting"), fromPath)
+	core.Print(nil, "%s %s", "Building from path", fromPath)
 
 	if !ax.IsDir(fromPath) {
-		return core.Fail(coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.must_be_directory"), nil))
+		return core.Fail(core.E("pwa.runBuild", "path must be a directory", nil))
 	}
 
 	buildDir := ".core/build/app"
@@ -318,18 +316,18 @@ func runBuild(ctx context.Context, fromPath string) core.Result {
 
 	removed := ax.RemoveAll(buildDir)
 	if !removed.OK {
-		return core.Fail(coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "clean build directory"}), core.NewError(removed.Error())))
+		return core.Fail(core.E("pwa.runBuild", "failed to clean build directory", core.NewError(removed.Error())))
 	}
 
 	// 1. Generate the project from the embedded template
-	core.Println(i18n.T("cmd.build.from_path.generating_template"))
+	core.Println("Generating template")
 	templateFS, err := debme.FS(guiTemplate, "tmpl/gui")
 	if err != nil {
-		return core.Fail(coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "anchor template filesystem"}), err))
+		return core.Fail(core.E("pwa.runBuild", "failed to anchor template filesystem", err))
 	}
 	sod := gosod.New(templateFS)
 	if sod == nil {
-		return core.Fail(coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "create new sod instance"}), nil))
+		return core.Fail(core.E("pwa.runBuild", "failed to create new sod instance", nil))
 	}
 
 	templateData := map[string]string{
@@ -338,33 +336,33 @@ func runBuild(ctx context.Context, fromPath string) core.Result {
 		"AppDescriptionLiteral": core.Sprintf("%q", appConfig.Description),
 	}
 	if err := sod.Extract(buildDir, templateData); err != nil {
-		return core.Fail(coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "extract template"}), err))
+		return core.Fail(core.E("pwa.runBuild", "failed to extract template", err))
 	}
 
 	// 2. Copy the user's web app files
-	core.Println(i18n.T("cmd.build.from_path.copying_files"))
+	core.Println("Copying files")
 	copied := copyDir(fromPath, htmlDir)
 	if !copied.OK {
-		return core.Fail(coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "copy application files"}), core.NewError(copied.Error())))
+		return core.Fail(core.E("pwa.runBuild", "failed to copy application files", core.NewError(copied.Error())))
 	}
 
 	// 3. Compile the application
-	core.Println(i18n.T("cmd.build.from_path.compiling"))
+	core.Println("Compiling")
 
 	// Run go mod tidy
 	tidied := ax.ExecDir(ctx, buildDir, "go", "mod", "tidy")
 	if !tidied.OK {
-		return core.Fail(coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_mod_tidy"), core.NewError(tidied.Error())))
+		return core.Fail(core.E("pwa.runBuild", "go mod tidy failed", core.NewError(tidied.Error())))
 	}
 
 	// Run go build
 	built := ax.ExecDir(ctx, buildDir, "go", "build", "-o", outputExe)
 	if !built.OK {
-		return core.Fail(coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_build"), core.NewError(built.Error())))
+		return core.Fail(core.E("pwa.runBuild", "go build failed", core.NewError(built.Error())))
 	}
 
 	core.Println()
-	core.Print(nil, "%s %s/%s", i18n.T("cmd.build.from_path.success"), buildDir, outputExe)
+	core.Print(nil, "%s %s/%s", "Built", buildDir, outputExe)
 	return core.Ok(nil)
 }
 
@@ -456,12 +454,12 @@ func readAllBytes(reader any) core.Result {
 		if err, ok := result.Value.(error); ok {
 			return core.Fail(err)
 		}
-		return core.Fail(coreerr.E("pwa.readAllBytes", "failed to read stream", nil))
+		return core.Fail(core.E("pwa.readAllBytes", "failed to read stream", nil))
 	}
 
 	content, ok := result.Value.(string)
 	if !ok {
-		return core.Fail(coreerr.E("pwa.readAllBytes", "read stream returned non-string content", nil))
+		return core.Fail(core.E("pwa.readAllBytes", "read stream returned non-string content", nil))
 	}
 	return core.Ok([]byte(content))
 }

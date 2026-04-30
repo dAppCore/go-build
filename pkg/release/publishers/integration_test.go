@@ -7,7 +7,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // --- GitHub Publisher Integration Tests ---
@@ -21,7 +21,7 @@ func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffectsGood(t *testin
 			Version:    "v1.0.0",
 			Changelog:  "## v1.0.0\n\n- feat: initial release",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: ax.Join(tmpDir, "app-linux-amd64.tar.gz")},
 				{Path: ax.Join(tmpDir, "app-darwin-arm64.tar.gz")},
@@ -94,7 +94,7 @@ func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffectsGood(t *testin
 			Version:    "v2.3.0",
 			Changelog:  "## v2.3.0\n\n### Features\n\n- new feature",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/dist/app-linux-amd64.tar.gz"},
 			},
@@ -160,7 +160,7 @@ func TestIntegration_GitHubPublisherIntegrationDryRunNoSideEffectsGood(t *testin
 			Version:    "v1.0.0",
 			Changelog:  "",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 
@@ -183,7 +183,7 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetectionGood(t *testin
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: "explicit/repo"}
@@ -209,7 +209,7 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetectionGood(t *testin
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: ""}
@@ -232,7 +232,7 @@ func TestIntegration_GitHubPublisherIntegrationRepositoryDetectionGood(t *testin
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: ""}
@@ -253,7 +253,7 @@ func TestIntegration_GitHubPublisherIntegrationArtifactUploadGood(t *testing.T) 
 			Version:    "v1.0.0",
 			Changelog:  "Release notes",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/dist/app-linux-amd64.tar.gz", Checksum: "abc123"},
 				{Path: "/dist/app-darwin-arm64.tar.gz", Checksum: "def456"},
@@ -297,7 +297,7 @@ func TestIntegration_GitHubPublisherIntegrationArtifactUploadGood(t *testing.T) 
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/dist/file1.tar.gz"},
 				{Path: "/dist/file2.zip"},
@@ -342,7 +342,7 @@ func TestIntegration_DockerPublisherIntegrationDryRunNoSideEffectsGood(t *testin
 		release := &Release{
 			Version:    "v1.2.3",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "docker",
@@ -500,7 +500,7 @@ func TestIntegration_DockerPublisherIntegrationConfigParsingGood(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "fallback/repo"}
 
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/myproject")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/myproject")
 		if !stdlibAssertEqual("registry.example.com", cfg.Registry) {
 			t.Fatalf("want %v, got %v", "registry.example.com", cfg.Registry)
 		}
@@ -546,7 +546,7 @@ func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffectsGood(t *test
 		release := &Release{
 			Version:    "v2.1.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/dist/myapp-darwin-amd64.tar.gz", Checksum: "sha256_darwin_amd64"},
 				{Path: "/dist/myapp-darwin-arm64.tar.gz", Checksum: "sha256_darwin_arm64"},
@@ -621,7 +621,7 @@ func TestIntegration_HomebrewPublisherIntegrationDryRunNoSideEffectsGood(t *test
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts:  []build.Artifact{},
 		}
 		pubCfg := PublisherConfig{
@@ -666,7 +666,7 @@ func TestIntegration_HomebrewPublisherIntegrationFormulaGenerationGood(t *testin
 			},
 		}
 
-		formula := requirePublisherString(t, p.renderTemplate(io.Local, "templates/homebrew/formula.rb.tmpl", data))
+		formula := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/homebrew/formula.rb.tmpl", data))
 		if !stdlibAssertContains(formula, "class CoreCli < Formula") {
 			t.Fatalf("expected %v to contain %v",
 
@@ -741,7 +741,7 @@ func TestIntegration_ScoopPublisherIntegrationDryRunNoSideEffectsGood(t *testing
 		release := &Release{
 			Version:    "v1.5.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/dist/myapp-windows-amd64.zip", Checksum: "win64hash"},
 				{Path: "/dist/myapp-windows-arm64.zip", Checksum: "winarm64hash"},
@@ -805,7 +805,7 @@ func TestIntegration_AURPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T
 		release := &Release{
 			Version:    "v2.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/dist/myapp-linux-amd64.tar.gz", Checksum: "amd64hash"},
 				{Path: "/dist/myapp-linux-arm64.tar.gz", Checksum: "arm64hash"},
@@ -876,7 +876,7 @@ func TestIntegration_ChocolateyPublisherIntegrationDryRunNoSideEffectsGood(t *te
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/dist/myapp-windows-amd64.zip", Checksum: "choco_hash"},
 			},
@@ -943,7 +943,7 @@ func TestIntegration_NpmPublisherIntegrationDryRunNoSideEffectsGood(t *testing.T
 		release := &Release{
 			Version:    "v3.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "npm",
@@ -1021,7 +1021,7 @@ func TestIntegration_LinuxKitPublisherIntegrationDryRunNoSideEffectsGood(t *test
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "linuxkit",
@@ -1130,7 +1130,7 @@ func TestIntegration_AllPublishersIntegrationNilRelCfgGood(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 

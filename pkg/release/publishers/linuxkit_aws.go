@@ -5,7 +5,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/log"
 )
 
 func (p *LinuxKitPublisher) publishAWS(ctx context.Context, release *Release, cfg LinuxKitConfig, artifactPath string) core.Result {
@@ -16,7 +15,7 @@ func (p *LinuxKitPublisher) publishAWS(ctx context.Context, release *Release, cf
 
 	targets := linuxKitCloudTargets(cfg, "aws")
 	if len(targets) == 0 {
-		return core.Fail(coreerr.E("linuxkit.publishAWS", "aws target bucket is required", nil))
+		return core.Fail(core.E("linuxkit.publishAWS", "aws target bucket is required", nil))
 	}
 
 	for _, target := range targets {
@@ -31,7 +30,7 @@ func (p *LinuxKitPublisher) publishAWS(ctx context.Context, release *Release, cf
 
 func (p *LinuxKitPublisher) uploadLinuxKitS3(ctx context.Context, release *Release, target LinuxKitTarget, artifactPath string) core.Result {
 	if target.Bucket == "" {
-		return core.Fail(coreerr.E("linuxkit.uploadS3", "aws target bucket is required", nil))
+		return core.Fail(core.E("linuxkit.uploadS3", "aws target bucket is required", nil))
 	}
 
 	awsCommandResult := resolveAWSCli()
@@ -49,7 +48,7 @@ func (p *LinuxKitPublisher) uploadLinuxKitS3(ctx context.Context, release *Relea
 
 	uploaded := publisherRun(ctx, release.ProjectDir, nil, awsCommand, args...)
 	if !uploaded.OK {
-		return core.Fail(coreerr.E("linuxkit.uploadS3", "failed to upload "+ax.Base(artifactPath)+" to "+destination, core.NewError(uploaded.Error())))
+		return core.Fail(core.E("linuxkit.uploadS3", "failed to upload "+ax.Base(artifactPath)+" to "+destination, core.NewError(uploaded.Error())))
 	}
 
 	publisherPrint("Uploaded LinuxKit AWS image: %s", destination)
@@ -66,7 +65,7 @@ func resolveAWSCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("aws", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("linuxkit.resolveAWSCli", "aws CLI not found. Install it from https://aws.amazon.com/cli/", core.NewError(command.Error())))
+		return core.Fail(core.E("linuxkit.resolveAWSCli", "aws CLI not found. Install it from https://aws.amazon.com/cli/", core.NewError(command.Error())))
 	}
 
 	return command

@@ -9,8 +9,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // TaskfileBuilder builds projects using Taskfile (https://taskfile.dev/).
@@ -35,8 +34,8 @@ func (b *TaskfileBuilder) Name() string {
 
 // Detect checks if a Taskfile exists in the directory.
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) core.Result {
+// ok, err := b.Detect(storage.Local, ".")
+func (b *TaskfileBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(build.IsTaskfileProject(fs, dir))
 }
 
@@ -45,7 +44,7 @@ func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) core.Result {
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("TaskfileBuilder.Build", "config is nil", nil))
+		return core.Fail(core.E("TaskfileBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
@@ -124,7 +123,7 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 
 	executed := ax.ExecWithEnv(ctx, cfg.ProjectDir, env, taskCommand, args...)
 	if !executed.OK {
-		return core.Fail(coreerr.E("TaskfileBuilder.runTask", "task build failed", core.NewError(executed.Error())))
+		return core.Fail(core.E("TaskfileBuilder.runTask", "task build failed", core.NewError(executed.Error())))
 	}
 
 	return core.Ok(nil)
@@ -143,7 +142,7 @@ func (b *TaskfileBuilder) applyWailsV3BuildSurface(cfg *build.Config, target bui
 
 	fs := cfg.FS
 	if fs == nil {
-		fs = io.Local
+		fs = storage.Local
 	}
 
 	wailsBuilder := NewWailsBuilder()
@@ -183,7 +182,7 @@ func (b *TaskfileBuilder) applyWailsV3BuildSurface(cfg *build.Config, target bui
 }
 
 // findArtifacts searches for built artifacts in the output directory.
-func (b *TaskfileBuilder) findArtifacts(fs io.Medium, outputDir string) []build.Artifact {
+func (b *TaskfileBuilder) findArtifacts(fs storage.Medium, outputDir string) []build.Artifact {
 	var artifacts []build.Artifact
 
 	entriesResult := fs.List(outputDir)
@@ -214,7 +213,7 @@ func (b *TaskfileBuilder) findArtifacts(fs io.Medium, outputDir string) []build.
 }
 
 // findArtifactsForTarget searches for built artifacts for a specific target.
-func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string, target build.Target) []build.Artifact {
+func (b *TaskfileBuilder) findArtifactsForTarget(fs storage.Medium, outputDir string, target build.Target) []build.Artifact {
 	var artifacts []build.Artifact
 
 	// 1. Look for platform-specific subdirectory: output/os_arch/
@@ -307,7 +306,7 @@ func (b *TaskfileBuilder) resolveTaskCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("task", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("TaskfileBuilder.resolveTaskCli", "task CLI not found. Install with: brew install go-task (macOS), go install github.com/go-task/task/v3/cmd/task@latest, or see https://taskfile.dev/installation/", core.NewError(command.Error())))
+		return core.Fail(core.E("TaskfileBuilder.resolveTaskCli", "task CLI not found. Install with: brew install go-task (macOS), go install github.com/go-task/task/v3/cmd/task@latest, or see https://taskfile.dev/installation/", core.NewError(command.Error())))
 	}
 
 	return command

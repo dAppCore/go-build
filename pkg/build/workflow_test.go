@@ -6,7 +6,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/buildtest"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func requireWorkflowOK(t *testing.T, result core.Result) {
@@ -34,7 +34,7 @@ func requireWorkflowError(t *testing.T, result core.Result) string {
 
 func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	t.Run("writes the embedded template to the default path", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		requireWorkflowOK(t, WriteReleaseWorkflow(fs, ""))
 
@@ -52,7 +52,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	})
 
 	t.Run("writes to a custom path", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		requireWorkflowOK(t, WriteReleaseWorkflow(fs, "custom/workflow.yml"))
 
@@ -64,7 +64,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	})
 
 	t.Run("trims surrounding whitespace from the output path", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		requireWorkflowOK(t, WriteReleaseWorkflow(fs, "  ci  "))
 
@@ -76,7 +76,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	})
 
 	t.Run("writes release.yml for a bare directory-style path", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		requireWorkflowOK(t, WriteReleaseWorkflow(fs, "ci"))
 
@@ -92,9 +92,9 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		outputDir := ax.Join(projectDir, "ci")
 		requireWorkflowOK(t, ax.MkdirAll(outputDir, 0o755))
 
-		requireWorkflowOK(t, WriteReleaseWorkflow(io.Local, outputDir))
+		requireWorkflowOK(t, WriteReleaseWorkflow(storage.Local, outputDir))
 
-		content := requireWorkflowString(t, io.Local.Read(ax.Join(outputDir, DefaultReleaseWorkflowFileName)))
+		content := requireWorkflowString(t, storage.Local.Read(ax.Join(outputDir, DefaultReleaseWorkflowFileName)))
 
 		template, err := releaseWorkflowTemplate.ReadFile("templates/release.yml")
 		if err != nil {
@@ -107,7 +107,7 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 	})
 
 	t.Run("writes release.yml for directory-style output paths", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		requireWorkflowOK(t, WriteReleaseWorkflow(fs, "ci/"))
 
@@ -122,9 +122,9 @@ func TestWorkflow_WriteReleaseWorkflow_Good(t *testing.T) {
 		projectDir := t.TempDir()
 		path := ax.Join(projectDir, ".github", "workflows", "release.yml")
 
-		requireWorkflowOK(t, WriteReleaseWorkflow(io.Local, path))
+		requireWorkflowOK(t, WriteReleaseWorkflow(storage.Local, path))
 
-		content := requireWorkflowString(t, io.Local.Read(path))
+		content := requireWorkflowString(t, storage.Local.Read(path))
 
 		template, err := releaseWorkflowTemplate.ReadFile("templates/release.yml")
 		if err != nil {
@@ -156,7 +156,7 @@ func TestWorkflow_ReleaseWorkflowPath_Good(t *testing.T) {
 
 func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path := ResolveReleaseWorkflowOutputPathWithMedium(fs, "/tmp/project", "ci")
@@ -167,7 +167,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Good(t *testing.T) 
 	})
 
 	t.Run("keeps explicit file paths unchanged", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := ResolveReleaseWorkflowOutputPathWithMedium(fs, "/tmp/project", "ci/release.yml")
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
@@ -366,7 +366,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Bad(t *testing.T) {
 
 func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	t.Run("treats an existing directory as a workflow directory", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", ""))
@@ -377,7 +377,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("treats a bare directory-style path as a workflow directory", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
@@ -387,7 +387,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("treats a current-directory-prefixed directory-style path as a workflow directory", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "./ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
@@ -397,7 +397,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("treats the conventional workflows directory as a workflow directory", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", ".github/workflows", ""))
 		if !stdlibAssertEqual("/tmp/project/.github/workflows/release.yml", path) {
@@ -407,7 +407,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("treats current-directory-prefixed workflows directories as workflow directories", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "./.github/workflows", ""))
 		if !stdlibAssertEqual("/tmp/project/.github/workflows/release.yml", path) {
@@ -417,7 +417,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("keeps a file path unchanged when the target is not a directory", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci/release.yml", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
@@ -427,7 +427,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("normalizes matching directory aliases", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "ci", "ci/"))
@@ -438,7 +438,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 	})
 
 	t.Run("trims surrounding whitespace before resolving", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathWithMedium(fs, "/tmp/project", "  ci  ", "  "))
@@ -451,7 +451,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Good(t *testing.T) {
 
 func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	t.Run("accepts the preferred path input", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci", "", "", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
@@ -461,7 +461,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the workflowPath alias", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "ci", "", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
@@ -471,7 +471,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the workflow_path alias", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "ci", ""))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
@@ -481,7 +481,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("accepts the workflow-path alias", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "", "", "", "ci"))
 		if !stdlibAssertEqual("/tmp/project/ci/release.yml", path) {
@@ -491,7 +491,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 	})
 
 	t.Run("normalises matching aliases", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 		requireWorkflowOK(t, fs.EnsureDir("/tmp/project/ci"))
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/", "./ci", "ci", ""))
@@ -503,7 +503,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Good(t *testing.T) {
 }
 
 func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Bad(t *testing.T) {
-	fs := io.NewMemoryMedium()
+	fs := storage.NewMemoryMedium()
 
 	err := requireWorkflowError(t, ResolveReleaseWorkflowInputPathAliases(fs, "/tmp/project", "ci/release.yml", "ops/release.yml", "", ""))
 	if !stdlibAssertContains(err, "path aliases specify different locations") {
@@ -651,7 +651,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Good(t *testi
 	})
 
 	t.Run("treats an existing absolute directory as a workflow directory", func(t *testing.T) {
-		fs := io.NewMemoryMedium()
+		fs := storage.NewMemoryMedium()
 		requireWorkflowOK(t, fs.EnsureDir(absoluteDirectory))
 
 		path := requireWorkflowString(t, ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(fs, projectDir, "", "", "", "", absoluteDirectory, "", "", "", ""))
@@ -684,7 +684,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliases_Bad(t *testing.T) {
 func TestWorkflow_WriteReleaseWorkflow_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteReleaseWorkflow(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = WriteReleaseWorkflow(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -711,7 +711,7 @@ func TestWorkflow_ReleaseWorkflowPath_Ugly(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveReleaseWorkflowOutputPathWithMedium(io.NewMemoryMedium(), "", "")
+		_ = ResolveReleaseWorkflowOutputPathWithMedium(storage.NewMemoryMedium(), "", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -720,7 +720,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Bad(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowOutputPathWithMedium_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveReleaseWorkflowOutputPathWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowOutputPathWithMedium(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -756,7 +756,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPath_Ugly(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveReleaseWorkflowInputPathWithMedium(io.NewMemoryMedium(), "", "", "")
+		_ = ResolveReleaseWorkflowInputPathWithMedium(storage.NewMemoryMedium(), "", "", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -765,7 +765,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Bad(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveReleaseWorkflowInputPathWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowInputPathWithMedium(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -774,7 +774,7 @@ func TestWorkflow_ResolveReleaseWorkflowInputPathWithMedium_Ugly(t *core.T) {
 func TestWorkflow_ResolveReleaseWorkflowInputPathAliases_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveReleaseWorkflowInputPathAliases(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowInputPathAliases(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -810,7 +810,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProject_Ugly(t *core.
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -819,7 +819,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Goo
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.NewMemoryMedium(), "", "", "", "", "", "", "", "", "", "")
+		_ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(storage.NewMemoryMedium(), "", "", "", "", "", "", "", "", "", "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -828,7 +828,7 @@ func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Bad
 func TestWorkflow_ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ResolveReleaseWorkflowOutputPathAliasesInProjectWithMedium(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

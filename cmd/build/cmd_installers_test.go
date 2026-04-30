@@ -8,7 +8,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestBuildCmd_AddInstallersCommand_Good(t *testing.T) {
@@ -23,12 +23,12 @@ func TestBuildCmd_AddInstallersCommand_Good(t *testing.T) {
 
 func TestBuildCmd_runBuildInstallersInDir_GeneratesAll_Good(t *testing.T) {
 	projectDir := t.TempDir()
-	requireBuildCmdOK(t, io.Local.EnsureDir(ax.Join(projectDir, ".core")))
-	requireBuildCmdOK(t, io.Local.Write(ax.Join(projectDir, ".core", "build.yaml"), `version: 1
+	requireBuildCmdOK(t, storage.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	requireBuildCmdOK(t, storage.Local.Write(ax.Join(projectDir, ".core", "build.yaml"), `version: 1
 project:
   binary: corex
 `))
-	requireBuildCmdOK(t, io.Local.Write(ax.Join(projectDir, ".core", "release.yaml"), `version: 1
+	requireBuildCmdOK(t, storage.Local.Write(ax.Join(projectDir, ".core", "release.yaml"), `version: 1
 project:
   repository: dappcore/core
 `))
@@ -42,7 +42,7 @@ project:
 
 	}
 
-	content := requireBuildCmdString(t, io.Local.Read(ax.Join(outputDir, "setup.sh")))
+	content := requireBuildCmdString(t, storage.Local.Read(ax.Join(outputDir, "setup.sh")))
 	if !stdlibAssertContains(content, "corex") {
 		t.Fatalf("expected %v to contain %v", content, "corex")
 	}
@@ -56,7 +56,7 @@ project:
 		t.Fatalf("expected %v to contain %v", content, "https://lthn.sh/setup.sh")
 	}
 
-	devContent := requireBuildCmdString(t, io.Local.Read(ax.Join(outputDir, "dev.sh")))
+	devContent := requireBuildCmdString(t, storage.Local.Read(ax.Join(outputDir, "dev.sh")))
 	if !stdlibAssertContains(devContent, `DEV_IMAGE_VERSION="${VERSION#v}"`) {
 		t.Fatalf("expected %v to contain %v", devContent, `DEV_IMAGE_VERSION="${VERSION#v}"`)
 	}
@@ -94,7 +94,7 @@ func TestBuildCmd_runBuildInstallersInDir_UsesResolvedVersion_Good(t *testing.T)
 
 	requireBuildCmdOK(t, runBuildInstallersInDir(context.Background(), projectDir, "setup.sh", "", "", "dappcore/core", "core"))
 
-	content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, "dist", "installers", "setup.sh")))
+	content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, "dist", "installers", "setup.sh")))
 	if !stdlibAssertContains(content, "v9.9.9") {
 		t.Fatalf("expected %v to contain %v", content, "v9.9.9")
 	}
@@ -126,7 +126,7 @@ func TestBuildCmd_runBuildInstallersInDir_UsesGitRemoteWhenReleaseConfigMissing_
 
 	requireBuildCmdOK(t, runBuildInstallersInDir(context.Background(), projectDir, "agentic", "v1.2.3", "", "", "core"))
 
-	content := requireBuildCmdString(t, io.Local.Read(ax.Join(projectDir, "dist", "installers", "agent.sh")))
+	content := requireBuildCmdString(t, storage.Local.Read(ax.Join(projectDir, "dist", "installers", "agent.sh")))
 	if !stdlibAssertContains(content, "host-uk/core-build") {
 		t.Fatalf("expected %v to contain %v", content, "host-uk/core-build")
 	}

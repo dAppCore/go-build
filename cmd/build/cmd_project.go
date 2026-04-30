@@ -14,14 +14,12 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 var getProjectBuildWorkingDir = ax.Getwd
@@ -92,12 +90,12 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 		ctx = context.Background()
 	}
 	// Use local filesystem as the default medium.
-	filesystem := io.Local
+	filesystem := storage.Local
 
 	// Get current working directory as project root
 	projectDirResult := getProjectBuildWorkingDir()
 	if !projectDirResult.OK {
-		return core.Fail(coreerr.E("build.Run", "failed to get working directory", core.NewError(projectDirResult.Error())))
+		return core.Fail(core.E("build.Run", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
 	projectDir := projectDirResult.Value.(string)
 
@@ -119,17 +117,17 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 			configPath = ax.Join(projectDir, configPath)
 		}
 		if !filesystem.Exists(configPath) {
-			return core.Fail(coreerr.E("build.Run", "build config not found: "+configPath, nil))
+			return core.Fail(core.E("build.Run", "build config not found: "+configPath, nil))
 		}
 		configResult := build.LoadConfigAtPath(filesystem, configPath)
 		if !configResult.OK {
-			return core.Fail(coreerr.E("build.Run", "failed to load config", core.NewError(configResult.Error())))
+			return core.Fail(core.E("build.Run", "failed to load config", core.NewError(configResult.Error())))
 		}
 		buildConfig = configResult.Value.(*build.BuildConfig)
 	} else {
 		configResult := build.LoadConfig(filesystem, projectDir)
 		if !configResult.OK {
-			return core.Fail(coreerr.E("build.Run", "failed to load config", core.NewError(configResult.Error())))
+			return core.Fail(core.E("build.Run", "failed to load config", core.NewError(configResult.Error())))
 		}
 		buildConfig = configResult.Value.(*build.BuildConfig)
 	}
@@ -182,11 +180,11 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 
 	// Print build info (verbose mode only)
 	if req.Verbose && !req.CIMode {
-		cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.build")), i18n.T("cmd.build.building_project"))
-		cli.Print("  %s %s\n", i18n.T("cmd.build.label.type"), buildTargetStyle.Render(formatProjectTypes(plan.ProjectTypes)))
-		cli.Print("  %s %s\n", i18n.T("cmd.build.label.output"), buildTargetStyle.Render(plan.OutputDir))
-		cli.Print("  %s %s\n", i18n.T("cmd.build.label.binary"), buildTargetStyle.Render(plan.BuildName))
-		cli.Print("  %s %s\n", i18n.T("cmd.build.label.targets"), buildTargetStyle.Render(formatTargets(plan.Targets)))
+		cli.Print("%s %s\n", buildHeaderStyle.Render("Build"), "Building project")
+		cli.Print("  %s %s\n", "type", buildTargetStyle.Render(formatProjectTypes(plan.ProjectTypes)))
+		cli.Print("  %s %s\n", "output", buildTargetStyle.Render(plan.OutputDir))
+		cli.Print("  %s %s\n", "binary", buildTargetStyle.Render(plan.BuildName))
+		cli.Print("  %s %s\n", "targets", buildTargetStyle.Render(formatTargets(plan.Targets)))
 		cli.Blank()
 	}
 
@@ -199,7 +197,7 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 	pipelineResultValue := pipeline.Run(ctx, plan)
 	if !pipelineResultValue.OK {
 		if !req.CIMode {
-			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), pipelineResultValue.Error())
+			cli.Print("%s %v\n", buildErrorStyle.Render("error"), pipelineResultValue.Error())
 		}
 		return pipelineResultValue
 	}
@@ -214,7 +212,7 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 	}
 
 	if req.Verbose && !req.CIMode {
-		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}))
+		cli.Print("%s %s\n", buildSuccessStyle.Render("Success"), core.Sprintf("Built %d artifacts", len(artifacts)))
 		cli.Blank()
 		for _, artifact := range artifacts {
 			relPath := artifact.Path
@@ -236,7 +234,7 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 	if signCfg.Enabled && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
 		if req.Verbose && !req.CIMode {
 			cli.Blank()
-			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.sign")), i18n.T("cmd.build.signing_binaries"))
+			cli.Print("%s %s\n", buildHeaderStyle.Render("Sign"), "Signing binaries")
 		}
 
 		// Convert build.Artifact to signing.Artifact
@@ -248,7 +246,7 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 		signed := signing.SignBinaries(ctx, filesystem, signCfg, signingArtifacts)
 		if !signed.OK {
 			if !req.CIMode {
-				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.signing_failed"), signed.Error())
+				cli.Print("%s %s: %v\n", buildErrorStyle.Render("error"), "signing failed", signed.Error())
 			}
 			return signed
 		}
@@ -257,7 +255,7 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 			notarized := signing.NotarizeBinaries(ctx, filesystem, signCfg, signingArtifacts)
 			if !notarized.OK {
 				if !req.CIMode {
-					cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.notarization_failed"), notarized.Error())
+					cli.Print("%s %s: %v\n", buildErrorStyle.Render("error"), "notarization failed", notarized.Error())
 				}
 				return notarized
 			}
@@ -269,7 +267,7 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 	if req.ArchiveOutput && len(artifacts) > 0 {
 		if req.Verbose && !req.CIMode {
 			cli.Blank()
-			cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.archive")), i18n.T("cmd.build.creating_archives"))
+			cli.Print("%s %s\n", buildHeaderStyle.Render("Archive"), "Creating archives")
 		}
 
 		archiveFormatResult := resolveArchiveFormat(buildConfig.Build.ArchiveFormat, req.ArchiveFormat)
@@ -281,7 +279,7 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 		archivedArtifactsResult := build.ArchiveAllWithFormat(filesystem, artifacts, archiveFormatValue)
 		if !archivedArtifactsResult.OK {
 			if !req.CIMode {
-				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.archive_failed"), archivedArtifactsResult.Error())
+				cli.Print("%s %s: %v\n", buildErrorStyle.Render("error"), "archive failed", archivedArtifactsResult.Error())
 			}
 			return archivedArtifactsResult
 		}
@@ -332,14 +330,14 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 		// JSON output for CI
 		output := ax.JSONMarshal(outputArtifacts)
 		if !output.OK {
-			return core.Fail(coreerr.E("build.Run", "failed to marshal artifacts", core.NewError(output.Error())))
+			return core.Fail(core.E("build.Run", "failed to marshal artifacts", core.NewError(output.Error())))
 		}
 		cli.Print("%s\n", output.Value.(string))
 	} else if !req.Verbose {
 		// Minimal output: just success with artifact count
 		cli.Print("%s %s %s\n",
-			buildSuccessStyle.Render(i18n.T("common.label.success")),
-			i18n.T("cmd.build.built_artifacts", map[string]any{"Count": len(artifacts)}),
+			buildSuccessStyle.Render("Success"),
+			core.Sprintf("Built %d artifacts", len(artifacts)),
 			buildDimStyle.Render(core.Sprintf("(%s)", plan.OutputDir)),
 		)
 	}
@@ -363,7 +361,7 @@ func resolveBuildSignConfig(base signing.SignConfig, req ProjectBuildRequest) si
 	return signCfg
 }
 
-func shouldUseGoBuildPassthrough(filesystem io.Medium, projectDir string, req ProjectBuildRequest) bool {
+func shouldUseGoBuildPassthrough(filesystem storage.Medium, projectDir string, req ProjectBuildRequest) bool {
 	if req.ConfigPath != "" || build.ConfigExists(filesystem, projectDir) {
 		return false
 	}
@@ -439,7 +437,7 @@ func runGoBuildPassthrough(ctx context.Context, projectDir string, req ProjectBu
 		}
 		targets := targetsResult.Value.([]build.Target)
 		if len(targets) != 1 {
-			return core.Fail(coreerr.E("build.Run", "go build passthrough supports exactly one target", nil))
+			return core.Fail(core.E("build.Run", "go build passthrough supports exactly one target", nil))
 		}
 
 		env = append(env,
@@ -450,7 +448,7 @@ func runGoBuildPassthrough(ctx context.Context, projectDir string, req ProjectBu
 
 	built := ax.ExecWithEnv(ctx, projectDir, env, "go", args...)
 	if !built.OK {
-		return core.Fail(coreerr.E("build.Run", "go build passthrough failed", core.NewError(built.Error())))
+		return core.Fail(core.E("build.Run", "go build passthrough failed", core.NewError(built.Error())))
 	}
 
 	return core.Ok(nil)
@@ -582,7 +580,7 @@ func selectOutputArtifacts(rawArtifacts, archivedArtifacts, checksummedArtifacts
 }
 
 // writeArtifactMetadata writes artifact_meta.json files next to built artifacts when CI metadata is available.
-func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []build.Artifact) core.Result {
+func writeArtifactMetadata(filesystem storage.Medium, buildName string, artifacts []build.Artifact) core.Result {
 	ci := resolveCIContext()
 	if ci == nil {
 		return core.Ok(nil)
@@ -602,7 +600,7 @@ func writeArtifactMetadata(filesystem io.Medium, buildName string, artifacts []b
 	return core.Ok(nil)
 }
 
-func rewriteArtifactsForCI(filesystem io.Medium, buildName string, artifacts []build.Artifact) core.Result {
+func rewriteArtifactsForCI(filesystem storage.Medium, buildName string, artifacts []build.Artifact) core.Result {
 	ci := resolveCIContext()
 	if ci == nil {
 		return core.Ok(artifacts)
@@ -618,11 +616,11 @@ func rewriteArtifactsForCI(filesystem io.Medium, buildName string, artifacts []b
 
 		created := filesystem.EnsureDir(ax.Dir(ciPath))
 		if !created.OK {
-			return core.Fail(coreerr.E("build.rewriteArtifactsForCI", "failed to create artifact directory", core.NewError(created.Error())))
+			return core.Fail(core.E("build.rewriteArtifactsForCI", "failed to create artifact directory", core.NewError(created.Error())))
 		}
-		copied := io.Copy(filesystem, artifact.Path, filesystem, ciPath)
+		copied := storage.Copy(filesystem, artifact.Path, filesystem, ciPath)
 		if !copied.OK {
-			return core.Fail(coreerr.E("build.rewriteArtifactsForCI", "failed to copy artifact", core.NewError(copied.Error())))
+			return core.Fail(core.E("build.rewriteArtifactsForCI", "failed to copy artifact", core.NewError(copied.Error())))
 		}
 
 		artifact.Path = ciPath
@@ -641,7 +639,7 @@ func resolveCIContext() *build.CIContext {
 }
 
 // buildRuntimeConfig maps persisted build configuration onto the runtime builder config.
-func buildRuntimeConfig(filesystem io.Medium, projectDir, outputDir, binaryName string, buildConfig *build.BuildConfig, push bool, imageName string, version string) *build.Config {
+func buildRuntimeConfig(filesystem storage.Medium, projectDir, outputDir, binaryName string, buildConfig *build.BuildConfig, push bool, imageName string, version string) *build.Config {
 	return build.RuntimeConfigFromBuildConfig(filesystem, projectDir, outputDir, binaryName, buildConfig, push, imageName, version)
 }
 
@@ -661,16 +659,16 @@ func resolveBuildVersion(ctx context.Context, projectDir string) core.Result {
 }
 
 // computeAndWriteChecksums computes checksums for artifacts and writes CHECKSUMS.txt.
-func computeAndWriteChecksums(ctx context.Context, filesystem io.Medium, projectDir, outputDir string, artifacts []build.Artifact, signCfg signing.SignConfig, ciMode bool, verbose bool) core.Result {
+func computeAndWriteChecksums(ctx context.Context, filesystem storage.Medium, projectDir, outputDir string, artifacts []build.Artifact, signCfg signing.SignConfig, ciMode bool, verbose bool) core.Result {
 	if verbose && !ciMode {
 		cli.Blank()
-		cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.label.checksum")), i18n.T("cmd.build.computing_checksums"))
+		cli.Print("%s %s\n", buildHeaderStyle.Render("Checksum"), "Computing checksums")
 	}
 
 	checksummedArtifactsResult := build.ChecksumAll(filesystem, artifacts)
 	if !checksummedArtifactsResult.OK {
 		if !ciMode {
-			cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.checksum_failed"), checksummedArtifactsResult.Error())
+			cli.Print("%s %s: %v\n", buildErrorStyle.Render("error"), "checksum failed", checksummedArtifactsResult.Error())
 		}
 		return checksummedArtifactsResult
 	}
@@ -681,7 +679,7 @@ func computeAndWriteChecksums(ctx context.Context, filesystem io.Medium, project
 	written := build.WriteChecksumFile(filesystem, checksummedArtifacts, checksumPath)
 	if !written.OK {
 		if !ciMode {
-			cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("common.error.failed", map[string]any{"Action": "write CHECKSUMS.txt"}), written.Error())
+			cli.Print("%s %s: %v\n", buildErrorStyle.Render("error"), "failed to write CHECKSUMS.txt", written.Error())
 		}
 		return written
 	}
@@ -691,7 +689,7 @@ func computeAndWriteChecksums(ctx context.Context, filesystem io.Medium, project
 		signed := signing.SignChecksums(ctx, filesystem, signCfg, checksumPath)
 		if !signed.OK {
 			if !ciMode {
-				cli.Print("%s %s: %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), i18n.T("cmd.build.error.gpg_signing_failed"), signed.Error())
+				cli.Print("%s %s: %v\n", buildErrorStyle.Render("error"), "GPG signing failed", signed.Error())
 			}
 			return signed
 		}
@@ -759,7 +757,7 @@ func parseTargets(targetsFlag string) core.Result {
 
 		osArch := core.Split(part, "/")
 		if len(osArch) != 2 {
-			return core.Fail(coreerr.E("build.parseTargets", "invalid target format (expected os/arch): "+part, nil))
+			return core.Fail(core.E("build.parseTargets", "invalid target format (expected os/arch): "+part, nil))
 		}
 
 		targets = append(targets, build.Target{
@@ -769,7 +767,7 @@ func parseTargets(targetsFlag string) core.Result {
 	}
 
 	if len(targets) == 0 {
-		return core.Fail(coreerr.E("build.parseTargets", "no valid targets specified", nil))
+		return core.Fail(core.E("build.parseTargets", "no valid targets specified", nil))
 	}
 
 	return core.Ok(targets)
@@ -801,7 +799,7 @@ func formatProjectTypes(projectTypes []build.ProjectType) string {
 func getBuilder(projectType build.ProjectType) core.Result {
 	builder := builders.ResolveBuilder(projectType)
 	if !builder.OK {
-		return core.Fail(coreerr.E("build.getBuilder", "unsupported project type: "+string(projectType), core.NewError(builder.Error())))
+		return core.Fail(core.E("build.getBuilder", "unsupported project type: "+string(projectType), core.NewError(builder.Error())))
 	}
 	return builder
 }

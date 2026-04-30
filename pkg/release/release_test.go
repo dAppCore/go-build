@@ -9,7 +9,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 const releaseMetaOSField = "o" + "s"
@@ -17,7 +17,7 @@ const releaseMetaOSField = "o" + "s"
 func assertFindArtifacts(t *testing.T, distDir string, wantLen int) []build.Artifact {
 	t.Helper()
 
-	artifacts := requireReleaseArtifacts(t, findArtifacts(io.Local, distDir))
+	artifacts := requireReleaseArtifacts(t, findArtifacts(storage.Local, distDir))
 	if len(artifacts) != wantLen {
 		t.Fatalf("want len %v, got %v", wantLen, len(artifacts))
 	}
@@ -425,7 +425,7 @@ func TestRelease_FindArtifactsBad(t *testing.T) {
 		dir := t.TempDir()
 		distDir := ax.Join(dir, "dist")
 
-		err := requireReleaseError(t, findArtifacts(io.Local, distDir))
+		err := requireReleaseError(t, findArtifacts(storage.Local, distDir))
 		if !stdlibAssertContains(err, "dist/ directory not found") {
 			t.Fatalf("expected %v to contain %v", err, "dist/ directory not found")
 		}
@@ -443,7 +443,7 @@ func TestRelease_FindArtifactsBad(t *testing.T) {
 
 		defer func() { requireReleaseConfigOKResult(t, ax.Chmod(distDir, 0755)) }()
 
-		err := requireReleaseError(t, findArtifacts(io.Local, distDir))
+		err := requireReleaseError(t, findArtifacts(storage.Local, distDir))
 		if !stdlibAssertContains(err, "failed to read dist/") {
 			t.Fatalf("expected %v to contain %v", err, "failed to read dist/")
 		}
@@ -624,7 +624,7 @@ func TestRelease_ResolveProjectTypeGood(t *testing.T) {
 	t.Run("honours explicit build type override", func(t *testing.T) {
 		dir := t.TempDir()
 
-		projectType := requireReleaseProjectType(t, resolveProjectType(io.Local, dir, "docker"))
+		projectType := requireReleaseProjectType(t, resolveProjectType(storage.Local, dir, "docker"))
 		if !stdlibAssertEqual(build.ProjectTypeDocker, projectType) {
 			t.Fatalf("want %v, got %v", build.ProjectTypeDocker, projectType)
 		}
@@ -637,7 +637,7 @@ func TestRelease_ResolveProjectTypeGood(t *testing.T) {
 			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		projectType := requireReleaseProjectType(t, resolveProjectType(io.Local, dir, ""))
+		projectType := requireReleaseProjectType(t, resolveProjectType(storage.Local, dir, ""))
 		if !stdlibAssertEqual(build.ProjectTypeGo, projectType) {
 			t.Fatalf("want %v, got %v", build.ProjectTypeGo, projectType)
 		}
@@ -960,7 +960,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 	})
 
 	t.Run("reads artifacts from configured output medium", func(t *testing.T) {
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 		requireReleaseConfigOKResult(t, medium.Write("releases/app-linux-amd64.tar.gz", "artifact"))
 		requireReleaseConfigOKResult(t, medium.Write("releases/CHECKSUMS.txt", "checksums"))
 
@@ -974,8 +974,8 @@ func TestRelease_Publish_Good(t *testing.T) {
 		if len(release.Artifacts) != 2 {
 			t.Fatalf("want len %v, got %v", 2, len(release.Artifacts))
 		}
-		if !stdlibAssertEqual(io.Local, release.FS) {
-			t.Fatalf("want %v, got %v", io.Local, release.FS)
+		if !stdlibAssertEqual(storage.Local, release.FS) {
+			t.Fatalf("want %v, got %v", storage.Local, release.FS)
 		}
 		if !stdlibAssertEqual(medium, release.ArtifactFS) {
 			t.Fatalf("want %v, got %v", medium, release.ArtifactFS)
@@ -990,7 +990,7 @@ func TestRelease_Publish_Good(t *testing.T) {
 	})
 
 	t.Run("reads artifacts from medium root when output dir is unset", func(t *testing.T) {
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 		requireReleaseConfigOKResult(t, medium.Write("app-linux-amd64.tar.gz", "artifact"))
 		requireReleaseConfigOKResult(t, medium.Write("CHECKSUMS.txt", "checksums"))
 
@@ -1157,7 +1157,7 @@ func main() {}
 			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -1202,7 +1202,7 @@ func main() {}
 			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 
 		cfg := DefaultConfig()
 		cfg.SetProjectDir(dir)
@@ -1462,7 +1462,7 @@ fi
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), storage.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 
 	var sawChecksumSignature bool
 	var sawXzArchive bool
@@ -1499,7 +1499,7 @@ func TestRelease_BuildArtifacts_UsesConfiguredChecksumFileGood(t *testing.T) {
 	}()
 
 	var checksumPaths []string
-	signReleaseChecksums = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, checksumFile string) core.Result {
+	signReleaseChecksums = func(ctx context.Context, fs storage.Medium, cfg signing.SignConfig, checksumFile string) core.Result {
 		checksumPaths = append(checksumPaths, checksumFile)
 		return core.Ok(nil)
 	}
@@ -1511,7 +1511,7 @@ func TestRelease_BuildArtifacts_UsesConfiguredChecksumFileGood(t *testing.T) {
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), storage.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 
 	customChecksumPath := ax.Join(dir, "dist", "checksums.txt")
 	if !stdlibAssertEqual([]string{customChecksumPath}, checksumPaths) {
@@ -1580,7 +1580,7 @@ targets:
 	var notarizedPaths []string
 	var checksumPaths []string
 
-	signReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) core.Result {
+	signReleaseBinaries = func(ctx context.Context, fs storage.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) core.Result {
 		if !(cfg.Enabled) {
 			t.Fatal("expected true")
 		}
@@ -1591,7 +1591,7 @@ targets:
 		signedPaths = append(signedPaths, artifacts[0].Path)
 		return core.Ok(nil)
 	}
-	notarizeReleaseBinaries = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) core.Result {
+	notarizeReleaseBinaries = func(ctx context.Context, fs storage.Medium, cfg signing.SignConfig, artifacts []signing.Artifact) core.Result {
 		if !(cfg.Enabled) {
 			t.Fatal("expected true")
 		}
@@ -1602,7 +1602,7 @@ targets:
 		notarizedPaths = append(notarizedPaths, artifacts[0].Path)
 		return core.Ok(nil)
 	}
-	signReleaseChecksums = func(ctx context.Context, fs io.Medium, cfg signing.SignConfig, checksumFile string) core.Result {
+	signReleaseChecksums = func(ctx context.Context, fs storage.Medium, cfg signing.SignConfig, checksumFile string) core.Result {
 		if !(cfg.Enabled) {
 			t.Fatal("expected true")
 		}
@@ -1617,7 +1617,7 @@ targets:
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), storage.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 	if !stdlibAssertEqual([]string{ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "signedapp")}, signedPaths) {
 		t.Fatalf("want %v, got %v", []string{ax.Join(dir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "signedapp")}, signedPaths)
 	}
@@ -1706,7 +1706,7 @@ targets:
 	cfg.Build.Targets = []TargetConfig{{OS: runtime.GOOS, Arch: runtime.GOARCH}}
 	cfg.Publishers = nil
 
-	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), storage.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 	if stdlibAssertEmpty(artifacts) {
 		t.Fatal("expected non-empty")
 	}
@@ -1774,7 +1774,7 @@ targets:
 	cfg.Project.Name = "releaseapp"
 	cfg.Publishers = nil
 
-	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), storage.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 
 	var sawArchive bool
 	for _, artifact := range artifacts {
@@ -1831,7 +1831,7 @@ project:
 		t.Fatalf("expected empty, got %v", cfg.Build.Targets)
 	}
 
-	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), io.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
+	artifacts := requireReleaseArtifacts(t, buildArtifacts(context.Background(), storage.Local, cfg, dir, ax.Join(dir, "dist"), "v1.0.0"))
 	if stdlibAssertEmpty(artifacts) {
 		t.Fatal("expected non-empty")
 	}

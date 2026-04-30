@@ -6,7 +6,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func requireAppleString(t *testing.T, result core.Result) string {
@@ -52,7 +52,7 @@ func requireAppleASCPackage(t *testing.T, result core.Result) ascUploadPackage {
 func TestApple_WriteInfoPlist_Good(t *testing.T) {
 	appPath := ax.Join(t.TempDir(), "Core.app")
 
-	path := requireAppleString(t, WriteInfoPlist(io.Local, appPath, InfoPlist{
+	path := requireAppleString(t, WriteInfoPlist(storage.Local, appPath, InfoPlist{
 		BundleID:                      "ai.lthn.core",
 		BundleName:                    "Core",
 		BundleDisplayName:             "Core by Lethean",
@@ -66,7 +66,7 @@ func TestApple_WriteInfoPlist_Good(t *testing.T) {
 		SupportsSecureRestorableState: true,
 	}))
 
-	content := requireAppleString(t, io.Local.Read(path))
+	content := requireAppleString(t, storage.Local.Read(path))
 	if !stdlibAssertContains(content, "<key>CFBundleIdentifier</key>") {
 		t.Fatalf("expected %v to contain %v", content, "<key>CFBundleIdentifier</key>")
 	}
@@ -245,7 +245,7 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 	outputPath := ax.Join(projectDir, "dist", "Core.dmg")
 
 	writeDummyAppBundle(t, appPath, "Core", "built")
-	result := io.Local.EnsureDir(ax.Dir(backgroundPath))
+	result := storage.Local.EnsureDir(ax.Dir(backgroundPath))
 	if !result.OK {
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
@@ -292,7 +292,7 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 				}
 
 				stageDir := args[srcIndex+1]
-				if !(io.Local.Exists(ax.Join(stageDir, "Core.app"))) {
+				if !(storage.Local.Exists(ax.Join(stageDir, "Core.app"))) {
 					t.Fatal("expected true")
 				}
 
@@ -301,7 +301,7 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 					t.Fatalf("want %v, got %v", "/Applications", linkTarget)
 				}
 
-				backgroundContent := requireAppleString(t, io.Local.Read(ax.Join(stageDir, ".background", "dmg-background.png")))
+				backgroundContent := requireAppleString(t, storage.Local.Read(ax.Join(stageDir, ".background", "dmg-background.png")))
 				if !stdlibAssertEqual("background", backgroundContent) {
 					t.Fatalf("want %v, got %v", "background", backgroundContent)
 				}
@@ -329,7 +329,7 @@ func TestApple_CreateDMG_ConfiguresFinderLayout_Good(t *testing.T) {
 				t.Fatalf("want len %v, got %v", 1, len(args))
 			}
 
-			script := requireAppleString(t, io.Local.Read(args[0]))
+			script := requireAppleString(t, storage.Local.Read(args[0]))
 			if !stdlibAssertContains(script, "set bounds of container window to {100, 100, 740, 580}") {
 				t.Fatalf("expected %v to contain %v", script, "set bounds of container window to {100, 100, 740, 580}")
 			}
@@ -454,7 +454,7 @@ func TestApple_BuildWailsApp_PreBuildsFrontendAndForcesCGO_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	frontendDir := ax.Join(projectDir, "frontend")
 	bundlePath := ax.Join(projectDir, "build", "bin", "Core.app")
-	result := io.Local.EnsureDir(frontendDir)
+	result := storage.Local.EnsureDir(frontendDir)
 	if !result.OK {
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
@@ -644,7 +644,7 @@ func TestApple_BuildApple_Good(t *testing.T) {
 		return core.Ok(appPath)
 	}
 	appleCreateUniversalFn = func(arm64Path, amd64Path, outputPath string) core.Result {
-		result := copyPath(io.Local, arm64Path, outputPath)
+		result := copyPath(storage.Local, arm64Path, outputPath)
 		if !result.OK {
 			t.Fatalf("unexpected error: %v", result.Error())
 		}
@@ -671,7 +671,7 @@ func TestApple_BuildApple_Good(t *testing.T) {
 	}
 
 	buildResult := requireAppleBuildResult(t, BuildApple(context.Background(), &Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "Core",
@@ -739,7 +739,7 @@ func TestApple_BuildApple_Good(t *testing.T) {
 		t.Fatalf("want %v, got %v", buildResult.DMGPath, dmgCall.OutputPath)
 	}
 
-	plistContent := requireAppleString(t, io.Local.Read(buildResult.InfoPlistPath))
+	plistContent := requireAppleString(t, storage.Local.Read(buildResult.InfoPlistPath))
 	if !stdlibAssertContains(plistContent, "<string>ai.lthn.core</string>") {
 		t.Fatalf("expected %v to contain %v", plistContent, "<string>ai.lthn.core</string>")
 	}
@@ -747,7 +747,7 @@ func TestApple_BuildApple_Good(t *testing.T) {
 		t.Fatalf("expected %v to contain %v", plistContent, "<string>42</string>")
 	}
 
-	entitlementsContent := requireAppleString(t, io.Local.Read(buildResult.EntitlementsPath))
+	entitlementsContent := requireAppleString(t, storage.Local.Read(buildResult.EntitlementsPath))
 	if !stdlibAssertContains(entitlementsContent, "<key>com.apple.security.app-sandbox</key>") {
 		t.Fatalf("expected %v to contain %v", entitlementsContent, "<key>com.apple.security.app-sandbox</key>")
 	}
@@ -836,7 +836,7 @@ func TestApple_Notarise_AppendsNotaryLogOnRejectedStatus_Bad(t *testing.T) {
 
 func TestApple_BuildApple_AppStorePreflight_Bad(t *testing.T) {
 	result := BuildApple(context.Background(), &Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: t.TempDir(),
 		OutputDir:  ax.Join(t.TempDir(), "dist", "apple"),
 		Name:       "Core",
@@ -865,7 +865,7 @@ func TestApple_BuildApple_AppStorePreflight_Bad(t *testing.T) {
 
 func TestApple_BuildApple_TestFlightRequiresDistributionCertificate_Bad(t *testing.T) {
 	result := BuildApple(context.Background(), &Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: t.TempDir(),
 		OutputDir:  ax.Join(t.TempDir(), "dist", "apple"),
 		Name:       "Core",
@@ -928,7 +928,7 @@ func TestApple_BuildApple_AppStorePreflight_Good(t *testing.T) {
 	}
 
 	buildResult := requireAppleBuildResult(t, BuildApple(context.Background(), &Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "Core",
@@ -988,7 +988,7 @@ func TestApple_ValidatePrivacyPolicyURLBad(t *testing.T) {
 func TestApple_ValidateAppStoreMetadataBad(t *testing.T) {
 	projectDir := t.TempDir()
 	metadataPath := ax.Join(projectDir, ".core", "apple", "appstore")
-	result := io.Local.EnsureDir(ax.Join(metadataPath, "screenshots"))
+	result := storage.Local.EnsureDir(ax.Join(metadataPath, "screenshots"))
 	if !result.OK {
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
@@ -997,7 +997,7 @@ func TestApple_ValidateAppStoreMetadataBad(t *testing.T) {
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result = validateAppStoreMetadata(io.Local, projectDir, metadataPath)
+	result = validateAppStoreMetadata(storage.Local, projectDir, metadataPath)
 	if result.OK {
 		t.Fatal("expected error")
 	}
@@ -1011,7 +1011,7 @@ func TestApple_ScanBundleForPrivateAPIUsageBad(t *testing.T) {
 	appPath := ax.Join(t.TempDir(), "Core.app")
 	writeDummyAppBundle(t, appPath, "Core", "/System/Library/PrivateFrameworks/Example.framework")
 
-	result := scanBundleForPrivateAPIUsage(io.Local, appPath)
+	result := scanBundleForPrivateAPIUsage(storage.Local, appPath)
 	if result.OK {
 		t.Fatal("expected error")
 	}
@@ -1073,13 +1073,13 @@ func TestApple_PackageForASCUpload_StagesAPIKeyWithCanonicalNameGood(t *testing.
 
 	stagedDir := envDirValue(t, uploadPackage.env, "API_PRIVATE_KEYS_DIR")
 	stagedPath := ax.Join(stagedDir, "AuthKey_KEY123.p8")
-	content := requireAppleString(t, io.Local.Read(stagedPath))
+	content := requireAppleString(t, storage.Local.Read(stagedPath))
 	if !stdlibAssertEqual("private-key", content) {
 		t.Fatalf("want %v, got %v", "private-key", content)
 	}
 
 	uploadPackage.cleanup()
-	if io.Local.Exists(stagedDir) {
+	if storage.Local.Exists(stagedDir) {
 		t.Fatal("expected false")
 	}
 
@@ -1110,10 +1110,10 @@ func TestApple_PackageForASCUpload_UsesExistingCanonicalKeyPathGood(t *testing.T
 	}
 
 	uploadPackage.cleanup()
-	if !(io.Local.Exists(keyDir)) {
+	if !(storage.Local.Exists(keyDir)) {
 		t.Fatal("expected true")
 	}
-	if !(io.Local.Exists(keyPath)) {
+	if !(storage.Local.Exists(keyPath)) {
 		t.Fatal("expected true")
 	}
 
@@ -1121,12 +1121,12 @@ func TestApple_PackageForASCUpload_UsesExistingCanonicalKeyPathGood(t *testing.T
 
 func writeDummyAppBundle(t *testing.T, appPath, executableName, marker string) {
 	t.Helper()
-	result := io.Local.EnsureDir(ax.Join(appPath, "Contents", "MacOS"))
+	result := storage.Local.EnsureDir(ax.Join(appPath, "Contents", "MacOS"))
 	if !result.OK {
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	result = WriteInfoPlist(io.Local, appPath, InfoPlist{
+	result = WriteInfoPlist(storage.Local, appPath, InfoPlist{
 		BundleID:                      "ai.lthn.core",
 		BundleName:                    executableName,
 		BundleDisplayName:             executableName,
@@ -1150,7 +1150,7 @@ func writeDummyAppBundle(t *testing.T, appPath, executableName, marker string) {
 
 func writeDummyExecutable(t *testing.T, path, marker string) {
 	t.Helper()
-	result := io.Local.EnsureDir(ax.Dir(path))
+	result := storage.Local.EnsureDir(ax.Dir(path))
 	if !result.OK {
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
@@ -1165,7 +1165,7 @@ func writeAppStoreMetadata(t *testing.T, projectDir string) string {
 	t.Helper()
 
 	metadataPath := ax.Join(projectDir, ".core", "apple", "appstore")
-	result := io.Local.EnsureDir(ax.Join(metadataPath, "screenshots"))
+	result := storage.Local.EnsureDir(ax.Join(metadataPath, "screenshots"))
 	if !result.OK {
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
@@ -1488,7 +1488,7 @@ func TestApple_SubmitAppStore_Ugly(t *core.T) {
 func TestApple_WriteInfoPlist_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteInfoPlist(io.NewMemoryMedium(), "", InfoPlist{})
+		_ = WriteInfoPlist(storage.NewMemoryMedium(), "", InfoPlist{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1497,7 +1497,7 @@ func TestApple_WriteInfoPlist_Bad(t *core.T) {
 func TestApple_WriteInfoPlist_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteInfoPlist(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), InfoPlist{})
+		_ = WriteInfoPlist(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), InfoPlist{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1506,7 +1506,7 @@ func TestApple_WriteInfoPlist_Ugly(t *core.T) {
 func TestApple_WriteEntitlements_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteEntitlements(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), Entitlements{})
+		_ = WriteEntitlements(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), Entitlements{})
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1515,7 +1515,7 @@ func TestApple_WriteEntitlements_Good(t *core.T) {
 func TestApple_WriteEntitlements_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteEntitlements(io.NewMemoryMedium(), "", Entitlements{})
+		_ = WriteEntitlements(storage.NewMemoryMedium(), "", Entitlements{})
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1524,7 +1524,7 @@ func TestApple_WriteEntitlements_Bad(t *core.T) {
 func TestApple_WriteEntitlements_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteEntitlements(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), Entitlements{})
+		_ = WriteEntitlements(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), Entitlements{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

@@ -8,8 +8,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 func resolveReleaseOutputMedium(cfg *Config) coreio.Medium {
@@ -62,7 +61,7 @@ func mirrorReleaseArtifacts(source, destination coreio.Medium, sourceRoot, desti
 		destinationPath := joinReleasePath(destinationRoot, relativePath)
 		copied := copyReleaseMediumPath(source, artifact.Path, destination, destinationPath)
 		if !copied.OK {
-			return core.Fail(coreerr.E("release.mirrorReleaseArtifacts", "failed to mirror artifact "+artifact.Path, core.NewError(copied.Error())))
+			return core.Fail(core.E("release.mirrorReleaseArtifacts", "failed to mirror artifact "+artifact.Path, core.NewError(copied.Error())))
 		}
 
 		mirrored = append(mirrored, build.Artifact{
@@ -111,12 +110,12 @@ func copyReleaseMediumPath(source coreio.Medium, sourcePath string, destination 
 func copyReleaseMediumDir(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) core.Result {
 	created := destination.EnsureDir(destinationPath)
 	if !created.OK {
-		return core.Fail(coreerr.E("release.copyReleaseMediumDir", "failed to create destination directory", core.NewError(created.Error())))
+		return core.Fail(core.E("release.copyReleaseMediumDir", "failed to create destination directory", core.NewError(created.Error())))
 	}
 
 	entriesResult := source.List(sourcePath)
 	if !entriesResult.OK {
-		return core.Fail(coreerr.E("release.copyReleaseMediumDir", "failed to list source directory", core.NewError(entriesResult.Error())))
+		return core.Fail(core.E("release.copyReleaseMediumDir", "failed to list source directory", core.NewError(entriesResult.Error())))
 	}
 	entries := entriesResult.Value.([]fs.DirEntry)
 
@@ -135,14 +134,14 @@ func copyReleaseMediumDir(source coreio.Medium, sourcePath string, destination c
 func copyReleaseMediumFile(source coreio.Medium, sourcePath string, destination coreio.Medium, destinationPath string) core.Result {
 	fileResult := source.Open(sourcePath)
 	if !fileResult.OK {
-		return core.Fail(coreerr.E("release.copyReleaseMediumFile", "failed to open source file", core.NewError(fileResult.Error())))
+		return core.Fail(core.E("release.copyReleaseMediumFile", "failed to open source file", core.NewError(fileResult.Error())))
 	}
 	file := fileResult.Value.(core.FsFile)
 	defer file.Close()
 
 	content, readFailure := stdio.ReadAll(file)
 	if readFailure != nil {
-		return core.Fail(coreerr.E("release.copyReleaseMediumFile", "failed to read source file", readFailure))
+		return core.Fail(core.E("release.copyReleaseMediumFile", "failed to read source file", readFailure))
 	}
 
 	mode := fs.FileMode(0o644)
@@ -153,7 +152,7 @@ func copyReleaseMediumFile(source coreio.Medium, sourcePath string, destination 
 
 	written := destination.WriteMode(destinationPath, string(content), mode)
 	if !written.OK {
-		return core.Fail(coreerr.E("release.copyReleaseMediumFile", "failed to write destination file", core.NewError(written.Error())))
+		return core.Fail(core.E("release.copyReleaseMediumFile", "failed to write destination file", core.NewError(written.Error())))
 	}
 
 	return core.Ok(nil)

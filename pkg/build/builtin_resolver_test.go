@@ -6,7 +6,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/io"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 func TestBuiltinResolver_GoBuilder_Name_Good(t *core.T) {

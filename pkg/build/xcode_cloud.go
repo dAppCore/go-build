@@ -3,7 +3,7 @@ package build
 import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 const (
@@ -50,7 +50,7 @@ func GenerateXcodeCloudScripts(projectDir string, cfg *BuildConfig) map[string]s
 }
 
 // WriteXcodeCloudScripts writes the Xcode Cloud helper scripts to ci_scripts/.
-func WriteXcodeCloudScripts(filesystem io.Medium, projectDir string, cfg *BuildConfig) core.Result {
+func WriteXcodeCloudScripts(filesystem storage.Medium, projectDir string, cfg *BuildConfig) core.Result {
 	if filesystem == nil {
 		return core.Fail(core.E("build.WriteXcodeCloudScripts", "filesystem medium is required", nil))
 	}

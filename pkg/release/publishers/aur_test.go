@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	core "dappco.re/go"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestAUR_AURPublisherNameGood(t *testing.T) {
@@ -122,7 +122,7 @@ func TestAUR_AURPublisherRenderTemplateGood(t *testing.T) {
 			},
 		}
 
-		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/aur/PKGBUILD.tmpl", data))
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/aur/PKGBUILD.tmpl", data))
 		if !stdlibAssertContains(result, "# Maintainer: John Doe <john@example.com>") {
 			t.Fatalf("expected %v to contain %v", result, "# Maintainer: John Doe <john@example.com>")
 		}
@@ -165,7 +165,7 @@ func TestAUR_AURPublisherRenderTemplateGood(t *testing.T) {
 			},
 		}
 
-		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/aur/.SRCINFO.tmpl", data))
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/aur/.SRCINFO.tmpl", data))
 		if !stdlibAssertContains(result, "pkgbase = myapp-bin") {
 			t.Fatalf("expected %v to contain %v", result, "pkgbase = myapp-bin")
 		}
@@ -199,7 +199,7 @@ func TestAUR_AURPublisherRenderTemplateBad(t *testing.T) {
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := aurTemplateData{}
-		err := requirePublisherError(t, p.renderTemplate(io.Local, "templates/aur/nonexistent.tmpl", data))
+		err := requirePublisherError(t, p.renderTemplate(storage.Local, "templates/aur/nonexistent.tmpl", data))
 		if !stdlibAssertContains(err, "failed to read template") {
 			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
@@ -225,7 +225,7 @@ func TestAUR_AURPublisherDryRunPublishGood(t *testing.T) {
 
 		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			publishResult = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
 		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: AUR Publish") {
@@ -277,7 +277,7 @@ func TestAUR_AURPublisherDryRunPublishGood(t *testing.T) {
 
 		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			publishResult = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
 		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: dist/aur-files") {
@@ -297,7 +297,7 @@ func TestAUR_AURPublisherPublishBad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "aur"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}

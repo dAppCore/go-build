@@ -8,11 +8,10 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/internal/cmdutil"
 	servicecommon "dappco.re/go/build/internal/servicecmd"
 	buildservice "dappco.re/go/build/pkg/service"
-	"dappco.re/go/cli/pkg/cli"
-	coreerr "dappco.re/go/log"
 )
 
 var (
@@ -33,7 +32,7 @@ func AddServiceCommands(c *core.Core) {
 	c.Command("service", core.Command{
 		Description: "cmd.service.long",
 		Action: func(opts core.Options) core.Result {
-			return core.Fail(coreerr.E("service", "use a subcommand: install, start, stop, uninstall, export", nil))
+			return core.Fail(core.E("service", "use a subcommand: install, start, stop, uninstall, export", nil))
 		},
 	})
 

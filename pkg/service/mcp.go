@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"sort"
 
-	coreapi "dappco.re/go/api"
-	providerpkg "dappco.re/go/api/pkg/provider"
+	coreapi "dappco.re/go/build/pkg/api"
+	providerpkg "dappco.re/go/build/pkg/api/provider"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/ws"
+	events "dappco.re/go/build/pkg/events"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,7 +15,7 @@ type toolDescriber interface {
 	Tools() []coreapi.ToolDescriptor
 }
 
-func defaultNewMCPServer(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) coreapi.RouteGroup {
+func defaultNewMCPServer(cfg Config, registry *providerpkg.Registry, hub *events.Hub) coreapi.RouteGroup {
 	if registry == nil {
 		registry = providerpkg.NewRegistry()
 	}

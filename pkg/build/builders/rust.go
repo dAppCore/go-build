@@ -9,8 +9,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // RustBuilder implements the Builder interface for Rust projects.
@@ -34,8 +33,8 @@ func (b *RustBuilder) Name() string {
 
 // Detect checks if this builder can handle the project in the given directory.
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *RustBuilder) Detect(filesystem io.Medium, dir string) core.Result {
+// ok, err := b.Detect(storage.Local, ".")
+func (b *RustBuilder) Detect(filesystem storage.Medium, dir string) core.Result {
 	return core.Ok(build.IsRustProject(filesystem, dir))
 }
 
@@ -44,7 +43,7 @@ func (b *RustBuilder) Detect(filesystem io.Medium, dir string) core.Result {
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("RustBuilder.Build", "config is nil", nil))
+		return core.Fail(core.E("RustBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
@@ -88,12 +87,12 @@ func (b *RustBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		args := []string{"build", "--release", "--target", targetTriple}
 		output := ax.CombinedOutput(ctx, cfg.ProjectDir, env, cargoCommand, args...)
 		if !output.OK {
-			return core.Fail(coreerr.E("RustBuilder.Build", "cargo build failed: "+output.Error(), core.NewError(output.Error())))
+			return core.Fail(core.E("RustBuilder.Build", "cargo build failed: "+output.Error(), core.NewError(output.Error())))
 		}
 
 		found := b.findArtifactsForTarget(filesystem, platformDir, targetTriple, target)
 		if len(found) == 0 {
-			return core.Fail(coreerr.E("RustBuilder.Build", "no build artifacts found for "+target.String(), nil))
+			return core.Fail(core.E("RustBuilder.Build", "no build artifacts found for "+target.String(), nil))
 		}
 
 		artifacts = append(artifacts, found...)
@@ -115,14 +114,14 @@ func (b *RustBuilder) resolveCargoCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("cargo", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("RustBuilder.resolveCargoCli", "cargo CLI not found. Install Rust from https://www.rust-lang.org/tools/install", core.NewError(command.Error())))
+		return core.Fail(core.E("RustBuilder.resolveCargoCli", "cargo CLI not found. Install Rust from https://www.rust-lang.org/tools/install", core.NewError(command.Error())))
 	}
 
 	return command
 }
 
 // findArtifactsForTarget looks for compiled binaries in the cargo target directory.
-func (b *RustBuilder) findArtifactsForTarget(fs io.Medium, targetDir, targetTriple string, target build.Target) []build.Artifact {
+func (b *RustBuilder) findArtifactsForTarget(fs storage.Medium, targetDir, targetTriple string, target build.Target) []build.Artifact {
 	releaseDir := ax.Join(targetDir, targetTriple, "release")
 	if !fs.IsDir(releaseDir) {
 		return nil
@@ -185,7 +184,7 @@ func rustTargetTriple(target build.Target) core.Result {
 	case "windows/arm64":
 		return core.Ok("aarch64-pc-windows-msvc")
 	default:
-		return core.Fail(coreerr.E("RustBuilder.rustTargetTriple", "unsupported Rust target: "+target.String(), nil))
+		return core.Fail(core.E("RustBuilder.rustTargetTriple", "unsupported Rust target: "+target.String(), nil))
 	}
 }
 

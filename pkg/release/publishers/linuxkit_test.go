@@ -6,7 +6,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestLinuxKit_LinuxKitPublisherNameGood(t *testing.T) {
@@ -244,7 +244,7 @@ func TestLinuxKit_LinuxKitPublisherPublishBad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/nonexistent",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "linuxkit",
@@ -269,7 +269,7 @@ func TestLinuxKit_LinuxKitPublisherPublishBad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
@@ -296,7 +296,7 @@ func TestLinuxKit_LinuxKitPublisherPublishBad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "linuxkit",
@@ -380,7 +380,7 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
@@ -402,7 +402,7 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
@@ -426,7 +426,7 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "custom-owner/custom-repo"}
@@ -458,7 +458,7 @@ func TestLinuxKit_LinuxKitPublisherPublishWithCLIGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: ""} // Empty to trigger detection
@@ -498,7 +498,7 @@ func TestLinuxKit_LinuxKitPublisherPublishNilRelCfgGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 
@@ -536,7 +536,7 @@ func TestLinuxKit_LinuxKitPublisherDryRunPublishGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := LinuxKitConfig{
 			Config:    "/project/.core/linuxkit/server.yml",
@@ -598,7 +598,7 @@ func TestLinuxKit_LinuxKitPublisherDryRunPublishGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := LinuxKitConfig{
 			Config:    "/config.yml",
@@ -624,7 +624,7 @@ func TestLinuxKit_LinuxKitPublisherDryRunPublishGood(t *testing.T) {
 		release := &Release{
 			Version:    "v2.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := LinuxKitConfig{
 			Config:    "/config.yml",
@@ -954,7 +954,7 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "linuxkit"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
@@ -979,7 +979,7 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "linuxkit",
@@ -1009,7 +1009,7 @@ func TestLinuxKit_LinuxKitPublisherPublishDryRunGood(t *testing.T) {
 		release := &Release{
 			Version:    "v2.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "linuxkit",
@@ -1275,7 +1275,7 @@ func runLinuxKitPublishFixture(t *testing.T, formats []string, linuxKitMode stri
 	release := &Release{
 		Version:    "v1.2.3",
 		ProjectDir: tmpDir,
-		FS:         io.Local,
+		FS:         storage.Local,
 	}
 	pubCfg := PublisherConfig{
 		Type:     "linuxkit",
@@ -1309,7 +1309,7 @@ func assertLinuxKitArtifactExists(t *testing.T, result linuxKitPublishFixtureRes
 	t.Helper()
 
 	artifactPath := result.ArtifactPaths[format]
-	if !io.Local.Exists(artifactPath) {
+	if !storage.Local.Exists(artifactPath) {
 		t.Fatalf("expected artifact to exist: %s", artifactPath)
 	}
 

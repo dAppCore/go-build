@@ -7,7 +7,7 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	io_interface "dappco.re/go/io"
+	io_interface "dappco.re/go/build/pkg/storage"
 )
 
 // CIContext holds environment information detected from a GitHub Actions run.

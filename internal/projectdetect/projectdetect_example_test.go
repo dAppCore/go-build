@@ -2,7 +2,7 @@ package projectdetect
 
 import (
 	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 // --- v0.9.0 generated usage examples ---

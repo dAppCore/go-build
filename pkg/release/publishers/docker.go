@@ -7,8 +7,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // DockerConfig holds configuration for the Docker publisher.
@@ -58,10 +57,10 @@ func (p *DockerPublisher) Validate(ctx context.Context, release *Release, pubCfg
 
 	dockerCfg := p.parseConfig(release.FS, pubCfg, relCfg, release.ProjectDir)
 	if !release.FS.Exists(dockerCfg.Dockerfile) {
-		return core.Fail(coreerr.E("docker.Validate", "Dockerfile not found: "+dockerCfg.Dockerfile, nil))
+		return core.Fail(core.E("docker.Validate", "Dockerfile not found: "+dockerCfg.Dockerfile, nil))
 	}
 	if dockerCfg.Image == "" {
-		return core.Fail(coreerr.E("docker.Validate", "image name is required", nil))
+		return core.Fail(core.E("docker.Validate", "image name is required", nil))
 	}
 
 	return core.Ok(nil)
@@ -86,7 +85,7 @@ func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 
 	// Validate Dockerfile exists
 	if !release.FS.Exists(dockerCfg.Dockerfile) {
-		return core.Fail(coreerr.E("docker.Publish", "Dockerfile not found: "+dockerCfg.Dockerfile, nil))
+		return core.Fail(core.E("docker.Publish", "Dockerfile not found: "+dockerCfg.Dockerfile, nil))
 	}
 
 	// Validate docker CLI is available after local config checks.
@@ -104,7 +103,7 @@ func (p *DockerPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 }
 
 // parseConfig extracts Docker-specific configuration.
-func (p *DockerPublisher) parseConfig(fs io.Medium, pubCfg PublisherConfig, relCfg ReleaseConfig, projectDir string) DockerConfig {
+func (p *DockerPublisher) parseConfig(fs storage.Medium, pubCfg PublisherConfig, relCfg ReleaseConfig, projectDir string) DockerConfig {
 	cfg := DockerConfig{
 		Registry:  "ghcr.io",
 		Image:     "",
@@ -223,7 +222,7 @@ func (p *DockerPublisher) executePublish(ctx context.Context, release *Release, 
 	publisherPrint("Building and pushing Docker image: %s", cfg.Image)
 	built := publisherRun(ctx, release.ProjectDir, nil, dockerCommand, args...)
 	if !built.OK {
-		return core.Fail(coreerr.E("docker.Publish", "buildx build failed", core.NewError(built.Error())))
+		return core.Fail(core.E("docker.Publish", "buildx build failed", core.NewError(built.Error())))
 	}
 
 	return core.Ok(nil)
@@ -288,7 +287,7 @@ func (p *DockerPublisher) ensureBuildx(ctx context.Context, dockerCommand string
 	// Check if buildx is available
 	available := ax.Exec(ctx, dockerCommand, "buildx", "version")
 	if !available.OK {
-		return core.Fail(coreerr.E("docker.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", nil))
+		return core.Fail(core.E("docker.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", nil))
 	}
 
 	// Check if we have a builder, create one if not
@@ -297,7 +296,7 @@ func (p *DockerPublisher) ensureBuildx(ctx context.Context, dockerCommand string
 		// Try to create a builder
 		created := publisherRun(ctx, "", nil, dockerCommand, "buildx", "create", "--use", "--bootstrap")
 		if !created.OK {
-			return core.Fail(coreerr.E("docker.ensureBuildx", "failed to create buildx builder", core.NewError(created.Error())))
+			return core.Fail(core.E("docker.ensureBuildx", "failed to create buildx builder", core.NewError(created.Error())))
 		}
 	}
 
@@ -316,7 +315,7 @@ func resolveDockerCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("docker", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("docker.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", core.NewError(command.Error())))
+		return core.Fail(core.E("docker.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", core.NewError(command.Error())))
 	}
 
 	return command
@@ -326,7 +325,7 @@ func resolveDockerCli(paths ...string) core.Result {
 func validateDockerCli() core.Result {
 	resolved := resolveDockerCli()
 	if !resolved.OK {
-		return core.Fail(coreerr.E("docker.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", core.NewError(resolved.Error())))
+		return core.Fail(core.E("docker.validateDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", core.NewError(resolved.Error())))
 	}
 	return core.Ok(nil)
 }

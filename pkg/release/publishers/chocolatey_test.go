@@ -6,7 +6,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestChocolatey_ChocolateyPublisherNameGood(t *testing.T) {
@@ -154,7 +154,7 @@ func TestChocolatey_ChocolateyPublisherRenderTemplateGood(t *testing.T) {
 			Checksums:   ChecksumMap{},
 		}
 
-		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/chocolatey/package.nuspec.tmpl", data))
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/chocolatey/package.nuspec.tmpl", data))
 		if !stdlibAssertContains(result, `<id>myapp</id>`) {
 			t.Fatalf("expected %v to contain %v", result, `<id>myapp</id>`)
 		}
@@ -194,7 +194,7 @@ func TestChocolatey_ChocolateyPublisherRenderTemplateGood(t *testing.T) {
 			},
 		}
 
-		result := requirePublisherString(t, p.renderTemplate(io.Local, "templates/chocolatey/tools/chocolateyinstall.ps1.tmpl", data))
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/chocolatey/tools/chocolateyinstall.ps1.tmpl", data))
 		if !stdlibAssertContains(result, "$ErrorActionPreference = 'Stop'") {
 			t.Fatalf("expected %v to contain %v", result, "$ErrorActionPreference = 'Stop'")
 		}
@@ -222,7 +222,7 @@ func TestChocolatey_ChocolateyPublisherRenderTemplateBad(t *testing.T) {
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := chocolateyTemplateData{}
-		err := requirePublisherError(t, p.renderTemplate(io.Local, "templates/chocolatey/nonexistent.tmpl", data))
+		err := requirePublisherError(t, p.renderTemplate(storage.Local, "templates/chocolatey/nonexistent.tmpl", data))
 		if !stdlibAssertContains(err, "failed to read template") {
 			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
@@ -249,7 +249,7 @@ func TestChocolatey_ChocolateyPublisherDryRunPublishGood(t *testing.T) {
 
 		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			publishResult = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
 		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Chocolatey Publish") {
@@ -297,7 +297,7 @@ func TestChocolatey_ChocolateyPublisherDryRunPublishGood(t *testing.T) {
 
 		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			publishResult = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
 		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Push:       true") {

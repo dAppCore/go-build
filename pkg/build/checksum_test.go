@@ -5,7 +5,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // setupChecksumTestFile creates a test file with known content.
@@ -57,7 +57,7 @@ func requireChecksumBytes(t *testing.T, result core.Result) []byte {
 }
 
 func TestChecksum_Checksum_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("computes SHA256 checksum", func(t *testing.T) {
 		// Known SHA256 of "Hello, World!\n"
 		path := setupChecksumTestFile(t, "Hello, World!\n")
@@ -142,7 +142,7 @@ func TestChecksum_Checksum_Good(t *testing.T) {
 }
 
 func TestChecksum_Checksum_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("returns error for empty path", func(t *testing.T) {
 		artifact := Artifact{
 			Path: "",
@@ -179,7 +179,7 @@ func TestChecksum_Checksum_Bad(t *testing.T) {
 }
 
 func TestChecksum_ChecksumAll_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("checksums multiple artifacts", func(t *testing.T) {
 		paths := []string{
 			setupChecksumTestFile(t, "content one"),
@@ -233,7 +233,7 @@ func TestChecksum_ChecksumAll_Good(t *testing.T) {
 }
 
 func TestChecksum_ChecksumAll_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("returns partial results on error", func(t *testing.T) {
 		path := setupChecksumTestFile(t, "valid content")
 
@@ -254,7 +254,7 @@ func TestChecksum_ChecksumAll_Bad(t *testing.T) {
 }
 
 func TestChecksum_WriteChecksumFile_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("writes checksum file with correct format", func(t *testing.T) {
 		dir := t.TempDir()
 		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
@@ -359,7 +359,7 @@ func TestChecksum_WriteChecksumFile_Good(t *testing.T) {
 }
 
 func TestChecksum_WriteChecksumFile_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("returns error for artifact without checksum", func(t *testing.T) {
 		dir := t.TempDir()
 		checksumPath := ax.Join(dir, "CHECKSUMS.txt")
@@ -383,7 +383,7 @@ func TestChecksum_WriteChecksumFile_Bad(t *testing.T) {
 func TestChecksum_Checksum_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = Checksum(io.NewMemoryMedium(), Artifact{})
+		_ = Checksum(storage.NewMemoryMedium(), Artifact{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -392,7 +392,7 @@ func TestChecksum_Checksum_Ugly(t *core.T) {
 func TestChecksum_ChecksumAll_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ChecksumAll(io.NewMemoryMedium(), nil)
+		_ = ChecksumAll(storage.NewMemoryMedium(), nil)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -401,7 +401,7 @@ func TestChecksum_ChecksumAll_Ugly(t *core.T) {
 func TestChecksum_WriteChecksumFile_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteChecksumFile(io.NewMemoryMedium(), nil, core.Path(t.TempDir(), "go-build-compliance"))
+		_ = WriteChecksumFile(storage.NewMemoryMedium(), nil, core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

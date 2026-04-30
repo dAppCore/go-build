@@ -6,12 +6,10 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 var buildAppleFn = build.BuildApple
@@ -73,7 +71,7 @@ func AddAppleCommand(c *core.Core) {
 func runAppleBuild(ctx context.Context, opts appleCLIOptions) core.Result {
 	projectDirResult := ax.Getwd()
 	if !projectDirResult.OK {
-		return core.Fail(coreerr.E("build.apple", "failed to get working directory", core.NewError(projectDirResult.Error())))
+		return core.Fail(core.E("build.apple", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
 	return runAppleBuildInDir(ctx, projectDirResult.Value.(string), opts)
 }
@@ -83,7 +81,7 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 		ctx = context.Background()
 	}
 
-	filesystem := io.Local
+	filesystem := storage.Local
 
 	buildConfigResult := loadAppleBuildConfig(filesystem, projectDir, opts.ConfigPath)
 	if !buildConfigResult.OK {
@@ -92,12 +90,12 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 	buildConfig := buildConfigResult.Value.(*build.BuildConfig)
 	cacheSetup := build.SetupBuildCache(filesystem, projectDir, buildConfig)
 	if !cacheSetup.OK {
-		return core.Fail(coreerr.E("build.apple", "failed to set up build cache", core.NewError(cacheSetup.Error())))
+		return core.Fail(core.E("build.apple", "failed to set up build cache", core.NewError(cacheSetup.Error())))
 	}
 	if build.HasXcodeCloudConfig(buildConfig) {
 		written := build.WriteXcodeCloudScripts(filesystem, projectDir, buildConfig)
 		if !written.OK {
-			return core.Fail(coreerr.E("build.apple", "failed to write Xcode Cloud scripts", core.NewError(written.Error())))
+			return core.Fail(core.E("build.apple", "failed to write Xcode Cloud scripts", core.NewError(written.Error())))
 		}
 	}
 
@@ -105,13 +103,13 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 	if version == "" {
 		versionResult := resolveBuildVersion(ctx, projectDir)
 		if !versionResult.OK {
-			return core.Fail(coreerr.E("build.apple", "failed to determine version", core.NewError(versionResult.Error())))
+			return core.Fail(core.E("build.apple", "failed to determine version", core.NewError(versionResult.Error())))
 		}
 		version = versionResult.Value.(string)
 	}
 	validVersion := build.ValidateVersionIdentifier(version)
 	if !validVersion.OK {
-		return core.Fail(coreerr.E("build.apple", "invalid build version; use a safe release identifier", core.NewError(validVersion.Error())))
+		return core.Fail(core.E("build.apple", "invalid build version; use a safe release identifier", core.NewError(validVersion.Error())))
 	}
 
 	buildNumber := opts.BuildNumber
@@ -152,22 +150,22 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 	}
 	result := resultValue.Value.(*build.AppleBuildResult)
 
-	cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.apple.completed"))
-	cli.Print("  %s %s\n", i18n.T("cmd.build.apple.label.bundle"), buildTargetStyle.Render(result.BundlePath))
-	cli.Print("  %s %s\n", i18n.T("cmd.build.apple.label.version"), buildTargetStyle.Render(result.Version))
-	cli.Print("  %s %s\n", i18n.T("cmd.build.apple.label.build_number"), buildTargetStyle.Render(result.BuildNumber))
+	cli.Print("%s %s\n", buildSuccessStyle.Render("Success"), "Apple build completed")
+	cli.Print("  %s %s\n", "bundle", buildTargetStyle.Render(result.BundlePath))
+	cli.Print("  %s %s\n", "version", buildTargetStyle.Render(result.Version))
+	cli.Print("  %s %s\n", "build number", buildTargetStyle.Render(result.BuildNumber))
 	if result.DMGPath != "" {
-		cli.Print("  %s %s\n", i18n.T("cmd.build.apple.label.dmg"), buildTargetStyle.Render(result.DMGPath))
+		cli.Print("  %s %s\n", "dmg", buildTargetStyle.Render(result.DMGPath))
 	}
 
 	return core.Ok(nil)
 }
 
-func loadAppleBuildConfig(filesystem io.Medium, projectDir, configPath string) core.Result {
+func loadAppleBuildConfig(filesystem storage.Medium, projectDir, configPath string) core.Result {
 	if configPath == "" {
 		cfg := build.LoadConfig(filesystem, projectDir)
 		if !cfg.OK {
-			return core.Fail(coreerr.E("build.apple", "failed to load config", core.NewError(cfg.Error())))
+			return core.Fail(core.E("build.apple", "failed to load config", core.NewError(cfg.Error())))
 		}
 		return cfg
 	}
@@ -176,12 +174,12 @@ func loadAppleBuildConfig(filesystem io.Medium, projectDir, configPath string) c
 		configPath = ax.Join(projectDir, configPath)
 	}
 	if !filesystem.Exists(configPath) {
-		return core.Fail(coreerr.E("build.apple", "build config not found: "+configPath, nil))
+		return core.Fail(core.E("build.apple", "build config not found: "+configPath, nil))
 	}
 
 	cfg := build.LoadConfigAtPath(filesystem, configPath)
 	if !cfg.OK {
-		return core.Fail(coreerr.E("build.apple", "failed to load config", core.NewError(cfg.Error())))
+		return core.Fail(core.E("build.apple", "failed to load config", core.NewError(cfg.Error())))
 	}
 	return cfg
 }
@@ -253,7 +251,7 @@ var appleBuildNumberPattern = regexp.MustCompile(`^[0-9]+$`)
 
 func validateAppleBuildNumber(value string) core.Result {
 	if !appleBuildNumberPattern.MatchString(value) {
-		return core.Fail(coreerr.E("build.apple", "build-number must be a positive integer", nil))
+		return core.Fail(core.E("build.apple", "build-number must be a positive integer", nil))
 	}
 	return core.Ok(nil)
 }

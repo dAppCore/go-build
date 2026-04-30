@@ -8,8 +8,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // DocsBuilder builds MkDocs projects.
@@ -33,8 +32,8 @@ func (b *DocsBuilder) Name() string {
 
 // Detect checks if this builder can handle the project in the given directory.
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *DocsBuilder) Detect(fs io.Medium, dir string) core.Result {
+// ok, err := b.Detect(storage.Local, ".")
+func (b *DocsBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(build.IsDocsProject(fs, dir))
 }
 
@@ -43,7 +42,7 @@ func (b *DocsBuilder) Detect(fs io.Medium, dir string) core.Result {
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("DocsBuilder.Build", "config is nil", nil))
+		return core.Fail(core.E("DocsBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
@@ -60,7 +59,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 
 	configPath := b.resolveMkDocsConfigPath(cfg.FS, cfg.ProjectDir)
 	if configPath == "" {
-		return core.Fail(coreerr.E("DocsBuilder.Build", "mkdocs.yml or mkdocs.yaml not found", nil))
+		return core.Fail(core.E("DocsBuilder.Build", "mkdocs.yml or mkdocs.yaml not found", nil))
 	}
 
 	mkdocsCommandResult := b.resolveMkDocsCli()
@@ -80,7 +79,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		siteDir := ax.Join(platformDir, "site")
 		createdSite := filesystem.EnsureDir(siteDir)
 		if !createdSite.OK {
-			return core.Fail(coreerr.E("DocsBuilder.Build", "failed to create site directory", core.NewError(createdSite.Error())))
+			return core.Fail(core.E("DocsBuilder.Build", "failed to create site directory", core.NewError(createdSite.Error())))
 		}
 
 		env := configuredTargetEnv(cfg, target, standardTargetValues(outputDir, platformDir, target)...)
@@ -88,7 +87,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 		args := []string{"build", "--clean", "--site-dir", siteDir, "--config-file", configPath}
 		output := ax.CombinedOutput(ctx, cfg.ProjectDir, env, mkdocsCommand, args...)
 		if !output.OK {
-			return core.Fail(coreerr.E("DocsBuilder.Build", "mkdocs build failed: "+output.Error(), core.NewError(output.Error())))
+			return core.Fail(core.E("DocsBuilder.Build", "mkdocs build failed: "+output.Error(), core.NewError(output.Error())))
 		}
 
 		bundlePath := ax.Join(platformDir, b.bundleName(cfg)+".zip")
@@ -108,7 +107,7 @@ func (b *DocsBuilder) Build(ctx context.Context, cfg *build.Config, targets []bu
 }
 
 // resolveMkDocsConfigPath returns the MkDocs config file path if present.
-func (b *DocsBuilder) resolveMkDocsConfigPath(fs io.Medium, projectDir string) string {
+func (b *DocsBuilder) resolveMkDocsConfigPath(fs storage.Medium, projectDir string) string {
 	return build.ResolveMkDocsConfigPath(fs, projectDir)
 }
 
@@ -123,7 +122,7 @@ func (b *DocsBuilder) resolveMkDocsCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("mkdocs", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("DocsBuilder.resolveMkDocsCli", "mkdocs CLI not found. Install it with: pip install mkdocs", core.NewError(command.Error())))
+		return core.Fail(core.E("DocsBuilder.resolveMkDocsCli", "mkdocs CLI not found. Install it with: pip install mkdocs", core.NewError(command.Error())))
 	}
 
 	return command
@@ -141,7 +140,7 @@ func (b *DocsBuilder) bundleName(cfg *build.Config) string {
 }
 
 // bundleSite creates a zip bundle containing the generated MkDocs site.
-func (b *DocsBuilder) bundleSite(fs io.Medium, siteDir, bundlePath string) core.Result {
+func (b *DocsBuilder) bundleSite(fs storage.Medium, siteDir, bundlePath string) core.Result {
 	return bundleZipTree(fs, siteDir, bundlePath, "DocsBuilder.bundleSite", nil)
 }
 

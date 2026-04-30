@@ -9,7 +9,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/testassert"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // setupGoTestProject creates a minimal Go project for testing.
@@ -178,7 +178,7 @@ func TestGo_GoBuilderNameGood(t *testing.T) {
 }
 
 func TestGo_GoBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("detects Go project with go.mod", func(t *testing.T) {
 		dir := t.TempDir()
 		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module test"), 0644); !result.OK {
@@ -249,7 +249,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "testbinary",
@@ -298,7 +298,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "fallback",
@@ -325,7 +325,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			Name:       "mutability",
 		}
@@ -349,7 +349,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "multitest",
@@ -387,7 +387,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "wintest",
@@ -418,7 +418,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "", // Empty name
@@ -451,7 +451,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 		}
@@ -481,7 +481,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 		}
@@ -511,7 +511,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "ldflagstest",
@@ -543,7 +543,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "envflags",
@@ -628,7 +628,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "cachetest",
@@ -670,7 +670,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "tagged",
@@ -715,7 +715,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "versioned",
@@ -767,7 +767,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "obfuscated",
@@ -828,7 +828,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "obfuscated-gobin",
@@ -875,7 +875,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "mainpackage",
@@ -911,7 +911,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "nestedtest",
@@ -927,7 +927,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 		if result := ax.Stat(artifacts[0].Path); !result.OK {
 			t.Fatalf("expected file to exist: %v", artifacts[0].Path)
 		}
-		if !io.Local.IsDir(outputDir) {
+		if !storage.Local.IsDir(outputDir) {
 			t.Fatalf("expected directory to exist: %v", outputDir)
 		}
 
@@ -938,7 +938,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			Name:       "defaultoutput",
 		}
@@ -952,7 +952,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 		}
 
 		expectedDir := ax.Join(projectDir, "dist")
-		if !io.Local.IsDir(expectedDir) {
+		if !storage.Local.IsDir(expectedDir) {
 			t.Fatalf("expected directory to exist: %v", expectedDir)
 		}
 		if !stdlibAssertContains(artifacts[0].Path, expectedDir) {
@@ -988,7 +988,7 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  t.TempDir(),
 			Name:       "test",
@@ -1017,7 +1017,7 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: "/nonexistent/path",
 			OutputDir:  t.TempDir(),
 			Name:       "test",
@@ -1051,7 +1051,7 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: dir,
 			OutputDir:  t.TempDir(),
 			Name:       "test",
@@ -1082,7 +1082,7 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "partialtest",
@@ -1111,7 +1111,7 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  t.TempDir(),
 			Name:       "canceltest",
@@ -1136,7 +1136,7 @@ func TestGo_GoBuilderBuildBad(t *testing.T) {
 
 		builder := NewGoBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  t.TempDir(),
 			Name:       "unsafe-version",
@@ -1313,7 +1313,7 @@ func TestGo_GoBuilder_Detect_Good(t *core.T) {
 	subject := &GoBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1323,7 +1323,7 @@ func TestGo_GoBuilder_Detect_Bad(t *core.T) {
 	subject := &GoBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1333,7 +1333,7 @@ func TestGo_GoBuilder_Detect_Ugly(t *core.T) {
 	subject := &GoBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

@@ -9,7 +9,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestTaskfile_TaskfileBuilderNameGood(t *testing.T) {
@@ -21,7 +21,7 @@ func TestTaskfile_TaskfileBuilderNameGood(t *testing.T) {
 }
 
 func TestTaskfile_TaskfileBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("detects Taskfile.yml", func(t *testing.T) {
 		dir := t.TempDir()
@@ -147,7 +147,7 @@ func TestTaskfile_TaskfileBuilderDetectGood(t *testing.T) {
 }
 
 func TestTaskfile_TaskfileBuilderFindArtifactsGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	builder := NewTaskfileBuilder()
 
 	t.Run("finds files in output directory", func(t *testing.T) {
@@ -248,7 +248,7 @@ func TestTaskfile_TaskfileBuilderFindArtifactsGood(t *testing.T) {
 }
 
 func TestTaskfile_TaskfileBuilderFindArtifactsForTargetGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	builder := NewTaskfileBuilder()
 
 	t.Run("finds artifacts in platform subdirectory", func(t *testing.T) {
@@ -418,7 +418,7 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	goCacheDir := ax.Join(t.TempDir(), "cache", "go-build")
 	goModCacheDir := ax.Join(t.TempDir(), "cache", "go-mod")
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: t.TempDir(),
 		OutputDir:  "/tmp/out",
 		Name:       "sample",
@@ -501,7 +501,7 @@ printf '%s\n' "${NAME:-taskfile}" > "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${NAME:-tas
 
 	builder := NewTaskfileBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		Name:       "sample",
 	}
@@ -549,7 +549,7 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 	goCacheDir := ax.Join(t.TempDir(), "cache", "go-build")
 	goModCacheDir := ax.Join(t.TempDir(), "cache", "go-mod")
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		Name:       "sample",
 		Version:    "v1.2.3",
@@ -633,7 +633,7 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 
 	builder := NewTaskfileBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		Name:       "sample",
 		Version:    "v1.2.3",
@@ -701,7 +701,7 @@ env | sort > "${TASK_BUILD_LOG_FILE}"
 
 	builder := NewTaskfileBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: t.TempDir(),
 		OutputDir:  "/tmp/out",
 		Name:       "sample",
@@ -782,7 +782,7 @@ func TestTaskfile_TaskfileBuilder_Detect_Good(t *core.T) {
 	subject := &TaskfileBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -792,7 +792,7 @@ func TestTaskfile_TaskfileBuilder_Detect_Bad(t *core.T) {
 	subject := &TaskfileBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -802,7 +802,7 @@ func TestTaskfile_TaskfileBuilder_Detect_Ugly(t *core.T) {
 	subject := &TaskfileBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

@@ -9,7 +9,7 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // setupWailsTestProject creates a minimal Wails project structure for testing.
@@ -337,7 +337,7 @@ func assertWailsPackagePreBuildLog(t *testing.T, commands []string, configure fu
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	cfg := &build.Config{FS: io.Local, ProjectDir: projectDir}
+	cfg := &build.Config{FS: storage.Local, ProjectDir: projectDir}
 	if configure != nil {
 		configure(cfg)
 	}
@@ -355,7 +355,7 @@ func TestWails_WailsBuilderBuildTaskfileGood(t *testing.T) {
 	}
 
 	t.Run("delegates to Taskfile if present", func(t *testing.T) {
-		fs := io.Local
+		fs := storage.Local
 		projectDir := setupWailsTestProject(t)
 		outputDir := t.TempDir()
 
@@ -421,7 +421,7 @@ chmod +x "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}"
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "testapp",
@@ -488,7 +488,7 @@ go build -o "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}" .
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  t.TempDir(),
 			Name:       "testapp",
@@ -558,7 +558,7 @@ func TestWails_WailsBuilderBuildV3ConfigGood(t *testing.T) {
 
 func TestWails_WailsBuilderResolveFrontendDirGood(t *testing.T) {
 	builder := NewWailsBuilder()
-	fs := io.Local
+	fs := storage.Local
 
 	for _, tc := range []struct {
 		name       string
@@ -617,7 +617,7 @@ func TestWails_WailsBuilderBuildV2Good(t *testing.T) {
 	builder := NewWailsBuilder()
 
 	t.Run("builds v2 project", func(t *testing.T) {
-		fs := io.Local
+		fs := storage.Local
 		projectDir := setupWailsV2TestProject(t)
 		outputDir := t.TempDir()
 
@@ -635,7 +635,7 @@ func TestWails_WailsBuilderBuildV2Good(t *testing.T) {
 		if len(artifacts) != 1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if !(io.Local.Exists(artifacts[0].Path)) {
+		if !(storage.Local.Exists(artifacts[0].Path)) {
 			t.Fatal("expected true")
 		}
 
@@ -656,7 +656,7 @@ func TestWails_copyBuildArtifact_PreservesMode_Good(t *testing.T) {
 
 	destDir := t.TempDir()
 	destPath := ax.Join(destDir, "testapp")
-	result = copyBuildArtifact(io.Local, sourcePath, destPath)
+	result = copyBuildArtifact(storage.Local, sourcePath, destPath)
 	if !result.OK {
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
@@ -693,7 +693,7 @@ func TestWails_WailsBuilderBuildV2FlagsGood(t *testing.T) {
 	builder := NewWailsBuilder()
 	t.Run("includes Windows-only packaging flags for Windows targets", func(t *testing.T) {
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "testapp",
@@ -767,7 +767,7 @@ func TestWails_WailsBuilderBuildV2FlagsGood(t *testing.T) {
 
 	t.Run("omits Windows-only packaging flags for non-Windows targets", func(t *testing.T) {
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "testapp",
@@ -857,7 +857,7 @@ func TestWails_WailsBuilderBuildV2_RespectsConfiguredOutputNameGood(t *testing.T
 
 			builder := NewWailsBuilder()
 			cfg := &build.Config{
-				FS:         io.Local,
+				FS:         storage.Local,
 				ProjectDir: projectDir,
 				OutputDir:  outputDir,
 				Name:       "customapp",
@@ -928,7 +928,7 @@ func TestWails_WailsBuilderPreBuildGood(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 		}
 		result = builder.PreBuild(context.Background(), cfg)
@@ -962,7 +962,7 @@ func TestWails_WailsBuilderPreBuildGood(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			DenoBuild:  "deno-build --target release",
 		}
@@ -999,7 +999,7 @@ func TestWails_WailsBuilderPreBuildGood(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			DenoBuild:  "deno-build --config",
 		}
@@ -1055,7 +1055,7 @@ func TestWails_WailsBuilderPreBuildGood(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 		}
 		result = builder.PreBuild(context.Background(), cfg)
@@ -1097,7 +1097,7 @@ func TestWails_WailsBuilderPreBuildGood(t *testing.T) {
 			}
 
 			assertWailsPreBuildLog(t, &build.Config{
-				FS:         io.Local,
+				FS:         storage.Local,
 				ProjectDir: projectDir,
 			}, "frontend.log", tc.command, "run", "build")
 		})
@@ -1128,7 +1128,7 @@ func TestWails_WailsBuilderPreBuildGood(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 		}
 		result = builder.PreBuild(context.Background(), cfg)
@@ -1175,7 +1175,7 @@ func TestWails_WailsBuilderBuildV2PreBuildGood(t *testing.T) {
 
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "testapp",
@@ -1241,7 +1241,7 @@ func TestWails_WailsBuilderPropagatesEnvToExternalCommandsGood(t *testing.T) {
 
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  t.TempDir(),
 		Name:       "testapp",
@@ -1298,7 +1298,7 @@ func TestWails_WailsBuilderResolveWailsCliBad(t *testing.T) {
 }
 
 func TestWails_WailsBuilderDetectGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("detects Wails project with wails.json", func(t *testing.T) {
 		dir := t.TempDir()
 		result := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644)
@@ -1401,7 +1401,7 @@ func TestWails_WailsBuilderDetectGood(t *testing.T) {
 }
 
 func TestWails_DetectPackageManagerGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	for _, tc := range []struct {
 		name  string
 		files map[string]string
@@ -1468,7 +1468,7 @@ func TestWails_DetectPackageManagerGood(t *testing.T) {
 }
 
 func TestWails_CopyBuildArtifactGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("copies files", func(t *testing.T) {
 		dir := t.TempDir()
@@ -1539,7 +1539,7 @@ func TestWails_WailsBuilderBuildUnsafeVersionBad(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  t.TempDir(),
 			Name:       "test",
@@ -1572,7 +1572,7 @@ func TestWails_WailsBuilderBuildGood(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  outputDir,
 			Name:       "testapp",
@@ -1622,7 +1622,7 @@ func TestWails_WailsBuilderBuildV3FallbackGood(t *testing.T) {
 	goCacheDir := ax.Join(t.TempDir(), "cache", "go-build")
 	goModCacheDir := ax.Join(t.TempDir(), "cache", "go-mod")
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  t.TempDir(),
 		Name:       "testapp",
@@ -1703,7 +1703,7 @@ func TestWails_WailsBuilderBuildV3Fallback_Obfuscate_Good(t *testing.T) {
 
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  t.TempDir(),
 		Name:       "testapp",
@@ -1765,7 +1765,7 @@ func TestWails_WailsBuilderBuildV3Fallback_PreBuildGood(t *testing.T) {
 
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  t.TempDir(),
 		Name:       "testapp",
@@ -1826,7 +1826,7 @@ func TestWails_WailsBuilderBuildV3NSISGood(t *testing.T) {
 
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  t.TempDir(),
 		Name:       "testapp",
@@ -1888,7 +1888,7 @@ func assertWailsBuilderBuildV3NSISWebView2(t *testing.T, mode string) {
 
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  t.TempDir(),
 		Name:       "testapp",
@@ -1948,7 +1948,7 @@ func TestWails_WailsBuilderBuildBad(t *testing.T) {
 
 	builder := NewWailsBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  t.TempDir(),
 		Name:       "unsafe-version",
@@ -1994,7 +1994,7 @@ func TestWails_WailsBuilderUgly(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: dir,
 			OutputDir:  t.TempDir(),
 			Name:       "test",
@@ -2025,7 +2025,7 @@ func TestWails_WailsBuilderUgly(t *testing.T) {
 
 		builder := NewWailsBuilder()
 		cfg := &build.Config{
-			FS:         io.Local,
+			FS:         storage.Local,
 			ProjectDir: projectDir,
 			OutputDir:  t.TempDir(),
 			Name:       "canceltest",
@@ -2108,7 +2108,7 @@ func TestWails_WailsBuilder_Detect_Good(t *core.T) {
 	subject := &WailsBuilder{}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -2118,7 +2118,7 @@ func TestWails_WailsBuilder_Detect_Bad(t *core.T) {
 	subject := &WailsBuilder{}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), "")
+		_ = subject.Detect(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -2128,7 +2128,7 @@ func TestWails_WailsBuilder_Detect_Ugly(t *core.T) {
 	subject := &WailsBuilder{}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = subject.Detect(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = subject.Detect(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

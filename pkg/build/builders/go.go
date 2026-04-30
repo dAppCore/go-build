@@ -7,8 +7,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // GoBuilder implements the Builder interface for Go projects.
@@ -33,8 +32,8 @@ func (b *GoBuilder) Name() string {
 // Detect checks if this builder can handle the project in the given directory.
 // Uses IsGoProject from the build package which checks for go.mod, go.work, or wails.json.
 //
-// result := b.Detect(io.Local, ".")
-func (b *GoBuilder) Detect(fs io.Medium, dir string) core.Result {
+// result := b.Detect(storage.Local, ".")
+func (b *GoBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(build.IsGoProject(fs, dir))
 }
 
@@ -46,7 +45,7 @@ func (b *GoBuilder) Detect(fs io.Medium, dir string) core.Result {
 // result := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("GoBuilder.Build", "config is nil", nil))
+		return core.Fail(core.E("GoBuilder.Build", "config is nil", nil))
 	}
 	ensureBuildFilesystem(cfg)
 	artifactFilesystem := build.ResolveOutputMedium(cfg)
@@ -68,7 +67,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 	for _, target := range targets {
 		artifactResult := b.buildTarget(ctx, cfg, artifactFilesystem, outputDir, target)
 		if !artifactResult.OK {
-			return core.Fail(coreerr.E("GoBuilder.Build", "failed to build "+target.String(), core.NewError(artifactResult.Error())))
+			return core.Fail(core.E("GoBuilder.Build", "failed to build "+target.String(), core.NewError(artifactResult.Error())))
 		}
 		artifacts = append(artifacts, artifactResult.Value.(build.Artifact))
 	}
@@ -77,7 +76,7 @@ func (b *GoBuilder) Build(ctx context.Context, cfg *build.Config, targets []buil
 }
 
 // buildTarget compiles for a single target platform.
-func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, artifactFilesystem io.Medium, outputDir string, target build.Target) core.Result {
+func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, artifactFilesystem storage.Medium, outputDir string, target build.Target) core.Result {
 	// Determine output binary name
 	binaryName := cfg.Name
 	if binaryName == "" {
@@ -114,7 +113,7 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, artifact
 		stagePlatformDir := ax.Join(stage.commandOutputDir, platformID)
 		created := stage.commandFS.EnsureDir(stagePlatformDir)
 		if !created.OK {
-			return core.Fail(coreerr.E("GoBuilder.buildTarget", "failed to create local platform staging directory", core.NewError(created.Error())))
+			return core.Fail(core.E("GoBuilder.buildTarget", "failed to create local platform staging directory", core.NewError(created.Error())))
 		}
 		commandOutputPath = ax.Join(stagePlatformDir, binaryName)
 	}
@@ -177,11 +176,11 @@ func (b *GoBuilder) buildTarget(ctx context.Context, cfg *build.Config, artifact
 	// Capture output for error messages
 	output := ax.CombinedOutput(ctx, cfg.ProjectDir, env, command, args...)
 	if !output.OK {
-		return core.Fail(coreerr.E("GoBuilder.buildTarget", command+" build failed: "+output.Error(), core.NewError(output.Error())))
+		return core.Fail(core.E("GoBuilder.buildTarget", command+" build failed: "+output.Error(), core.NewError(output.Error())))
 	}
 
 	if commandOutputPath != outputPath {
-		copied := build.CopyMediumPath(io.Local, commandOutputPath, artifactFilesystem, outputPath)
+		copied := build.CopyMediumPath(storage.Local, commandOutputPath, artifactFilesystem, outputPath)
 		if !copied.OK {
 			return copied
 		}
@@ -213,7 +212,7 @@ func (b *GoBuilder) resolveGarbleCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("garble", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("GoBuilder.resolveGarbleCli", "garble CLI not found. Install it with: go install mvdan.cc/garble@latest", core.NewError(command.Error())))
+		return core.Fail(core.E("GoBuilder.resolveGarbleCli", "garble CLI not found. Install it with: go install mvdan.cc/garble@latest", core.NewError(command.Error())))
 	}
 
 	return command

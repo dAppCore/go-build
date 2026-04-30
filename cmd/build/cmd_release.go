@@ -7,12 +7,10 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
-	coreerr "dappco.re/go/log"
 )
 
 var (
@@ -67,7 +65,7 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 	// Get current directory
 	projectDirResult := getReleaseWorkingDir()
 	if !projectDirResult.OK {
-		return core.Fail(coreerr.E("release", "get working directory", core.NewError(projectDirResult.Error())))
+		return core.Fail(core.E("release", "get working directory", core.NewError(projectDirResult.Error())))
 	}
 	projectDir := projectDirResult.Value.(string)
 
@@ -86,24 +84,24 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 	// Check for release config
 	if !releaseConfigExistsFn(projectDir) {
 		cli.Print("%s %s\n",
-			buildErrorStyle.Render(i18n.Label("error")),
-			i18n.T("cmd.build.release.error.no_config"),
+			buildErrorStyle.Render("error:"),
+			"release config not found",
 		)
-		cli.Print("  %s\n", buildDimStyle.Render(i18n.T("cmd.build.release.hint.create_config")))
-		return core.Fail(coreerr.E("release", "config not found", nil))
+		cli.Print("  %s\n", buildDimStyle.Render("Run core ci/init to create .core/release.yaml"))
+		return core.Fail(core.E("release", "config not found", nil))
 	}
 
 	// Load configuration
 	cfgResult := loadReleaseConfigFn(projectDir)
 	if !cfgResult.OK {
-		return core.Fail(coreerr.E("release", "load config", core.NewError(cfgResult.Error())))
+		return core.Fail(core.E("release", "load config", core.NewError(cfgResult.Error())))
 	}
 	cfg := cfgResult.Value.(*release.Config)
 
 	// Apply CLI overrides
 	if version != "" {
 		if !release.ValidateVersion(version) {
-			return core.Fail(coreerr.E("release", "invalid release version override", nil))
+			return core.Fail(core.E("release", "invalid release version override", nil))
 		}
 		cfg.SetVersion(version)
 	}
@@ -125,9 +123,9 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 	}
 
 	// Print header
-	cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.release.label.release")), releaseTargetLabel(target))
+	cli.Print("%s %s\n", buildHeaderStyle.Render("Release"), releaseTargetLabel(target))
 	if dryRun {
-		cli.Print("  %s\n", buildDimStyle.Render(i18n.T("cmd.build.release.dry_run_hint")))
+		cli.Print("  %s\n", buildDimStyle.Render("Dry run: no publishers will be changed"))
 	}
 	cli.Blank()
 
@@ -141,13 +139,13 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 
 		// Print summary
 		cli.Blank()
-		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("i18n.done.pass")), i18n.T("cmd.build.release.completed"))
-		cli.Print("  %s   %s\n", i18n.Label("version"), buildTargetStyle.Render(rel.Version))
-		cli.Print("  %s %d\n", i18n.T("cmd.build.release.label.artifacts"), len(rel.Artifacts))
+		cli.Print("%s %s\n", buildSuccessStyle.Render("Done"), "Release completed")
+		cli.Print("  %s   %s\n", "version:", buildTargetStyle.Render(rel.Version))
+		cli.Print("  %s %d\n", "artifacts", len(rel.Artifacts))
 
 		if !dryRun {
 			for _, pub := range cfg.Publishers {
-				cli.Print("  %s %s\n", i18n.T("cmd.build.release.label.published"), buildTargetStyle.Render(pub.Type))
+				cli.Print("  %s %s\n", "published", buildTargetStyle.Render(pub.Type))
 			}
 		}
 
@@ -160,13 +158,13 @@ func runRelease(ctx context.Context, dryRun bool, ciMode bool, target, version s
 		sdkRelease := sdkResult.Value.(*release.SDKRelease)
 
 		cli.Blank()
-		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("i18n.done.pass")), "SDK release completed")
-		cli.Print("  %s   %s\n", i18n.Label("version"), buildTargetStyle.Render(sdkRelease.Version))
+		cli.Print("%s %s\n", buildSuccessStyle.Render("Done"), "SDK release completed")
+		cli.Print("  %s   %s\n", "version:", buildTargetStyle.Render(sdkRelease.Version))
 		cli.Print("  %s   %s\n", "output", buildTargetStyle.Render(sdkRelease.Output))
 		cli.Print("  %s %s\n", "languages", buildTargetStyle.Render(core.Join(", ", sdkRelease.Languages...)))
 		return core.Ok(nil)
 	default:
-		return core.Fail(coreerr.E("release", "unsupported release target: "+target, nil))
+		return core.Fail(core.E("release", "unsupported release target: "+target, nil))
 	}
 }
 
@@ -206,5 +204,5 @@ func releaseTargetLabel(target string) string {
 	if target == "sdk" {
 		return "Generating SDK release"
 	}
-	return i18n.T("cmd.build.release.building_and_publishing")
+	return "Building and publishing"
 }

@@ -6,10 +6,9 @@ import (
 	"embed"         // Note: AX-6 — embeds npm templates for release publishing.
 	"text/template" // Note: AX-6 — renders npm package templates.
 
-	"dappco.re/go"                   // Note: AX-6 — provides approved string and formatting helpers.
-	"dappco.re/go/build/internal/ax" // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
-	coreio "dappco.re/go/io"         // Note: AX-6 — Core Medium abstraction for release filesystem access.
-	coreerr "dappco.re/go/log"       // Note: AX-6 — wraps publisher errors with Core logging semantics.
+	"dappco.re/go"                          // Note: AX-6 — provides approved string and formatting helpers.
+	"dappco.re/go/build/internal/ax"        // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
+	coreio "dappco.re/go/build/pkg/storage" // Note: AX-6 — Core Medium abstraction for release filesystem access.
 )
 
 //go:embed templates/npm/*.tmpl
@@ -54,7 +53,7 @@ func (p *NpmPublisher) Validate(ctx context.Context, release *Release, pubCfg Pu
 
 	npmCfg := p.parseConfig(pubCfg, relCfg)
 	if npmCfg.Package == "" {
-		return core.Fail(coreerr.E("npm.Validate", "package name is required (set publish.npm.package in config)", nil))
+		return core.Fail(core.E("npm.Validate", "package name is required (set publish.npm.package in config)", nil))
 	}
 
 	return core.Ok(nil)
@@ -79,7 +78,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 
 	// Validate configuration
 	if npmCfg.Package == "" {
-		return core.Fail(coreerr.E("npm.Publish", "package name is required (set publish.npm.package in config)", nil))
+		return core.Fail(core.E("npm.Publish", "package name is required (set publish.npm.package in config)", nil))
 	}
 
 	// Get repository
@@ -90,7 +89,7 @@ func (p *NpmPublisher) Publish(ctx context.Context, release *Release, pubCfg Pub
 	if repo == "" {
 		detectedRepoResult := detectRepository(ctx, release.ProjectDir)
 		if !detectedRepoResult.OK {
-			return core.Fail(coreerr.E("npm.Publish", "could not determine repository", core.NewError(detectedRepoResult.Error())))
+			return core.Fail(core.E("npm.Publish", "could not determine repository", core.NewError(detectedRepoResult.Error())))
 		}
 		repo = detectedRepoResult.Value.(string)
 	}
@@ -178,7 +177,7 @@ func (p *NpmPublisher) dryRunPublish(m coreio.Medium, data npmTemplateData) core
 	// Generate and show package.json
 	pkgJSONResult := p.renderTemplate(m, "templates/npm/package.json.tmpl", data)
 	if !pkgJSONResult.OK {
-		return core.Fail(coreerr.E("npm.dryRunPublish", "failed to render template", core.NewError(pkgJSONResult.Error())))
+		return core.Fail(core.E("npm.dryRunPublish", "failed to render template", core.NewError(pkgJSONResult.Error())))
 	}
 	pkgJSON := pkgJSONResult.Value.(string)
 	publisherPrintln("Generated package.json:")
@@ -199,13 +198,13 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 	// Check for NPM_TOKEN
 	npmToken := core.Env("NPM_TOKEN")
 	if npmToken == "" {
-		return core.Fail(coreerr.E("npm.Publish", "NPM_TOKEN environment variable is required", nil))
+		return core.Fail(core.E("npm.Publish", "NPM_TOKEN environment variable is required", nil))
 	}
 
 	// Create temp directory for package
 	tmpDirResult := ax.TempDir("npm-publish-*")
 	if !tmpDirResult.OK {
-		return core.Fail(coreerr.E("npm.Publish", "failed to create temp directory", core.NewError(tmpDirResult.Error())))
+		return core.Fail(core.E("npm.Publish", "failed to create temp directory", core.NewError(tmpDirResult.Error())))
 	}
 	tmpDir := tmpDirResult.Value.(string)
 	defer func() { ax.RemoveAll(tmpDir) }()
@@ -214,54 +213,54 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 	binDir := ax.Join(tmpDir, "bin")
 	createdBin := ax.MkdirAll(binDir, 0o755)
 	if !createdBin.OK {
-		return core.Fail(coreerr.E("npm.Publish", "failed to create bin directory", core.NewError(createdBin.Error())))
+		return core.Fail(core.E("npm.Publish", "failed to create bin directory", core.NewError(createdBin.Error())))
 	}
 
 	// Generate package.json
 	pkgJSONResult := p.renderTemplate(m, "templates/npm/package.json.tmpl", data)
 	if !pkgJSONResult.OK {
-		return core.Fail(coreerr.E("npm.Publish", "failed to render package.json", core.NewError(pkgJSONResult.Error())))
+		return core.Fail(core.E("npm.Publish", "failed to render package.json", core.NewError(pkgJSONResult.Error())))
 	}
 	pkgJSON := pkgJSONResult.Value.(string)
 	wrotePackage := ax.WriteString(ax.Join(tmpDir, "package.json"), pkgJSON, 0o644)
 	if !wrotePackage.OK {
-		return core.Fail(coreerr.E("npm.Publish", "failed to write package.json", core.NewError(wrotePackage.Error())))
+		return core.Fail(core.E("npm.Publish", "failed to write package.json", core.NewError(wrotePackage.Error())))
 	}
 
 	// Generate install.js
 	installJSResult := p.renderTemplate(m, "templates/npm/install.js.tmpl", data)
 	if !installJSResult.OK {
-		return core.Fail(coreerr.E("npm.Publish", "failed to render install.js", core.NewError(installJSResult.Error())))
+		return core.Fail(core.E("npm.Publish", "failed to render install.js", core.NewError(installJSResult.Error())))
 	}
 	installJS := installJSResult.Value.(string)
 	wroteInstall := ax.WriteString(ax.Join(tmpDir, "install.js"), installJS, 0o644)
 	if !wroteInstall.OK {
-		return core.Fail(coreerr.E("npm.Publish", "failed to write install.js", core.NewError(wroteInstall.Error())))
+		return core.Fail(core.E("npm.Publish", "failed to write install.js", core.NewError(wroteInstall.Error())))
 	}
 
 	// Generate run.js
 	runJSResult := p.renderTemplate(m, "templates/npm/run.js.tmpl", data)
 	if !runJSResult.OK {
-		return core.Fail(coreerr.E("npm.Publish", "failed to render run.js", core.NewError(runJSResult.Error())))
+		return core.Fail(core.E("npm.Publish", "failed to render run.js", core.NewError(runJSResult.Error())))
 	}
 	runJS := runJSResult.Value.(string)
 	wroteRun := ax.WriteString(ax.Join(binDir, "run.js"), runJS, 0o644)
 	if !wroteRun.OK {
-		return core.Fail(coreerr.E("npm.Publish", "failed to write run.js", core.NewError(wroteRun.Error())))
+		return core.Fail(core.E("npm.Publish", "failed to write run.js", core.NewError(wroteRun.Error())))
 	}
 
 	// Create .npmrc with token
 	npmrc := "//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n"
 	wroteNPMRC := ax.WriteString(ax.Join(tmpDir, ".npmrc"), npmrc, 0o644)
 	if !wroteNPMRC.OK {
-		return core.Fail(coreerr.E("npm.Publish", "failed to write .npmrc", core.NewError(wroteNPMRC.Error())))
+		return core.Fail(core.E("npm.Publish", "failed to write .npmrc", core.NewError(wroteNPMRC.Error())))
 	}
 
 	// Run npm publish
 	publisherPrint("Publishing %s@%s to npm...", data.Package, data.Version)
 	published := publisherRun(ctx, tmpDir, []string{"NPM_TOKEN=" + npmToken}, "npm", "publish", "--access", data.Access)
 	if !published.OK {
-		return core.Fail(coreerr.E("npm.Publish", "npm publish failed", core.NewError(published.Error())))
+		return core.Fail(core.E("npm.Publish", "npm publish failed", core.NewError(published.Error())))
 	}
 
 	publisherPrint("Published %s@%s to npm", data.Package, data.Version)
@@ -287,19 +286,19 @@ func (p *NpmPublisher) renderTemplate(m coreio.Medium, name string, data npmTemp
 	if content == nil {
 		embeddedContent, readFailure := npmTemplates.ReadFile(name)
 		if readFailure != nil {
-			return core.Fail(coreerr.E("npm.renderTemplate", "failed to read template "+name, readFailure))
+			return core.Fail(core.E("npm.renderTemplate", "failed to read template "+name, readFailure))
 		}
 		content = embeddedContent
 	}
 
 	tmpl, parseFailure := template.New(ax.Base(name)).Funcs(publisherTemplateFuncs()).Parse(string(content))
 	if parseFailure != nil {
-		return core.Fail(coreerr.E("npm.renderTemplate", "failed to parse template "+name, parseFailure))
+		return core.Fail(core.E("npm.renderTemplate", "failed to parse template "+name, parseFailure))
 	}
 
 	buf := core.NewBuffer()
 	if executeFailure := tmpl.Execute(buf, data); executeFailure != nil {
-		return core.Fail(coreerr.E("npm.renderTemplate", "failed to execute template "+name, executeFailure))
+		return core.Fail(core.E("npm.renderTemplate", "failed to execute template "+name, executeFailure))
 	}
 
 	return core.Ok(buf.String())

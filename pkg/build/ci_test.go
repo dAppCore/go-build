@@ -6,7 +6,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // setenvCI sets the GitHub Actions environment variables for a test and cleans up afterwards.
@@ -527,7 +527,7 @@ func TestCi_ArtifactName_Ugly(t *testing.T) {
 }
 
 func TestCi_WriteArtifactMeta_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("writes valid JSON with CI context", func(t *testing.T) {
 		dir := t.TempDir()
@@ -686,7 +686,7 @@ func TestCi_DetectGitHubMetadata_Ugly(t *core.T) {
 func TestCi_WriteArtifactMeta_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteArtifactMeta(io.NewMemoryMedium(), "", "", Target{OS: "linux", Arch: "amd64"}, nil)
+		_ = WriteArtifactMeta(storage.NewMemoryMedium(), "", "", Target{OS: "linux", Arch: "amd64"}, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -695,7 +695,7 @@ func TestCi_WriteArtifactMeta_Bad(t *core.T) {
 func TestCi_WriteArtifactMeta_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = WriteArtifactMeta(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), "agent", Target{OS: "linux", Arch: "amd64"}, &CIContext{})
+		_ = WriteArtifactMeta(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), "agent", Target{OS: "linux", Arch: "amd64"}, &CIContext{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

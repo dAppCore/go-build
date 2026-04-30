@@ -5,7 +5,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func requireSetupOKResult(t *testing.T, result core.Result) {
@@ -44,7 +44,7 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 			LinuxPackages:          []string{"libwebkit2gtk-4.1-dev"},
 		}
 
-		plan := requireSetupPlan(t, ComputeSetupPlan(io.Local, dir, cfg, discovery))
+		plan := requireSetupPlan(t, ComputeSetupPlan(storage.Local, dir, cfg, discovery))
 		if !stdlibAssertEqual([]SetupTool{SetupToolGo, SetupToolGarble, SetupToolNode, SetupToolWails}, setupTools(plan)) {
 			t.Fatalf("want %v, got %v", []SetupTool{SetupToolGo, SetupToolGarble, SetupToolNode, SetupToolWails}, setupTools(plan))
 		}
@@ -70,7 +70,7 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 			HasPackageJSON:         true,
 		}
 
-		plan := requireSetupPlan(t, ComputeSetupPlan(io.Local, dir, DefaultConfig(), discovery))
+		plan := requireSetupPlan(t, ComputeSetupPlan(storage.Local, dir, DefaultConfig(), discovery))
 		if !stdlibAssertEqual([]SetupTool{SetupToolNode, SetupToolPython, SetupToolMkDocs}, setupTools(plan)) {
 			t.Fatalf("want %v, got %v", []SetupTool{SetupToolNode, SetupToolPython, SetupToolMkDocs}, setupTools(plan))
 		}
@@ -91,7 +91,7 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 			HasRootCMakeLists:      true,
 		}
 
-		plan := requireSetupPlan(t, ComputeSetupPlan(io.Local, dir, DefaultConfig(), discovery))
+		plan := requireSetupPlan(t, ComputeSetupPlan(storage.Local, dir, DefaultConfig(), discovery))
 		if !stdlibAssertEqual([]SetupTool{SetupToolPython, SetupToolConan}, setupTools(plan)) {
 			t.Fatalf("want %v, got %v", []SetupTool{SetupToolPython, SetupToolConan}, setupTools(plan))
 		}
@@ -111,7 +111,7 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 			PrimaryStackSuggestion: "python",
 		}
 
-		plan := requireSetupPlan(t, ComputeSetupPlan(io.Local, dir, DefaultConfig(), discovery))
+		plan := requireSetupPlan(t, ComputeSetupPlan(storage.Local, dir, DefaultConfig(), discovery))
 		if !stdlibAssertEqual([]SetupTool{SetupToolPython}, setupTools(plan)) {
 			t.Fatalf("want %v, got %v", []SetupTool{SetupToolPython}, setupTools(plan))
 		}
@@ -128,7 +128,7 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 			PrimaryStackSuggestion: "taskfile",
 		}
 
-		plan := requireSetupPlan(t, ComputeSetupPlan(io.Local, dir, DefaultConfig(), discovery))
+		plan := requireSetupPlan(t, ComputeSetupPlan(storage.Local, dir, DefaultConfig(), discovery))
 		if !stdlibAssertEqual([]SetupTool{SetupToolGo, SetupToolTask}, setupTools(plan)) {
 			t.Fatalf("want %v, got %v", []SetupTool{SetupToolGo, SetupToolTask}, setupTools(plan))
 		}
@@ -141,7 +141,7 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.Build.Type = "wails"
 
-		plan := requireSetupPlan(t, ComputeSetupPlan(io.Local, dir, cfg, &DiscoveryResult{}))
+		plan := requireSetupPlan(t, ComputeSetupPlan(storage.Local, dir, cfg, &DiscoveryResult{}))
 		if !stdlibAssertEqual([]SetupTool{SetupToolGo, SetupToolNode, SetupToolWails}, setupTools(plan)) {
 			t.Fatalf("want %v, got %v", []SetupTool{SetupToolGo, SetupToolNode, SetupToolWails}, setupTools(plan))
 		}
@@ -160,7 +160,7 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.Build.Type = "wails"
 
-		plan := requireSetupPlan(t, ComputeSetupPlan(io.Local, dir, cfg, &DiscoveryResult{
+		plan := requireSetupPlan(t, ComputeSetupPlan(storage.Local, dir, cfg, &DiscoveryResult{
 			Distro: "24.04",
 		}))
 		if !stdlibAssertEqual([]string{"libwebkit2gtk-4.1-dev"}, plan.LinuxPackages) {
@@ -175,7 +175,7 @@ func TestSetup_ComputeSetupPlan_Good(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.Build.DenoBuild = "deno task bundle"
 
-		plan := requireSetupPlan(t, ComputeSetupPlan(io.Local, dir, cfg, &DiscoveryResult{}))
+		plan := requireSetupPlan(t, ComputeSetupPlan(storage.Local, dir, cfg, &DiscoveryResult{}))
 		if !stdlibAssertEqual([]SetupTool{SetupToolDeno}, setupTools(plan)) {
 			t.Fatalf("want %v, got %v", []SetupTool{SetupToolDeno}, setupTools(plan))
 		}
@@ -199,8 +199,8 @@ func TestSetup_ResolveFrontendSetupDirs_Good(t *testing.T) {
 		requireSetupOKResult(t, ax.WriteFile(ax.Join(nestedB, "deno.json"), []byte("{}"), 0o644))
 		requireSetupOKResult(t, ax.MkdirAll(nestedA, 0o755))
 		requireSetupOKResult(t, ax.WriteFile(ax.Join(nestedA, "package.json"), []byte("{}"), 0o644))
-		if !stdlibAssertEqual([]string{dir, nestedA, nestedB, frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, false)) {
-			t.Fatalf("want %v, got %v", []string{dir, nestedA, nestedB, frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, false))
+		if !stdlibAssertEqual([]string{dir, nestedA, nestedB, frontendDir}, ResolveFrontendSetupDirs(storage.Local, dir, false)) {
+			t.Fatalf("want %v, got %v", []string{dir, nestedA, nestedB, frontendDir}, ResolveFrontendSetupDirs(storage.Local, dir, false))
 		}
 
 	})
@@ -209,8 +209,8 @@ func TestSetup_ResolveFrontendSetupDirs_Good(t *testing.T) {
 		dir := t.TempDir()
 		frontendDir := ax.Join(dir, "frontend")
 		requireSetupOKResult(t, ax.MkdirAll(frontendDir, 0o755))
-		if !stdlibAssertEqual([]string{frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, true)) {
-			t.Fatalf("want %v, got %v", []string{frontendDir}, ResolveFrontendSetupDirs(io.Local, dir, true))
+		if !stdlibAssertEqual([]string{frontendDir}, ResolveFrontendSetupDirs(storage.Local, dir, true)) {
+			t.Fatalf("want %v, got %v", []string{frontendDir}, ResolveFrontendSetupDirs(storage.Local, dir, true))
 		}
 
 	})
@@ -232,7 +232,7 @@ func setupTools(plan *SetupPlan) []SetupTool {
 func TestSetup_ComputeSetupPlan_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ComputeSetupPlan(io.NewMemoryMedium(), "", nil, nil)
+		_ = ComputeSetupPlan(storage.NewMemoryMedium(), "", nil, nil)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -241,7 +241,7 @@ func TestSetup_ComputeSetupPlan_Bad(t *core.T) {
 func TestSetup_ComputeSetupPlan_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ComputeSetupPlan(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{}, &DiscoveryResult{})
+		_ = ComputeSetupPlan(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{}, &DiscoveryResult{})
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -250,7 +250,7 @@ func TestSetup_ComputeSetupPlan_Ugly(t *core.T) {
 func TestSetup_ResolveFrontendSetupDirs_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveFrontendSetupDirs(io.NewMemoryMedium(), "", false)
+		_ = ResolveFrontendSetupDirs(storage.NewMemoryMedium(), "", false)
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -259,7 +259,7 @@ func TestSetup_ResolveFrontendSetupDirs_Bad(t *core.T) {
 func TestSetup_ResolveFrontendSetupDirs_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ResolveFrontendSetupDirs(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), true)
+		_ = ResolveFrontendSetupDirs(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), true)
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

@@ -8,8 +8,7 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // LinuxKitBuilder builds LinuxKit images.
@@ -33,8 +32,8 @@ func (b *LinuxKitBuilder) Name() string {
 
 // Detect checks if a linuxkit.yml, linuxkit.yaml, or nested YAML config exists in the directory.
 //
-// result := b.Detect(io.Local, ".")
-func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) core.Result {
+// result := b.Detect(storage.Local, ".")
+func (b *LinuxKitBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(build.IsLinuxKitProject(fs, dir))
 }
 
@@ -43,7 +42,7 @@ func (b *LinuxKitBuilder) Detect(fs io.Medium, dir string) core.Result {
 // result := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
 func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return core.Fail(coreerr.E("LinuxKitBuilder.Build", "config is nil", nil))
+		return core.Fail(core.E("LinuxKitBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 	artifactFilesystem := build.ResolveOutputMedium(cfg)
@@ -87,12 +86,12 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 	}
 
 	if configPath == "" {
-		return core.Fail(coreerr.E("LinuxKitBuilder.Build", "no LinuxKit config file found. Specify with --config or create linuxkit.yml", nil))
+		return core.Fail(core.E("LinuxKitBuilder.Build", "no LinuxKit config file found. Specify with --config or create linuxkit.yml", nil))
 	}
 
 	// Validate config file exists
 	if !filesystem.IsFile(configPath) {
-		return core.Fail(coreerr.E("LinuxKitBuilder.Build", "config file not found: "+configPath, nil))
+		return core.Fail(core.E("LinuxKitBuilder.Build", "config file not found: "+configPath, nil))
 	}
 
 	// Determine output formats
@@ -146,7 +145,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 			core.Print(nil, "Building LinuxKit image: %s (%s, %s)", outputName, format, target.Arch)
 			executed := ax.ExecWithEnv(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), linuxkitCommand, args...)
 			if !executed.OK {
-				return core.Fail(coreerr.E("LinuxKitBuilder.Build", "build failed for "+target.Arch+"/"+format, core.NewError(executed.Error())))
+				return core.Fail(core.E("LinuxKitBuilder.Build", "build failed for "+target.Arch+"/"+format, core.NewError(executed.Error())))
 			}
 
 			// Determine the actual output file path
@@ -157,7 +156,7 @@ func (b *LinuxKitBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 				// Try alternate naming conventions
 				artifactPath = b.findArtifact(stage.commandFS, stage.commandOutputDir, outputName, format)
 				if artifactPath == "" {
-					return core.Fail(coreerr.E("LinuxKitBuilder.Build", "artifact not found after build: expected "+b.getArtifactPath(stage.commandOutputDir, outputName, format), nil))
+					return core.Fail(core.E("LinuxKitBuilder.Build", "artifact not found after build: expected "+b.getArtifactPath(stage.commandOutputDir, outputName, format), nil))
 				}
 			}
 
@@ -214,7 +213,7 @@ func (b *LinuxKitBuilder) getArtifactPath(outputDir, outputName, format string) 
 }
 
 // findArtifact searches for the built artifact with various naming conventions.
-func (b *LinuxKitBuilder) findArtifact(fs io.Medium, outputDir, outputName, format string) string {
+func (b *LinuxKitBuilder) findArtifact(fs storage.Medium, outputDir, outputName, format string) string {
 	// LinuxKit can create files with different suffixes
 	extensions := []string{
 		b.getFormatExtension(format),
@@ -318,7 +317,7 @@ func (b *LinuxKitBuilder) resolveLinuxKitCli(paths ...string) core.Result {
 
 	command := ax.ResolveCommand("linuxkit", paths...)
 	if !command.OK {
-		return core.Fail(coreerr.E("LinuxKitBuilder.resolveLinuxKitCli", "linuxkit CLI not found. Install with: brew install linuxkit (macOS) or see https://github.com/linuxkit/linuxkit", core.NewError(command.Error())))
+		return core.Fail(core.E("LinuxKitBuilder.resolveLinuxKitCli", "linuxkit CLI not found. Install with: brew install linuxkit (macOS) or see https://github.com/linuxkit/linuxkit", core.NewError(command.Error())))
 	}
 
 	return command

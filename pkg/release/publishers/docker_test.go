@@ -6,7 +6,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestDocker_DockerPublisherNameGood(t *testing.T) {
@@ -25,7 +25,7 @@ func TestDocker_DockerPublisherParseConfigGood(t *testing.T) {
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("ghcr.io", cfg.Registry) {
 			t.Fatalf("want %v, got %v", "ghcr.io", cfg.Registry)
 		}
@@ -59,7 +59,7 @@ func TestDocker_DockerPublisherParseConfigGood(t *testing.T) {
 			},
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("docker.io", cfg.Registry) {
 			t.Fatalf("want %v, got %v", "docker.io", cfg.Registry)
 		}
@@ -89,7 +89,7 @@ func TestDocker_DockerPublisherParseConfigGood(t *testing.T) {
 			},
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("/absolute/path/Dockerfile", cfg.Dockerfile) {
 			t.Fatalf("want %v, got %v", "/absolute/path/Dockerfile", cfg.Dockerfile)
 		}
@@ -104,7 +104,7 @@ func TestDocker_DockerPublisherParseConfigGood(t *testing.T) {
 
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, projectDir)
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, projectDir)
 		if !stdlibAssertEqual(ax.Join(projectDir, "Containerfile"), cfg.Dockerfile) {
 			t.Fatalf("want %v, got %v", ax.Join(projectDir, "Containerfile"), cfg.Dockerfile)
 		}
@@ -323,7 +323,7 @@ func TestDocker_DockerPublisherPublishBad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/nonexistent",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "docker",
@@ -347,7 +347,7 @@ func TestDocker_DockerConfigDefaultsGood(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual(
 
 			// Verify defaults
@@ -380,7 +380,7 @@ func TestDocker_DockerPublisherDryRunPublishGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := DockerConfig{
 			Registry:   "ghcr.io",
@@ -439,7 +439,7 @@ func TestDocker_DockerPublisherDryRunPublishGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := DockerConfig{
 			Registry:   "docker.io",
@@ -474,7 +474,7 @@ func TestDocker_DockerPublisherDryRunPublishGood(t *testing.T) {
 		release := &Release{
 			Version:    "v2.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := DockerConfig{
 			Registry:   "ghcr.io",
@@ -511,7 +511,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCasesGood(t *testing.T) {
 			},
 		}
 
-		cfg := p.parseConfig(io.Local, pubCfg, nil, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, nil, "/project")
 		if !stdlibAssertEqual("custom/image", cfg.Image) {
 			t.Fatalf("want %v, got %v", "custom/image", cfg.Image)
 		}
@@ -530,7 +530,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCasesGood(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: ""}
 
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("fallback/image", cfg.Image) {
 			t.Fatalf("want %v, got %v", "fallback/image", cfg.Image)
 		}
@@ -546,7 +546,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCasesGood(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "original/repo"}
 
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("override/image", cfg.Image) {
 			t.Fatalf("want %v, got %v", "override/image", cfg.Image)
 		}
@@ -565,7 +565,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCasesGood(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("value", cfg.BuildArgs["STRING_ARG"]) {
 			t.Fatalf("want %v, got %v", "value", cfg.BuildArgs["STRING_ARG"])
 		}
@@ -781,7 +781,7 @@ func TestDocker_DockerPublisherPublishDryRunGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
@@ -813,7 +813,7 @@ func TestDocker_DockerPublisherPublishDryRunGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "docker",
@@ -846,7 +846,7 @@ func TestDocker_DockerPublisherPublishValidationBad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/nonexistent/path",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
@@ -871,7 +871,7 @@ func TestDocker_DockerPublisherPublishValidationBad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
@@ -945,7 +945,7 @@ func TestDocker_DockerPublisherPublishWithCLIGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "docker",
@@ -985,7 +985,7 @@ func TestDocker_DockerPublisherPublishWithCLIGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "docker",
@@ -1012,7 +1012,7 @@ func TestDocker_DockerPublisherPublishWithCLIGood(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}

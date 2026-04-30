@@ -7,7 +7,7 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 type stubPipelineBuilder struct {
@@ -18,7 +18,7 @@ type stubPipelineBuilder struct {
 
 func (b *stubPipelineBuilder) Name() string { return "stub" }
 
-func (b *stubPipelineBuilder) Detect(fs io.Medium, dir string) core.Result {
+func (b *stubPipelineBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(true)
 }
 
@@ -75,7 +75,7 @@ func TestPipeline_Plan_Good(t *testing.T) {
 	builder := &stubPipelineBuilder{}
 	var resolvedTypes []ProjectType
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			resolvedTypes = append(resolvedTypes, projectType)
 			return core.Ok(builder)
@@ -168,7 +168,7 @@ func TestPipeline_Plan_UsesExplicitBuildTypeOverride_Good(t *testing.T) {
 	cfg.Build.Type = "go"
 
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			if !stdlibAssertEqual(ProjectTypeNode, projectType) {
 				t.Fatalf("want %v, got %v", ProjectTypeNode, projectType)
@@ -210,7 +210,7 @@ func TestPipeline_Plan_NormalisesConfiguredBuildType_Good(t *testing.T) {
 	cfg.Build.Type = "WaIlS"
 
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			if !stdlibAssertEqual(ProjectTypeWails, projectType) {
 				t.Fatalf("want %v, got %v", ProjectTypeWails, projectType)
@@ -253,7 +253,7 @@ func TestPipeline_Plan_AppliesActionStyleOverrides_Good(t *testing.T) {
 
 	var resolvedTypes []ProjectType
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			resolvedTypes = append(resolvedTypes, projectType)
 			return core.Ok(&stubPipelineBuilder{})
@@ -331,7 +331,7 @@ func TestPipeline_Plan_UsesLocalTargetWhenBuildConfigMissing_Good(t *testing.T) 
 	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			if !stdlibAssertEqual(ProjectTypeGo, projectType) {
 				t.Fatalf("want %v, got %v", ProjectTypeGo, projectType)
@@ -357,7 +357,7 @@ func TestPipeline_Plan_UsesExplicitVersionOverride_Good(t *testing.T) {
 
 	versionResolverCalled := false
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			if !stdlibAssertEqual(ProjectTypeGo, projectType) {
 				t.Fatalf("want %v, got %v", ProjectTypeGo, projectType)
@@ -394,7 +394,7 @@ func TestPipeline_Plan_RejectsUnsafeVersionOverride_Bad(t *testing.T) {
 	requirePipelineOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			return core.Ok(&stubPipelineBuilder{})
 		},
@@ -421,7 +421,7 @@ func TestPipeline_Plan_DoesNotMutateCallerBuildConfig_Good(t *testing.T) {
 	cfg.Build.BuildTags = []string{"integration"}
 
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			return core.Ok(&stubPipelineBuilder{})
 		},
@@ -468,7 +468,7 @@ func TestPipeline_Run_Good(t *testing.T) {
 	}
 
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			return core.Ok(builder)
 		},
@@ -512,7 +512,7 @@ func TestPipeline_Run_MultiType_Good(t *testing.T) {
 	}
 
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			switch projectType {
 			case ProjectTypeNode:
@@ -567,7 +567,7 @@ func TestPipeline_Run_MultiType_Good(t *testing.T) {
 
 func TestPipeline_Plan_Bad(t *testing.T) {
 	pipeline := &Pipeline{
-		FS: io.Local,
+		FS: storage.Local,
 		ResolveBuilder: func(projectType ProjectType) core.Result {
 			return core.Ok(&stubPipelineBuilder{})
 		},

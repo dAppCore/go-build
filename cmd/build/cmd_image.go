@@ -7,12 +7,11 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
-	"dappco.re/go/cli/pkg/cli"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 type immutableImageVersion struct {
@@ -77,7 +76,7 @@ func runBuildImage(req ImageBuildRequest) core.Result {
 
 	projectDirResult := ax.Getwd()
 	if !projectDirResult.OK {
-		return core.Fail(coreerr.E("build.runBuildImage", "failed to get working directory", core.NewError(projectDirResult.Error())))
+		return core.Fail(core.E("build.runBuildImage", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
 	projectDir := projectDirResult.Value.(string)
 
@@ -92,7 +91,7 @@ func runBuildImage(req ImageBuildRequest) core.Result {
 
 	buildConfigResult := build.LoadConfig(coreio.Local, projectDir)
 	if !buildConfigResult.OK {
-		return core.Fail(coreerr.E("build.runBuildImage", "failed to load build config", core.NewError(buildConfigResult.Error())))
+		return core.Fail(core.E("build.runBuildImage", "failed to load build config", core.NewError(buildConfigResult.Error())))
 	}
 	buildConfig := buildConfigResult.Value.(*build.BuildConfig)
 
@@ -115,7 +114,7 @@ func runBuildImage(req ImageBuildRequest) core.Result {
 	version := versionInfo.BuildVersion
 	validVersion := build.ValidateVersionIdentifier(version)
 	if !validVersion.OK {
-		return core.Fail(coreerr.E("build.runBuildImage", "unsafe release tag detected for immutable image", core.NewError(validVersion.Error())))
+		return core.Fail(core.E("build.runBuildImage", "unsafe release tag detected for immutable image", core.NewError(validVersion.Error())))
 	}
 
 	imageName := buildConfig.LinuxKit.Base
@@ -152,13 +151,13 @@ func runBuildImage(req ImageBuildRequest) core.Result {
 		artifacts = built.Value.([]build.Artifact)
 		written := writeImageBuildCacheMetadata(coreio.Local, outputDir, imageName, cacheCfg, versionInfo.CacheVersion)
 		if !written.OK {
-			return core.Fail(coreerr.E("build.runBuildImage", "failed to write image cache metadata", core.NewError(written.Error())))
+			return core.Fail(core.E("build.runBuildImage", "failed to write image cache metadata", core.NewError(written.Error())))
 		}
 	}
 
 	versionedArtifactsResult := retainVersionedImageArtifacts(coreio.Local, artifacts, versionInfo.RetainVersion)
 	if !versionedArtifactsResult.OK {
-		return core.Fail(coreerr.E("build.runBuildImage", "failed to retain versioned immutable image artifacts", core.NewError(versionedArtifactsResult.Error())))
+		return core.Fail(core.E("build.runBuildImage", "failed to retain versioned immutable image artifacts", core.NewError(versionedArtifactsResult.Error())))
 	}
 	versionedArtifacts := versionedArtifactsResult.Value.([]string)
 
@@ -368,7 +367,7 @@ func publishOCIImageArchive(ctx context.Context, projectDir, artifactPath, regis
 
 	dockerCommandResult := resolveImageDockerCli()
 	if !dockerCommandResult.OK {
-		return core.Fail(coreerr.E("build.runBuildImage", "failed to resolve docker CLI for OCI publish", core.NewError(dockerCommandResult.Error())))
+		return core.Fail(core.E("build.runBuildImage", "failed to resolve docker CLI for OCI publish", core.NewError(dockerCommandResult.Error())))
 	}
 	dockerCommand := dockerCommandResult.Value.(string)
 
@@ -382,13 +381,13 @@ func publishOCIImageArchive(ctx context.Context, projectDir, artifactPath, regis
 	if sourceRef != destinationRef {
 		tagged := ax.ExecWithEnv(ctx, projectDir, nil, dockerCommand, "image", "tag", sourceRef, destinationRef)
 		if !tagged.OK {
-			return core.Fail(coreerr.E("build.runBuildImage", "failed to tag OCI image for registry publish", core.NewError(tagged.Error())))
+			return core.Fail(core.E("build.runBuildImage", "failed to tag OCI image for registry publish", core.NewError(tagged.Error())))
 		}
 	}
 
 	pushed := ax.ExecWithEnv(ctx, projectDir, nil, dockerCommand, "image", "push", destinationRef)
 	if !pushed.OK {
-		return core.Fail(coreerr.E("build.runBuildImage", "failed to push OCI image to registry", core.NewError(pushed.Error())))
+		return core.Fail(core.E("build.runBuildImage", "failed to push OCI image to registry", core.NewError(pushed.Error())))
 	}
 
 	return core.Ok(destinationRef)
@@ -426,12 +425,12 @@ func trimTrailingImageRegistrySlashes(registry string) string {
 func loadOCIImageArchive(ctx context.Context, projectDir, dockerCommand, artifactPath string) core.Result {
 	output := ax.CombinedOutput(ctx, projectDir, nil, dockerCommand, "image", "load", "--input", artifactPath)
 	if !output.OK {
-		return core.Fail(coreerr.E("build.runBuildImage", "failed to load OCI image archive", core.NewError(output.Error())))
+		return core.Fail(core.E("build.runBuildImage", "failed to load OCI image archive", core.NewError(output.Error())))
 	}
 
 	reference := parseLoadedDockerImageReference(output.Value.(string))
 	if reference == "" {
-		return core.Fail(coreerr.E("build.runBuildImage", "docker image load did not report a loaded image reference", nil))
+		return core.Fail(core.E("build.runBuildImage", "docker image load did not report a loaded image reference", nil))
 	}
 
 	return core.Ok(reference)

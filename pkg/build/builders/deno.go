@@ -5,7 +5,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/build/pkg/build"
-	coreerr "dappco.re/go/log"
 )
 
 type commandSpec struct {
@@ -23,11 +22,11 @@ func resolveDenoBuildCommand(cfg *build.Config, resolveDeno func(...string) core
 	if override != "" {
 		argsResult := splitCommandLine(override)
 		if !argsResult.OK {
-			return core.Fail(coreerr.E("builders.resolveDenoBuildCommand", "invalid DENO_BUILD command", core.NewError(argsResult.Error())))
+			return core.Fail(core.E("builders.resolveDenoBuildCommand", "invalid DENO_BUILD command", core.NewError(argsResult.Error())))
 		}
 		args := argsResult.Value.([]string)
 		if len(args) == 0 {
-			return core.Fail(coreerr.E("builders.resolveDenoBuildCommand", "DENO_BUILD command is empty", nil))
+			return core.Fail(core.E("builders.resolveDenoBuildCommand", "DENO_BUILD command is empty", nil))
 		}
 		return core.Ok(commandSpec{command: args[0], args: args[1:]})
 	}
@@ -49,11 +48,11 @@ func resolveNpmBuildCommand(cfg *build.Config, resolveNpm func(...string) core.R
 	if override != "" {
 		argsResult := splitCommandLine(override)
 		if !argsResult.OK {
-			return core.Fail(coreerr.E("builders.resolveNpmBuildCommand", "invalid NPM_BUILD command", core.NewError(argsResult.Error())))
+			return core.Fail(core.E("builders.resolveNpmBuildCommand", "invalid NPM_BUILD command", core.NewError(argsResult.Error())))
 		}
 		args := argsResult.Value.([]string)
 		if len(args) == 0 {
-			return core.Fail(coreerr.E("builders.resolveNpmBuildCommand", "NPM_BUILD command is empty", nil))
+			return core.Fail(core.E("builders.resolveNpmBuildCommand", "NPM_BUILD command is empty", nil))
 		}
 		return core.Ok(commandSpec{command: args[0], args: args[1:]})
 	}
@@ -113,7 +112,7 @@ func splitCommandLine(command string) core.Result {
 		current.WriteRune('\\')
 	}
 	if quote != 0 {
-		return core.Fail(coreerr.E("builders.splitCommandLine", "unterminated quote in command", nil))
+		return core.Fail(core.E("builders.splitCommandLine", "unterminated quote in command", nil))
 	}
 
 	flush()

@@ -13,12 +13,11 @@ import (
 	"github.com/gin-gonic/gin"
 
 	core "dappco.re/go"
-	coreapi "dappco.re/go/api"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	events "dappco.re/go/build/pkg/events"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/io"
-	"dappco.re/go/ws"
+	storage "dappco.re/go/build/pkg/storage"
 	"github.com/gorilla/websocket"
 )
 
@@ -134,7 +133,7 @@ func TestProvider_BuildProviderDescribeGood(t *testing.T) {
 		}
 	}
 
-	var workflowRoute *coreapi.RouteDescription
+	var workflowRoute *RouteDescription
 	for i := range routes {
 		if routes[i].Path == "/release/workflow" {
 			workflowRoute = &routes[i]
@@ -301,13 +300,13 @@ func TestProvider_BuildProviderDescribeGood(t *testing.T) {
 func TestProvider_ReleaseWorkflowRequestResolvedOutputPathGood(t *testing.T) {
 	projectDir := t.TempDir()
 	absoluteDir := ax.Join(projectDir, "ops")
-	requireProviderOK(t, io.Local.EnsureDir(absoluteDir))
+	requireProviderOK(t, storage.Local.EnsureDir(absoluteDir))
 
 	req := ReleaseWorkflowRequest{
 		WorkflowOutputPath: absoluteDir,
 	}
 
-	path := requireProviderString(t, req.resolveOutputPath(projectDir, io.Local))
+	path := requireProviderString(t, req.resolveOutputPath(projectDir, storage.Local))
 	if !stdlibAssertEqual(ax.Join(absoluteDir, "release.yml"), path) {
 		t.Fatalf("want %v, got %v", ax.Join(absoluteDir, "release.yml"), path)
 	}
@@ -322,7 +321,7 @@ func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliasesGood(t *testing
 		WorkflowOutputHyphen: "ci/workflow-output.yml",
 	}
 
-	path := requireProviderString(t, req.resolveOutputPath(projectDir, io.Local))
+	path := requireProviderString(t, req.resolveOutputPath(projectDir, storage.Local))
 	if !stdlibAssertEqual(ax.Join(projectDir, "ci", "workflow-output.yml"), path) {
 		t.Fatalf("want %v, got %v", ax.Join(projectDir, "ci", "workflow-output.yml"), path)
 	}
@@ -455,7 +454,7 @@ func TestProvider_BuildProviderResolveDirRelativeGood(t *testing.T) {
 func TestProvider_BuildProviderMediumSetGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	if stdlibAssertNil(p.medium) {
-		t.Fatal("medium should be set to io.Local")
+		t.Fatal("medium should be set to storage.Local")
 	}
 
 }
@@ -497,7 +496,7 @@ func TestProvider_StreamEvents_UsesHubHandlerGood(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	hub := ws.NewHub()
+	hub := events.NewHub()
 	go hub.Run(t.Context())
 
 	p := NewProvider(projectDir, hub)
@@ -515,7 +514,7 @@ func TestProvider_StreamEvents_UsesHubHandlerGood(t *testing.T) {
 	}
 
 	defer conn.Close()
-	if err := conn.WriteJSON(ws.Message{Type: ws.TypeSubscribe, Data: "build.complete"}); err != nil {
+	if err := conn.WriteJSON(events.Message{Type: events.TypeSubscribe, Data: "build.complete"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	{
@@ -535,12 +534,12 @@ func TestProvider_StreamEvents_UsesHubHandlerGood(t *testing.T) {
 
 	p.emitEvent("build.complete", map[string]any{"status": "ok"})
 
-	var message ws.Message
+	var message events.Message
 	if err := conn.ReadJSON(&message); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !stdlibAssertEqual(ws.TypeEvent, message.Type) {
-		t.Fatalf("want %v, got %v", ws.TypeEvent, message.Type)
+	if !stdlibAssertEqual(events.TypeEvent, message.Type) {
+		t.Fatalf("want %v, got %v", events.TypeEvent, message.Type)
 	}
 
 	payload, ok := message.Data.(map[string]any)
@@ -557,7 +556,7 @@ func TestProvider_GetConfig_UsesSnakeCaseJSONKeysGood(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	requireProviderOK(t, io.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	requireProviderOK(t, storage.Local.EnsureDir(ax.Join(projectDir, ".core")))
 	if result := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 version: 1
 project:
@@ -647,7 +646,7 @@ func TestProvider_ResolveProjectTypeGood(t *testing.T) {
 			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		projectType := requireProviderProjectType(t, resolveProjectType(io.Local, dir, "docker"))
+		projectType := requireProviderProjectType(t, resolveProjectType(storage.Local, dir, "docker"))
 		if !stdlibAssertEqual(build.ProjectTypeDocker, projectType) {
 			t.Fatalf("want %v, got %v", build.ProjectTypeDocker, projectType)
 		}
@@ -660,7 +659,7 @@ func TestProvider_ResolveProjectTypeGood(t *testing.T) {
 			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		projectType := requireProviderProjectType(t, resolveProjectType(io.Local, dir, ""))
+		projectType := requireProviderProjectType(t, resolveProjectType(storage.Local, dir, ""))
 		if !stdlibAssertEqual(build.ProjectTypeGo, projectType) {
 			t.Fatalf("want %v, got %v", build.ProjectTypeGo, projectType)
 		}
@@ -789,7 +788,7 @@ func assertProviderReleaseWorkflow(t *testing.T, tc providerReleaseWorkflowCase)
 
 	p := NewProvider(projectDir, nil)
 	if tc.useLocalMedium {
-		p.medium = io.Local
+		p.medium = storage.Local
 	}
 
 	recorder := httptest.NewRecorder()
@@ -820,13 +819,13 @@ func assertProviderReleaseWorkflow(t *testing.T, tc providerReleaseWorkflowCase)
 		path = tc.wantPath(projectDir)
 	}
 	if !tc.expectWorkflow {
-		if result := io.Local.Read(path); result.OK {
+		if result := storage.Local.Read(path); result.OK {
 			t.Fatal("expected error")
 		}
 		return
 	}
 
-	content := requireProviderString(t, io.Local.Read(path))
+	content := requireProviderString(t, storage.Local.Read(path))
 	if !stdlibAssertContains(content, "workflow_call:") {
 		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
 	}
@@ -1036,7 +1035,7 @@ func TestProvider_TriggerBuild_UsesFullBuildRuntimeConfig_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	requireProviderOK(t, io.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	requireProviderOK(t, storage.Local.EnsureDir(ax.Join(projectDir, ".core")))
 	if result := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 project:
   name: API Build
@@ -1167,14 +1166,14 @@ targets:
 	if !stdlibAssertContains(recorder.Body.String(), `.tar.xz`) {
 		t.Fatalf("expected %v to contain %v", recorder.Body.String(), `.tar.xz`)
 	}
-	if !(io.Local.Exists(ax.Join(projectDir, "dist", "api-build_linux_amd64.tar.xz"))) {
+	if !(storage.Local.Exists(ax.Join(projectDir, "dist", "api-build_linux_amd64.tar.xz"))) {
 		t.Fatal("expected true")
 	}
-	if !(io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))) {
+	if !(storage.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))) {
 		t.Fatal("expected true")
 	}
 
-	checksums := requireProviderString(t, io.Local.Read(ax.Join(projectDir, "dist", "CHECKSUMS.txt")))
+	checksums := requireProviderString(t, storage.Local.Read(ax.Join(projectDir, "dist", "CHECKSUMS.txt")))
 	if !stdlibAssertContains(checksums, "api-build_linux_amd64.tar.xz") {
 		t.Fatalf("expected %v to contain %v", checksums, "api-build_linux_amd64.tar.xz")
 	}
@@ -1261,16 +1260,16 @@ sign:
 	if stdlibAssertContains(recorder.Body.String(), `"checksum_file"`) {
 		t.Fatalf("expected %v not to contain %v", recorder.Body.String(), `"checksum_file"`)
 	}
-	if !(io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider")) || io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider.exe"))) {
+	if !(storage.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider")) || storage.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider.exe"))) {
 		t.Fatal("expected true")
 	}
-	if io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")) {
+	if storage.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")) {
 		t.Fatal("expected false")
 	}
-	if io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz")) {
+	if storage.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz")) {
 		t.Fatal("expected false")
 	}
-	if io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz")) {
+	if storage.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz")) {
 		t.Fatal("expected false")
 	}
 
@@ -1448,9 +1447,9 @@ func TestProvider_ListArtifacts_RecursesIntoPlatformDirectories_Good(t *testing.
 
 	projectDir := t.TempDir()
 	distDir := ax.Join(projectDir, "dist")
-	requireProviderOK(t, io.Local.EnsureDir(ax.Join(distDir, "linux_amd64")))
-	requireProviderOK(t, io.Local.Write(ax.Join(distDir, "CHECKSUMS.txt"), "checksums"))
-	requireProviderOK(t, io.Local.Write(ax.Join(distDir, "linux_amd64", "demo.tar.xz"), "archive"))
+	requireProviderOK(t, storage.Local.EnsureDir(ax.Join(distDir, "linux_amd64")))
+	requireProviderOK(t, storage.Local.Write(ax.Join(distDir, "CHECKSUMS.txt"), "checksums"))
+	requireProviderOK(t, storage.Local.Write(ax.Join(distDir, "linux_amd64", "demo.tar.xz"), "archive"))
 
 	p := NewProvider(projectDir, nil)
 	recorder := httptest.NewRecorder()
@@ -1489,7 +1488,7 @@ func (b *capturingBuilder) Name() string {
 	return b.name
 }
 
-func (b *capturingBuilder) Detect(fs io.Medium, dir string) core.Result {
+func (b *capturingBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	return core.Ok(true)
 }
 

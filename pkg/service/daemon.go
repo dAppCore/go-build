@@ -7,16 +7,15 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreapi "dappco.re/go/api"
-	providerpkg "dappco.re/go/api/pkg/provider"
 	"dappco.re/go/build/internal/ax"
 	buildapi "dappco.re/go/build/pkg/api"
+	coreapi "dappco.re/go/build/pkg/api"
+	providerpkg "dappco.re/go/build/pkg/api/provider"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
+	"dappco.re/go/build/pkg/events"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/io"
-	"dappco.re/go/process"
-	"dappco.re/go/ws"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 type apiEngine interface {
@@ -31,8 +30,8 @@ type processDaemon interface {
 }
 
 var (
-	newHub           = ws.NewHub
-	newBuildProvider = func(projectDir string, hub *ws.Hub) providerpkg.Provider {
+	newHub           = events.NewHub
+	newBuildProvider = func(projectDir string, hub *events.Hub) providerpkg.Provider {
 		return buildapi.NewProvider(projectDir, hub)
 	}
 	newProviderRegistry    = providerpkg.NewRegistry
@@ -41,9 +40,9 @@ var (
 	newAgenticOrchestrator = defaultNewAgenticOrchestrator
 	runWatchedBuild        = defaultRunWatchedBuild
 	discoverProject        = func(projectDir string) core.Result {
-		return build.DiscoverFull(io.Local, projectDir)
+		return build.DiscoverFull(storage.Local, projectDir)
 	}
-	newProcessDaemon = func(opts process.DaemonOptions) processDaemon { return process.NewDaemon(opts) }
+	newProcessDaemon = func(opts daemonOptions) processDaemon { return newManagedDaemon(opts) }
 )
 
 // Run starts the background daemon for cfg until ctx is cancelled.
@@ -58,7 +57,7 @@ func Run(ctx context.Context, cfg Config) core.Result {
 		return core.Fail(core.E("service.Run", "failed to create pid directory", core.NewError(created.Error())))
 	}
 
-	daemon := newProcessDaemon(process.DaemonOptions{
+	daemon := newProcessDaemon(daemonOptions{
 		PIDFile:         cfg.PIDFile,
 		HealthAddr:      cfg.HealthAddr,
 		ShutdownTimeout: 30 * time.Second,
@@ -147,7 +146,7 @@ func Run(ctx context.Context, cfg Config) core.Result {
 }
 
 func defaultRunWatchedBuild(ctx context.Context, projectDir string) core.Result {
-	filesystem := io.Local
+	filesystem := storage.Local
 
 	var buildConfig *build.BuildConfig
 	if build.ConfigExists(filesystem, projectDir) {
@@ -360,12 +359,12 @@ func discoveryTypes(discovery *build.DiscoveryResult) []string {
 	return types
 }
 
-func sendEvent(hub *ws.Hub, channel string, payload any) {
+func sendEvent(hub *events.Hub, channel string, payload any) {
 	if hub == nil {
 		return
 	}
-	sent := hub.SendToChannel(channel, ws.Message{
-		Type: ws.TypeEvent,
+	sent := hub.SendToChannel(channel, events.Message{
+		Type: events.TypeEvent,
 		Data: payload,
 	})
 	if !sent.OK {
@@ -374,7 +373,7 @@ func sendEvent(hub *ws.Hub, channel string, payload any) {
 }
 
 type daemonEventEmitter struct {
-	hub     *ws.Hub
+	hub     *events.Hub
 	agentic agenticOrchestrator
 }
 

@@ -9,9 +9,7 @@ import (
 	"time"
 
 	"dappco.re/go"
-	coreio "dappco.re/go/io"
-	process "dappco.re/go/process"
-	processexec "dappco.re/go/process/exec"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 // DS returns the current platform directory separator.
@@ -365,12 +363,11 @@ func JSONUnmarshal(data []byte, target any) core.Result {
 //
 // Usage example: path, err := ax.LookPath("git")
 func LookPath(name string) core.Result {
-	program := process.Program{Name: name}
-	found := program.Find()
-	if !found.OK {
-		return core.Fail(core.E("ax.LookPath", "failed to locate command "+name, core.NewError(found.Error())))
+	path := resolveExecutable(name)
+	if !path.OK {
+		return core.Fail(core.E("ax.LookPath", "failed to locate command "+name, core.NewError(path.Error())))
 	}
-	return core.Ok(program.Path)
+	return path
 }
 
 // ResolveCommand resolves a program from PATH or a list of fallback paths.
@@ -395,61 +392,123 @@ func ResolveCommand(name string, fallbackPaths ...string) core.Result {
 //
 // Usage example: output, err := ax.Run(ctx, "git", "status", "--short")
 func Run(ctx context.Context, command string, args ...string) core.Result {
-	program := process.Program{Name: command}
-	return program.Run(ctx, args...)
+	return CombinedOutput(ctx, "", nil, command, args...)
 }
 
 // RunDir executes a command in the provided directory and returns combined output.
 //
 // Usage example: output, err := ax.RunDir(ctx, repoDir, "git", "show", "--stat")
 func RunDir(ctx context.Context, dir, command string, args ...string) core.Result {
-	program := process.Program{Name: command}
-	return program.RunDir(ctx, dir, args...)
+	return CombinedOutput(ctx, dir, nil, command, args...)
 }
 
 // Exec executes a command without capturing output.
 //
 // Usage example: err := ax.Exec(ctx, "go", "test", "./...")
 func Exec(ctx context.Context, command string, args ...string) core.Result {
-	return processexec.Command(ctx, command, args...).Run()
+	return runCommand(ctx, dirEnvCommand{command: command, args: args})
 }
 
 // ExecDir executes a command in a specific directory without capturing output.
 //
 // Usage example: err := ax.ExecDir(ctx, repoDir, "go", "test", "./...")
 func ExecDir(ctx context.Context, dir, command string, args ...string) core.Result {
-	return processexec.Command(ctx, command, args...).WithDir(dir).Run()
+	return runCommand(ctx, dirEnvCommand{dir: dir, command: command, args: args})
 }
 
 // ExecWithEnv executes a command with additional environment variables.
 //
 // Usage example: err := ax.ExecWithEnv(ctx, repoDir, []string{"GOOS=linux"}, "go", "build")
 func ExecWithEnv(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
-	return processexec.Command(ctx, command, args...).WithDir(dir).WithEnv(env).Run()
+	return runCommand(ctx, dirEnvCommand{dir: dir, env: env, command: command, args: args})
 }
 
 // ExecWithWriters executes a command and streams output to the provided writers.
 //
 // Usage example: err := ax.ExecWithWriters(ctx, repoDir, nil, w, w, "docker", "build", ".")
 func ExecWithWriters(ctx context.Context, dir string, env []string, stdout, stderr io.Writer, command string, args ...string) core.Result {
-	cmd := processexec.Command(ctx, command, args...).WithDir(dir).WithEnv(env)
-	if stdout != nil {
-		cmd = cmd.WithStdout(stdout)
-	}
-	if stderr != nil {
-		cmd = cmd.WithStderr(stderr)
-	}
-	return cmd.Run()
+	return runCommand(ctx, dirEnvCommand{dir: dir, env: env, stdout: stdout, stderr: stderr, command: command, args: args})
 }
 
 // CombinedOutput executes a command and returns combined output.
 //
 // Usage example: output, err := ax.CombinedOutput(ctx, repoDir, nil, "go", "test", "./...")
 func CombinedOutput(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
-	cmd := processexec.Command(ctx, command, args...).WithDir(dir).WithEnv(env)
-	output := cmd.CombinedOutput()
-	if !output.OK {
-		return output
+	buffer := core.NewBuffer()
+	run := runCommand(ctx, dirEnvCommand{
+		dir:     dir,
+		env:     env,
+		stdout:  buffer,
+		stderr:  buffer,
+		command: command,
+		args:    args,
+	})
+	if !run.OK {
+		return core.Fail(core.E("ax.CombinedOutput", core.Trim(buffer.String()), core.NewError(run.Error())))
 	}
-	return core.Ok(core.Trim(string(output.Value.([]byte))))
+	return core.Ok(core.Trim(buffer.String()))
+}
+
+type dirEnvCommand struct {
+	dir     string
+	env     []string
+	stdout  io.Writer
+	stderr  io.Writer
+	command string
+	args    []string
+}
+
+func runCommand(ctx context.Context, request dirEnvCommand) core.Result {
+	if ctx == nil {
+		return core.Fail(core.NewError("command context is required"))
+	}
+	resolved := resolveExecutable(request.command)
+	if !resolved.OK {
+		return resolved
+	}
+	path := resolved.Value.(string)
+	cmd := &core.Cmd{
+		Path:   path,
+		Args:   append([]string{path}, request.args...),
+		Dir:    request.dir,
+		Stdout: request.stdout,
+		Stderr: request.stderr,
+	}
+	if len(request.env) > 0 {
+		cmd.Env = append(core.Environ(), request.env...)
+	}
+	if err := cmd.Start(); err != nil {
+		return core.Fail(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	select {
+	case err := <-done:
+		return core.ResultOf(nil, err)
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			killErr := cmd.Process.Kill()
+			<-done
+			if killErr != nil {
+				return core.Fail(killErr)
+			}
+		}
+		return core.Fail(ctx.Err())
+	}
+}
+
+func resolveExecutable(name string) core.Result {
+	if name == "" {
+		return core.Fail(core.NewError("program name is empty"))
+	}
+	if core.Contains(name, "/") || core.Contains(name, "\\") {
+		return core.Ok(name)
+	}
+	found := core.App{}.Find(name, name)
+	if !found.OK {
+		return found
+	}
+	return core.Ok(found.Value.(*core.App).Path)
 }

@@ -9,7 +9,6 @@ import (
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	coreerr "dappco.re/go/log"
 )
 
 // semverRegex matches semantic version strings with or without 'v' prefix.
@@ -37,7 +36,7 @@ func DetermineVersionWithContext(ctx context.Context, dir string) core.Result {
 	if git := build.DetectGitHubMetadata(); git != nil && git.IsTag {
 		tag := normalizeVersion(core.Trim(git.Tag))
 		if !ValidateVersion(tag) {
-			return core.Fail(coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+tag, nil))
+			return core.Fail(core.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+tag, nil))
 		}
 		return core.Ok(tag)
 	}
@@ -48,18 +47,18 @@ func DetermineVersionWithContext(ctx context.Context, dir string) core.Result {
 		headTag := headTagResult.Value.(string)
 		headTag = normalizeVersion(headTag)
 		if !ValidateVersion(headTag) {
-			return core.Fail(coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+headTag, nil))
+			return core.Fail(core.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+headTag, nil))
 		}
 		return core.Ok(headTag)
 	}
 	if !headTagResult.OK && ctx.Err() != nil {
-		return core.Fail(coreerr.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err()))
+		return core.Fail(core.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err()))
 	}
 
 	// Get most recent tag
 	latestTagResult := getLatestTagWithContext(ctx, dir)
 	if !latestTagResult.OK && ctx.Err() != nil {
-		return core.Fail(coreerr.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err()))
+		return core.Fail(core.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err()))
 	}
 	if !latestTagResult.OK || latestTagResult.Value.(string) == "" {
 		// No tags exist, return default
@@ -67,7 +66,7 @@ func DetermineVersionWithContext(ctx context.Context, dir string) core.Result {
 	}
 	latestTag := latestTagResult.Value.(string)
 	if !ValidateVersion(latestTag) {
-		return core.Fail(coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+latestTag, nil))
+		return core.Fail(core.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+latestTag, nil))
 	}
 
 	// Increment patch version
@@ -151,7 +150,7 @@ type ParsedVersion struct {
 func ParseVersion(version string) core.Result {
 	parsed, ok := parseVersionParts(version)
 	if !ok {
-		return core.Fail(coreerr.E("release.ParseVersion", "invalid semver: "+version, nil))
+		return core.Fail(core.E("release.ParseVersion", "invalid semver: "+version, nil))
 	}
 	return core.Ok(parsed)
 }
@@ -195,7 +194,7 @@ func ValidateVersionIdentifier(version string) core.Result {
 	}
 	validated := build.ValidateVersionString(version)
 	if !validated.OK {
-		return core.Fail(coreerr.E("release.ValidateVersionIdentifier", "version contains unsupported characters", core.NewError(validated.Error())))
+		return core.Fail(core.E("release.ValidateVersionIdentifier", "version contains unsupported characters", core.NewError(validated.Error())))
 	}
 
 	return core.Ok(nil)

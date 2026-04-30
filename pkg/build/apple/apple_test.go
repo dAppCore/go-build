@@ -9,7 +9,7 @@ import (
 	"dappco.re/go/build/internal/testassert"
 	build "dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
-	coreio "dappco.re/go/io"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 func requireAppleOKResult(t *testing.T, result core.Result) {

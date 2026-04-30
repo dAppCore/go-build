@@ -6,7 +6,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/testassert"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 
 	core "dappco.re/go"
 	"gopkg.in/yaml.v3"
@@ -85,7 +85,7 @@ func requireConfigString(t *testing.T, result core.Result) string {
 }
 
 func TestConfig_LoadConfig_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("loads valid config", func(t *testing.T) {
 		content := `
 version: 1
@@ -981,7 +981,7 @@ func TestConfig_MarshalYAMLGood(t *testing.T) {
 }
 
 func TestConfig_LoadConfigAtPath_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("loads config from explicit file path", func(t *testing.T) {
 		dir := t.TempDir()
@@ -1061,7 +1061,7 @@ func TestConfig_ConfigExistsNilMediumGood(t *testing.T) {
 }
 
 func TestConfig_LoadConfig_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("returns error for invalid YAML", func(t *testing.T) {
 		content := `
 version: 1
@@ -1333,7 +1333,7 @@ func TestConfig_ConfigPath_Good(t *testing.T) {
 }
 
 func TestConfig_ConfigExists_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("returns true when config exists", func(t *testing.T) {
 		dir := setupConfigTestDir(t, "version: 1")
 		if !(ConfigExists(fs, dir)) {
@@ -1375,7 +1375,7 @@ sign:
 `
 	requireConfigOKResult(t, ax.WriteFile(ax.Join(coreDir, "build.yaml"), []byte(configContent), 0644))
 
-	cfg := requireConfigOK(t, LoadConfig(io.Local, tmpDir))
+	cfg := requireConfigOK(t, LoadConfig(storage.Local, tmpDir))
 
 	if !cfg.Sign.Enabled {
 		t.Error("expected Sign.Enabled to be true")
@@ -1434,7 +1434,7 @@ func TestConfig_BuildConfigToTargetsGood(t *testing.T) {
 }
 
 func TestConfig_LoadConfigTestdataGood(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	abs := requireConfigString(t, ax.Abs("testdata/config-project"))
 
 	t.Run("loads config-project fixture", func(t *testing.T) {
@@ -1590,7 +1590,7 @@ func TestConfig_TargetConfig_UnmarshalYAML_Ugly(t *core.T) {
 func TestConfig_LoadConfig_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadConfig(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadConfig(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1599,7 +1599,7 @@ func TestConfig_LoadConfig_Ugly(t *core.T) {
 func TestConfig_LoadConfigAtPath_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadConfigAtPath(io.NewMemoryMedium(), "")
+		_ = LoadConfigAtPath(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1608,7 +1608,7 @@ func TestConfig_LoadConfigAtPath_Bad(t *core.T) {
 func TestConfig_LoadConfigAtPath_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = LoadConfigAtPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = LoadConfigAtPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1662,7 +1662,7 @@ func TestConfig_ResolveOutputMedium_Ugly(t *core.T) {
 func TestConfig_MediumIsLocal_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = MediumIsLocal(io.NewMemoryMedium())
+		_ = MediumIsLocal(storage.NewMemoryMedium())
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1671,7 +1671,7 @@ func TestConfig_MediumIsLocal_Good(t *core.T) {
 func TestConfig_MediumIsLocal_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = MediumIsLocal(io.NewMemoryMedium())
+		_ = MediumIsLocal(storage.NewMemoryMedium())
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1680,7 +1680,7 @@ func TestConfig_MediumIsLocal_Bad(t *core.T) {
 func TestConfig_MediumIsLocal_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = MediumIsLocal(io.NewMemoryMedium())
+		_ = MediumIsLocal(storage.NewMemoryMedium())
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1689,7 +1689,7 @@ func TestConfig_MediumIsLocal_Ugly(t *core.T) {
 func TestConfig_CopyMediumPath_Good(t *core.T) {
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = CopyMediumPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = CopyMediumPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		goodCalls++
 	})
 	core.AssertEqual(t, 1, goodCalls)
@@ -1698,7 +1698,7 @@ func TestConfig_CopyMediumPath_Good(t *core.T) {
 func TestConfig_CopyMediumPath_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = CopyMediumPath(io.NewMemoryMedium(), "", io.NewMemoryMedium(), "")
+		_ = CopyMediumPath(storage.NewMemoryMedium(), "", storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1707,7 +1707,7 @@ func TestConfig_CopyMediumPath_Bad(t *core.T) {
 func TestConfig_CopyMediumPath_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = CopyMediumPath(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = CopyMediumPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)
@@ -1809,7 +1809,7 @@ func TestConfig_ConfigPath_Ugly(t *core.T) {
 func TestConfig_ConfigExists_Bad(t *core.T) {
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ConfigExists(io.NewMemoryMedium(), "")
+		_ = ConfigExists(storage.NewMemoryMedium(), "")
 		badCalls++
 	})
 	core.AssertEqual(t, 1, badCalls)
@@ -1818,7 +1818,7 @@ func TestConfig_ConfigExists_Bad(t *core.T) {
 func TestConfig_ConfigExists_Ugly(t *core.T) {
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {
-		_ = ConfigExists(io.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		_ = ConfigExists(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
 		uglyCalls++
 	})
 	core.AssertEqual(t, 1, uglyCalls)

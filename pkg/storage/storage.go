@@ -1,4 +1,4 @@
-package io
+package storage
 
 import (
 	goio "io"
@@ -29,11 +29,11 @@ type Medium interface {
 	IsDir(path string) bool
 }
 
-var Local Medium = localMedium{}
+var Local Medium = localstore{}
 
-type localMedium struct{}
+type localstore struct{}
 
-func (localMedium) Read(path string) core.Result {
+func (localstore) Read(path string) core.Result {
 	data := core.ReadFile(path)
 	if !data.OK {
 		return data
@@ -41,11 +41,11 @@ func (localMedium) Read(path string) core.Result {
 	return core.Ok(string(data.Value.([]byte)))
 }
 
-func (m localMedium) Write(path, content string) core.Result {
+func (m localstore) Write(path, content string) core.Result {
 	return m.WriteMode(path, content, 0o644)
 }
 
-func (localMedium) WriteMode(path, content string, mode fs.FileMode) core.Result {
+func (localstore) WriteMode(path, content string, mode fs.FileMode) core.Result {
 	created := core.MkdirAll(core.PathDir(path), 0o755)
 	if !created.OK {
 		return created
@@ -57,32 +57,36 @@ func (localMedium) WriteMode(path, content string, mode fs.FileMode) core.Result
 	return core.Ok(nil)
 }
 
-func (localMedium) EnsureDir(path string) core.Result {
+func (localstore) EnsureDir(path string) core.Result {
 	created := core.MkdirAll(path, 0o755)
 	if !created.OK {
 		return created
 	}
 	return core.Ok(nil)
 }
-func (localMedium) IsFile(path string) bool {
+
+func (localstore) IsFile(path string) bool {
 	info := core.Stat(path)
 	return info.OK && !info.Value.(fs.FileInfo).IsDir()
 }
-func (localMedium) Delete(path string) core.Result {
+
+func (localstore) Delete(path string) core.Result {
 	removed := core.Remove(path)
 	if !removed.OK {
 		return removed
 	}
 	return core.Ok(nil)
 }
-func (localMedium) DeleteAll(path string) core.Result {
+
+func (localstore) DeleteAll(path string) core.Result {
 	removed := core.RemoveAll(path)
 	if !removed.OK {
 		return removed
 	}
 	return core.Ok(nil)
 }
-func (localMedium) Rename(oldPath, newPath string) core.Result {
+
+func (localstore) Rename(oldPath, newPath string) core.Result {
 	created := core.MkdirAll(core.PathDir(newPath), 0o755)
 	if !created.OK {
 		return created
@@ -93,28 +97,32 @@ func (localMedium) Rename(oldPath, newPath string) core.Result {
 	}
 	return core.Ok(nil)
 }
-func (localMedium) List(path string) core.Result {
+
+func (localstore) List(path string) core.Result {
 	read := core.ReadDir(core.DirFS(path), ".")
 	if !read.OK {
 		return read
 	}
 	return read
 }
-func (localMedium) Stat(path string) core.Result {
+
+func (localstore) Stat(path string) core.Result {
 	info := core.Stat(path)
 	if !info.OK {
 		return info
 	}
 	return info
 }
-func (localMedium) Open(path string) core.Result {
+
+func (localstore) Open(path string) core.Result {
 	file := core.Open(path)
 	if !file.OK {
 		return file
 	}
 	return core.Ok(file.Value.(*core.OSFile))
 }
-func (localMedium) Create(path string) core.Result {
+
+func (localstore) Create(path string) core.Result {
 	created := core.MkdirAll(core.PathDir(path), 0o755)
 	if !created.OK {
 		return created
@@ -125,7 +133,8 @@ func (localMedium) Create(path string) core.Result {
 	}
 	return core.Ok(file.Value.(*core.OSFile))
 }
-func (localMedium) Append(path string) core.Result {
+
+func (localstore) Append(path string) core.Result {
 	created := core.MkdirAll(core.PathDir(path), 0o755)
 	if !created.OK {
 		return created
@@ -136,18 +145,22 @@ func (localMedium) Append(path string) core.Result {
 	}
 	return core.Ok(file.Value.(*core.OSFile))
 }
-func (m localMedium) ReadStream(path string) core.Result {
+
+func (localstore) ReadStream(path string) core.Result {
 	file := core.Open(path)
 	if !file.OK {
 		return file
 	}
 	return core.Ok(file.Value.(*core.OSFile))
 }
-func (m localMedium) WriteStream(path string) core.Result { return m.Create(path) }
-func (localMedium) Exists(path string) bool {
+
+func (m localstore) WriteStream(path string) core.Result { return m.Create(path) }
+
+func (localstore) Exists(path string) bool {
 	return core.Stat(path).OK
 }
-func (localMedium) IsDir(path string) bool {
+
+func (localstore) IsDir(path string) bool {
 	info := core.Stat(path)
 	return info.OK && info.Value.(fs.FileInfo).IsDir()
 }
@@ -203,7 +216,7 @@ func (m *MemoryMedium) Write(path, content string) core.Result {
 	return m.WriteMode(path, content, 0o644)
 }
 
-func (m *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) core.Result {
+func (m *MemoryMedium) WriteMode(path string, content string, mode fs.FileMode) core.Result {
 	path = m.normal(path)
 	if path == "" {
 		return core.Fail(fs.ErrInvalid)
@@ -312,10 +325,10 @@ func (m *MemoryMedium) List(path string) core.Result {
 func (m *MemoryMedium) Stat(path string) core.Result {
 	path = m.normal(path)
 	if file, ok := m.files[path]; ok {
-		return core.Ok(fileInfo{name: core.PathBase(path), size: int64(len(file.content)), mode: file.mode, modTime: file.modTime})
+		return core.Ok(fileinfo{name: core.PathBase(path), size: int64(len(file.content)), mode: file.mode, modTime: file.modTime})
 	}
 	if m.IsDir(path) {
-		return core.Ok(fileInfo{name: core.PathBase(path), mode: fs.ModeDir | 0o755, isDir: true, modTime: time.Now()})
+		return core.Ok(fileinfo{name: core.PathBase(path), mode: fs.ModeDir | 0o755, isDir: true, modTime: time.Now()})
 	}
 	return core.Fail(fs.ErrNotExist)
 }
@@ -349,10 +362,12 @@ func (m *MemoryMedium) ReadStream(path string) core.Result {
 }
 
 func (m *MemoryMedium) WriteStream(path string) core.Result { return m.Create(path) }
+
 func (m *MemoryMedium) Exists(path string) bool {
 	path = m.normal(path)
 	return m.IsFile(path) || m.IsDir(path)
 }
+
 func (m *MemoryMedium) IsDir(path string) bool {
 	path = m.normal(path)
 	if path == "" {
@@ -394,7 +409,7 @@ func pathOrDot(path string) string {
 	return path
 }
 
-type fileInfo struct {
+type fileinfo struct {
 	name    string
 	size    int64
 	mode    fs.FileMode
@@ -402,12 +417,12 @@ type fileInfo struct {
 	isDir   bool
 }
 
-func (i fileInfo) Name() string       { return i.name }
-func (i fileInfo) Size() int64        { return i.size }
-func (i fileInfo) Mode() fs.FileMode  { return i.mode }
-func (i fileInfo) ModTime() time.Time { return i.modTime }
-func (i fileInfo) IsDir() bool        { return i.isDir }
-func (i fileInfo) Sys() any           { return nil }
+func (i fileinfo) Name() string       { return i.name }
+func (i fileinfo) Size() int64        { return i.size }
+func (i fileinfo) Mode() fs.FileMode  { return i.mode }
+func (i fileinfo) ModTime() time.Time { return i.modTime }
+func (i fileinfo) IsDir() bool        { return i.isDir }
+func (i fileinfo) Sys() any           { return nil }
 
 func parentSlash(path string) string {
 	return core.PathToSlash(core.PathDir(path))
