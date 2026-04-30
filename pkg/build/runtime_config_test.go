@@ -3,7 +3,8 @@ package build
 import (
 	"testing"
 
-	"dappco.re/go/io"
+	core "dappco.re/go"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {
@@ -44,12 +45,12 @@ func TestBuild_RuntimeConfigFromBuildConfig_Good(t *testing.T) {
 		},
 	}
 
-	cfg := RuntimeConfigFromBuildConfig(io.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, true, "override/image", "v1.2.3")
+	cfg := RuntimeConfigFromBuildConfig(storage.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, true, "override/image", "v1.2.3")
 	if stdlibAssertNil(cfg) {
 		t.Fatal("expected non-nil")
 	}
-	if !stdlibAssertEqual(io.Local, cfg.FS) {
-		t.Fatalf("want %v, got %v", io.Local, cfg.FS)
+	if !stdlibAssertEqual(storage.Local, cfg.FS) {
+		t.Fatalf("want %v, got %v", storage.Local, cfg.FS)
 	}
 	if !stdlibAssertEqual(source.Project, cfg.Project) {
 		t.Fatalf("want %v, got %v", source.Project, cfg.Project)
@@ -167,7 +168,7 @@ func TestBuild_RuntimeConfigFromBuildConfig_ExpandsVersionTemplates_Good(t *test
 		},
 	}
 
-	cfg := RuntimeConfigFromBuildConfig(io.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, false, "", "v1.2.3")
+	cfg := RuntimeConfigFromBuildConfig(storage.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, false, "", "v1.2.3")
 	if stdlibAssertNil(cfg) {
 		t.Fatal("expected non-nil")
 	}
@@ -204,7 +205,7 @@ func TestBuild_RuntimeConfigFromBuildConfig_StripsUnsafeVersionTemplateFlags(t *
 		},
 	}
 
-	cfg := RuntimeConfigFromBuildConfig(io.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, false, "", "v1.2.3 -bad")
+	cfg := RuntimeConfigFromBuildConfig(storage.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, false, "", "v1.2.3 -bad")
 	if stdlibAssertNil(cfg) {
 		t.Fatal("expected non-nil")
 	}
@@ -231,7 +232,7 @@ func TestBuild_RuntimeConfigFromBuildConfig_UsesRFCPreBuildAliases_Good(t *testi
 		},
 	}
 
-	cfg := RuntimeConfigFromBuildConfig(io.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, false, "", "v1.2.3")
+	cfg := RuntimeConfigFromBuildConfig(storage.Local, "/workspace/core", "/workspace/core/dist", "core-bin", source, false, "", "v1.2.3")
 	if stdlibAssertNil(cfg) {
 		t.Fatal("expected non-nil")
 	}
@@ -242,4 +243,32 @@ func TestBuild_RuntimeConfigFromBuildConfig_UsesRFCPreBuildAliases_Good(t *testi
 		t.Fatalf("want %v, got %v", "npm run build", cfg.NpmBuild)
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestRuntimeConfig_RuntimeConfigFromBuildConfig_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = RuntimeConfigFromBuildConfig(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{}, true, "agent", "v1.2.3")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestRuntimeConfig_RuntimeConfigFromBuildConfig_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = RuntimeConfigFromBuildConfig(storage.NewMemoryMedium(), "", "", "", nil, false, "", "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestRuntimeConfig_RuntimeConfigFromBuildConfig_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = RuntimeConfigFromBuildConfig(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), &BuildConfig{}, true, "agent", "v1.2.3")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

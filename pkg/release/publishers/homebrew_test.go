@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	"os"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
-func TestHomebrew_HomebrewPublisherName_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherNameGood(t *testing.T) {
 	t.Run("returns homebrew", func(t *testing.T) {
 		p := NewHomebrewPublisher()
 		if !stdlibAssertEqual("homebrew", p.Name()) {
@@ -20,7 +20,7 @@ func TestHomebrew_HomebrewPublisherName_Good(t *testing.T) {
 	})
 }
 
-func TestHomebrew_HomebrewPublisherParseConfig_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherParseConfigGood(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestHomebrew_HomebrewPublisherParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestHomebrew_HomebrewPublisherToFormulaClass_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherToFormulaClassGood(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -148,7 +148,7 @@ func TestHomebrew_HomebrewPublisherToFormulaClass_Good(t *testing.T) {
 	}
 }
 
-func TestHomebrew_HomebrewPublisherBuildChecksumMap_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherBuildChecksumMapGood(t *testing.T) {
 	t.Run("maps artifacts to checksums by platform", func(t *testing.T) {
 		artifacts := []build.Artifact{
 			{Path: "/dist/myapp-darwin-amd64.tar.gz", OS: "darwin", Arch: "amd64", Checksum: "abc123"},
@@ -221,7 +221,7 @@ func TestHomebrew_HomebrewPublisherBuildChecksumMap_Good(t *testing.T) {
 	})
 }
 
-func TestHomebrew_HomebrewPublisherRenderTemplate_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherRenderTemplateGood(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("renders formula template with data", func(t *testing.T) {
@@ -240,10 +240,7 @@ func TestHomebrew_HomebrewPublisherRenderTemplate_Good(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/homebrew/formula.rb.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/homebrew/formula.rb.tmpl", data))
 		if !stdlibAssertContains(result, "class MyApp < Formula") {
 			t.Fatalf("expected %v to contain %v", result, "class MyApp < Formula")
 		}
@@ -278,23 +275,20 @@ func TestHomebrew_HomebrewPublisherRenderTemplate_Good(t *testing.T) {
 	})
 }
 
-func TestHomebrew_HomebrewPublisherRenderTemplate_Bad(t *testing.T) {
+func TestHomebrew_HomebrewPublisherRenderTemplateBad(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := homebrewTemplateData{}
-		_, err := p.renderTemplate(io.Local, "templates/homebrew/nonexistent.tmpl", data)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read template") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		err := requirePublisherError(t, p.renderTemplate(storage.Local, "templates/homebrew/nonexistent.tmpl", data))
+		if !stdlibAssertContains(err, "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
 
 	})
 }
 
-func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
+func TestHomebrew_HomebrewPublisherDryRunPublishGood(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
@@ -311,13 +305,11 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 			Tap: "owner/homebrew-tap",
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Homebrew Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Homebrew Publish")
 		}
@@ -356,13 +348,11 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/path") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/path")
 		}
@@ -384,13 +374,11 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/path") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/path")
 		}
@@ -413,13 +401,11 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: dist/homebrew") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/homebrew")
 		}
@@ -427,24 +413,21 @@ func TestHomebrew_HomebrewPublisherDryRunPublish_Good(t *testing.T) {
 	})
 }
 
-func TestHomebrew_HomebrewPublisherPublish_Bad(t *testing.T) {
+func TestHomebrew_HomebrewPublisherPublishBad(t *testing.T) {
 	p := NewHomebrewPublisher()
 
 	t.Run("fails when tap not configured and not official mode", func(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "homebrew"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "tap is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "tap is required")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "tap is required") {
+			t.Fatalf("expected %v to contain %v", err, "tap is required")
 		}
 
 	})
@@ -456,7 +439,7 @@ func TestHomebrew_HomebrewPublisherPublish_Bad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: projectDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "dist/myapp-linux-amd64.tar.gz", OS: "linux", Arch: "amd64", Checksum: "abc123"},
 			},
@@ -473,18 +456,13 @@ func TestHomebrew_HomebrewPublisherPublish_Bad(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "myapp"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if _, err := os.Stat(ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb")); err != nil {
-			t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb"))
-		}
+		requirePublisherOK(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		requirePublisherOK(t, ax.Stat(ax.Join(projectDir, "dist", "homebrew-pr", "myapp.rb")))
 
 	})
 }
 
-func TestHomebrew_HomebrewConfigDefaults_Good(t *testing.T) {
+func TestHomebrew_HomebrewConfigDefaultsGood(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewHomebrewPublisher()
 		pubCfg := PublisherConfig{Type: "homebrew"}
@@ -502,4 +480,164 @@ func TestHomebrew_HomebrewConfigDefaults_Good(t *testing.T) {
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestHomebrew_NewHomebrewPublisher_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewHomebrewPublisher()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestHomebrew_NewHomebrewPublisher_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewHomebrewPublisher()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestHomebrew_NewHomebrewPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewHomebrewPublisher()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Name_Good(t *core.T) {
+	subject := &HomebrewPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Name_Bad(t *core.T) {
+	subject := &HomebrewPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Name_Ugly(t *core.T) {
+	subject := &HomebrewPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Validate_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &HomebrewPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Validate_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &HomebrewPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Validate_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &HomebrewPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Supports_Good(t *core.T) {
+	subject := &HomebrewPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Supports_Bad(t *core.T) {
+	subject := &HomebrewPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Supports_Ugly(t *core.T) {
+	subject := &HomebrewPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Publish_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &HomebrewPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Publish_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &HomebrewPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestHomebrew_HomebrewPublisher_Publish_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &HomebrewPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -3,14 +3,13 @@ package builders
 
 import (
 	"context"
-	"path"
+	stdfs "io/fs"
 	"runtime"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // TaskfileBuilder builds projects using Taskfile (https://taskfile.dev/).
@@ -35,32 +34,34 @@ func (b *TaskfileBuilder) Name() string {
 
 // Detect checks if a Taskfile exists in the directory.
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *TaskfileBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return build.IsTaskfileProject(fs, dir), nil
+// ok, err := b.Detect(storage.Local, ".")
+func (b *TaskfileBuilder) Detect(fs storage.Medium, dir string) core.Result {
+	return core.Ok(build.IsTaskfileProject(fs, dir))
 }
 
 // Build runs the Taskfile build task for each target platform.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return nil, coreerr.E("TaskfileBuilder.Build", "config is nil", nil)
+		return core.Fail(core.E("TaskfileBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
-	taskCommand, err := b.resolveTaskCli()
-	if err != nil {
-		return nil, err
+	taskCommandResult := b.resolveTaskCli()
+	if !taskCommandResult.OK {
+		return taskCommandResult
 	}
+	taskCommand := taskCommandResult.Value.(string)
 
 	// Create output directory
 	outputDir := cfg.OutputDir
 	if outputDir == "" {
 		outputDir = defaultOutputDir(cfg)
 	}
-	if err := ensureOutputDir(filesystem, outputDir, "TaskfileBuilder.Build"); err != nil {
-		return nil, err
+	created := ensureOutputDir(filesystem, outputDir, "TaskfileBuilder.Build")
+	if !created.OK {
+		return created
 	}
 
 	var artifacts []build.Artifact
@@ -71,8 +72,9 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 
 	// Run build task for each target
 	for _, target := range targets {
-		if err := b.runTask(ctx, cfg, taskCommand, outputDir, target); err != nil {
-			return nil, err
+		ran := b.runTask(ctx, cfg, taskCommand, outputDir, target)
+		if !ran.OK {
+			return ran
 		}
 
 		// Try to find artifacts for this target
@@ -80,11 +82,11 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 		artifacts = append(artifacts, found...)
 	}
 
-	return artifacts, nil
+	return core.Ok(artifacts)
 }
 
 // runTask executes the Taskfile build task.
-func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand string, outputDir string, target build.Target) error {
+func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand string, outputDir string, target build.Target) core.Result {
 	// Build task command
 	args := []string{"build"}
 	env := build.BuildEnvironment(cfg)
@@ -102,11 +104,14 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 
 	cleanup := func() {}
 	if cfg != nil {
-		var err error
-		args, env, cleanup, err = b.applyWailsV3BuildSurface(cfg, target, args, env)
-		if err != nil {
-			return err
+		surfaceResult := b.applyWailsV3BuildSurface(cfg, target, args, env)
+		if !surfaceResult.OK {
+			return surfaceResult
 		}
+		surface := surfaceResult.Value.(taskBuildSurface)
+		args = surface.args
+		env = surface.env
+		cleanup = surface.cleanup
 	}
 	defer cleanup()
 
@@ -116,63 +121,75 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 		core.Print(nil, "Running task build")
 	}
 
-	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, env, taskCommand, args...); err != nil {
-		return coreerr.E("TaskfileBuilder.runTask", "task build failed", err)
+	executed := ax.ExecWithEnv(ctx, cfg.ProjectDir, env, taskCommand, args...)
+	if !executed.OK {
+		return core.Fail(core.E("TaskfileBuilder.runTask", "task build failed", core.NewError(executed.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func (b *TaskfileBuilder) applyWailsV3BuildSurface(cfg *build.Config, target build.Target, args, env []string) ([]string, []string, func(), error) {
+type taskBuildSurface struct {
+	args    []string
+	env     []string
+	cleanup func()
+}
+
+func (b *TaskfileBuilder) applyWailsV3BuildSurface(cfg *build.Config, target build.Target, args, env []string) core.Result {
 	if cfg == nil || cfg.ProjectDir == "" {
-		return args, env, func() {}, nil
+		return core.Ok(taskBuildSurface{args: args, env: env, cleanup: func() {}})
 	}
 
 	fs := cfg.FS
 	if fs == nil {
-		fs = io.Local
+		fs = storage.Local
 	}
 
 	wailsBuilder := NewWailsBuilder()
 	if !build.IsWailsProject(fs, cfg.ProjectDir) || !wailsBuilder.isWailsV3(fs, cfg.ProjectDir) {
-		return args, env, func() {}, nil
+		return core.Ok(taskBuildSurface{args: args, env: env, cleanup: func() {}})
 	}
 
-	if goflags, err := buildV3GoFlags(cfg); err != nil {
-		return nil, nil, nil, err
-	} else if goflags != "" {
+	goflagsResult := buildV3GoFlags(cfg)
+	if !goflagsResult.OK {
+		return goflagsResult
+	}
+	if goflags := goflagsResult.Value.(string); goflags != "" {
 		env = append(env, "GOFLAGS="+goflags)
 	}
 
-	taskVars, err := buildV3TaskVars(cfg, target)
-	if err != nil {
-		return nil, nil, nil, err
+	taskVarsResult := buildV3TaskVars(cfg, target)
+	if !taskVarsResult.OK {
+		return taskVarsResult
 	}
+	taskVars := taskVarsResult.Value.([]string)
 	if len(taskVars) > 0 {
 		args = append(args, taskVars...)
 		env = append(env, taskVars...)
 	}
 
 	if !cfg.Obfuscate {
-		return args, env, func() {}, nil
+		return core.Ok(taskBuildSurface{args: args, env: env, cleanup: func() {}})
 	}
 
-	env, cleanup, err := wailsBuilder.prepareV3Obfuscation(env)
-	if err != nil {
-		return nil, nil, nil, err
+	obfuscationResult := wailsBuilder.prepareV3Obfuscation(env)
+	if !obfuscationResult.OK {
+		return obfuscationResult
 	}
+	obfuscation := obfuscationResult.Value.(obfuscationEnv)
 
-	return args, env, cleanup, nil
+	return core.Ok(taskBuildSurface{args: args, env: obfuscation.env, cleanup: obfuscation.cleanup})
 }
 
 // findArtifacts searches for built artifacts in the output directory.
-func (b *TaskfileBuilder) findArtifacts(fs io.Medium, outputDir string) []build.Artifact {
+func (b *TaskfileBuilder) findArtifacts(fs storage.Medium, outputDir string) []build.Artifact {
 	var artifacts []build.Artifact
 
-	entries, err := fs.List(outputDir)
-	if err != nil {
+	entriesResult := fs.List(outputDir)
+	if !entriesResult.OK {
 		return artifacts
 	}
+	entries := entriesResult.Value.([]stdfs.DirEntry)
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -196,13 +213,17 @@ func (b *TaskfileBuilder) findArtifacts(fs io.Medium, outputDir string) []build.
 }
 
 // findArtifactsForTarget searches for built artifacts for a specific target.
-func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string, target build.Target) []build.Artifact {
+func (b *TaskfileBuilder) findArtifactsForTarget(fs storage.Medium, outputDir string, target build.Target) []build.Artifact {
 	var artifacts []build.Artifact
 
 	// 1. Look for platform-specific subdirectory: output/os_arch/
 	platformSubdir := ax.Join(outputDir, core.Sprintf("%s_%s", target.OS, target.Arch))
 	if fs.IsDir(platformSubdir) {
-		entries, _ := fs.List(platformSubdir)
+		entriesResult := fs.List(platformSubdir)
+		entries := []stdfs.DirEntry{}
+		if entriesResult.OK {
+			entries = entriesResult.Value.([]stdfs.DirEntry)
+		}
 		for _, entry := range entries {
 			if entry.IsDir() {
 				// Handle .app bundles on macOS
@@ -238,7 +259,11 @@ func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string,
 	}
 
 	for _, pattern := range patterns {
-		entries, _ := fs.List(outputDir)
+		entriesResult := fs.List(outputDir)
+		entries := []stdfs.DirEntry{}
+		if entriesResult.OK {
+			entries = entriesResult.Value.([]stdfs.DirEntry)
+		}
 		for _, entry := range entries {
 			match := entry.Name()
 			// Simple glob matching
@@ -266,12 +291,12 @@ func (b *TaskfileBuilder) findArtifactsForTarget(fs io.Medium, outputDir string,
 
 // matchPattern implements glob matching for Taskfile artifacts.
 func (b *TaskfileBuilder) matchPattern(name, pattern string) bool {
-	matched, _ := path.Match(pattern, name)
-	return matched
+	matched := core.PathMatch(pattern, name)
+	return matched.OK && matched.Value.(bool)
 }
 
 // resolveTaskCli returns the executable path for the task CLI.
-func (b *TaskfileBuilder) resolveTaskCli(paths ...string) (string, error) {
+func (b *TaskfileBuilder) resolveTaskCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/task",
@@ -279,10 +304,10 @@ func (b *TaskfileBuilder) resolveTaskCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("task", paths...)
-	if err != nil {
-		return "", coreerr.E("TaskfileBuilder.resolveTaskCli", "task CLI not found. Install with: brew install go-task (macOS), go install github.com/go-task/task/v3/cmd/task@latest, or see https://taskfile.dev/installation/", err)
+	command := ax.ResolveCommand("task", paths...)
+	if !command.OK {
+		return core.Fail(core.E("TaskfileBuilder.resolveTaskCli", "task CLI not found. Install with: brew install go-task (macOS), go install github.com/go-task/task/v3/cmd/task@latest, or see https://taskfile.dev/installation/", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }

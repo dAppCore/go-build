@@ -5,15 +5,14 @@ import (
 	"context"
 	"reflect"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // Release represents a release to be published.
 //
-// rel := publishers.NewRelease("v1.2.3", artifacts, changelog, ".", io.Local)
+// rel := publishers.NewRelease("v1.2.3", artifacts, changelog, ".", storage.Local)
 type Release struct {
 	// Version is the semantic version string (e.g., "v1.2.3").
 	Version string
@@ -24,9 +23,9 @@ type Release struct {
 	// ProjectDir is the root directory of the project.
 	ProjectDir string
 	// FS is the project filesystem used for local project file access.
-	FS io.Medium
+	FS storage.Medium
 	// ArtifactFS is the medium backing the release artifact paths.
-	ArtifactFS io.Medium
+	ArtifactFS storage.Medium
 }
 
 // PublisherConfig holds configuration for a publisher.
@@ -58,10 +57,10 @@ type Publisher interface {
 	// Name returns the publisher's identifier.
 	Name() string
 	// Validate checks the runtime release and publisher configuration before publish.
-	Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error
+	Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) core.Result
 	// Publish publishes the release to the target.
 	// If dryRun is true, it prints what would be done without executing.
-	Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error
+	Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) core.Result
 	// Supports reports whether the publisher handles the named target.
 	Supports(target string) bool
 }
@@ -69,15 +68,15 @@ type Publisher interface {
 // NewRelease creates a Release from the release package's Release type.
 // This is a helper to convert between packages.
 //
-// rel := publishers.NewRelease("v1.2.3", artifacts, changelog, ".", io.Local)
-func NewRelease(version string, artifacts []build.Artifact, changelog, projectDir string, fs io.Medium) *Release {
+// rel := publishers.NewRelease("v1.2.3", artifacts, changelog, ".", storage.Local)
+func NewRelease(version string, artifacts []build.Artifact, changelog, projectDir string, fs storage.Medium) *Release {
 	return NewReleaseWithArtifactFS(version, artifacts, changelog, projectDir, fs, fs)
 }
 
 // NewReleaseWithArtifactFS creates a Release with explicit project and artifact media.
 //
-// rel := publishers.NewReleaseWithArtifactFS("v1.2.3", artifacts, changelog, ".", io.Local, io.NewMemoryMedium())
-func NewReleaseWithArtifactFS(version string, artifacts []build.Artifact, changelog, projectDir string, fs io.Medium, artifactFS io.Medium) *Release {
+// rel := publishers.NewReleaseWithArtifactFS("v1.2.3", artifacts, changelog, ".", storage.Local, storage.NewMemoryMedium())
+func NewReleaseWithArtifactFS(version string, artifacts []build.Artifact, changelog, projectDir string, fs storage.Medium, artifactFS storage.Medium) *Release {
 	if artifactFS == nil {
 		artifactFS = fs
 	}
@@ -104,20 +103,21 @@ func NewPublisherConfig(pubType string, prerelease, draft bool, extended any) Pu
 	}
 }
 
-func validatePublisherRelease(name string, release *Release) error {
+func validatePublisherRelease(name string, release *Release) core.Result {
 	if release == nil {
-		return coreerr.E(name+".Validate", "release is nil", nil)
+		return core.Fail(core.E(name+".Validate", "release is nil", nil))
 	}
 	if release.FS == nil {
-		return coreerr.E(name+".Validate", "release filesystem (FS) is nil", nil)
+		return core.Fail(core.E(name+".Validate", "release filesystem (FS) is nil", nil))
 	}
-	if err := build.ValidateVersionIdentifier(release.Version); err != nil {
-		return coreerr.E(name+".Validate", "release version contains unsupported characters", err)
+	validated := build.ValidateVersionIdentifier(release.Version)
+	if !validated.OK {
+		return core.Fail(core.E(name+".Validate", "release version contains unsupported characters", core.NewError(validated.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func releaseArtifactFS(release *Release) io.Medium {
+func releaseArtifactFS(release *Release) storage.Medium {
 	if release == nil {
 		return nil
 	}
@@ -127,7 +127,7 @@ func releaseArtifactFS(release *Release) io.Medium {
 	return release.FS
 }
 
-func mediumEquals(left, right io.Medium) bool {
+func mediumEquals(left, right storage.Medium) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil
 	}

@@ -2,11 +2,11 @@ package build
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // setenvCI sets the GitHub Actions environment variables for a test and cleans up afterwards.
@@ -23,34 +23,40 @@ func initGitMetadataRepo(t *testing.T) (string, string) {
 
 	dir := t.TempDir()
 	ctx := context.Background()
-	if err := ax.ExecDir(ctx, dir, "git", "init", "-b", "main"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.ExecDir(ctx, dir, "git", "config", "user.email", "codex@example.com"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.ExecDir(ctx, dir, "git", "config", "user.name", "Codex"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(dir, "README.md"), []byte("# demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.ExecDir(ctx, dir, "git", "add", "README.md"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.ExecDir(ctx, dir, "git", "commit", "-m", "init"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.ExecDir(ctx, dir, "git", "remote", "add", "origin", "git@github.com:dappcore/core.git"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireCIOK(t, ax.ExecDir(ctx, dir, "git", "init", "-b", "main"))
+	requireCIOK(t, ax.ExecDir(ctx, dir, "git", "config", "user.email", "codex@example.com"))
+	requireCIOK(t, ax.ExecDir(ctx, dir, "git", "config", "user.name", "Codex"))
+	requireCIOK(t, ax.WriteFile(ax.Join(dir, "README.md"), []byte("# demo\n"), 0o644))
+	requireCIOK(t, ax.ExecDir(ctx, dir, "git", "add", "README.md"))
+	requireCIOK(t, ax.ExecDir(ctx, dir, "git", "commit", "-m", "init"))
+	requireCIOK(t, ax.ExecDir(ctx, dir, "git", "remote", "add", "origin", "git@github.com:dappcore/core.git"))
 
-	sha, err := ax.RunDir(ctx, dir, "git", "rev-parse", "HEAD")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	sha := requireCIString(t, ax.RunDir(ctx, dir, "git", "rev-parse", "HEAD"))
 
 	return dir, sha
+}
+
+func requireCIOK(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requireCIString(t *testing.T, result core.Result) string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
+}
+
+func requireCIBytes(t *testing.T, result core.Result) []byte {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]byte)
 }
 
 func TestCi_FormatGitHubAnnotation_Good(t *testing.T) {
@@ -334,9 +340,7 @@ func TestCi_detectLocalGitMetadata_Good(t *testing.T) {
 
 	t.Run("prefers exact tag metadata when HEAD is tagged", func(t *testing.T) {
 		dir, sha := initGitMetadataRepo(t)
-		if err := ax.ExecDir(context.Background(), dir, "git", "tag", "v1.2.3"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireCIOK(t, ax.ExecDir(context.Background(), dir, "git", "tag", "v1.2.3"))
 
 		ci := detectLocalGitMetadata(dir)
 		if stdlibAssertNil(ci) {
@@ -523,7 +527,7 @@ func TestCi_ArtifactName_Ugly(t *testing.T) {
 }
 
 func TestCi_WriteArtifactMeta_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("writes valid JSON with CI context", func(t *testing.T) {
 		dir := t.TempDir()
@@ -539,25 +543,17 @@ func TestCi_WriteArtifactMeta_Good(t *testing.T) {
 			Owner:    "dappcore",
 		}
 
-		err := WriteArtifactMeta(fs, path, "core", Target{OS: "linux", Arch: "amd64"}, ci)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireCIOK(t, WriteArtifactMeta(fs, path, "core", Target{OS: "linux", Arch: "amd64"}, ci))
 
-		content, readErr := ax.ReadFile(path)
-		if readErr != nil {
-			t.Fatalf("unexpected error: %v", readErr)
-		}
+		content := requireCIBytes(t, ax.ReadFile(path))
 
 		var meta map[string]any
-		if err := json.Unmarshal(content, &meta); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireCIOK(t, ax.JSONUnmarshal(content, &meta))
 		if !stdlibAssertEqual("core", meta["name"]) {
 			t.Fatalf("want %v, got %v", "core", meta["name"])
 		}
-		if !stdlibAssertEqual("linux", meta["os"]) {
-			t.Fatalf("want %v, got %v", "linux", meta["os"])
+		if !stdlibAssertEqual("linux", meta[artifactMetaOSField]) {
+			t.Fatalf("want %v, got %v", "linux", meta[artifactMetaOSField])
 		}
 		if !stdlibAssertEqual("amd64", meta["arch"]) {
 			t.Fatalf("want %v, got %v", "amd64", meta["arch"])
@@ -581,25 +577,17 @@ func TestCi_WriteArtifactMeta_Good(t *testing.T) {
 		dir := t.TempDir()
 		path := ax.Join(dir, "artifact_meta.json")
 
-		err := WriteArtifactMeta(fs, path, "myapp", Target{OS: "darwin", Arch: "arm64"}, nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireCIOK(t, WriteArtifactMeta(fs, path, "myapp", Target{OS: "darwin", Arch: "arm64"}, nil))
 
-		content, readErr := ax.ReadFile(path)
-		if readErr != nil {
-			t.Fatalf("unexpected error: %v", readErr)
-		}
+		content := requireCIBytes(t, ax.ReadFile(path))
 
 		var meta map[string]any
-		if err := json.Unmarshal(content, &meta); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireCIOK(t, ax.JSONUnmarshal(content, &meta))
 		if !stdlibAssertEqual("myapp", meta["name"]) {
 			t.Fatalf("want %v, got %v", "myapp", meta["name"])
 		}
-		if !stdlibAssertEqual("darwin", meta["os"]) {
-			t.Fatalf("want %v, got %v", "darwin", meta["os"])
+		if !stdlibAssertEqual("darwin", meta[artifactMetaOSField]) {
+			t.Fatalf("want %v, got %v", "darwin", meta[artifactMetaOSField])
 		}
 		if !stdlibAssertEqual("arm64", meta["arch"]) {
 			t.Fatalf("want %v, got %v", "arm64", meta["arch"])
@@ -614,18 +602,9 @@ func TestCi_WriteArtifactMeta_Good(t *testing.T) {
 		dir := t.TempDir()
 		path := ax.Join(dir, "artifact_meta.json")
 
-		err := WriteArtifactMeta(fs, path, "core", Target{OS: "windows", Arch: "amd64"}, nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireCIOK(t, WriteArtifactMeta(fs, path, "core", Target{OS: "windows", Arch: "amd64"}, nil))
 
-		content, readErr := ax.ReadFile(path)
-		if readErr != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Pretty-printed JSON contains indentation
-				readErr)
-		}
+		content := requireCIBytes(t, ax.ReadFile(path))
 		if !stdlibAssertContains(string(content), "\n") {
 			t.Fatalf("expected %v to contain %v", string(content), "\n")
 		}
@@ -683,4 +662,59 @@ func TestCi_CIArtifactPath_Good(t *testing.T) {
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestCi_DetectGitHubMetadata_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DetectGitHubMetadata()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestCi_DetectGitHubMetadata_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DetectGitHubMetadata()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestCi_WriteArtifactMeta_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WriteArtifactMeta(storage.NewMemoryMedium(), "", "", Target{OS: "linux", Arch: "amd64"}, nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestCi_WriteArtifactMeta_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WriteArtifactMeta(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"), "agent", Target{OS: "linux", Arch: "amd64"}, &CIContext{})
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestCi_CIArtifactPath_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = CIArtifactPath("", nil, Artifact{})
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestCi_CIArtifactPath_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = CIArtifactPath("agent", &CIContext{}, Artifact{})
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

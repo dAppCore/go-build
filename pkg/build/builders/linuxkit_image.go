@@ -5,11 +5,10 @@ import (
 	"context"
 	"text/template" // AX-6 intrinsic: no core template primitive.
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // LinuxKitImageBuilder renders and builds immutable LinuxKit base images.
@@ -50,9 +49,9 @@ func (b *LinuxKitImageBuilder) ArtifactPath(outputDir, name, format string) stri
 }
 
 // Build renders the embedded LinuxKit template and emits one artifact per format.
-func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]build.Artifact, error) {
+func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) core.Result {
 	if cfg == nil {
-		return nil, coreerr.E("LinuxKitImageBuilder.Build", "build config is required", nil)
+		return core.Fail(core.E("LinuxKitImageBuilder.Build", "build config is required", nil))
 	}
 
 	ensureBuildFilesystem(cfg)
@@ -61,7 +60,7 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 	imageCfg := mergeLinuxKitImageConfig(build.DefaultLinuxKitConfig(), cfg.LinuxKit)
 	baseImage, ok := build.LookupLinuxKitBaseImage(imageCfg.Base)
 	if !ok {
-		return nil, coreerr.E("LinuxKitImageBuilder.Build", "unknown LinuxKit image base: "+imageCfg.Base, nil)
+		return core.Fail(core.E("LinuxKitImageBuilder.Build", "unknown LinuxKit image base: "+imageCfg.Base, nil))
 	}
 
 	outputDir := cfg.OutputDir
@@ -71,14 +70,16 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 	if outputDir != "" && !ax.IsAbs(outputDir) && cfg.ProjectDir != "" && build.MediumIsLocal(artifactFilesystem) {
 		outputDir = ax.Join(cfg.ProjectDir, outputDir)
 	}
-	if err := ensureOutputDir(artifactFilesystem, outputDir, "LinuxKitImageBuilder.Build"); err != nil {
-		return nil, err
+	created := ensureOutputDir(artifactFilesystem, outputDir, "LinuxKitImageBuilder.Build")
+	if !created.OK {
+		return created
 	}
 
-	stage, err := prepareStagedOutput(outputDir, artifactFilesystem, "core-build-linuxkit-image-*", "LinuxKitImageBuilder.Build")
-	if err != nil {
-		return nil, err
+	stageResult := prepareStagedOutput(outputDir, artifactFilesystem, "core-build-linuxkit-image-*", "LinuxKitImageBuilder.Build")
+	if !stageResult.OK {
+		return stageResult
 	}
+	stage := stageResult.Value.(stagedOutput)
 	defer stage.cleanup()
 
 	imageName := cfg.Name
@@ -86,27 +87,31 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 		imageName = imageCfg.Base
 	}
 
-	serviceImage, cleanup, err := b.prepareServiceImage(ctx, cfg.ProjectDir, imageName, cfg.Version, baseImage, imageCfg)
-	if err != nil {
-		return nil, err
+	serviceImageResult := b.prepareServiceImage(ctx, cfg.ProjectDir, imageName, cfg.Version, baseImage, imageCfg)
+	if !serviceImageResult.OK {
+		return serviceImageResult
 	}
-	defer cleanup()
+	serviceImage := serviceImageResult.Value.(linuxKitServiceImageBuild)
+	defer serviceImage.cleanup()
 
-	renderedTemplate, err := b.renderTemplate(baseImage, imageCfg, cfg.Version, serviceImage)
-	if err != nil {
-		return nil, err
+	renderedTemplateResult := b.renderTemplate(baseImage, imageCfg, cfg.Version, serviceImage.image)
+	if !renderedTemplateResult.OK {
+		return renderedTemplateResult
 	}
+	renderedTemplate := renderedTemplateResult.Value.(string)
 
 	templatePath := ax.Join(stage.commandOutputDir, "."+imageName+"-linuxkit.yml")
-	if err := stage.commandFS.WriteMode(templatePath, renderedTemplate, 0o644); err != nil {
-		return nil, coreerr.E("LinuxKitImageBuilder.Build", "failed to write LinuxKit template", err)
+	written := stage.commandFS.WriteMode(templatePath, renderedTemplate, 0o644)
+	if !written.OK {
+		return core.Fail(core.E("LinuxKitImageBuilder.Build", "failed to write LinuxKit template", core.NewError(written.Error())))
 	}
-	defer func() { _ = stage.commandFS.Delete(templatePath) }()
+	defer func() { stage.commandFS.Delete(templatePath) }()
 
-	linuxkitCommand, err := (&LinuxKitBuilder{}).resolveLinuxKitCli()
-	if err != nil {
-		return nil, err
+	linuxkitCommandResult := (&LinuxKitBuilder{}).resolveLinuxKitCli()
+	if !linuxkitCommandResult.OK {
+		return linuxkitCommandResult
 	}
+	linuxkitCommand := linuxkitCommandResult.Value.(string)
 
 	formats := imageCfg.Formats
 	if len(formats) == 0 {
@@ -119,10 +124,11 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 			continue
 		}
 
-		artifactPath, err := b.buildFormat(ctx, stage.commandFS, artifactFilesystem, linuxkitCommand, cfg.ProjectDir, stage.commandOutputDir, outputDir, imageName, templatePath, format)
-		if err != nil {
-			return nil, err
+		artifactPathResult := b.buildFormat(ctx, stage.commandFS, artifactFilesystem, linuxkitCommand, cfg.ProjectDir, stage.commandOutputDir, outputDir, imageName, templatePath, format)
+		if !artifactPathResult.OK {
+			return artifactPathResult
 		}
+		artifactPath := artifactPathResult.Value.(string)
 
 		artifacts = append(artifacts, build.Artifact{
 			Path: artifactPath,
@@ -131,7 +137,7 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) ([]
 		})
 	}
 
-	return artifacts, nil
+	return core.Ok(artifacts)
 }
 
 func mergeLinuxKitImageConfig(defaults, override build.LinuxKitConfig) build.LinuxKitConfig {
@@ -200,17 +206,18 @@ func normalizeLinuxKitImageFormats(values []string) []string {
 	return result
 }
 
-func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig, version, serviceImage string) (string, error) {
+func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig, version, serviceImage string) core.Result {
 	cfg = normalizeLinuxKitImageConfig(cfg)
 
-	templateContent, err := build.LinuxKitBaseTemplate(baseImage.Name)
-	if err != nil {
-		return "", err
+	templateContentResult := build.LinuxKitBaseTemplate(baseImage.Name)
+	if !templateContentResult.OK {
+		return templateContentResult
 	}
+	templateContent := templateContentResult.Value.(string)
 
-	tmpl, err := template.New(baseImage.Name).Parse(templateContent)
-	if err != nil {
-		return "", coreerr.E("LinuxKitImageBuilder.renderTemplate", "failed to parse embedded LinuxKit template", err)
+	tmpl, parseFailure := template.New(baseImage.Name).Parse(templateContent)
+	if parseFailure != nil {
+		return core.Fail(core.E("LinuxKitImageBuilder.renderTemplate", "failed to parse embedded LinuxKit template", parseFailure))
 	}
 
 	if version == "" {
@@ -228,28 +235,35 @@ func (b *LinuxKitImageBuilder) renderTemplate(baseImage build.LinuxKitBaseImage,
 	}
 
 	rendered := core.NewBuffer()
-	if err := tmpl.Execute(rendered, data); err != nil {
-		return "", coreerr.E("LinuxKitImageBuilder.renderTemplate", "failed to render LinuxKit template", err)
+	if renderFailure := tmpl.Execute(rendered, data); renderFailure != nil {
+		return core.Fail(core.E("LinuxKitImageBuilder.renderTemplate", "failed to render LinuxKit template", renderFailure))
 	}
 
-	return rendered.String(), nil
+	return core.Ok(rendered.String())
 }
 
-func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectDir, imageName, version string, baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) (string, func(), error) {
+type linuxKitServiceImageBuild struct {
+	image   string
+	cleanup func()
+}
+
+func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectDir, imageName, version string, baseImage build.LinuxKitBaseImage, cfg build.LinuxKitConfig) core.Result {
 	cfg = normalizeLinuxKitImageConfig(cfg)
 
-	dockerCommand, err := (&DockerBuilder{}).resolveDockerCli()
-	if err != nil {
-		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to resolve docker CLI for immutable service image build", err)
+	dockerCommandResult := (&DockerBuilder{}).resolveDockerCli()
+	if !dockerCommandResult.OK {
+		return core.Fail(core.E("LinuxKitImageBuilder.prepareServiceImage", "failed to resolve docker CLI for immutable service image build", core.NewError(dockerCommandResult.Error())))
 	}
+	dockerCommand := dockerCommandResult.Value.(string)
 
-	tempDir, err := ax.TempDir("core-build-linuxkit-service-*")
-	if err != nil {
-		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to create service image build context", err)
+	tempDirResult := ax.TempDir("core-build-linuxkit-service-*")
+	if !tempDirResult.OK {
+		return core.Fail(core.E("LinuxKitImageBuilder.prepareServiceImage", "failed to create service image build context", core.NewError(tempDirResult.Error())))
 	}
+	tempDir := tempDirResult.Value.(string)
 
 	cleanup := func() {
-		_ = ax.RemoveAll(tempDir)
+		ax.RemoveAll(tempDir)
 	}
 
 	contentHash := linuxKitServiceImageContentHash(baseImage, cfg)
@@ -264,17 +278,19 @@ func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectD
 		mounts,
 		cfg.GPU,
 	)
-	if err := ax.WriteString(ax.Join(tempDir, "Dockerfile"), dockerfile, 0o644); err != nil {
+	dockerfileWritten := ax.WriteString(ax.Join(tempDir, "Dockerfile"), dockerfile, 0o644)
+	if !dockerfileWritten.OK {
 		cleanup()
-		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to write service image Dockerfile", err)
+		return core.Fail(core.E("LinuxKitImageBuilder.prepareServiceImage", "failed to write service image Dockerfile", core.NewError(dockerfileWritten.Error())))
 	}
 
-	if err := ax.ExecDir(ctx, tempDir, dockerCommand, "build", "-t", serviceImage, "."); err != nil {
+	built := ax.ExecDir(ctx, tempDir, dockerCommand, "build", "-t", serviceImage, ".")
+	if !built.OK {
 		cleanup()
-		return "", func() {}, coreerr.E("LinuxKitImageBuilder.prepareServiceImage", "failed to build immutable LinuxKit service image", err)
+		return core.Fail(core.E("LinuxKitImageBuilder.prepareServiceImage", "failed to build immutable LinuxKit service image", core.NewError(built.Error())))
 	}
 
-	return serviceImage, cleanup, nil
+	return core.Ok(linuxKitServiceImageBuild{image: serviceImage, cleanup: cleanup})
 }
 
 func renderLinuxKitServiceDockerfile(imageName, version, baseVersion, contentHash string, packages, mounts []string, gpu bool) string {
@@ -403,7 +419,7 @@ func uniqueStrings(values []string) []string {
 	return result
 }
 
-func (b *LinuxKitImageBuilder) buildFormat(ctx context.Context, commandFilesystem io.Medium, artifactFilesystem io.Medium, linuxkitCommand, projectDir, commandOutputDir, outputDir, imageName, templatePath, format string) (string, error) {
+func (b *LinuxKitImageBuilder) buildFormat(ctx context.Context, commandFilesystem storage.Medium, artifactFilesystem storage.Medium, linuxkitCommand, projectDir, commandOutputDir, outputDir, imageName, templatePath, format string) core.Result {
 	linuxKitFormat := b.linuxKitFormat(format)
 	buildName := imageName
 	if format == "apple" {
@@ -418,8 +434,9 @@ func (b *LinuxKitImageBuilder) buildFormat(ctx context.Context, commandFilesyste
 		templatePath,
 	}
 
-	if err := ax.ExecWithEnv(ctx, projectDir, nil, linuxkitCommand, args...); err != nil {
-		return "", coreerr.E("LinuxKitImageBuilder.Build", "build failed for "+format, err)
+	executed := ax.ExecWithEnv(ctx, projectDir, nil, linuxkitCommand, args...)
+	if !executed.OK {
+		return core.Fail(core.E("LinuxKitImageBuilder.Build", "build failed for "+format, core.NewError(executed.Error())))
 	}
 
 	builtPath := ax.Join(commandOutputDir, buildName+b.intermediateExtension(format))
@@ -428,29 +445,32 @@ func (b *LinuxKitImageBuilder) buildFormat(ctx context.Context, commandFilesyste
 
 	if format == "apple" {
 		if !commandFilesystem.Exists(builtPath) {
-			return "", coreerr.E("LinuxKitImageBuilder.Build", "apple container artifact not found: "+builtPath, nil)
+			return core.Fail(core.E("LinuxKitImageBuilder.Build", "apple container artifact not found: "+builtPath, nil))
 		}
-		if err := commandFilesystem.Rename(builtPath, commandFinalPath); err != nil {
-			return "", coreerr.E("LinuxKitImageBuilder.Build", "failed to rename Apple container artifact", err)
+		renamed := commandFilesystem.Rename(builtPath, commandFinalPath)
+		if !renamed.OK {
+			return core.Fail(core.E("LinuxKitImageBuilder.Build", "failed to rename Apple container artifact", core.NewError(renamed.Error())))
 		}
 		if commandFinalPath != finalPath {
-			if err := build.CopyMediumPath(commandFilesystem, commandFinalPath, artifactFilesystem, finalPath); err != nil {
-				return "", err
+			copied := build.CopyMediumPath(commandFilesystem, commandFinalPath, artifactFilesystem, finalPath)
+			if !copied.OK {
+				return copied
 			}
 		}
-		return finalPath, nil
+		return core.Ok(finalPath)
 	}
 
 	if !commandFilesystem.Exists(commandFinalPath) {
-		return "", coreerr.E("LinuxKitImageBuilder.Build", "artifact not found after build: "+commandFinalPath, nil)
+		return core.Fail(core.E("LinuxKitImageBuilder.Build", "artifact not found after build: "+commandFinalPath, nil))
 	}
 	if commandFinalPath != finalPath {
-		if err := build.CopyMediumPath(commandFilesystem, commandFinalPath, artifactFilesystem, finalPath); err != nil {
-			return "", err
+		copied := build.CopyMediumPath(commandFilesystem, commandFinalPath, artifactFilesystem, finalPath)
+		if !copied.OK {
+			return copied
 		}
 	}
 
-	return finalPath, nil
+	return core.Ok(finalPath)
 }
 
 func (b *LinuxKitImageBuilder) linuxKitFormat(format string) string {

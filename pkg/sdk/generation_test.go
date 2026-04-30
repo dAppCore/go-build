@@ -11,15 +11,14 @@ import (
 
 // --- SDK Generation Orchestration Tests ---
 
-func TestGeneration_SDKGenerateAllLanguages_Good(t *testing.T) {
+func TestGeneration_SDKGenerateAllLanguagesGood(t *testing.T) {
 	t.Run("Generate iterates all configured languages", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		// Create a minimal OpenAPI spec
 		specPath := ax.Join(tmpDir, "openapi.yaml")
-		err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(specPath, []byte(minimalSpec), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := &Config{
@@ -35,25 +34,24 @@ func TestGeneration_SDKGenerateAllLanguages_Good(t *testing.T) {
 		s.SetVersion("v1.0.0")
 
 		// Generate should fail on unknown language
-		err = s.Generate(context.Background())
-		if err == nil {
+		result := s.Generate(context.Background())
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertContains(err.Error(), "unknown language") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "unknown language")
+		if !stdlibAssertContains(result.Error(), "unknown language") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "unknown language")
 		}
 
 	})
 }
 
-func TestGeneration_SDKGenerateLanguageOutputDir_Good(t *testing.T) {
+func TestGeneration_SDKGenerateLanguageOutputDirGood(t *testing.T) {
 	t.Run("output directory uses language subdirectory", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		specPath := ax.Join(tmpDir, "openapi.yaml")
-		err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(specPath, []byte(minimalSpec), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		cfg := &Config{
@@ -70,10 +68,11 @@ func TestGeneration_SDKGenerateLanguageOutputDir_Good(t *testing.T) {
 
 		// This will fail because generators aren't installed, but we can verify
 		// the spec detection works correctly
-		specResult, err := s.DetectSpec()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := s.DetectSpec()
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
+		specResult := result.Value.(string)
 		if !stdlibAssertEqual(specPath, specResult) {
 			t.Fatalf("want %v, got %v", specPath, specResult)
 		}
@@ -81,7 +80,7 @@ func TestGeneration_SDKGenerateLanguageOutputDir_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_SDKGenerateLanguageNoSpec_Bad(t *testing.T) {
+func TestGeneration_SDKGenerateLanguageNoSpecBad(t *testing.T) {
 	t.Run("fails when no OpenAPI spec exists", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
@@ -90,41 +89,40 @@ func TestGeneration_SDKGenerateLanguageNoSpec_Bad(t *testing.T) {
 			Output:    "sdk",
 		})
 
-		err := s.GenerateLanguage(context.Background(), "typescript")
-		if err == nil {
+		result := s.GenerateLanguage(context.Background(), "typescript")
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertContains(err.Error(), "no OpenAPI spec found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "no OpenAPI spec found")
+		if !stdlibAssertContains(result.Error(), "no OpenAPI spec found") {
+			t.Fatalf("expected %v to contain %v", result.Error(), "no OpenAPI spec found")
 		}
 
 	})
 }
 
-func TestGeneration_SDKGenerateLanguageUnknownLanguage_Bad(t *testing.T) {
+func TestGeneration_SDKGenerateLanguageUnknownLanguageBad(t *testing.T) {
 	t.Run("fails for unregistered language", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		specPath := ax.Join(tmpDir, "openapi.yaml")
-		err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(specPath, []byte(minimalSpec), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		s := New(tmpDir, nil)
-		err = s.GenerateLanguage(context.Background(), "cobol")
-		if err == nil {
+		result := s.GenerateLanguage(context.Background(), "cobol")
+		if result.OK {
 			t.Fatal("expected error")
 		}
-		if !stdlibAssertContains(err.Error(), "unknown language: cobol") {
+		if !stdlibAssertContains(result.Error(), "unknown language: cobol") {
 
 			// --- Generator Registry Tests ---
-			t.Fatalf("expected %v to contain %v", err.Error(), "unknown language: cobol")
+			t.Fatalf("expected %v to contain %v", result.Error(), "unknown language: cobol")
 		}
 
 	})
 }
 
-func TestGeneration_RegistryRegisterAndGet_Good(t *testing.T) {
+func TestGeneration_RegistryRegisterAndGetGood(t *testing.T) {
 	t.Run("register and retrieve all generators", func(t *testing.T) {
 		registry := generators.NewRegistry()
 
@@ -174,7 +172,7 @@ func TestGeneration_RegistryRegisterAndGet_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_RegistryDefaults_Good(t *testing.T) {
+func TestGeneration_RegistryDefaultsGood(t *testing.T) {
 	registry := generators.NewRegistry()
 
 	languages := registry.Languages()
@@ -199,7 +197,7 @@ func TestGeneration_RegistryDefaults_Good(t *testing.T) {
 
 }
 
-func TestGeneration_RegistryOverwritesDuplicateLanguage_Good(t *testing.T) {
+func TestGeneration_RegistryOverwritesDuplicateLanguageGood(t *testing.T) {
 	registry := generators.NewRegistry()
 	registry.Register(generators.NewTypeScriptGenerator())
 	registry.Register(generators.NewTypeScriptGenerator())
@@ -219,7 +217,7 @@ func TestGeneration_RegistryOverwritesDuplicateLanguage_Good(t *testing.T) {
 
 }
 
-func TestGeneration_GeneratorsLanguageIdentifiers_Good(t *testing.T) {
+func TestGeneration_GeneratorsLanguageIdentifiersGood(t *testing.T) {
 	tests := []struct {
 		generator generators.Generator
 		expected  string
@@ -240,7 +238,7 @@ func TestGeneration_GeneratorsLanguageIdentifiers_Good(t *testing.T) {
 	}
 }
 
-func TestGeneration_GeneratorsInstallInstructions_Good(t *testing.T) {
+func TestGeneration_GeneratorsInstallInstructionsGood(t *testing.T) {
 	tests := []struct {
 		language string
 		gen      generators.Generator
@@ -268,7 +266,7 @@ func TestGeneration_GeneratorsInstallInstructions_Good(t *testing.T) {
 	}
 }
 
-func TestGeneration_GeneratorsAvailableDoesNotPanic_Good(t *testing.T) {
+func TestGeneration_GeneratorsAvailableDoesNotPanicGood(t *testing.T) {
 
 	gens := []generators.Generator{
 		generators.NewTypeScriptGenerator(),
@@ -287,7 +285,7 @@ func TestGeneration_GeneratorsAvailableDoesNotPanic_Good(t *testing.T) {
 
 // --- SDK Config Tests ---
 
-func TestGeneration_SDKConfigDefaultConfig_Good(t *testing.T) {
+func TestGeneration_SDKConfigDefaultConfigGood(t *testing.T) {
 	t.Run("default config has all four languages", func(t *testing.T) {
 		cfg := DefaultConfig()
 		if !stdlibAssertContains(cfg.Languages, "typescript") {
@@ -328,7 +326,7 @@ func TestGeneration_SDKConfigDefaultConfig_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_SDKConfigSetVersion_Good(t *testing.T) {
+func TestGeneration_SDKConfigSetVersionGood(t *testing.T) {
 	t.Run("SetVersion updates both fields", func(t *testing.T) {
 		s := New("/tmp", &Config{
 			Package: PackageConfig{
@@ -360,7 +358,7 @@ func TestGeneration_SDKConfigSetVersion_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_SDKConfigNewWithNilConfig_Good(t *testing.T) {
+func TestGeneration_SDKConfigNewWithNilConfigGood(t *testing.T) {
 	s := New("/project", nil)
 	if stdlibAssertNil(s.config) {
 		t.Fatal("expected non-nil")
@@ -374,7 +372,7 @@ func TestGeneration_SDKConfigNewWithNilConfig_Good(t *testing.T) {
 
 }
 
-func TestGeneration_SDKOutputDirWithPublishPath_Good(t *testing.T) {
+func TestGeneration_SDKOutputDirWithPublishPathGood(t *testing.T) {
 	s := New("/project", &Config{
 		Output: "generated",
 		Publish: PublishConfig{
@@ -390,32 +388,31 @@ func TestGeneration_SDKOutputDirWithPublishPath_Good(t *testing.T) {
 
 }
 
-func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {
+func TestGeneration_SpecDetectionPriorityGood(t *testing.T) {
 	t.Run("configured spec takes priority over common paths", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		// Create both a common path spec and a configured spec
 		commonSpec := ax.Join(tmpDir, "openapi.yaml")
-		err := ax.WriteFile(commonSpec, []byte(minimalSpec), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(commonSpec, []byte(minimalSpec), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		configuredSpec := ax.Join(tmpDir, "custom", "api.yaml")
-		if err := ax.MkdirAll(ax.Dir(configuredSpec), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Dir(configuredSpec), 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		err = ax.WriteFile(configuredSpec, []byte(minimalSpec), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(configuredSpec, []byte(minimalSpec), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		s := New(tmpDir, &Config{Spec: "custom/api.yaml"})
-		specPath, err := s.DetectSpec()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := s.DetectSpec()
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
+		specPath := result.Value.(string)
 		if !stdlibAssertEqual(configuredSpec, specPath) {
 			t.Fatalf("want %v, got %v", configuredSpec, specPath)
 		}
@@ -427,21 +424,21 @@ func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {
 
 		// Create the second common path only (api/openapi.yaml is first)
 		apiDir := ax.Join(tmpDir, "api")
-		if err := ax.MkdirAll(apiDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(apiDir, 0755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		apiSpec := ax.Join(apiDir, "openapi.json")
-		err := ax.WriteFile(apiSpec, []byte(`{"openapi":"3.0.0"}`), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(apiSpec, []byte(`{"openapi":"3.0.0"}`), 0644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		s := New(tmpDir, nil)
-		specPath, err := s.DetectSpec()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		result := s.DetectSpec()
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
+		specPath := result.Value.(string)
 		if !stdlibAssertEqual(apiSpec, specPath) {
 			t.Fatalf("want %v, got %v", apiSpec, specPath)
 		}
@@ -449,26 +446,26 @@ func TestGeneration_SpecDetectionPriority_Good(t *testing.T) {
 	})
 }
 
-func TestGeneration_SpecDetectionAllCommonPaths_Good(t *testing.T) {
+func TestGeneration_SpecDetectionAllCommonPathsGood(t *testing.T) {
 	for _, commonPath := range commonSpecPaths {
 		t.Run(commonPath, func(t *testing.T) {
 			tmpDir := t.TempDir()
 
 			specPath := ax.Join(tmpDir, commonPath)
-			if err := ax.MkdirAll(ax.Dir(specPath), 0755); err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			if result := ax.MkdirAll(ax.Dir(specPath), 0755); !result.OK {
+				t.Fatalf("unexpected error: %v", result.Error())
 			}
 
-			err := ax.WriteFile(specPath, []byte(minimalSpec), 0644)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			if result := ax.WriteFile(specPath, []byte(minimalSpec), 0644); !result.OK {
+				t.Fatalf("unexpected error: %v", result.Error())
 			}
 
 			s := New(tmpDir, nil)
-			detected, err := s.DetectSpec()
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			result := s.DetectSpec()
+			if !result.OK {
+				t.Fatalf("unexpected error: %v", result.Error())
 			}
+			detected := result.Value.(string)
 			if !stdlibAssertEqual(specPath, detected) {
 
 				// --- Compile-time interface checks ---

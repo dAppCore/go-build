@@ -5,12 +5,10 @@ import (
 	"context"
 	"regexp"
 	"strconv"
-	"strings"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
-	coreerr "dappco.re/go/log"
 )
 
 // semverRegex matches semantic version strings with or without 'v' prefix.
@@ -22,8 +20,8 @@ var semverRegex = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.-]+)
 //  2. Most recent tag + increment patch
 //  3. Default to v0.0.1 if no tags exist
 //
-// version, err := release.DetermineVersion(".") // → "v1.2.4"
-func DetermineVersion(dir string) (string, error) {
+// result := release.DetermineVersion(".") // → "v1.2.4"
+func DetermineVersion(dir string) core.Result {
 	return DetermineVersionWithContext(context.Background(), dir)
 }
 
@@ -33,44 +31,46 @@ func DetermineVersion(dir string) (string, error) {
 //  2. Most recent tag + increment patch
 //  3. Default to v0.0.1 if no tags exist
 //
-// version, err := release.DetermineVersionWithContext(ctx, ".") // → "v1.2.4"
-func DetermineVersionWithContext(ctx context.Context, dir string) (string, error) {
+// result := release.DetermineVersionWithContext(ctx, ".") // → "v1.2.4"
+func DetermineVersionWithContext(ctx context.Context, dir string) core.Result {
 	if git := build.DetectGitHubMetadata(); git != nil && git.IsTag {
-		tag := normalizeVersion(strings.TrimSpace(git.Tag))
+		tag := normalizeVersion(core.Trim(git.Tag))
 		if !ValidateVersion(tag) {
-			return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+tag, nil)
+			return core.Fail(core.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+tag, nil))
 		}
-		return tag, nil
+		return core.Ok(tag)
 	}
 
 	// Check if HEAD has a tag
-	headTag, err := getTagOnHeadWithContext(ctx, dir)
-	if err == nil && headTag != "" {
+	headTagResult := getTagOnHeadWithContext(ctx, dir)
+	if headTagResult.OK && headTagResult.Value.(string) != "" {
+		headTag := headTagResult.Value.(string)
 		headTag = normalizeVersion(headTag)
 		if !ValidateVersion(headTag) {
-			return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+headTag, nil)
+			return core.Fail(core.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+headTag, nil))
 		}
-		return headTag, nil
+		return core.Ok(headTag)
 	}
-	if err != nil && ctx.Err() != nil {
-		return "", coreerr.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err())
+	if !headTagResult.OK && ctx.Err() != nil {
+		return core.Fail(core.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err()))
 	}
 
 	// Get most recent tag
-	latestTag, err := getLatestTagWithContext(ctx, dir)
-	if err != nil && ctx.Err() != nil {
-		return "", coreerr.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err())
+	latestTagResult := getLatestTagWithContext(ctx, dir)
+	if !latestTagResult.OK && ctx.Err() != nil {
+		return core.Fail(core.E("release.DetermineVersionWithContext", "version lookup cancelled", ctx.Err()))
 	}
-	if err != nil || latestTag == "" {
+	if !latestTagResult.OK || latestTagResult.Value.(string) == "" {
 		// No tags exist, return default
-		return "v0.0.1", nil
+		return core.Ok("v0.0.1")
 	}
+	latestTag := latestTagResult.Value.(string)
 	if !ValidateVersion(latestTag) {
-		return "", coreerr.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+latestTag, nil)
+		return core.Fail(core.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+latestTag, nil))
 	}
 
 	// Increment patch version
-	return IncrementVersion(latestTag), nil
+	return core.Ok(IncrementVersion(latestTag))
 }
 
 // IncrementVersion increments the patch version of a semver string.
@@ -135,14 +135,30 @@ func IncrementMajor(current string) string {
 	return core.Sprintf("v%d.0.0", major)
 }
 
+// ParsedVersion holds the components of a semantic version string.
+type ParsedVersion struct {
+	Major      int
+	Minor      int
+	Patch      int
+	Prerelease string
+	Build      string
+}
+
 // ParseVersion parses a semver string into its components.
-// Returns (major, minor, patch, prerelease, build, error).
 //
-// major, minor, patch, pre, build, err := release.ParseVersion("v1.2.3-alpha+001")
-func ParseVersion(version string) (int, int, int, string, string, error) {
+// result := release.ParseVersion("v1.2.3-alpha+001")
+func ParseVersion(version string) core.Result {
+	parsed, ok := parseVersionParts(version)
+	if !ok {
+		return core.Fail(core.E("release.ParseVersion", "invalid semver: "+version, nil))
+	}
+	return core.Ok(parsed)
+}
+
+func parseVersionParts(version string) (ParsedVersion, bool) {
 	matches := semverRegex.FindStringSubmatch(version)
 	if matches == nil {
-		return 0, 0, 0, "", "", coreerr.E("release.ParseVersion", "invalid semver: "+version, nil)
+		return ParsedVersion{}, false
 	}
 
 	major, _ := strconv.Atoi(matches[1])
@@ -151,7 +167,13 @@ func ParseVersion(version string) (int, int, int, string, string, error) {
 	prerelease := matches[4]
 	build := matches[5]
 
-	return major, minor, patch, prerelease, build, nil
+	return ParsedVersion{
+		Major:      major,
+		Minor:      minor,
+		Patch:      patch,
+		Prerelease: prerelease,
+		Build:      build,
+	}, true
 }
 
 // ValidateVersion checks if a string is a valid semver.
@@ -166,15 +188,16 @@ func ValidateVersion(version string) bool {
 //
 // This is intentionally looser than semver validation so release automation can
 // accept safe non-semver labels such as "dev" when needed.
-func ValidateVersionIdentifier(version string) error {
+func ValidateVersionIdentifier(version string) core.Result {
 	if version == "" {
-		return nil
+		return core.Ok(nil)
 	}
-	if err := build.ValidateVersionString(version); err != nil {
-		return coreerr.E("release.ValidateVersionIdentifier", "version contains unsupported characters", err)
+	validated := build.ValidateVersionString(version)
+	if !validated.OK {
+		return core.Fail(core.E("release.ValidateVersionIdentifier", "version contains unsupported characters", core.NewError(validated.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // normalizeVersion ensures the version starts with 'v'.
@@ -185,20 +208,20 @@ func normalizeVersion(version string) string {
 	return version
 }
 
-func getTagOnHeadWithContext(ctx context.Context, dir string) (string, error) {
-	output, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--exact-match", "HEAD")
-	if err != nil {
-		return "", err
+func getTagOnHeadWithContext(ctx context.Context, dir string) core.Result {
+	output := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--exact-match", "HEAD")
+	if !output.OK {
+		return output
 	}
-	return core.Trim(output), nil
+	return core.Ok(core.Trim(output.Value.(string)))
 }
 
-func getLatestTagWithContext(ctx context.Context, dir string) (string, error) {
-	output, err := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0")
-	if err != nil {
-		return "", err
+func getLatestTagWithContext(ctx context.Context, dir string) core.Result {
+	output := ax.RunDir(ctx, dir, "git", "describe", "--tags", "--abbrev=0")
+	if !output.OK {
+		return output
 	}
-	return core.Trim(output), nil
+	return core.Ok(core.Trim(output.Value.(string)))
 }
 
 // CompareVersions compares two semver strings.
@@ -206,11 +229,11 @@ func getLatestTagWithContext(ctx context.Context, dir string) (string, error) {
 //
 // result := release.CompareVersions("v1.2.3", "v1.2.4") // → -1
 func CompareVersions(a, b string) int {
-	aMajor, aMinor, aPatch, aPrerelease, _, errA := ParseVersion(a)
-	bMajor, bMinor, bPatch, bPrerelease, _, errB := ParseVersion(b)
+	aVersion, okA := parseVersionParts(a)
+	bVersion, okB := parseVersionParts(b)
 
 	// Invalid versions are considered less than valid ones
-	if errA != nil && errB != nil {
+	if !okA && !okB {
 		switch {
 		case a < b:
 			return -1
@@ -220,38 +243,38 @@ func CompareVersions(a, b string) int {
 			return 0
 		}
 	}
-	if errA != nil {
+	if !okA {
 		return -1
 	}
-	if errB != nil {
+	if !okB {
 		return 1
 	}
 
 	// Compare major
-	if aMajor != bMajor {
-		if aMajor < bMajor {
+	if aVersion.Major != bVersion.Major {
+		if aVersion.Major < bVersion.Major {
 			return -1
 		}
 		return 1
 	}
 
 	// Compare minor
-	if aMinor != bMinor {
-		if aMinor < bMinor {
+	if aVersion.Minor != bVersion.Minor {
+		if aVersion.Minor < bVersion.Minor {
 			return -1
 		}
 		return 1
 	}
 
 	// Compare patch
-	if aPatch != bPatch {
-		if aPatch < bPatch {
+	if aVersion.Patch != bVersion.Patch {
+		if aVersion.Patch < bVersion.Patch {
 			return -1
 		}
 		return 1
 	}
 
-	return comparePrereleaseVersions(aPrerelease, bPrerelease)
+	return comparePrereleaseVersions(aVersion.Prerelease, bVersion.Prerelease)
 }
 
 func comparePrereleaseVersions(a, b string) int {
@@ -264,8 +287,8 @@ func comparePrereleaseVersions(a, b string) int {
 		return -1
 	}
 
-	aParts := strings.Split(a, ".")
-	bParts := strings.Split(b, ".")
+	aParts := core.Split(a, ".")
+	bParts := core.Split(b, ".")
 	limit := len(aParts)
 	if len(bParts) < limit {
 		limit = len(bParts)

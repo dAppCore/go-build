@@ -3,8 +3,8 @@ package generators
 import (
 	"context"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/log"
 )
 
 // PHPGenerator generates PHP SDKs from OpenAPI specs.
@@ -43,25 +43,26 @@ func (g *PHPGenerator) Install() string {
 // Generate creates SDK from OpenAPI spec (requires Docker).
 //
 // err := g.Generate(ctx, generators.Options{SpecPath: "docs/openapi.yaml", OutputDir: "sdk/php"})
-func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
+func (g *PHPGenerator) Generate(ctx context.Context, opts Options) core.Result {
 	if err := ctx.Err(); err != nil {
-		return coreerr.E("php.Generate", "generation cancelled", err)
+		return core.Fail(core.E("php.Generate", "generation cancelled", err))
 	}
 
 	if !dockerRuntimeAvailableWithContext(ctx) {
 		if err := ctx.Err(); err != nil {
-			return coreerr.E("php.Generate", "generation cancelled", err)
+			return core.Fail(core.E("php.Generate", "generation cancelled", err))
 		}
-		return coreerr.E("php.Generate", "Docker is required but not available", nil)
+		return core.Fail(core.E("php.Generate", "Docker is required but not available", nil))
 	}
 
-	dockerCommand, err := resolveDockerRuntimeCli()
-	if err != nil {
-		return coreerr.E("php.Generate", "docker CLI not available", err)
+	dockerCommand := resolveDockerRuntimeCli()
+	if !dockerCommand.OK {
+		return core.Fail(core.E("php.Generate", "docker CLI not available", core.NewError(dockerCommand.Error())))
 	}
 
-	if err := ax.MkdirAll(opts.OutputDir, 0o755); err != nil {
-		return coreerr.E("php.Generate", "failed to create output dir", err)
+	created := ax.MkdirAll(opts.OutputDir, 0o755)
+	if !created.OK {
+		return core.Fail(core.E("php.Generate", "failed to create output dir", core.NewError(created.Error())))
 	}
 
 	specDir := ax.Dir(opts.SpecPath)
@@ -79,8 +80,9 @@ func (g *PHPGenerator) Generate(ctx context.Context, opts Options) error {
 		"--additional-properties=invokerPackage="+opts.PackageName,
 	)
 
-	if err := ax.Exec(ctx, dockerCommand, args...); err != nil {
-		return coreerr.E("php.Generate", "docker run failed", err)
+	run := ax.Exec(ctx, dockerCommand.Value.(string), args...)
+	if !run.OK {
+		return core.Fail(core.E("php.Generate", "docker run failed", core.NewError(run.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }

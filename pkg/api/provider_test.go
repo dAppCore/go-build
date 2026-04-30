@@ -3,29 +3,25 @@
 package api
 
 import (
-	"bytes"
 	"context"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
-	coreapi "dappco.re/go/api"
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
+	events "dappco.re/go/build/pkg/events"
 	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/io"
-	"dappco.re/go/ws"
-	"errors"
+	storage "dappco.re/go/build/pkg/storage"
 	"github.com/gorilla/websocket"
 )
 
-func TestProvider_BuildProviderIdentity_Good(t *testing.T) {
+func TestProvider_BuildProviderIdentityGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	if !stdlibAssertEqual("build", p.Name()) {
 		t.Fatalf("want %v, got %v", "build", p.Name())
@@ -36,7 +32,7 @@ func TestProvider_BuildProviderIdentity_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderElement_Good(t *testing.T) {
+func TestProvider_BuildProviderElementGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	el := p.Element()
 	if !stdlibAssertEqual("core-build-panel", el.Tag) {
@@ -48,7 +44,7 @@ func TestProvider_BuildProviderElement_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderChannels_Good(t *testing.T) {
+func TestProvider_BuildProviderChannelsGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	channels := p.Channels()
 	if !stdlibAssertContains(channels, "build.started") {
@@ -83,7 +79,7 @@ func TestProvider_BuildProviderChannels_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
+func TestProvider_BuildProviderDescribeGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	routes := p.Describe()
 	if len(routes) != 11 {
@@ -137,7 +133,7 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 		}
 	}
 
-	var workflowRoute *coreapi.RouteDescription
+	var workflowRoute *RouteDescription
 	for i := range routes {
 		if routes[i].Path == "/release/workflow" {
 			workflowRoute = &routes[i]
@@ -156,7 +152,7 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 		t.Fatal("expected true")
 	}
 
-	pathSchema, ok := properties["path"].(map[string]any)
+	pathSchema, ok := properties[apiPathField].(map[string]any)
 	if !(ok) {
 		t.Fatal("expected true")
 	}
@@ -301,28 +297,23 @@ func TestProvider_BuildProviderDescribe_Good(t *testing.T) {
 
 }
 
-func TestProvider_ReleaseWorkflowRequestResolvedOutputPath_Good(t *testing.T) {
+func TestProvider_ReleaseWorkflowRequestResolvedOutputPathGood(t *testing.T) {
 	projectDir := t.TempDir()
 	absoluteDir := ax.Join(projectDir, "ops")
-	if err := io.Local.EnsureDir(absoluteDir); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireProviderOK(t, storage.Local.EnsureDir(absoluteDir))
 
 	req := ReleaseWorkflowRequest{
 		WorkflowOutputPath: absoluteDir,
 	}
 
-	path, err := req.resolveOutputPath(projectDir, io.Local)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := requireProviderString(t, req.resolveOutputPath(projectDir, storage.Local))
 	if !stdlibAssertEqual(ax.Join(absoluteDir, "release.yml"), path) {
 		t.Fatalf("want %v, got %v", ax.Join(absoluteDir, "release.yml"), path)
 	}
 
 }
 
-func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliases_Good(t *testing.T) {
+func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliasesGood(t *testing.T) {
 	projectDir := t.TempDir()
 
 	req := ReleaseWorkflowRequest{
@@ -330,17 +321,14 @@ func TestProvider_ReleaseWorkflowRequestResolvedOutputPathAliases_Good(t *testin
 		WorkflowOutputHyphen: "ci/workflow-output.yml",
 	}
 
-	path, err := req.resolveOutputPath(projectDir, io.Local)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := requireProviderString(t, req.resolveOutputPath(projectDir, storage.Local))
 	if !stdlibAssertEqual(ax.Join(projectDir, "ci", "workflow-output.yml"), path) {
 		t.Fatalf("want %v, got %v", ax.Join(projectDir, "ci", "workflow-output.yml"), path)
 	}
 
 }
 
-func TestProvider_BuildProviderDefaultProjectDir_Good(t *testing.T) {
+func TestProvider_BuildProviderDefaultProjectDirGood(t *testing.T) {
 	p := NewProvider("", nil)
 	if !stdlibAssertEqual(".", p.projectDir) {
 		t.Fatalf("want %v, got %v", ".", p.projectDir)
@@ -348,7 +336,7 @@ func TestProvider_BuildProviderDefaultProjectDir_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderCustomProjectDir_Good(t *testing.T) {
+func TestProvider_BuildProviderCustomProjectDirGood(t *testing.T) {
 	p := NewProvider("/tmp/myproject", nil)
 	if !stdlibAssertEqual("/tmp/myproject", p.projectDir) {
 		t.Fatalf("want %v, got %v", "/tmp/myproject", p.projectDir)
@@ -356,13 +344,18 @@ func TestProvider_BuildProviderCustomProjectDir_Good(t *testing.T) {
 
 }
 
-func TestProvider_BuildProviderNilHub_Good(t *testing.T) {
+func TestProvider_BuildProviderNilHubGood(t *testing.T) {
 	p := NewProvider(".", nil)
-	// emitEvent should not panic with nil hub
+	if p.hub != nil {
+		t.Fatal("expected nil hub")
+	}
 	p.emitEvent("build.started", map[string]any{"test": true})
+	if !stdlibAssertEqual(".", p.projectDir) {
+		t.Fatalf("want %v, got %v", ".", p.projectDir)
+	}
 }
 
-func TestProvider_ResolveBuildOutputs_Good(t *testing.T) {
+func TestProvider_ResolveBuildOutputsGood(t *testing.T) {
 	t.Run("defaults to raw build output", func(t *testing.T) {
 		archiveOutput, checksumOutput := resolveBuildOutputs(buildRequest{})
 		if archiveOutput {
@@ -403,7 +396,7 @@ func TestProvider_ResolveBuildOutputs_Good(t *testing.T) {
 	})
 }
 
-func TestProvider_GetBuilderSupportedTypes_Good(t *testing.T) {
+func TestProvider_GetBuilderSupportedTypesGood(t *testing.T) {
 	cases := []struct {
 		projectType build.ProjectType
 		name        string
@@ -423,10 +416,7 @@ func TestProvider_GetBuilderSupportedTypes_Good(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(string(tc.projectType), func(t *testing.T) {
-			b, err := getBuilder(tc.projectType)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			b := requireProviderBuilder(t, getBuilder(tc.projectType))
 			if !stdlibAssertEqual(tc.name, b.Name()) {
 				t.Fatalf("want %v, got %v", tc.name, b.Name())
 			}
@@ -435,45 +425,36 @@ func TestProvider_GetBuilderSupportedTypes_Good(t *testing.T) {
 	}
 }
 
-func TestProvider_GetBuilderUnsupportedType_Bad(t *testing.T) {
-	_, err := getBuilder(build.ProjectType("unknown"))
-	if !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("expected error %v to be %v", err, fs.ErrNotExist)
+func TestProvider_GetBuilderUnsupportedTypeBad(t *testing.T) {
+	message := requireProviderError(t, getBuilder(build.ProjectType("unknown")))
+	if !stdlibAssertContains(message, "unknown project type") {
+		t.Fatalf("expected %v to contain %v", message, "unknown project type")
 	}
 
 }
 
-func TestProvider_BuildProviderResolveDir_Good(t *testing.T) {
+func TestProvider_BuildProviderResolveDirGood(t *testing.T) {
 	p := NewProvider("/tmp", nil)
-	dir, err := p.resolveDir()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	dir := requireProviderString(t, p.resolveDir())
 	if !stdlibAssertEqual("/tmp", dir) {
 		t.Fatalf("want %v, got %v", "/tmp", dir)
 	}
 
 }
 
-func TestProvider_BuildProviderResolveDirRelative_Good(t *testing.T) {
+func TestProvider_BuildProviderResolveDirRelativeGood(t *testing.T) {
 	p := NewProvider(".", nil)
-	dir, err := p.resolveDir()
-	if err != nil {
-		t.Fatalf("unexpected error: %v",
-
-			// Should return an absolute path
-			err)
-	}
+	dir := requireProviderString(t, p.resolveDir())
 	if !(len(dir) > 1 && dir[0] == '/') {
 		t.Fatal("expected true")
 	}
 
 }
 
-func TestProvider_BuildProviderMediumSet_Good(t *testing.T) {
+func TestProvider_BuildProviderMediumSetGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	if stdlibAssertNil(p.medium) {
-		t.Fatal("medium should be set to io.Local")
+		t.Fatal("medium should be set to storage.Local")
 	}
 
 }
@@ -495,7 +476,7 @@ func TestProvider_RegisterRoutes_ExposesRFCAliases_Good(t *testing.T) {
 	}
 
 	sdkResponse := httptest.NewRecorder()
-	sdkRequest := httptest.NewRequest(http.MethodPost, "/sdk", bytes.NewBufferString(`{}`))
+	sdkRequest := httptest.NewRequest(http.MethodPost, "/sdk", core.NewBufferString(`{}`))
 	sdkRequest.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(sdkResponse, sdkRequest)
 	if stdlibAssertEqual(http.StatusNotFound, sdkResponse.Code) {
@@ -511,11 +492,11 @@ func TestProvider_RegisterRoutes_ExposesRFCAliases_Good(t *testing.T) {
 
 }
 
-func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
+func TestProvider_StreamEvents_UsesHubHandlerGood(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	hub := ws.NewHub()
+	hub := events.NewHub()
 	go hub.Run(t.Context())
 
 	p := NewProvider(projectDir, hub)
@@ -526,14 +507,14 @@ func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
 	server := httptest.NewServer(router)
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/events"
+	wsURL := "ws" + core.TrimPrefix(server.URL, "http") + "/events"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	defer conn.Close()
-	if err := conn.WriteJSON(ws.Message{Type: ws.TypeSubscribe, Data: "build.complete"}); err != nil {
+	if err := conn.WriteJSON(events.Message{Type: events.TypeSubscribe, Data: "build.complete"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	{
@@ -553,12 +534,12 @@ func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
 
 	p.emitEvent("build.complete", map[string]any{"status": "ok"})
 
-	var message ws.Message
+	var message events.Message
 	if err := conn.ReadJSON(&message); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !stdlibAssertEqual(ws.TypeEvent, message.Type) {
-		t.Fatalf("want %v, got %v", ws.TypeEvent, message.Type)
+	if !stdlibAssertEqual(events.TypeEvent, message.Type) {
+		t.Fatalf("want %v, got %v", events.TypeEvent, message.Type)
 	}
 
 	payload, ok := message.Data.(map[string]any)
@@ -571,14 +552,12 @@ func TestProvider_StreamEvents_UsesHubHandler_Good(t *testing.T) {
 
 }
 
-func TestProvider_GetConfig_UsesSnakeCaseJSONKeys_Good(t *testing.T) {
+func TestProvider_GetConfig_UsesSnakeCaseJSONKeysGood(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	if err := io.Local.EnsureDir(ax.Join(projectDir, ".core")); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+	requireProviderOK(t, storage.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	if result := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 version: 1
 project:
   name: Demo
@@ -600,8 +579,8 @@ sign:
   enabled: true
   macos:
     identity: "Developer ID Application: Demo"
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	p := NewProvider(projectDir, nil)
@@ -660,17 +639,14 @@ sign:
 
 }
 
-func TestProvider_ResolveProjectType_Good(t *testing.T) {
+func TestProvider_ResolveProjectTypeGood(t *testing.T) {
 	t.Run("honours explicit build type override", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		projectType, err := resolveProjectType(io.Local, dir, "docker")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		projectType := requireProviderProjectType(t, resolveProjectType(storage.Local, dir, "docker"))
 		if !stdlibAssertEqual(build.ProjectTypeDocker, projectType) {
 			t.Fatalf("want %v, got %v", build.ProjectTypeDocker, projectType)
 		}
@@ -679,14 +655,11 @@ func TestProvider_ResolveProjectType_Good(t *testing.T) {
 
 	t.Run("falls back to detection when build type is empty", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		projectType, err := resolveProjectType(io.Local, dir, "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		projectType := requireProviderProjectType(t, resolveProjectType(storage.Local, dir, ""))
 		if !stdlibAssertEqual(build.ProjectTypeGo, projectType) {
 			t.Fatalf("want %v, got %v", build.ProjectTypeGo, projectType)
 		}
@@ -706,16 +679,45 @@ type providerReleaseWorkflowCase struct {
 	expectWorkflow bool
 }
 
-func TestProvider_GenerateReleaseWorkflow_Good(t *testing.T) {
+type providerWorkflowJSONField struct {
+	key   string
+	value string
+}
+
+func providerWorkflowJSON(fields ...providerWorkflowJSONField) string {
+	values := make(map[string]string, len(fields))
+	for _, field := range fields {
+		values[field.key] = field.value
+	}
+	encoded := core.JSONMarshal(values)
+	if !encoded.OK {
+		return "{}"
+	}
+	return string(encoded.Value.([]byte))
+}
+
+func providerPathJSON(value string) string {
+	return providerWorkflowJSON(providerWorkflowJSONField{key: apiPathField, value: value})
+}
+
+func providerInvalidPathJSON() string {
+	return core.Concat("{\"", apiPathField, "\":")
+}
+
+func providerJSONFieldPrefix(key string) string {
+	return core.Concat("\"", key, "\":\"")
+}
+
+func TestProvider_GenerateReleaseWorkflowGood(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cases := []providerReleaseWorkflowCase{
 		{name: "default path", body: `{}`, wantPath: build.ReleaseWorkflowPath, expectWorkflow: true},
-		{name: "custom path", body: `{"path":"ci/release.yml"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "custom path", body: providerPathJSON("ci/release.yml"), wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
 		{name: "workflowPath alias", body: `{"workflowPath":"ci/workflow-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-path.yml"), expectWorkflow: true},
 		{name: "workflow_path alias", body: `{"workflow_path":"ci/workflow-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-path.yml"), expectWorkflow: true},
 		{name: "workflow-path alias", body: `{"workflow-path":"ci/workflow-path.yml"}`, wantPath: providerWorkflowPath("ci", "workflow-path.yml"), expectWorkflow: true},
-		{name: "conflicting workflow path aliases", body: `{"path":"ci/workflow-path.yml","workflowPath":"ops/workflow-path.yml"}`, wantStatus: http.StatusBadRequest},
+		{name: "conflicting workflow path aliases", body: providerWorkflowJSON(providerWorkflowJSONField{key: apiPathField, value: "ci/workflow-path.yml"}, providerWorkflowJSONField{key: "workflowPath", value: "ops/workflow-path.yml"}), wantStatus: http.StatusBadRequest},
 		{name: "output alias", body: `{"output":"ci/release.yml"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
 		{name: "outputPath alias", body: `{"outputPath":"ci/output-path.yml"}`, wantPath: providerWorkflowPath("ci", "output-path.yml"), expectWorkflow: true},
 		{name: "output-path alias", body: `{"output-path":"ci/output-path.yml"}`, wantPath: providerWorkflowPath("ci", "output-path.yml"), expectWorkflow: true},
@@ -737,19 +739,19 @@ func TestProvider_GenerateReleaseWorkflow_Good(t *testing.T) {
 		{name: "conflicting workflow output aliases", body: `{"outputPath":"ci/output-path.yml","workflowOutputPath":"ops/output-path.yml"}`, wantStatus: http.StatusBadRequest},
 		{name: "conflicting output aliases", body: `{"outputPath":"ci/output-path.yml","output_path":"ops/output-path.yml"}`, wantStatus: http.StatusBadRequest},
 		{name: "conflicting output path hyphen aliases", body: `{"outputPath":"ci/output-path.yml","output-path":"ops/output-path.yml"}`, wantStatus: http.StatusBadRequest},
-		{name: "bare directory path", body: `{"path":"ci"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
-		{name: "current directory prefixed path", body: `{"path":"./ci"}`, wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
-		{name: "workflows directory", body: `{"path":".github/workflows"}`, wantPath: providerWorkflowPath(".github", "workflows", "release.yml"), expectWorkflow: true},
+		{name: "bare directory path", body: providerPathJSON("ci"), wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "current directory prefixed path", body: providerPathJSON("./ci"), wantPath: providerWorkflowPath("ci", "release.yml"), expectWorkflow: true},
+		{name: "workflows directory", body: providerPathJSON(".github/workflows"), wantPath: providerWorkflowPath(".github", "workflows", "release.yml"), expectWorkflow: true},
 		{
 			name:           "existing directory path",
-			body:           `{"path":"ci"}`,
+			body:           providerPathJSON("ci"),
 			before:         createProviderWorkflowDir("ci"),
 			useLocalMedium: true,
 			wantPath:       providerWorkflowPath("ci", "release.yml"),
 			expectWorkflow: true,
 		},
-		{name: "conflicting path and output", body: `{"path":"ci/release.yml","output":"ops/release.yml"}`, wantStatus: http.StatusBadRequest},
-		{name: "invalid JSON", body: `{"path":`, wantStatus: http.StatusBadRequest},
+		{name: "conflicting path and output", body: providerWorkflowJSON(providerWorkflowJSONField{key: apiPathField, value: "ci/release.yml"}, providerWorkflowJSONField{key: "output", value: "ops/release.yml"}), wantStatus: http.StatusBadRequest},
+		{name: "invalid JSON", body: providerInvalidPathJSON(), wantStatus: http.StatusBadRequest},
 		{name: "empty body", nilBody: true, useLocalMedium: true, wantPath: build.ReleaseWorkflowPath, expectWorkflow: true},
 	}
 
@@ -770,8 +772,8 @@ func providerWorkflowPath(parts ...string) func(projectDir string) string {
 func createProviderWorkflowDir(parts ...string) func(t *testing.T, projectDir string) {
 	return func(t *testing.T, projectDir string) {
 		t.Helper()
-		if err := ax.MkdirAll(ax.Join(append([]string{projectDir}, parts...)...), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(ax.Join(append([]string{projectDir}, parts...)...), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 	}
 }
@@ -786,7 +788,7 @@ func assertProviderReleaseWorkflow(t *testing.T, tc providerReleaseWorkflowCase)
 
 	p := NewProvider(projectDir, nil)
 	if tc.useLocalMedium {
-		p.medium = io.Local
+		p.medium = storage.Local
 	}
 
 	recorder := httptest.NewRecorder()
@@ -796,7 +798,7 @@ func assertProviderReleaseWorkflow(t *testing.T, tc providerReleaseWorkflowCase)
 		if tc.bodyFor != nil {
 			body = tc.bodyFor(projectDir)
 		}
-		request = httptest.NewRequest(http.MethodPost, "/release/workflow", bytes.NewBufferString(body))
+		request = httptest.NewRequest(http.MethodPost, "/release/workflow", core.NewBufferString(body))
 	}
 	request.Header.Set("Content-Type", "application/json")
 
@@ -817,16 +819,13 @@ func assertProviderReleaseWorkflow(t *testing.T, tc providerReleaseWorkflowCase)
 		path = tc.wantPath(projectDir)
 	}
 	if !tc.expectWorkflow {
-		if _, err := io.Local.Read(path); err == nil {
+		if result := storage.Local.Read(path); result.OK {
 			t.Fatal("expected error")
 		}
 		return
 	}
 
-	content, err := io.Local.Read(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	content := requireProviderString(t, storage.Local.Read(path))
 	if !stdlibAssertContains(content, "workflow_call:") {
 		t.Fatalf("expected %v to contain %v", content, "workflow_call:")
 	}
@@ -835,29 +834,29 @@ func assertProviderReleaseWorkflow(t *testing.T, tc providerReleaseWorkflowCase)
 	}
 }
 
-func TestProvider_DiscoverProject_Good(t *testing.T) {
+func TestProvider_discoverProject_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("GITHUB_SHA", "0123456789abcdef")
 	t.Setenv("GITHUB_REF", "refs/heads/main")
 	t.Setenv("GITHUB_REPOSITORY", "dappcore/core")
 
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.MkdirAll(ax.Join(projectDir, "frontend"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(projectDir, "frontend"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, "frontend", "package.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "frontend", "package.json"), []byte("{}"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+	if result := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 build:
   obfuscate: true
   nsis: true
@@ -867,8 +866,8 @@ build:
   ldflags:
     - -s
     - -w
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	p := NewProvider(projectDir, nil)
@@ -891,8 +890,8 @@ build:
 	if !stdlibAssertContains(body, `"configured_build_type":""`) {
 		t.Fatalf("expected %v to contain %v", body, `"configured_build_type":""`)
 	}
-	if !stdlibAssertContains(body, `"os":"`) {
-		t.Fatalf("expected %v to contain %v", body, `"os":"`)
+	if !stdlibAssertContains(body, providerJSONFieldPrefix(apiOSField)) {
+		t.Fatalf("expected %v to contain %v", body, providerJSONFieldPrefix(apiOSField))
 	}
 	if !stdlibAssertContains(body, `"arch":"`) {
 		t.Fatalf("expected %v to contain %v", body, `"arch":"`)
@@ -1036,10 +1035,8 @@ func TestProvider_TriggerBuild_UsesFullBuildRuntimeConfig_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	if err := io.Local.EnsureDir(ax.Join(projectDir, ".core")); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
+	requireProviderOK(t, storage.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	if result := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`
 project:
   name: API Build
   main: ./cmd/api
@@ -1065,8 +1062,8 @@ build:
 targets:
   - os: linux
     arch: amd64
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	oldGetBuilder := providerGetBuilder
@@ -1078,38 +1075,34 @@ targets:
 
 	var capturedCfg *build.Config
 	var capturedTargets []build.Target
-	providerGetBuilder = func(projectType build.ProjectType) (build.Builder, error) {
-		return &capturingBuilder{
+	providerGetBuilder = func(projectType build.ProjectType) core.Result {
+		return core.Ok(&capturingBuilder{
 			name: "go",
-			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 				capturedCfg = cfg
 				capturedTargets = append([]build.Target{}, targets...)
 
 				artifactDir := ax.Join(cfg.OutputDir, "linux_amd64")
-				if err := cfg.FS.EnsureDir(artifactDir); err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
+				requireProviderOK(t, cfg.FS.EnsureDir(artifactDir))
 
 				artifactPath := ax.Join(artifactDir, cfg.Name)
-				if err := cfg.FS.WriteMode(artifactPath, "binary", 0o755); err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
+				requireProviderOK(t, cfg.FS.WriteMode(artifactPath, "binary", 0o755))
 
-				return []build.Artifact{{
+				return core.Ok([]build.Artifact{{
 					Path: artifactPath,
 					OS:   "linux",
 					Arch: "amd64",
-				}}, nil
+				}})
 			},
-		}, nil
+		})
 	}
-	providerDetermineVersion = func(ctx context.Context, dir string) (string, error) {
-		return "v1.2.3", nil
+	providerDetermineVersion = func(ctx context.Context, dir string) core.Result {
+		return core.Ok("v1.2.3")
 	}
 
 	p := NewProvider(projectDir, nil)
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/build", bytes.NewBufferString(`{"package":true}`))
+	request := httptest.NewRequest(http.MethodPost, "/build", core.NewBufferString(`{"package":true}`))
 	request.Header.Set("Content-Type", "application/json")
 
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -1173,17 +1166,14 @@ targets:
 	if !stdlibAssertContains(recorder.Body.String(), `.tar.xz`) {
 		t.Fatalf("expected %v to contain %v", recorder.Body.String(), `.tar.xz`)
 	}
-	if !(io.Local.Exists(ax.Join(projectDir, "dist", "api-build_linux_amd64.tar.xz"))) {
+	if !(storage.Local.Exists(ax.Join(projectDir, "dist", "api-build_linux_amd64.tar.xz"))) {
 		t.Fatal("expected true")
 	}
-	if !(io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))) {
+	if !(storage.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))) {
 		t.Fatal("expected true")
 	}
 
-	checksums, err := io.Local.Read(ax.Join(projectDir, "dist", "CHECKSUMS.txt"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	checksums := requireProviderString(t, storage.Local.Read(ax.Join(projectDir, "dist", "CHECKSUMS.txt")))
 	if !stdlibAssertContains(checksums, "api-build_linux_amd64.tar.xz") {
 		t.Fatalf("expected %v to contain %v", checksums, "api-build_linux_amd64.tar.xz")
 	}
@@ -1194,16 +1184,16 @@ func TestProvider_TriggerBuild_DefaultsToRawArtifacts_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	if err := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`version: 1
+	if result := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`version: 1
 project:
   name: provider
   binary: provider
@@ -1214,8 +1204,8 @@ targets:
     arch: `+runtime.GOARCH+`
 sign:
   enabled: false
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	oldGetBuilder := providerGetBuilder
@@ -1225,33 +1215,29 @@ sign:
 		providerDetermineVersion = oldDetermineVersion
 	})
 
-	providerGetBuilder = func(projectType build.ProjectType) (build.Builder, error) {
-		return &capturingBuilder{
+	providerGetBuilder = func(projectType build.ProjectType) core.Result {
+		return core.Ok(&capturingBuilder{
 			name: "go",
-			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 				artifactDir := ax.Join(cfg.OutputDir, runtime.GOOS+"_"+runtime.GOARCH)
-				if err := cfg.FS.EnsureDir(artifactDir); err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
+				requireProviderOK(t, cfg.FS.EnsureDir(artifactDir))
 
 				artifactPath := ax.Join(artifactDir, "provider")
 				if runtime.GOOS == "windows" {
 					artifactPath += ".exe"
 				}
-				if err := cfg.FS.WriteMode(artifactPath, "binary", 0o755); err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
+				requireProviderOK(t, cfg.FS.WriteMode(artifactPath, "binary", 0o755))
 
-				return []build.Artifact{{
+				return core.Ok([]build.Artifact{{
 					Path: artifactPath,
 					OS:   runtime.GOOS,
 					Arch: runtime.GOARCH,
-				}}, nil
+				}})
 			},
-		}, nil
+		})
 	}
-	providerDetermineVersion = func(ctx context.Context, dir string) (string, error) {
-		return "v1.2.3", nil
+	providerDetermineVersion = func(ctx context.Context, dir string) core.Result {
+		return core.Ok("v1.2.3")
 	}
 
 	p := NewProvider(projectDir, nil)
@@ -1274,16 +1260,16 @@ sign:
 	if stdlibAssertContains(recorder.Body.String(), `"checksum_file"`) {
 		t.Fatalf("expected %v not to contain %v", recorder.Body.String(), `"checksum_file"`)
 	}
-	if !(io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider")) || io.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider.exe"))) {
+	if !(storage.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider")) || storage.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider.exe"))) {
 		t.Fatal("expected true")
 	}
-	if io.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")) {
+	if storage.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")) {
 		t.Fatal("expected false")
 	}
-	if io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz")) {
+	if storage.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz")) {
 		t.Fatal("expected false")
 	}
-	if io.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz")) {
+	if storage.Local.Exists(ax.Join(projectDir, "dist", "provider_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.xz")) {
 		t.Fatal("expected false")
 	}
 
@@ -1293,11 +1279,11 @@ func TestProvider_TriggerBuild_WithoutBuildConfig_UsesLocalTarget_Good(t *testin
 	gin.SetMode(gin.TestMode)
 
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/provider\n\ngo 1.20\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	oldGetBuilder := providerGetBuilder
@@ -1308,32 +1294,28 @@ func TestProvider_TriggerBuild_WithoutBuildConfig_UsesLocalTarget_Good(t *testin
 	})
 
 	var capturedTargets []build.Target
-	providerGetBuilder = func(projectType build.ProjectType) (build.Builder, error) {
-		return &capturingBuilder{
+	providerGetBuilder = func(projectType build.ProjectType) core.Result {
+		return core.Ok(&capturingBuilder{
 			name: "go",
-			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+			buildFn: func(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 				capturedTargets = append([]build.Target{}, targets...)
 
 				artifactDir := ax.Join(cfg.OutputDir, runtime.GOOS+"_"+runtime.GOARCH)
-				if err := cfg.FS.EnsureDir(artifactDir); err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
+				requireProviderOK(t, cfg.FS.EnsureDir(artifactDir))
 
 				artifactPath := ax.Join(artifactDir, "provider")
-				if err := cfg.FS.WriteMode(artifactPath, "binary", 0o755); err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
+				requireProviderOK(t, cfg.FS.WriteMode(artifactPath, "binary", 0o755))
 
-				return []build.Artifact{{
+				return core.Ok([]build.Artifact{{
 					Path: artifactPath,
 					OS:   runtime.GOOS,
 					Arch: runtime.GOARCH,
-				}}, nil
+				}})
 			},
-		}, nil
+		})
 	}
-	providerDetermineVersion = func(ctx context.Context, dir string) (string, error) {
-		return "v0.0.1", nil
+	providerDetermineVersion = func(ctx context.Context, dir string) core.Result {
+		return core.Ok("v0.0.1")
 	}
 
 	p := NewProvider(projectDir, nil)
@@ -1365,18 +1347,18 @@ func TestProvider_TriggerRelease_UsesFullReleasePipeline_Good(t *testing.T) {
 		providerRunRelease = oldRunRelease
 	})
 
-	providerLoadReleaseConfig = func(dir string) (*release.Config, error) {
+	providerLoadReleaseConfig = func(dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
 		cfg := release.DefaultConfig()
 		cfg.SetProjectDir(dir)
-		return cfg, nil
+		return core.Ok(cfg)
 	}
 
 	called := false
-	providerRunRelease = func(ctx context.Context, cfg *release.Config, dryRun bool) (*release.Release, error) {
+	providerRunRelease = func(ctx context.Context, cfg *release.Config, dryRun bool) core.Result {
 		called = true
 		if dryRun {
 			t.Fatal("expected false")
@@ -1385,11 +1367,11 @@ func TestProvider_TriggerRelease_UsesFullReleasePipeline_Good(t *testing.T) {
 			t.Fatal("expected non-nil")
 		}
 
-		return &release.Release{
+		return core.Ok(&release.Release{
 			Version:   "v1.2.3",
 			Artifacts: []build.Artifact{{Path: ax.Join(projectDir, "dist", "demo.tar.gz")}},
 			Changelog: "Release notes",
-		}, nil
+		})
 	}
 
 	p := NewProvider(projectDir, nil)
@@ -1427,20 +1409,20 @@ func TestProvider_TriggerRelease_DryRun_Good(t *testing.T) {
 		providerRunRelease = oldRunRelease
 	})
 
-	providerLoadReleaseConfig = func(dir string) (*release.Config, error) {
+	providerLoadReleaseConfig = func(dir string) core.Result {
 		cfg := release.DefaultConfig()
 		cfg.SetProjectDir(dir)
-		return cfg, nil
+		return core.Ok(cfg)
 	}
 
-	providerRunRelease = func(ctx context.Context, cfg *release.Config, dryRun bool) (*release.Release, error) {
+	providerRunRelease = func(ctx context.Context, cfg *release.Config, dryRun bool) core.Result {
 		if !(dryRun) {
 			t.Fatal("expected true")
 		}
 
-		return &release.Release{
+		return core.Ok(&release.Release{
 			Version: "v1.2.3",
-		}, nil
+		})
 	}
 
 	p := NewProvider(projectDir, nil)
@@ -1465,15 +1447,9 @@ func TestProvider_ListArtifacts_RecursesIntoPlatformDirectories_Good(t *testing.
 
 	projectDir := t.TempDir()
 	distDir := ax.Join(projectDir, "dist")
-	if err := io.Local.EnsureDir(ax.Join(distDir, "linux_amd64")); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := io.Local.Write(ax.Join(distDir, "CHECKSUMS.txt"), "checksums"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := io.Local.Write(ax.Join(distDir, "linux_amd64", "demo.tar.xz"), "archive"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireProviderOK(t, storage.Local.EnsureDir(ax.Join(distDir, "linux_amd64")))
+	requireProviderOK(t, storage.Local.Write(ax.Join(distDir, "CHECKSUMS.txt"), "checksums"))
+	requireProviderOK(t, storage.Local.Write(ax.Join(distDir, "linux_amd64", "demo.tar.xz"), "archive"))
 
 	p := NewProvider(projectDir, nil)
 	recorder := httptest.NewRecorder()
@@ -1505,17 +1481,264 @@ func TestProvider_ListArtifacts_RecursesIntoPlatformDirectories_Good(t *testing.
 
 type capturingBuilder struct {
 	name    string
-	buildFn func(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error)
+	buildFn func(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result
 }
 
 func (b *capturingBuilder) Name() string {
 	return b.name
 }
 
-func (b *capturingBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return true, nil
+func (b *capturingBuilder) Detect(fs storage.Medium, dir string) core.Result {
+	return core.Ok(true)
 }
 
-func (b *capturingBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+func (b *capturingBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	return b.buildFn(ctx, cfg, targets)
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestProvider_NewProvider_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewProvider(core.Path(t.TempDir(), "go-build-compliance"), nil)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestProvider_NewProvider_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewProvider("", nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestProvider_NewProvider_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewProvider(core.Path(t.TempDir(), "go-build-compliance"), nil)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestProvider_BuildProvider_Name_Good(t *core.T) {
+	subject := &BuildProvider{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestProvider_BuildProvider_Name_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestProvider_BuildProvider_Name_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestProvider_BuildProvider_BasePath_Good(t *core.T) {
+	subject := &BuildProvider{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.BasePath()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestProvider_BuildProvider_BasePath_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.BasePath()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestProvider_BuildProvider_BasePath_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.BasePath()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestProvider_BuildProvider_Element_Good(t *core.T) {
+	subject := &BuildProvider{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Element()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestProvider_BuildProvider_Element_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Element()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestProvider_BuildProvider_Element_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Element()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestProvider_BuildProvider_Channels_Good(t *core.T) {
+	subject := &BuildProvider{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Channels()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestProvider_BuildProvider_Channels_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Channels()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestProvider_BuildProvider_Channels_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Channels()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestProvider_BuildProvider_RegisterRoutes_Good(t *core.T) {
+	subject := &BuildProvider{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.RegisterRoutes(gin.New().Group("/build"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestProvider_BuildProvider_RegisterRoutes_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.RegisterRoutes(gin.New().Group("/build"))
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestProvider_BuildProvider_RegisterRoutes_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.RegisterRoutes(gin.New().Group("/build"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestProvider_BuildProvider_Describe_Good(t *core.T) {
+	subject := &BuildProvider{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Describe()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestProvider_BuildProvider_Describe_Bad(t *core.T) {
+	subject := &BuildProvider{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Describe()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestProvider_BuildProvider_Describe_Ugly(t *core.T) {
+	subject := &BuildProvider{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Describe()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestProvider_Info_Good(t *core.T) {
+	subject := Info{Name: "app.tar.gz", Path: "/dist/app.tar.gz", Size: 42}
+	core.AssertEqual(t, "app.tar.gz", subject.Name)
+	core.AssertEqual(t, int64(42), subject.Size)
+}
+
+func TestProvider_Info_Bad(t *core.T) {
+	subject := Info{}
+	core.AssertEqual(t, "", subject.Name)
+	core.AssertEqual(t, int64(0), subject.Size)
+}
+
+func TestProvider_Info_Ugly(t *core.T) {
+	subject := Info{Name: "nested/app.tar.gz", Path: "/dist/linux/app.tar.gz", Size: 1}
+	core.AssertEqual(t, "nested/app.tar.gz", subject.Name)
+	core.AssertEqual(t, "/dist/linux/app.tar.gz", subject.Path)
+}
+
+func TestProvider_ReleaseWorkflowRequest_Decode_Good(t *core.T) {
+	var subject ReleaseWorkflowRequest
+	result := subject.Decode([]byte(`{"` + apiPathField + `":"ci/release.yml"}`))
+	core.RequireTrue(t, result.OK)
+	core.AssertEqual(t, "ci/release.yml", subject.Path)
+}
+
+func TestProvider_ReleaseWorkflowRequest_Decode_Bad(t *core.T) {
+	var subject ReleaseWorkflowRequest
+	result := subject.Decode([]byte(`{`))
+	core.AssertFalse(t, result.OK)
+}
+
+func TestProvider_ReleaseWorkflowRequest_Decode_Ugly(t *core.T) {
+	var subject ReleaseWorkflowRequest
+	result := subject.Decode([]byte(`{"workflow_output_path":"ops/release.yml","workflow-output":"legacy.yml"}`))
+	core.RequireTrue(t, result.OK)
+	core.AssertEqual(t, "ops/release.yml", subject.WorkflowOutputPathSnake)
+	core.AssertEqual(t, "legacy.yml", subject.WorkflowOutputHyphen)
 }

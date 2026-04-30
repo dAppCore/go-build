@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
-func TestAssets_BuildChecksumMap_ParsesRFCArchiveNames_Good(t *testing.T) {
+func TestAssets_BuildChecksumMap_ParsesRFCArchiveNamesGood(t *testing.T) {
 	artifacts := []build.Artifact{
 		{Path: "/dist/myapp_darwin_amd64.tar.gz", Checksum: "darwin-amd64"},
 		{Path: "/dist/myapp_darwin_arm64.tar.gz", Checksum: "darwin-arm64"},
@@ -61,11 +61,9 @@ func TestAssets_BuildChecksumMap_ParsesRFCArchiveNames_Good(t *testing.T) {
 
 }
 
-func TestAssets_BuildChecksumMapFromRelease_UsesChecksumFileFallback_Good(t *testing.T) {
-	artifactFS := io.NewMemoryMedium()
-	if err := artifactFS.Write("releases/checksums.txt", ""+"abc123  myapp_linux_amd64.tar.gz\n"+"def456  myapp_darwin_arm64.tar.gz\n"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+func TestAssets_BuildChecksumMapFromRelease_UsesChecksumFileFallbackGood(t *testing.T) {
+	artifactFS := storage.NewMemoryMedium()
+	requirePublisherOK(t, artifactFS.Write("releases/checksums.txt", ""+"abc123  myapp_linux_amd64.tar.gz\n"+"def456  myapp_darwin_arm64.tar.gz\n"))
 
 	release := &Release{
 		Artifacts: []build.Artifact{

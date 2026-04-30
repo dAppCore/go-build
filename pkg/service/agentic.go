@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	providerpkg "dappco.re/go/api/pkg/provider"
-	"dappco.re/go/ws"
+	providerpkg "dappco.re/go/build/pkg/api/provider"
+	events "dappco.re/go/build/pkg/events"
 )
 
 type agenticOrchestrator interface {
@@ -24,7 +24,7 @@ type daemonAgenticEvent struct {
 	payload any
 }
 
-func defaultNewAgenticOrchestrator(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) agenticOrchestrator {
+func defaultNewAgenticOrchestrator(cfg Config, registry *providerpkg.Registry, hub *events.Hub) agenticOrchestrator {
 	return newDaemonAgentic(cfg, registry, func(channel string, payload any) {
 		sendEvent(hub, channel, payload)
 	})

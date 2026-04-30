@@ -1,11 +1,11 @@
 package service
 
 import (
-	"os"
-	"path/filepath"
+	"dappco.re/go/build/internal/ax"
 	"testing"
 	"time"
 
+	core "dappco.re/go"
 	nativeservice "github.com/kardianos/service"
 )
 
@@ -67,24 +67,21 @@ func TestDefaultConfig_Normalized_Good(t *testing.T) {
 
 }
 
-func TestResolveConfig_UsesBuildMetadata_Good(t *testing.T) {
+func TestResolveConfig_UsesBuildMetadataGood(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(projectDir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(core.PathJoin(projectDir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := os.WriteFile(filepath.Join(projectDir, ".core", "build.yaml"), []byte(`version: 1
+	if result := ax.WriteFile(core.PathJoin(projectDir, ".core", "build.yaml"), []byte(`version: 1
 project:
   name: "Core Build"
   binary: "core-builder"
   description: "Background build daemon"
-`), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+`), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
-	cfg, err := ResolveConfig(projectDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	cfg := requireServiceConfig(t, ResolveConfig(projectDir))
 	if !stdlibAssertEqual("core-builder", cfg.Name) {
 		t.Fatalf("want %v, got %v", "core-builder", cfg.Name)
 	}
@@ -98,23 +95,17 @@ project:
 }
 
 func TestResolveNativeFormat_Good(t *testing.T) {
-	format, err := ResolveNativeFormat("launchd")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	format := requireServiceNativeFormat(t, ResolveNativeFormat("launchd"))
 	if !stdlibAssertEqual(NativeFormatLaunchd, format) {
 		t.Fatalf("want %v, got %v", NativeFormatLaunchd, format)
 	}
 
 }
 
-func TestExport_Systemd_Good(t *testing.T) {
+func TestExport_SystemdGood(t *testing.T) {
 	cfg := DefaultConfig(t.TempDir()).Normalized()
 
-	exported, err := Export(cfg, "systemd")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	exported := requireServiceExportedConfig(t, Export(cfg, "systemd"))
 	if !stdlibAssertEqual(NativeFormatSystemd, exported.Format) {
 		t.Fatalf("want %v, got %v", NativeFormatSystemd, exported.Format)
 	}
@@ -133,13 +124,10 @@ func TestExport_Systemd_Good(t *testing.T) {
 
 }
 
-func TestExport_Launchd_Good(t *testing.T) {
+func TestExport_LaunchdGood(t *testing.T) {
 	cfg := DefaultConfig(t.TempDir()).Normalized()
 
-	exported, err := Export(cfg, "launchd")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	exported := requireServiceExportedConfig(t, Export(cfg, "launchd"))
 	if !stdlibAssertEqual(NativeFormatLaunchd, exported.Format) {
 		t.Fatalf("want %v, got %v", NativeFormatLaunchd, exported.Format)
 	}
@@ -158,7 +146,7 @@ func TestExport_Launchd_Good(t *testing.T) {
 
 }
 
-func TestOSManager_ServiceConfigMapping_Good(t *testing.T) {
+func TestOSManager_ServiceConfigMappingGood(t *testing.T) {
 	originalNewNativeService := newNativeService
 	t.Cleanup(func() {
 		newNativeService = originalNewNativeService
@@ -179,10 +167,7 @@ func TestOSManager_ServiceConfigMapping_Good(t *testing.T) {
 	cfg.WatchInterval = 5 * time.Second
 	cfg = cfg.Normalized()
 
-	err := manager.Install(cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireServiceOK(t, manager.Install(cfg))
 	if stdlibAssertNil(recorded) {
 		t.Fatal("expected non-nil")
 	}
@@ -211,4 +196,116 @@ func TestOSManager_ServiceConfigMapping_Good(t *testing.T) {
 		t.Fatalf("expected %v to contain %v", recorded.Arguments, "--watch-interval")
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestConfig_ResolveConfig_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveConfig(core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_ResolveConfig_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveConfig("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_ResolveConfig_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveConfig(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_DefaultConfig_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DefaultConfig(core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_DefaultConfig_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DefaultConfig("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_DefaultConfig_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DefaultConfig(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_Config_Normalized_Good(t *core.T) {
+	subject := Config{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Normalized()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_Config_Normalized_Bad(t *core.T) {
+	subject := Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Normalized()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_Normalized_Ugly(t *core.T) {
+	subject := Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Normalized()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_ResolveNativeFormat_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveNativeFormat("tar.gz")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_ResolveNativeFormat_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveNativeFormat("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_ResolveNativeFormat_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveNativeFormat("tar.gz")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

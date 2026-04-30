@@ -5,11 +5,10 @@ import (
 	"context"
 	"runtime"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // DockerBuilder builds Docker images.
@@ -33,31 +32,33 @@ func (b *DockerBuilder) Name() string {
 
 // Detect checks if a Dockerfile or Containerfile exists in the directory.
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *DockerBuilder) Detect(fs io.Medium, dir string) (bool, error) {
+// ok, err := b.Detect(storage.Local, ".")
+func (b *DockerBuilder) Detect(fs storage.Medium, dir string) core.Result {
 	if build.ResolveDockerfilePath(fs, dir) != "" {
-		return true, nil
+		return core.Ok(true)
 	}
-	return false, nil
+	return core.Ok(false)
 }
 
 // Build builds Docker images for the specified targets.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return nil, coreerr.E("DockerBuilder.Build", "config is nil", nil)
+		return core.Fail(core.E("DockerBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
-	dockerCommand, err := b.resolveDockerCli()
-	if err != nil {
-		return nil, err
+	dockerCommandResult := b.resolveDockerCli()
+	if !dockerCommandResult.OK {
+		return dockerCommandResult
 	}
+	dockerCommand := dockerCommandResult.Value.(string)
 
 	// Ensure buildx is available
-	if err := b.ensureBuildx(ctx, dockerCommand); err != nil {
-		return nil, err
+	ensured := b.ensureBuildx(ctx, dockerCommand)
+	if !ensured.OK {
+		return ensured
 	}
 
 	// Determine Docker manifest path
@@ -70,7 +71,7 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Validate Dockerfile exists
 	if dockerfile == "" || !filesystem.IsFile(dockerfile) {
-		return nil, coreerr.E("DockerBuilder.Build", "Dockerfile or Containerfile not found", nil)
+		return core.Fail(core.E("DockerBuilder.Build", "Dockerfile or Containerfile not found", nil))
 	}
 
 	// Determine image name
@@ -165,8 +166,9 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	args = append(args, cfg.ProjectDir)
 
 	// Create output directory
-	if err := filesystem.EnsureDir(cfg.OutputDir); err != nil {
-		return nil, coreerr.E("DockerBuilder.Build", "failed to create output directory", err)
+	created := filesystem.EnsureDir(cfg.OutputDir)
+	if !created.OK {
+		return core.Fail(core.E("DockerBuilder.Build", "failed to create output directory", core.NewError(created.Error())))
 	}
 
 	core.Print(nil, "Building Docker image: %s", imageName)
@@ -175,8 +177,9 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 
 	// Build once for the full platform set. Docker buildx produces a single
 	// multi-arch image or OCI archive from the combined platform list.
-	if err := ax.ExecWithEnv(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), dockerCommand, args...); err != nil {
-		return nil, coreerr.E("DockerBuilder.Build", "buildx build failed", err)
+	executed := ax.ExecWithEnv(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), dockerCommand, args...)
+	if !executed.OK {
+		return core.Fail(core.E("DockerBuilder.Build", "buildx build failed", core.NewError(executed.Error())))
 	}
 
 	artifactPath := imageRefs[0]
@@ -185,15 +188,15 @@ func (b *DockerBuilder) Build(ctx context.Context, cfg *build.Config, targets []
 	}
 
 	primaryTarget := buildTargets[0]
-	return []build.Artifact{{
+	return core.Ok([]build.Artifact{{
 		Path: artifactPath,
 		OS:   primaryTarget.OS,
 		Arch: primaryTarget.Arch,
-	}}, nil
+	}})
 }
 
 // resolveDockerCli returns the executable path for the docker CLI.
-func (b *DockerBuilder) resolveDockerCli(paths ...string) (string, error) {
+func (b *DockerBuilder) resolveDockerCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/docker",
@@ -202,28 +205,31 @@ func (b *DockerBuilder) resolveDockerCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("docker", paths...)
-	if err != nil {
-		return "", coreerr.E("DockerBuilder.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", err)
+	command := ax.ResolveCommand("docker", paths...)
+	if !command.OK {
+		return core.Fail(core.E("DockerBuilder.resolveDockerCli", "docker CLI not found. Install it from https://docs.docker.com/get-docker/", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }
 
 // ensureBuildx ensures docker buildx is available and has a builder.
-func (b *DockerBuilder) ensureBuildx(ctx context.Context, dockerCommand string) error {
+func (b *DockerBuilder) ensureBuildx(ctx context.Context, dockerCommand string) core.Result {
 	// Check if buildx is available
-	if err := ax.Exec(ctx, dockerCommand, "buildx", "version"); err != nil {
-		return coreerr.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", err)
+	version := ax.Exec(ctx, dockerCommand, "buildx", "version")
+	if !version.OK {
+		return core.Fail(core.E("DockerBuilder.ensureBuildx", "buildx is not available. Install it from https://docs.docker.com/buildx/working-with-buildx/", core.NewError(version.Error())))
 	}
 
 	// Check if we have a builder, create one if not
-	if err := ax.Exec(ctx, dockerCommand, "buildx", "inspect", "--bootstrap"); err != nil {
+	inspected := ax.Exec(ctx, dockerCommand, "buildx", "inspect", "--bootstrap")
+	if !inspected.OK {
 		// Try to create a builder
-		if err := ax.Exec(ctx, dockerCommand, "buildx", "create", "--use", "--bootstrap"); err != nil {
-			return coreerr.E("DockerBuilder.ensureBuildx", "failed to create buildx builder", err)
+		created := ax.Exec(ctx, dockerCommand, "buildx", "create", "--use", "--bootstrap")
+		if !created.OK {
+			return core.Fail(core.E("DockerBuilder.ensureBuildx", "failed to create buildx builder", core.NewError(created.Error())))
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }

@@ -3,9 +3,8 @@ package sdk
 import (
 	"context"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	coreerr "dappco.re/go/log"
 )
 
 // commonSpecPaths are checked in order when no spec is configured.
@@ -31,78 +30,86 @@ var commonSpecPaths = []string{
 // Priority: config path -> common paths -> Laravel Scramble.
 //
 // path, err := s.DetectSpec() // → "api/openapi.yaml", nil
-func (s *SDK) DetectSpec() (string, error) {
+func (s *SDK) DetectSpec() core.Result {
+	if s == nil {
+		return core.Fail(core.E("sdk.DetectSpec", "sdk is nil", nil))
+	}
+	if s.config == nil {
+		return core.Fail(core.E("sdk.DetectSpec", "sdk config is nil", nil))
+	}
+
 	// 1. Check configured path
 	if s.config.Spec != "" {
 		specPath := ax.Join(s.projectDir, s.config.Spec)
 		if ax.IsFile(specPath) {
-			return specPath, nil
+			return core.Ok(specPath)
 		}
-		return "", coreerr.E("sdk.DetectSpec", "configured spec not found: "+s.config.Spec, nil)
+		return core.Fail(core.E("sdk.DetectSpec", "configured spec not found: "+s.config.Spec, nil))
 	}
 
 	// 2. Check common paths
 	for _, p := range commonSpecPaths {
 		specPath := ax.Join(s.projectDir, p)
 		if ax.IsFile(specPath) {
-			return specPath, nil
+			return core.Ok(specPath)
 		}
 	}
 
 	// 3. Try Laravel Scramble detection
 	composerPath := ax.Join(s.projectDir, "composer.json")
 	if ax.IsFile(composerPath) {
-		data, err := ax.ReadFile(composerPath)
-		if err != nil {
-			return "", err
+		data := ax.ReadFile(composerPath)
+		if !data.OK {
+			return data
 		}
 
-		if containsScramble(string(data)) {
-			specPath, err := s.detectScramble()
-			if err != nil {
-				return "", err
+		if containsScramble(string(data.Value.([]byte))) {
+			specPath := s.detectScramble()
+			if !specPath.OK {
+				return specPath
 			}
-			return specPath, nil
+			return specPath
 		}
 	}
 
-	return "", coreerr.E("sdk.DetectSpec", "no OpenAPI spec found (checked config, common paths, Scramble)", nil)
+	return core.Fail(core.E("sdk.DetectSpec", "no OpenAPI spec found (checked config, common paths, Scramble)", nil))
 }
 
 // detectScramble checks for Laravel Scramble and exports the spec.
-func (s *SDK) detectScramble() (string, error) {
+func (s *SDK) detectScramble() core.Result {
 	composerPath := ax.Join(s.projectDir, "composer.json")
 	if !ax.IsFile(composerPath) {
-		return "", coreerr.E("sdk.detectScramble", "no composer.json", nil)
+		return core.Fail(core.E("sdk.detectScramble", "no composer.json", nil))
 	}
 
 	// Check for scramble in composer.json
-	data, err := ax.ReadFile(composerPath)
-	if err != nil {
-		return "", err
+	data := ax.ReadFile(composerPath)
+	if !data.OK {
+		return data
 	}
 
 	// Simple check for scramble package
-	if !containsScramble(string(data)) {
-		return "", coreerr.E("sdk.detectScramble", "scramble not found in composer.json", nil)
+	if !containsScramble(string(data.Value.([]byte))) {
+		return core.Fail(core.E("sdk.detectScramble", "scramble not found in composer.json", nil))
 	}
 
 	scrambleSpecPath := ax.Join(s.projectDir, "api.json")
 
-	phpCommand, err := resolvePHPCli()
-	if err != nil {
-		return "", coreerr.E("sdk.detectScramble", "php CLI not found", err)
+	phpCommand := resolvePHPCli()
+	if !phpCommand.OK {
+		return core.Fail(core.E("sdk.detectScramble", "php CLI not found", core.NewError(phpCommand.Error())))
 	}
 
-	if err := ax.ExecDir(context.Background(), s.projectDir, phpCommand, "artisan", "scramble:export", "--path=api.json"); err != nil {
-		return "", coreerr.E("sdk.detectScramble", "scramble export failed", err)
+	exported := ax.ExecDir(context.Background(), s.projectDir, phpCommand.Value.(string), "artisan", "scramble:export", "--path=api.json")
+	if !exported.OK {
+		return core.Fail(core.E("sdk.detectScramble", "scramble export failed", core.NewError(exported.Error())))
 	}
 
 	if !ax.IsFile(scrambleSpecPath) {
-		return "", coreerr.E("sdk.detectScramble", "scramble export did not create api.json", nil)
+		return core.Fail(core.E("sdk.detectScramble", "scramble export did not create api.json", nil))
 	}
 
-	return scrambleSpecPath, nil
+	return core.Ok(scrambleSpecPath)
 }
 
 // containsScramble checks if composer.json includes scramble.
@@ -111,7 +118,7 @@ func containsScramble(content string) bool {
 		core.Contains(content, "\"scramble\"")
 }
 
-func resolvePHPCli() (string, error) {
+func resolvePHPCli() core.Result {
 	return ax.ResolveCommand("php",
 		"/usr/bin/php",
 		"/usr/local/bin/php",

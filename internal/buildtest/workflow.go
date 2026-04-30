@@ -2,9 +2,9 @@
 package buildtest
 
 import (
-	"strings"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/testassert"
 )
 
@@ -29,9 +29,16 @@ func AssertReleaseWorkflowContent(t testing.TB, content string) {
 	}
 
 	signInput := "sign:\n        description: Enable platform signing after build.\n        required: false\n        type: boolean\n        default: false"
-	if !testassert.Equal(2, strings.Count(content, signInput)) {
-		t.Fatalf("want %v, got %v", 2, strings.Count(content, signInput))
+	if !testassert.Equal(2, countWorkflowMarker(content, signInput)) {
+		t.Fatalf("want %v, got %v", 2, countWorkflowMarker(content, signInput))
 	}
+}
+
+func countWorkflowMarker(content, marker string) int {
+	if marker == "" {
+		return 0
+	}
+	return len(core.Split(content, marker)) - 1
 }
 
 // AssertReleaseWorkflowTriggers verifies that a generated workflow exposes both trigger modes.

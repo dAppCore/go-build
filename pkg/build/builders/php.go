@@ -5,11 +5,10 @@ import (
 	"context"
 	"runtime"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // PHPBuilder builds PHP projects with composer.json manifests.
@@ -33,18 +32,18 @@ func (b *PHPBuilder) Name() string {
 
 // Detect checks if this builder can handle the project in the given directory.
 //
-// ok, err := b.Detect(io.Local, ".")
-func (b *PHPBuilder) Detect(fs io.Medium, dir string) (bool, error) {
-	return build.IsPHPProject(fs, dir), nil
+// ok, err := b.Detect(storage.Local, ".")
+func (b *PHPBuilder) Detect(fs storage.Medium, dir string) core.Result {
+	return core.Ok(build.IsPHPProject(fs, dir))
 }
 
 // Build installs dependencies and produces either composer-generated artifacts
 // or a deterministic bundle when the project does not emit build outputs.
 //
 // artifacts, err := b.Build(ctx, cfg, []build.Target{{OS: "linux", Arch: "amd64"}})
-func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) ([]build.Artifact, error) {
+func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []build.Target) core.Result {
 	if cfg == nil {
-		return nil, coreerr.E("PHPBuilder.Build", "config is nil", nil)
+		return core.Fail(core.E("PHPBuilder.Build", "config is nil", nil))
 	}
 	filesystem := ensureBuildFilesystem(cfg)
 
@@ -54,45 +53,51 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 	if outputDir == "" {
 		outputDir = defaultOutputDir(cfg)
 	}
-	if err := ensureOutputDir(filesystem, outputDir, "PHPBuilder.Build"); err != nil {
-		return nil, err
+	created := ensureOutputDir(filesystem, outputDir, "PHPBuilder.Build")
+	if !created.OK {
+		return created
 	}
 
-	composerCommand, err := b.resolveComposerCli()
-	if err != nil {
-		return nil, err
+	composerCommandResult := b.resolveComposerCli()
+	if !composerCommandResult.OK {
+		return composerCommandResult
+	}
+	composerCommand := composerCommandResult.Value.(string)
+
+	installed := b.installDependencies(ctx, cfg, composerCommand)
+	if !installed.OK {
+		return installed
 	}
 
-	if err := b.installDependencies(ctx, cfg, composerCommand); err != nil {
-		return nil, err
+	hasBuildScriptResult := b.hasBuildScript(cfg.FS, cfg.ProjectDir)
+	if !hasBuildScriptResult.OK {
+		return hasBuildScriptResult
 	}
-
-	hasBuildScript, err := b.hasBuildScript(cfg.FS, cfg.ProjectDir)
-	if err != nil {
-		return nil, err
-	}
+	hasBuildScript := hasBuildScriptResult.Value.(bool)
 
 	var artifacts []build.Artifact
 	for _, target := range targets {
-		platformDir, err := ensurePlatformDir(filesystem, outputDir, target, "PHPBuilder.Build")
-		if err != nil {
-			return artifacts, err
+		platformDirResult := ensurePlatformDir(filesystem, outputDir, target, "PHPBuilder.Build")
+		if !platformDirResult.OK {
+			return platformDirResult
 		}
+		platformDir := platformDirResult.Value.(string)
 
 		env := configuredTargetEnv(cfg, target, standardTargetValues(outputDir, platformDir, target)...)
 
 		if hasBuildScript {
-			output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, env, composerCommand, "run-script", "build")
-			if err != nil {
-				return artifacts, coreerr.E("PHPBuilder.Build", "composer build failed: "+output, err)
+			output := ax.CombinedOutput(ctx, cfg.ProjectDir, env, composerCommand, "run-script", "build")
+			if !output.OK {
+				return core.Fail(core.E("PHPBuilder.Build", "composer build failed: "+output.Error(), core.NewError(output.Error())))
 			}
 		}
 
 		found := (&NodeBuilder{}).findArtifactsForTarget(filesystem, outputDir, target)
 		if len(found) == 0 {
 			bundlePath := ax.Join(platformDir, b.bundleName(cfg)+".zip")
-			if err := b.bundleProject(filesystem, cfg.ProjectDir, outputDir, bundlePath); err != nil {
-				return artifacts, err
+			bundled := b.bundleProject(filesystem, cfg.ProjectDir, outputDir, bundlePath)
+			if !bundled.OK {
+				return bundled
 			}
 
 			found = append(found, build.Artifact{
@@ -105,35 +110,36 @@ func (b *PHPBuilder) Build(ctx context.Context, cfg *build.Config, targets []bui
 		artifacts = append(artifacts, found...)
 	}
 
-	return artifacts, nil
+	return core.Ok(artifacts)
 }
 
 // installDependencies runs composer install once before the per-target build.
-func (b *PHPBuilder) installDependencies(ctx context.Context, cfg *build.Config, composerCommand string) error {
+func (b *PHPBuilder) installDependencies(ctx context.Context, cfg *build.Config, composerCommand string) core.Result {
 	args := []string{"install", "--no-interaction", "--no-dev", "--prefer-dist", "--optimize-autoloader"}
-	output, err := ax.CombinedOutput(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), composerCommand, args...)
-	if err != nil {
-		return coreerr.E("PHPBuilder.installDependencies", "composer install failed: "+output, err)
+	output := ax.CombinedOutput(ctx, cfg.ProjectDir, build.BuildEnvironment(cfg), composerCommand, args...)
+	if !output.OK {
+		return core.Fail(core.E("PHPBuilder.installDependencies", "composer install failed: "+output.Error(), core.NewError(output.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 // hasBuildScript reports whether composer.json defines a build script.
-func (b *PHPBuilder) hasBuildScript(fs io.Medium, projectDir string) (bool, error) {
-	content, err := fs.Read(ax.Join(projectDir, "composer.json"))
-	if err != nil {
-		return false, coreerr.E("PHPBuilder.hasBuildScript", "failed to read composer.json", err)
+func (b *PHPBuilder) hasBuildScript(fs storage.Medium, projectDir string) core.Result {
+	content := fs.Read(ax.Join(projectDir, "composer.json"))
+	if !content.OK {
+		return core.Fail(core.E("PHPBuilder.hasBuildScript", "failed to read composer.json", core.NewError(content.Error())))
 	}
 
 	var manifest struct {
 		Scripts map[string]any `json:"scripts"`
 	}
-	if err := ax.JSONUnmarshal([]byte(content), &manifest); err != nil {
-		return false, coreerr.E("PHPBuilder.hasBuildScript", "failed to parse composer.json", err)
+	decoded := ax.JSONUnmarshal([]byte(content.Value.(string)), &manifest)
+	if !decoded.OK {
+		return core.Fail(core.E("PHPBuilder.hasBuildScript", "failed to parse composer.json", core.NewError(decoded.Error())))
 	}
 
 	_, ok := manifest.Scripts["build"]
-	return ok, nil
+	return core.Ok(ok)
 }
 
 // bundleName returns the bundle filename stem.
@@ -148,7 +154,7 @@ func (b *PHPBuilder) bundleName(cfg *build.Config) string {
 }
 
 // bundleProject creates a zip bundle containing the project tree.
-func (b *PHPBuilder) bundleProject(fs io.Medium, projectDir, outputDir, bundlePath string) error {
+func (b *PHPBuilder) bundleProject(fs storage.Medium, projectDir, outputDir, bundlePath string) core.Result {
 	exclude := func(path string) bool {
 		return b.isExcludedPath(path, outputDir, bundlePath)
 	}
@@ -178,7 +184,7 @@ func (b *PHPBuilder) isExcludedPath(path, outputDir, bundlePath string) bool {
 }
 
 // resolveComposerCli returns the executable path for the composer CLI.
-func (b *PHPBuilder) resolveComposerCli(paths ...string) (string, error) {
+func (b *PHPBuilder) resolveComposerCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/composer",
@@ -187,12 +193,12 @@ func (b *PHPBuilder) resolveComposerCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("composer", paths...)
-	if err != nil {
-		return "", coreerr.E("PHPBuilder.resolveComposerCli", "composer CLI not found. Install it from https://getcomposer.org/", err)
+	command := ax.ResolveCommand("composer", paths...)
+	if !command.OK {
+		return core.Fail(core.E("PHPBuilder.resolveComposerCli", "composer CLI not found. Install it from https://getcomposer.org/", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }
 
 // Ensure PHPBuilder implements the Builder interface.

@@ -6,7 +6,8 @@ import (
 
 	"dappco.re/go/build/internal/ax"
 
-	"dappco.re/go/io"
+	core "dappco.re/go"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // setupTestDir creates a temporary directory with the specified marker files.
@@ -15,13 +16,49 @@ func setupTestDir(t *testing.T, markers ...string) string {
 	dir := t.TempDir()
 	for _, m := range markers {
 		path := ax.Join(dir, m)
-		err := ax.WriteFile(path, []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(path, []byte("{}"), 0644))
 
 	}
 	return dir
+}
+
+func requireDiscoveryOKResult(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requireDiscoveryTypes(t *testing.T, result core.Result) []ProjectType {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.([]ProjectType)
+}
+
+func requireDiscoveryPrimary(t *testing.T, result core.Result) ProjectType {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(ProjectType)
+}
+
+func requireDiscoveryFull(t *testing.T, result core.Result) *DiscoveryResult {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*DiscoveryResult)
+}
+
+func requireDiscoveryString(t *testing.T, result core.Result) string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
 }
 
 func setupDiscoveryFile(t *testing.T, relPath string, content string) string {
@@ -34,45 +71,32 @@ func setupDiscoveryFile(t *testing.T, relPath string, content string) string {
 func writeDiscoveryFile(t *testing.T, dir string, relPath string, content string) {
 	t.Helper()
 	path := ax.Join(dir, relPath)
-	if err := ax.MkdirAll(ax.Dir(path), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := ax.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireDiscoveryOKResult(t, ax.MkdirAll(ax.Dir(path), 0o755))
+	requireDiscoveryOKResult(t, ax.WriteFile(path, []byte(content), 0o644))
 }
 
-func assertDiscoverTypes(t *testing.T, fs io.Medium, dir string, want []ProjectType) {
+func assertDiscoverTypes(t *testing.T, fs storage.Medium, dir string, want []ProjectType) {
 	t.Helper()
 
-	types, err := Discover(fs, dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	types := requireDiscoveryTypes(t, Discover(fs, dir))
 	if !stdlibAssertEqual(want, types) {
 		t.Fatalf("want %v, got %v", want, types)
 	}
 }
 
-func assertDiscoverEmpty(t *testing.T, fs io.Medium, dir string) {
+func assertDiscoverEmpty(t *testing.T, fs storage.Medium, dir string) {
 	t.Helper()
 
-	types, err := Discover(fs, dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	types := requireDiscoveryTypes(t, Discover(fs, dir))
 	if !stdlibAssertEmpty(types) {
 		t.Fatalf("expected empty, got %v", types)
 	}
 }
 
-func assertDiscoverFullStack(t *testing.T, fs io.Medium, dir string, want []ProjectType, wantStack string, markers ...string) *DiscoveryResult {
+func assertDiscoverFullStack(t *testing.T, fs storage.Medium, dir string, want []ProjectType, wantStack string, markers ...string) *DiscoveryResult {
 	t.Helper()
 
-	result, err := DiscoverFull(fs, dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 	if !stdlibAssertEqual(want, result.Types) {
 		t.Fatalf("want %v, got %v", want, result.Types)
 	}
@@ -88,15 +112,13 @@ func assertDiscoverFullStack(t *testing.T, fs io.Medium, dir string, want []Proj
 }
 
 func TestDiscovery_Discover_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
+	_ = requireDiscoveryTypes(t, Discover(fs, setupTestDir(t, "go.mod")))
+
 	t.Run("prefers configured build type from .core/build.yaml", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocker})
 
@@ -104,21 +126,11 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 
 	t.Run("configured build type short-circuits marker detection", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0o644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocker})
 
@@ -157,12 +169,8 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 	t.Run("detects nested Node.js project", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "apps", "web")
-		if err := ax.MkdirAll(nested, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeNode})
 
@@ -171,12 +179,8 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 	t.Run("detects nested Deno project", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "apps", "site")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "deno.jsonc"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "deno.jsonc"), []byte("{}"), 0o644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeNode})
 
@@ -190,17 +194,11 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 
 	t.Run("detects Wails project from go.mod and nested frontend package.json", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
 
 		nested := ax.Join(dir, "apps", "web")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode})
 
@@ -208,17 +206,11 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 
 	t.Run("detects Wails project from go.work and frontend deno.json", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.26\nuse ."), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.26\nuse ."), 0o644))
 
 		frontend := ax.Join(dir, "frontend")
-		if err := ax.MkdirAll(frontend, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontend, "deno.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(frontend, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontend, "deno.json"), []byte("{}"), 0o644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode})
 
@@ -226,17 +218,11 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 
 	t.Run("detects Wails project from go.mod and nested frontend deno.jsonc", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
 
 		nested := ax.Join(dir, "apps", "site")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "deno.jsonc"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "deno.jsonc"), []byte("{}"), 0o644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode})
 
@@ -268,12 +254,8 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 
 	t.Run("detects docs project in docs directory", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, "docs"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "docs", "mkdocs.yml"), []byte("site_name: Demo\n"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, "docs"), 0755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "docs", "mkdocs.yml"), []byte("site_name: Demo\n"), 0644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocs})
 
@@ -281,12 +263,8 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 
 	t.Run("detects docs project in docs directory with mkdocs.yaml", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, "docs"), 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "docs", "mkdocs.yaml"), []byte("site_name: Demo\n"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, "docs"), 0755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "docs", "mkdocs.yaml"), []byte("site_name: Demo\n"), 0644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeDocs})
 
@@ -331,12 +309,8 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 	t.Run("detects LinuxKit project", func(t *testing.T) {
 		dir := t.TempDir()
 		lkDir := ax.Join(dir, ".core", "linuxkit")
-		if err := ax.MkdirAll(lkDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(lkDir, 0755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(lkDir, "server.yml"), []byte("kernel:\n"), 0644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeLinuxKit})
 
@@ -344,9 +318,7 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 
 	t.Run("detects LinuxKit project from yaml config", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "linuxkit.yaml"), []byte("kernel:\n"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "linuxkit.yaml"), []byte("kernel:\n"), 0644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeLinuxKit})
 
@@ -396,14 +368,9 @@ func TestDiscovery_Discover_Good(t *testing.T) {
 }
 
 func TestDiscovery_Discover_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("non-existent directory returns empty slice", func(t *testing.T) {
-		types, err := Discover(fs, "/non/existent/path")
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-				// ax.Stat fails silently in fileExists
-				err)
-		}
+		types := requireDiscoveryTypes(t, Discover(fs, "/non/existent/path"))
 		if !stdlibAssertEmpty(types) {
 			t.Fatalf("expected empty, got %v", types)
 		}
@@ -413,10 +380,7 @@ func TestDiscovery_Discover_Bad(t *testing.T) {
 	t.Run("directory marker is ignored", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create go.mod as a directory instead of a file
-		err := ax.Mkdir(ax.Join(dir, "go.mod"), 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.Mkdir(ax.Join(dir, "go.mod"), 0755))
 
 		assertDiscoverEmpty(t, fs, dir)
 
@@ -424,15 +388,9 @@ func TestDiscovery_Discover_Bad(t *testing.T) {
 
 	t.Run("unsupported configured build type is ignored", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: kotlin\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: kotlin\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
 		assertDiscoverTypes(t, fs, dir, []ProjectType{ProjectTypeGo})
 
@@ -440,20 +398,13 @@ func TestDiscovery_Discover_Bad(t *testing.T) {
 }
 
 func TestDiscovery_PrimaryType_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("returns configured build type from .core/build.yaml", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: taskfile\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: taskfile\n"), 0o644))
 
-		primary, err := PrimaryType(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		primary := requireDiscoveryPrimary(t, PrimaryType(fs, dir))
 		if !stdlibAssertEqual(ProjectTypeTaskfile, primary) {
 			t.Fatalf("want %v, got %v", ProjectTypeTaskfile, primary)
 		}
@@ -462,23 +413,12 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 
 	t.Run("returns configured type when markers disagree", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: taskfile\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: taskfile\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644))
 
-		primary, err := PrimaryType(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		primary := requireDiscoveryPrimary(t, PrimaryType(fs, dir))
 		if !stdlibAssertEqual(ProjectTypeTaskfile, primary) {
 			t.Fatalf("want %v, got %v", ProjectTypeTaskfile, primary)
 		}
@@ -487,10 +427,7 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 
 	t.Run("returns wails for wails project", func(t *testing.T) {
 		dir := setupTestDir(t, "wails.json", "go.mod")
-		primary, err := PrimaryType(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		primary := requireDiscoveryPrimary(t, PrimaryType(fs, dir))
 		if !stdlibAssertEqual(ProjectTypeWails, primary) {
 			t.Fatalf("want %v, got %v", ProjectTypeWails, primary)
 		}
@@ -499,10 +436,7 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 
 	t.Run("returns go for go-only project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
-		primary, err := PrimaryType(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		primary := requireDiscoveryPrimary(t, PrimaryType(fs, dir))
 		if !stdlibAssertEqual(ProjectTypeGo, primary) {
 			t.Fatalf("want %v, got %v", ProjectTypeGo, primary)
 		}
@@ -512,17 +446,10 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 	t.Run("returns node for nested package.json project", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "apps", "web")
-		if err := ax.MkdirAll(nested, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644))
 
-		primary, err := PrimaryType(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		primary := requireDiscoveryPrimary(t, PrimaryType(fs, dir))
 		if !stdlibAssertEqual(ProjectTypeNode, primary) {
 			t.Fatalf("want %v, got %v", ProjectTypeNode, primary)
 		}
@@ -531,10 +458,7 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 
 	t.Run("returns node for root deno project", func(t *testing.T) {
 		dir := setupTestDir(t, "deno.jsonc")
-		primary, err := PrimaryType(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		primary := requireDiscoveryPrimary(t, PrimaryType(fs, dir))
 		if !stdlibAssertEqual(ProjectTypeNode, primary) {
 			t.Fatalf("want %v, got %v", ProjectTypeNode, primary)
 		}
@@ -543,10 +467,7 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 
 	t.Run("returns node when mkdocs and package.json coexist", func(t *testing.T) {
 		dir := setupTestDir(t, "mkdocs.yml", "package.json")
-		primary, err := PrimaryType(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		primary := requireDiscoveryPrimary(t, PrimaryType(fs, dir))
 		if !stdlibAssertEqual(ProjectTypeNode, primary) {
 			t.Fatalf("want %v, got %v", ProjectTypeNode, primary)
 		}
@@ -555,22 +476,13 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 
 	t.Run("returns wails for go.mod with nested frontend package.json", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
 
 		nested := ax.Join(dir, "apps", "web")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
 
-		primary, err := PrimaryType(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		primary := requireDiscoveryPrimary(t, PrimaryType(fs, dir))
 		if !stdlibAssertEqual(ProjectTypeWails, primary) {
 			t.Fatalf("want %v, got %v", ProjectTypeWails, primary)
 		}
@@ -579,10 +491,7 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 
 	t.Run("returns empty string for empty directory", func(t *testing.T) {
 		dir := t.TempDir()
-		primary, err := PrimaryType(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		primary := requireDiscoveryPrimary(t, PrimaryType(fs, dir))
 		if !stdlibAssertEmpty(primary) {
 			t.Fatalf("expected empty, got %v", primary)
 		}
@@ -591,7 +500,7 @@ func TestDiscovery_PrimaryType_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsGoProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with go.mod", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod")
 		if !(IsGoProject(fs, dir)) {
@@ -626,7 +535,7 @@ func TestDiscovery_IsGoProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsWailsProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with wails.json", func(t *testing.T) {
 		dir := setupTestDir(t, "wails.json")
 		if !(IsWailsProject(fs, dir)) {
@@ -645,17 +554,11 @@ func TestDiscovery_IsWailsProject_Good(t *testing.T) {
 
 	t.Run("true with go.mod and nested frontend package.json", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example"), 0o644))
 
 		nested := ax.Join(dir, "apps", "web")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
 		if !(IsWailsProject(fs, dir)) {
 			t.Fatal("expected true")
 		}
@@ -664,17 +567,11 @@ func TestDiscovery_IsWailsProject_Good(t *testing.T) {
 
 	t.Run("true with go.work and frontend deno.json", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.26\nuse ."), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.work"), []byte("go 1.26\nuse ."), 0o644))
 
 		frontend := ax.Join(dir, "frontend")
-		if err := ax.MkdirAll(frontend, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontend, "deno.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(frontend, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontend, "deno.json"), []byte("{}"), 0o644))
 		if !(IsWailsProject(fs, dir)) {
 			t.Fatal("expected true")
 		}
@@ -691,7 +588,7 @@ func TestDiscovery_IsWailsProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsNodeProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 
 	t.Run("true with package.json", func(t *testing.T) {
 		dir := setupTestDir(t, "package.json")
@@ -720,12 +617,8 @@ func TestDiscovery_IsNodeProject_Good(t *testing.T) {
 	t.Run("true with frontend package.json", func(t *testing.T) {
 		dir := t.TempDir()
 		frontend := ax.Join(dir, "frontend")
-		if err := ax.MkdirAll(frontend, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontend, "package.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(frontend, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontend, "package.json"), []byte("{}"), 0o644))
 		if !(IsNodeProject(fs, dir)) {
 			t.Fatal("expected true")
 		}
@@ -735,12 +628,8 @@ func TestDiscovery_IsNodeProject_Good(t *testing.T) {
 	t.Run("true with nested package.json", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "apps", "web")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0o644))
 		if !(IsNodeProject(fs, dir)) {
 			t.Fatal("expected true")
 		}
@@ -750,12 +639,8 @@ func TestDiscovery_IsNodeProject_Good(t *testing.T) {
 	t.Run("true with nested deno.json", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "apps", "docs")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "deno.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "deno.json"), []byte("{}"), 0o644))
 		if !(IsNodeProject(fs, dir)) {
 			t.Fatal("expected true")
 		}
@@ -771,7 +656,7 @@ func TestDiscovery_IsNodeProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsPHPProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with composer.json", func(t *testing.T) {
 		dir := setupTestDir(t, "composer.json")
 		if !(IsPHPProject(fs, dir)) {
@@ -797,15 +682,12 @@ func TestDiscovery_Target_Good(t *testing.T) {
 
 }
 
-func TestDiscovery_FileExists_Good(t *testing.T) {
-	fs := io.Local
+func TestDiscovery_FileExistsGood(t *testing.T) {
+	fs := storage.Local
 	t.Run("returns true for existing file", func(t *testing.T) {
 		dir := t.TempDir()
 		path := ax.Join(dir, "test.txt")
-		err := ax.WriteFile(path, []byte("content"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(path, []byte("content"), 0644))
 		if !(fileExists(fs, path)) {
 			t.Fatal("expected true")
 		}
@@ -830,12 +712,9 @@ func TestDiscovery_FileExists_Good(t *testing.T) {
 
 // TestDiscover_Testdata tests discovery using the testdata fixtures.
 // These serve as integration tests with realistic project structures.
-func TestDiscovery_DiscoverTestdata_Good(t *testing.T) {
-	fs := io.Local
-	testdataDir, err := ax.Abs("testdata")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+func TestDiscovery_DiscoverTestdataGood(t *testing.T) {
+	fs := storage.Local
+	testdataDir := requireDiscoveryString(t, ax.Abs("testdata"))
 
 	tests := []struct {
 		name     string
@@ -856,10 +735,7 @@ func TestDiscovery_DiscoverTestdata_Good(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := ax.Join(testdataDir, tt.dir)
-			types, err := Discover(fs, dir)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			types := requireDiscoveryTypes(t, Discover(fs, dir))
 
 			if len(tt.expected) == 0 {
 				if !stdlibAssertEmpty(types) {
@@ -877,7 +753,7 @@ func TestDiscovery_DiscoverTestdata_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsMkDocsProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with mkdocs.yml", func(t *testing.T) {
 		dir := setupTestDir(t, "mkdocs.yml")
 		if !(IsMkDocsProject(fs, dir)) {
@@ -897,12 +773,8 @@ func TestDiscovery_IsMkDocsProject_Good(t *testing.T) {
 	t.Run("true with nested mkdocs.yml", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "docs", "guide")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "mkdocs.yml"), []byte("site_name: Guide"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "mkdocs.yml"), []byte("site_name: Guide"), 0o644))
 		if !(IsMkDocsProject(fs, dir)) {
 			t.Fatal("expected true")
 		}
@@ -919,7 +791,7 @@ func TestDiscovery_IsMkDocsProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsMkDocsProject_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false for non-existent directory", func(t *testing.T) {
 		if IsMkDocsProject(fs, "/non/existent/path") {
 			t.Fatal("expected false")
@@ -929,13 +801,10 @@ func TestDiscovery_IsMkDocsProject_Bad(t *testing.T) {
 }
 
 func TestDiscovery_IsMkDocsProject_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false when mkdocs.yml is a directory", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.Mkdir(ax.Join(dir, "mkdocs.yml"), 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.Mkdir(ax.Join(dir, "mkdocs.yml"), 0755))
 		if IsMkDocsProject(fs, dir) {
 			t.Fatal("expected false")
 		}
@@ -944,19 +813,13 @@ func TestDiscovery_IsMkDocsProject_Ugly(t *testing.T) {
 }
 
 func TestDiscovery_HasSubtreeNpm_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with depth 1 nested package.json", func(t *testing.T) {
 		dir := t.TempDir()
 		subdir := ax.Join(dir, "packages", "web")
-		err := ax.MkdirAll(subdir, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(subdir, 0755))
 
-		err = ax.WriteFile(ax.Join(dir, "packages", "package.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "packages", "package.json"), []byte("{}"), 0644))
 		if !(HasSubtreeNpm(fs, dir)) {
 			t.Fatal("expected true")
 		}
@@ -966,15 +829,9 @@ func TestDiscovery_HasSubtreeNpm_Good(t *testing.T) {
 	t.Run("true with depth 2 nested package.json", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "apps", "web")
-		err := ax.MkdirAll(nested, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0755))
 
-		err = ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644))
 		if !(HasSubtreeNpm(fs, dir)) {
 			t.Fatal("expected true")
 		}
@@ -992,12 +849,8 @@ func TestDiscovery_HasSubtreeNpm_Good(t *testing.T) {
 	t.Run("false with only frontend package.json", func(t *testing.T) {
 		dir := t.TempDir()
 		frontendDir := ax.Join(dir, "frontend")
-		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(frontendDir, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0o644))
 		if HasSubtreeNpm(fs, dir) {
 			t.Fatal("expected false")
 		}
@@ -1014,7 +867,7 @@ func TestDiscovery_HasSubtreeNpm_Good(t *testing.T) {
 }
 
 func TestDiscovery_HasSubtreeNpm_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false for non-existent directory", func(t *testing.T) {
 		if HasSubtreeNpm(fs, "/non/existent/path") {
 			t.Fatal("expected false")
@@ -1025,15 +878,9 @@ func TestDiscovery_HasSubtreeNpm_Bad(t *testing.T) {
 	t.Run("ignores node_modules at depth 1", func(t *testing.T) {
 		dir := t.TempDir()
 		nmDir := ax.Join(dir, "node_modules", "some-pkg")
-		err := ax.MkdirAll(nmDir, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nmDir, 0755))
 
-		err = ax.WriteFile(ax.Join(nmDir, "package.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nmDir, "package.json"), []byte("{}"), 0644))
 		if HasSubtreeNpm(fs, dir) {
 			t.Fatal("expected false")
 		}
@@ -1043,18 +890,10 @@ func TestDiscovery_HasSubtreeNpm_Bad(t *testing.T) {
 	t.Run("ignores node_modules at depth 2", func(t *testing.T) {
 		dir := t.TempDir()
 		nmDir := ax.Join(dir, "apps", "node_modules", "some-pkg")
-		err := ax.MkdirAll(nmDir, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nmDir, 0755))
 
-		err = ax.WriteFile(ax.Join(nmDir, "package.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Also need the apps dir to be listable — it is since we created nmDir inside it
-				err)
-		}
+		// Also need the apps dir to be listable; it is since nmDir is inside it.
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nmDir, "package.json"), []byte("{}"), 0644))
 		if HasSubtreeNpm(fs, dir) {
 			t.Fatal("expected false")
 		}
@@ -1064,12 +903,8 @@ func TestDiscovery_HasSubtreeNpm_Bad(t *testing.T) {
 	t.Run("ignores hidden directories", func(t *testing.T) {
 		dir := t.TempDir()
 		hiddenDir := ax.Join(dir, ".turbo", "web")
-		if err := ax.MkdirAll(hiddenDir, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(hiddenDir, "package.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(hiddenDir, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(hiddenDir, "package.json"), []byte("{}"), 0o644))
 		if HasSubtreeNpm(fs, dir) {
 			t.Fatal("expected false")
 		}
@@ -1078,19 +913,13 @@ func TestDiscovery_HasSubtreeNpm_Bad(t *testing.T) {
 }
 
 func TestDiscovery_HasSubtreeNpm_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false when nested package.json is beyond depth 2", func(t *testing.T) {
 		dir := t.TempDir()
 		deep := ax.Join(dir, "a", "b", "c")
-		err := ax.MkdirAll(deep, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(deep, 0755))
 
-		err = ax.WriteFile(ax.Join(deep, "package.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(deep, "package.json"), []byte("{}"), 0644))
 		if HasSubtreeNpm(fs, dir) {
 			t.Fatal("expected false")
 		}
@@ -1099,7 +928,7 @@ func TestDiscovery_HasSubtreeNpm_Ugly(t *testing.T) {
 }
 
 func TestDiscovery_IsPythonProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with pyproject.toml", func(t *testing.T) {
 		dir := setupTestDir(t, "pyproject.toml")
 		if !(IsPythonProject(fs, dir)) {
@@ -1134,7 +963,7 @@ func TestDiscovery_IsPythonProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsPythonProject_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false for non-existent directory", func(t *testing.T) {
 		if IsPythonProject(fs, "/non/existent/path") {
 			t.Fatal("expected false")
@@ -1144,13 +973,10 @@ func TestDiscovery_IsPythonProject_Bad(t *testing.T) {
 }
 
 func TestDiscovery_IsPythonProject_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false when pyproject.toml is a directory", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.Mkdir(ax.Join(dir, "pyproject.toml"), 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.Mkdir(ax.Join(dir, "pyproject.toml"), 0755))
 		if IsPythonProject(fs, dir) {
 			t.Fatal("expected false")
 		}
@@ -1159,7 +985,7 @@ func TestDiscovery_IsPythonProject_Ugly(t *testing.T) {
 }
 
 func TestDiscovery_IsRustProject_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("true with Cargo.toml", func(t *testing.T) {
 		dir := setupTestDir(t, "Cargo.toml")
 		if !(IsRustProject(fs, dir)) {
@@ -1178,7 +1004,7 @@ func TestDiscovery_IsRustProject_Good(t *testing.T) {
 }
 
 func TestDiscovery_IsRustProject_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false for non-existent directory", func(t *testing.T) {
 		if IsRustProject(fs, "/non/existent/path") {
 			t.Fatal("expected false")
@@ -1188,13 +1014,10 @@ func TestDiscovery_IsRustProject_Bad(t *testing.T) {
 }
 
 func TestDiscovery_IsRustProject_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("false when Cargo.toml is a directory", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.Mkdir(ax.Join(dir, "Cargo.toml"), 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.Mkdir(ax.Join(dir, "Cargo.toml"), 0755))
 		if IsRustProject(fs, dir) {
 			t.Fatal("expected false")
 		}
@@ -1203,26 +1026,15 @@ func TestDiscovery_IsRustProject_Ugly(t *testing.T) {
 }
 
 func TestDiscovery_DiscoverFull_Good(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("configured build type stays authoritative in full discovery", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: docker\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeDocker}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeDocker}, result.Types)
 		}
@@ -1249,10 +1061,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("returns complete result for Go project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod", "main.go")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeGo}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeGo}, result.Types)
 		}
@@ -1304,17 +1113,10 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	t.Run("detects nested MkDocs configuration", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "docs", "guide")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "mkdocs.yaml"), []byte("site_name: Guide"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "mkdocs.yaml"), []byte("site_name: Guide"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !(result.HasDocsConfig) {
 			t.Fatal("expected true")
 		}
@@ -1329,17 +1131,10 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("prefers Go stack suggestion when docs and Go toolchain coexist", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "mkdocs.yml"), []byte("site_name: Demo\n"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeGo, ProjectTypeDocs}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeGo, ProjectTypeDocs}, result.Types)
 		}
@@ -1370,10 +1165,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		t.Setenv("GITHUB_REPOSITORY", "dappcore/core")
 
 		dir := setupTestDir(t, "go.mod")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual("refs/tags/v1.2.3", result.Ref) {
 			t.Fatalf("want %v, got %v", "refs/tags/v1.2.3", result.Ref)
 		}
@@ -1404,14 +1196,9 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 		t.Setenv("GITHUB_REPOSITORY", "")
 
 		dir, sha := initGitMetadataRepo(t)
-		if err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual(sha, result.SHA) {
 			t.Fatalf("want %v, got %v", sha, result.SHA)
 		}
@@ -1438,10 +1225,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("returns complete result for Go workspace project", func(t *testing.T) {
 		dir := setupTestDir(t, "go.work")
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeGo}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeGo}, result.Types)
 		}
@@ -1460,30 +1244,15 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	t.Run("returns complete result for Wails project with frontend", func(t *testing.T) {
 		dir := t.TempDir()
 
-		err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0644))
 
-		err = ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644))
 
-		err = ax.MkdirAll(ax.Join(dir, "frontend"), 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, "frontend"), 0755))
 
-		err = ax.WriteFile(ax.Join(dir, "frontend", "package.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "frontend", "package.json"), []byte("{}"), 0644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		}
@@ -1525,26 +1294,14 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("detects subtree npm as frontend", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644))
 
 		nested := ax.Join(dir, "apps", "web")
-		err = ax.MkdirAll(nested, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0755))
 
-		err = ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "package.json"), []byte("{}"), 0644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		}
@@ -1565,14 +1322,9 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("detects root package.json as frontend", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "package.json"), []byte("{}"), 0644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeNode}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode}, result.Types)
 		}
@@ -1620,14 +1372,9 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("detects root deno.json as node project", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "deno.json"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "deno.json"), []byte("{}"), 0644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeNode}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode}, result.Types)
 		}
@@ -1649,10 +1396,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	t.Run("detects go.mod with root package.json as Wails", func(t *testing.T) {
 		dir := setupTestDir(t, "go.mod", "package.json")
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		}
@@ -1688,23 +1432,13 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("detects frontend deno manifest at project root", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644))
 
 		frontendDir := ax.Join(dir, "frontend")
-		if err := ax.MkdirAll(frontendDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(frontendDir, 0755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		}
@@ -1737,23 +1471,13 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("detects nested deno frontend manifests", func(t *testing.T) {
 		dir := t.TempDir()
-		err := ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "go.mod"), []byte("{}"), 0644))
 
 		frontendDir := ax.Join(dir, "apps", "site")
-		if err := ax.MkdirAll(frontendDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontendDir, "deno.jsonc"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(frontendDir, 0755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontendDir, "deno.jsonc"), []byte("{}"), 0644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails, ProjectTypeGo, ProjectTypeNode}, result.Types)
 		}
@@ -1772,17 +1496,10 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	t.Run("detects nested deno project as node", func(t *testing.T) {
 		dir := t.TempDir()
 		frontendDir := ax.Join(dir, "apps", "site")
-		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontendDir, "deno.jsonc"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(frontendDir, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontendDir, "deno.jsonc"), []byte("{}"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeNode}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode}, result.Types)
 		}
@@ -1804,17 +1521,10 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	t.Run("detects nested deno subtree manifests in full discovery", func(t *testing.T) {
 		dir := t.TempDir()
 		frontendDir := ax.Join(dir, "apps", "site")
-		if err := ax.MkdirAll(frontendDir, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(frontendDir, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontendDir, "deno.json"), []byte("{}"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeNode}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeNode}, result.Types)
 		}
@@ -1836,20 +1546,11 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	t.Run("records frontend package manifest markers", func(t *testing.T) {
 		dir := t.TempDir()
 		frontendDir := ax.Join(dir, "frontend")
-		if err := ax.MkdirAll(frontendDir, 0755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(frontendDir, "deno.jsonc"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(frontendDir, 0755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontendDir, "package.json"), []byte("{}"), 0644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(frontendDir, "deno.jsonc"), []byte("{}"), 0644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !(result.HasFrontend) {
 			t.Fatal("expected true")
 		}
@@ -1864,20 +1565,11 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("records the build config marker and prefers configured type", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: cpp\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "Dockerfile"), []byte("FROM alpine\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: cpp\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "Dockerfile"), []byte("FROM alpine\n"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeCPP}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeCPP}, result.Types)
 		}
@@ -1904,20 +1596,11 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("records workflow-facing marker aliases", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(dir, "composer.json"), []byte("{}"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "Cargo.toml"), []byte("[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, "Taskfile.yaml"), []byte("version: '3'\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "composer.json"), []byte("{}"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "Cargo.toml"), []byte("[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"), 0o644))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, "Taskfile.yaml"), []byte("version: '3'\n"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !(result.HasRootComposerJSON) {
 			t.Fatal("expected true")
 		}
@@ -1935,17 +1618,10 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("maps configured wails type to the action stack suggestion", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := ax.MkdirAll(ax.Join(dir, ".core"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: wails\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(ax.Join(dir, ".core"), 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(dir, ".core", "build.yaml"), []byte("build:\n  type: wails\n"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEqual([]ProjectType{ProjectTypeWails}, result.Types) {
 			t.Fatalf("want %v, got %v", []ProjectType{ProjectTypeWails}, result.Types)
 		}
@@ -1962,24 +1638,13 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	})
 
 	t.Run("reports distro-aware Linux packages for Wails projects", func(t *testing.T) {
-		mock := io.NewMemoryMedium()
-		if err := mock.EnsureDir("/project"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := mock.Write("/project/go.mod", "module example"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := mock.Write("/project/package.json", "{}"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := mock.Write("/etc/os-release", "ID=ubuntu\nVERSION_ID=\"24.04\"\n"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		mock := storage.NewMemoryMedium()
+		requireDiscoveryOKResult(t, mock.EnsureDir("/project"))
+		requireDiscoveryOKResult(t, mock.Write("/project/go.mod", "module example"))
+		requireDiscoveryOKResult(t, mock.Write("/project/package.json", "{}"))
+		requireDiscoveryOKResult(t, mock.Write("/etc/os-release", "ID=ubuntu\nVERSION_ID=\"24.04\"\n"))
 
-		result, err := DiscoverFull(mock, "/project")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(mock, "/project"))
 		if !stdlibAssertEqual([]string{"libwebkit2gtk-4.1-dev"}, result.LinuxPackages) {
 			t.Fatalf("want %v, got %v", []string{"libwebkit2gtk-4.1-dev"}, result.LinuxPackages)
 		}
@@ -1991,10 +1656,7 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 
 	t.Run("empty directory returns empty result", func(t *testing.T) {
 		dir := t.TempDir()
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEmpty(result.Types) {
 			t.Fatalf("expected empty, got %v", result.Types)
 		}
@@ -2176,17 +1838,10 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 	t.Run("reports nested Go toolchains for action parity even when root detection is empty", func(t *testing.T) {
 		dir := t.TempDir()
 		nested := ax.Join(dir, "services", "api")
-		if err := ax.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := ax.WriteFile(ax.Join(nested, "go.mod"), []byte("module example/api\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireDiscoveryOKResult(t, ax.MkdirAll(nested, 0o755))
+		requireDiscoveryOKResult(t, ax.WriteFile(ax.Join(nested, "go.mod"), []byte("module example/api\n"), 0o644))
 
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if !stdlibAssertEmpty(result.Types) {
 			t.Fatalf("expected empty, got %v", result.Types)
 		}
@@ -2207,12 +1862,9 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 }
 
 func TestDiscovery_DiscoverFull_Bad(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("non-existent directory returns empty result", func(t *testing.T) {
-		result, err := DiscoverFull(fs, "/non/existent/path")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, "/non/existent/path"))
 		if !stdlibAssertEmpty(result.Types) {
 			t.Fatalf("expected empty, got %v", result.Types)
 		}
@@ -2224,13 +1876,10 @@ func TestDiscovery_DiscoverFull_Bad(t *testing.T) {
 }
 
 func TestDiscovery_DiscoverFull_Ugly(t *testing.T) {
-	fs := io.Local
+	fs := storage.Local
 	t.Run("markers map is never nil even for empty directory", func(t *testing.T) {
 		dir := t.TempDir()
-		result, err := DiscoverFull(fs, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requireDiscoveryFull(t, DiscoverFull(fs, dir))
 		if stdlibAssertNil(result.Markers) {
 			t.Fatal("expected non-nil")
 		}
@@ -2296,7 +1945,7 @@ func TestDiscovery_ResolveLinuxPackages_Good(t *testing.T) {
 	})
 }
 
-func TestDiscovery_ParseOSReleaseDistro_Good(t *testing.T) {
+func TestDiscovery_ParseOSReleaseDistroGood(t *testing.T) {
 	t.Run("returns ubuntu version id", func(t *testing.T) {
 		content := `
 NAME="Ubuntu"
@@ -2322,7 +1971,7 @@ VERSION_ID=25.10
 	})
 }
 
-func TestDiscovery_ParseOSReleaseDistro_Bad(t *testing.T) {
+func TestDiscovery_ParseOSReleaseDistroBad(t *testing.T) {
 	t.Run("returns empty for non-ubuntu distro", func(t *testing.T) {
 		content := `
 ID=fedora
@@ -2345,49 +1994,39 @@ ID=ubuntu
 	})
 }
 
-func TestDiscovery_DetectDistroVersion_Good(t *testing.T) {
-	fs := io.NewMemoryMedium()
-	if err := fs.Write("/etc/os-release", `
+func TestDiscovery_DetectDistroVersionGood(t *testing.T) {
+	fs := storage.NewMemoryMedium()
+	requireDiscoveryOKResult(t, fs.Write("/etc/os-release", `
 ID=ubuntu
 VERSION_ID="24.04"
-`); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`))
 	if !stdlibAssertEqual("24.04", detectDistroVersion(fs)) {
 		t.Fatalf("want %v, got %v", "24.04", detectDistroVersion(fs))
 	}
 
 }
 
-func TestDiscovery_DetectDistroVersion_Bad(t *testing.T) {
-	fs := io.NewMemoryMedium()
-	if err := fs.Write("/etc/os-release", `
+func TestDiscovery_DetectDistroVersionBad(t *testing.T) {
+	fs := storage.NewMemoryMedium()
+	requireDiscoveryOKResult(t, fs.Write("/etc/os-release", `
 ID=fedora
 VERSION_ID=41
-`); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+`))
 	if !stdlibAssertEmpty(detectDistroVersion(fs)) {
 		t.Fatalf("expected empty, got %v", detectDistroVersion(fs))
 	}
 
 }
 
-func TestDiscovery_NilMedium_Good(t *testing.T) {
+func TestDiscovery_NilMediumGood(t *testing.T) {
 	dir := t.TempDir()
 
-	types, err := Discover(nil, dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	types := requireDiscoveryTypes(t, Discover(nil, dir))
 	if !stdlibAssertEmpty(types) {
 		t.Fatalf("expected empty, got %v", types)
 	}
 
-	result, err := DiscoverFull(nil, dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireDiscoveryFull(t, DiscoverFull(nil, dir))
 	if stdlibAssertNil(result) {
 		t.Fatal("expected non-nil")
 	}
@@ -2395,4 +2034,329 @@ func TestDiscovery_NilMedium_Good(t *testing.T) {
 		t.Fatalf("expected empty, got %v", result.Types)
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestDiscovery_Discover_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Discover(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_PrimaryType_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = PrimaryType(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_PrimaryType_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = PrimaryType(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_IsGoProject_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsGoProject(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_IsGoProject_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsGoProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_IsWailsProject_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsWailsProject(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_IsWailsProject_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsWailsProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_IsNodeProject_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsNodeProject(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_IsNodeProject_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsNodeProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_IsPHPProject_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsPHPProject(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_IsPHPProject_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsPHPProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_IsCPPProject_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsCPPProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDiscovery_IsCPPProject_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsCPPProject(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_IsCPPProject_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsCPPProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_IsDocsProject_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsDocsProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDiscovery_IsDocsProject_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsDocsProject(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_IsDocsProject_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsDocsProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_ResolveMkDocsConfigPath_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveMkDocsConfigPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDiscovery_ResolveMkDocsConfigPath_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveMkDocsConfigPath(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_ResolveMkDocsConfigPath_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveMkDocsConfigPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_SuggestStack_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = SuggestStack(nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_SuggestStack_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = SuggestStack(nil)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_ResolveLinuxPackages_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveLinuxPackages(nil, "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_ResolveLinuxPackages_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveLinuxPackages(nil, "agent")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_ResolveDockerfilePath_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveDockerfilePath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDiscovery_ResolveDockerfilePath_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveDockerfilePath(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_ResolveDockerfilePath_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ResolveDockerfilePath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_IsDockerProject_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsDockerProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDiscovery_IsDockerProject_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsDockerProject(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_IsDockerProject_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsDockerProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_IsLinuxKitProject_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsLinuxKitProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDiscovery_IsLinuxKitProject_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsLinuxKitProject(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_IsLinuxKitProject_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsLinuxKitProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDiscovery_IsTaskfileProject_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsTaskfileProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDiscovery_IsTaskfileProject_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsTaskfileProject(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDiscovery_IsTaskfileProject_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IsTaskfileProject(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

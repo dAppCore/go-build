@@ -11,15 +11,13 @@ package sdkcmd
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/internal/sdkcfg"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/core"
-	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 	"github.com/oasdiff/oasdiff/checker"
 )
 
@@ -42,20 +40,20 @@ func AddSDKCommands(c *core.Core) {
 	c.Command("sdk/diff", core.Command{
 		Description: "cmd.sdk.diff.long",
 		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runSDKDiff(
+			return runSDKDiff(
 				cmdutil.OptionString(opts, "base"),
 				cmdutil.OptionString(opts, "spec"),
 				cmdutil.OptionBool(opts, "fail-on-warn", "fail_on_warn"),
-			))
+			)
 		},
 	})
 
 	c.Command("sdk/validate", core.Command{
 		Description: "cmd.sdk.validate.long",
 		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runSDKValidate(
+			return runSDKValidate(
 				cmdutil.OptionString(opts, "spec"),
-			))
+			)
 		},
 	})
 }
@@ -64,32 +62,34 @@ func registerSDKGenerateCommand(c *core.Core, path string) {
 	c.Command(path, core.Command{
 		Description: "cmd.sdk.long",
 		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runSDKGenerate(
+			return runSDKGenerate(
 				cmdutil.ContextOrBackground(),
 				cmdutil.OptionString(opts, "spec"),
 				cmdutil.OptionString(opts, "lang"),
 				cmdutil.OptionString(opts, "version"),
 				cmdutil.OptionBool(opts, "dry-run"),
 				cmdutil.OptionBool(opts, "skip-unavailable", "skip_unavailable"),
-			))
+			)
 		},
 	})
 }
 
-func runSDKGenerate(ctx context.Context, specPath, lang, version string, dryRun bool, skipUnavailable bool) error {
-	projectDir, err := ax.Getwd()
-	if err != nil {
-		return coreerr.E("sdk.Generate", "failed to get working directory", err)
+func runSDKGenerate(ctx context.Context, specPath, lang, version string, dryRun bool, skipUnavailable bool) core.Result {
+	projectDirResult := ax.Getwd()
+	if !projectDirResult.OK {
+		return core.Fail(core.E("sdk.Generate", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
+	projectDir := projectDirResult.Value.(string)
 
 	return runSDKGenerateInDir(ctx, projectDir, specPath, lang, version, dryRun, skipUnavailable)
 }
 
-func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool, skipUnavailable bool) error {
-	config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
-	if err != nil {
-		return coreerr.E("sdk.Generate", "failed to load sdk config", err)
+func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool, skipUnavailable bool) core.Result {
+	configResult := sdkcfg.LoadProjectConfig(storage.Local, projectDir)
+	if !configResult.OK {
+		return core.Fail(core.E("sdk.Generate", "failed to load sdk config", core.NewError(configResult.Error())))
 	}
+	config := configResult.Value.(*sdk.Config)
 	if specPath != "" {
 		config.Spec = specPath
 	}
@@ -103,47 +103,50 @@ func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, versio
 	}
 	resolvedConfig := s.Config()
 
-	cli.Print("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.build.sdk.label")), i18n.T("cmd.build.sdk.generating"))
+	cli.Print("%s %s\n", sdkHeaderStyle.Render("SDK"), "Generating SDKs")
 	if dryRun {
-		cli.Print("  %s\n", sdkDimStyle.Render(i18n.T("cmd.build.sdk.dry_run_mode")))
+		cli.Print("  %s\n", sdkDimStyle.Render("Dry run mode"))
 	}
 	cli.Blank()
 
-	detectedSpec, err := s.ValidateSpec(ctx)
-	if err != nil {
-		cli.Print("%s %v\n", sdkErrorStyle.Render(i18n.T("common.label.error")), err)
-		return err
+	detectedSpecResult := s.ValidateSpec(ctx)
+	if !detectedSpecResult.OK {
+		cli.Print("%s %v\n", sdkErrorStyle.Render("error"), detectedSpecResult.Error())
+		return detectedSpecResult
 	}
-	cli.Print("  %s %s\n", i18n.T("common.label.spec"), sdkTargetStyle.Render(detectedSpec))
+	detectedSpec := detectedSpecResult.Value.(string)
+	cli.Print("  %s %s\n", "spec", sdkTargetStyle.Render(detectedSpec))
 
 	if dryRun {
 		if lang != "" {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.language_label"), sdkTargetStyle.Render(lang))
+			cli.Print("  %s %s\n", "language", sdkTargetStyle.Render(lang))
 		} else {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.languages_label"), sdkTargetStyle.Render(core.Join(", ", resolvedConfig.Languages...)))
+			cli.Print("  %s %s\n", "languages", sdkTargetStyle.Render(core.Join(", ", resolvedConfig.Languages...)))
 		}
 		cli.Blank()
-		cli.Print("%s %s\n", sdkSuccessStyle.Render(i18n.T("cmd.build.label.ok")), i18n.T("cmd.build.sdk.would_generate"))
-		return nil
+		cli.Print("%s %s\n", sdkSuccessStyle.Render("OK"), "Would generate SDKs")
+		return core.Ok(nil)
 	}
 
 	if lang != "" {
-		result, err := s.GenerateLanguageWithStatus(ctx, lang)
-		if err != nil {
-			cli.Print("%s %v\n", sdkErrorStyle.Render(i18n.T("common.label.error")), err)
-			return err
+		result := s.GenerateLanguageWithStatus(ctx, lang)
+		if !result.OK {
+			cli.Print("%s %v\n", sdkErrorStyle.Render("error"), result.Error())
+			return result
 		}
-		if result.Skipped {
-			cli.Print("  %s %s\n", "Skipped:", sdkTargetStyle.Render(result.Language))
+		status := result.Value.(sdk.LanguageResult)
+		if status.Skipped {
+			cli.Print("  %s %s\n", "Skipped:", sdkTargetStyle.Render(status.Language))
 		} else {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), sdkTargetStyle.Render(result.Language))
+			cli.Print("  %s %s\n", "generated", sdkTargetStyle.Render(status.Language))
 		}
 	} else {
-		results, err := s.GenerateWithStatus(ctx)
-		if err != nil {
-			cli.Print("%s %v\n", sdkErrorStyle.Render(i18n.T("common.label.error")), err)
-			return err
+		resultsResult := s.GenerateWithStatus(ctx)
+		if !resultsResult.OK {
+			cli.Print("%s %v\n", sdkErrorStyle.Render("error"), resultsResult.Error())
+			return resultsResult
 		}
+		results := resultsResult.Value.([]sdk.LanguageResult)
 		generated := make([]string, 0, len(results))
 		skipped := make([]string, 0)
 		for _, result := range results {
@@ -155,7 +158,7 @@ func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, versio
 			}
 		}
 		if len(generated) > 0 {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), sdkTargetStyle.Render(core.Join(", ", generated...)))
+			cli.Print("  %s %s\n", "generated", sdkTargetStyle.Render(core.Join(", ", generated...)))
 		}
 		if len(skipped) > 0 {
 			cli.Print("  %s %s\n", "Skipped:", sdkTargetStyle.Render(core.Join(", ", skipped...)))
@@ -163,40 +166,43 @@ func runSDKGenerateInDir(ctx context.Context, projectDir, specPath, lang, versio
 	}
 
 	cli.Blank()
-	cli.Print("%s %s\n", sdkSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.sdk.complete"))
-	return nil
+	cli.Print("%s %s\n", sdkSuccessStyle.Render("Success"), "SDK generation complete")
+	return core.Ok(nil)
 }
 
-func runSDKDiff(basePath, specPath string, failOnWarn bool) error {
-	projectDir, err := ax.Getwd()
-	if err != nil {
-		return coreerr.E("sdk.Diff", "failed to get working directory", err)
+func runSDKDiff(basePath, specPath string, failOnWarn bool) core.Result {
+	projectDirResult := ax.Getwd()
+	if !projectDirResult.OK {
+		return core.Fail(core.E("sdk.Diff", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
+	projectDir := projectDirResult.Value.(string)
 
 	return runSDKDiffInDir(projectDir, basePath, specPath, failOnWarn)
 }
 
-func runSDKDiffInDir(projectDir, basePath, specPath string, failOnWarn bool) error {
+func runSDKDiffInDir(projectDir, basePath, specPath string, failOnWarn bool) core.Result {
 	if specPath == "" {
-		config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
-		if err != nil {
-			return coreerr.E("sdk.Diff", "failed to load sdk config", err)
+		configResult := sdkcfg.LoadProjectConfig(storage.Local, projectDir)
+		if !configResult.OK {
+			return core.Fail(core.E("sdk.Diff", "failed to load sdk config", core.NewError(configResult.Error())))
 		}
+		config := configResult.Value.(*sdk.Config)
 
 		s := sdk.New(projectDir, config)
-		specPath, err = s.DetectSpec()
-		if err != nil {
-			return err
+		specPathResult := s.DetectSpec()
+		if !specPathResult.OK {
+			return specPathResult
 		}
+		specPath = specPathResult.Value.(string)
 	}
 
 	if basePath == "" {
-		return coreerr.E("sdk.Diff", i18n.T("cmd.sdk.diff.error.base_required"), nil)
+		return core.Fail(core.E("sdk.Diff", "base spec is required", nil))
 	}
 
-	cli.Print("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.sdk.diff.label")), i18n.ProgressSubject("check", "breaking changes"))
-	cli.Print("  %s %s\n", i18n.T("cmd.sdk.diff.base_label"), sdkDimStyle.Render(basePath))
-	cli.Print("  %s %s\n", i18n.Label("current"), sdkDimStyle.Render(specPath))
+	cli.Print("%s %s\n", sdkHeaderStyle.Render("SDK diff"), "Checking breaking changes...")
+	cli.Print("  %s %s\n", "base:", sdkDimStyle.Render(basePath))
+	cli.Print("  %s %s\n", "current:", sdkDimStyle.Render(specPath))
 	cli.Blank()
 
 	diffOptions := sdk.DiffOptions{}
@@ -204,13 +210,14 @@ func runSDKDiffInDir(projectDir, basePath, specPath string, failOnWarn bool) err
 		diffOptions.MinimumLevel = checker.WARN
 	}
 
-	result, err := sdk.DiffWithOptions(basePath, specPath, diffOptions)
-	if err != nil {
-		return cli.Exit(2, cli.Wrap(err, i18n.Label("error")))
+	diffResult := sdk.DiffWithOptions(basePath, specPath, diffOptions)
+	if !diffResult.OK {
+		return cli.Exit(2, cli.Wrap(core.NewError(diffResult.Error()), "error:"))
 	}
+	result := diffResult.Value.(*sdk.DiffResult)
 
 	if result.Breaking || (failOnWarn && result.HasWarnings) {
-		cli.Print("%s %s\n", sdkErrorStyle.Render(i18n.T("cmd.sdk.diff.breaking")), result.Summary)
+		cli.Print("%s %s\n", sdkErrorStyle.Render("Breaking changes"), result.Summary)
 		for _, change := range result.Changes {
 			cli.Print("  - %s\n", change)
 		}
@@ -223,39 +230,42 @@ func runSDKDiffInDir(projectDir, basePath, specPath string, failOnWarn bool) err
 	for _, warning := range result.Warnings {
 		cli.Print("  - warning: %s\n", warning)
 	}
-	cli.Print("%s %s\n", sdkSuccessStyle.Render(i18n.T("cmd.sdk.label.ok")), result.Summary)
-	return nil
+	cli.Print("%s %s\n", sdkSuccessStyle.Render("OK"), result.Summary)
+	return core.Ok(nil)
 }
 
-func runSDKValidate(specPath string) error {
-	projectDir, err := ax.Getwd()
-	if err != nil {
-		return coreerr.E("sdk.Validate", "failed to get working directory", err)
+func runSDKValidate(specPath string) core.Result {
+	projectDirResult := ax.Getwd()
+	if !projectDirResult.OK {
+		return core.Fail(core.E("sdk.Validate", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
+	projectDir := projectDirResult.Value.(string)
 
 	return runSDKValidateInDir(context.Background(), projectDir, specPath)
 }
 
-func runSDKValidateInDir(ctx context.Context, projectDir, specPath string) error {
-	config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
-	if err != nil {
-		return coreerr.E("sdk.Validate", "failed to load sdk config", err)
+func runSDKValidateInDir(ctx context.Context, projectDir, specPath string) core.Result {
+	configResult := sdkcfg.LoadProjectConfig(storage.Local, projectDir)
+	if !configResult.OK {
+		return core.Fail(core.E("sdk.Validate", "failed to load sdk config", core.NewError(configResult.Error())))
 	}
+	config := configResult.Value.(*sdk.Config)
 	if specPath != "" {
 		config.Spec = specPath
 	}
 
 	s := sdk.New(projectDir, config)
 
-	cli.Print("%s %s\n", sdkHeaderStyle.Render(i18n.T("cmd.sdk.label.sdk")), i18n.T("cmd.sdk.validate.validating"))
+	cli.Print("%s %s\n", sdkHeaderStyle.Render("SDK"), "Validating OpenAPI spec")
 
-	detectedPath, err := s.ValidateSpec(ctx)
-	if err != nil {
-		cli.Print("%s %v\n", sdkErrorStyle.Render(i18n.Label("error")), err)
-		return err
+	detectedPathResult := s.ValidateSpec(ctx)
+	if !detectedPathResult.OK {
+		cli.Print("%s %v\n", sdkErrorStyle.Render("error:"), detectedPathResult.Error())
+		return detectedPathResult
 	}
+	detectedPath := detectedPathResult.Value.(string)
 
-	cli.Print("  %s %s\n", i18n.Label("spec"), sdkDimStyle.Render(detectedPath))
-	cli.Print("%s %s\n", sdkSuccessStyle.Render(i18n.T("cmd.sdk.label.ok")), i18n.T("cmd.sdk.validate.valid"))
-	return nil
+	cli.Print("  %s %s\n", "spec:", sdkDimStyle.Render(detectedPath))
+	cli.Print("%s %s\n", sdkSuccessStyle.Render("OK"), "OpenAPI spec is valid")
+	return core.Ok(nil)
 }

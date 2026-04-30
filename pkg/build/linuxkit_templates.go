@@ -3,7 +3,7 @@ package build
 import (
 	"embed"
 
-	coreerr "dappco.re/go/log"
+	"dappco.re/go"
 )
 
 //go:embed images/*.yml
@@ -68,15 +68,15 @@ func LookupLinuxKitBaseImage(name string) (LinuxKitBaseImage, bool) {
 }
 
 // LinuxKitBaseTemplate loads the built-in LinuxKit template for a named base image.
-func LinuxKitBaseTemplate(name string) (string, error) {
+func LinuxKitBaseTemplate(name string) core.Result {
 	if _, ok := LookupLinuxKitBaseImage(name); !ok {
-		return "", coreerr.E("build.LinuxKitBaseTemplate", "unknown LinuxKit image base: "+name, nil)
+		return core.Fail(core.E("build.LinuxKitBaseTemplate", "unknown LinuxKit image base: "+name, nil))
 	}
 
 	content, err := linuxKitBaseTemplateFS.ReadFile("images/" + name + ".yml")
 	if err != nil {
-		return "", coreerr.E("build.LinuxKitBaseTemplate", "failed to read embedded LinuxKit template", err)
+		return core.Fail(core.E("build.LinuxKitBaseTemplate", "failed to read embedded LinuxKit template", err))
 	}
 
-	return string(content), nil
+	return core.Ok(string(content))
 }

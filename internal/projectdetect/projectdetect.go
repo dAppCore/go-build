@@ -1,9 +1,10 @@
 package projectdetect
 
 import (
+	"dappco.re/go"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 type detector struct {
@@ -20,25 +21,25 @@ var fallbackDetectors = []detector{
 
 // DetectProjectType returns the first buildable project type in detection order.
 //
-// projectType, err := projectdetect.DetectProjectType(io.Local, ".")
-func DetectProjectType(fs io.Medium, dir string) (build.ProjectType, error) {
-	projectType, err := build.PrimaryType(fs, dir)
-	if err != nil {
-		return "", err
+// projectType, err := projectdetect.DetectProjectType(storage.Local, ".")
+func DetectProjectType(fs storage.Medium, dir string) core.Result {
+	projectType := build.PrimaryType(fs, dir)
+	if !projectType.OK {
+		return projectType
 	}
-	if projectType != "" {
-		return projectType, nil
+	if projectType.Value.(build.ProjectType) != "" {
+		return projectType
 	}
 
 	for _, fallback := range fallbackDetectors {
-		detected, err := fallback.builder.Detect(fs, dir)
-		if err != nil {
-			return "", err
+		detected := fallback.builder.Detect(fs, dir)
+		if !detected.OK {
+			return detected
 		}
-		if detected {
-			return fallback.projectType, nil
+		if detected.Value.(bool) {
+			return core.Ok(fallback.projectType)
 		}
 	}
 
-	return "", nil
+	return core.Ok(build.ProjectType(""))
 }

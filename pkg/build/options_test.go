@@ -1,6 +1,7 @@
 package build
 
 import (
+	core "dappco.re/go"
 	"testing"
 )
 
@@ -617,4 +618,35 @@ func TestOptions_String_Ugly(t *testing.T) {
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestOptions_BuildOptions_String_Good(t *core.T) {
+	subject := &BuildOptions{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.String()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestOptions_BuildOptions_String_Bad(t *core.T) {
+	subject := &BuildOptions{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.String()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestOptions_BuildOptions_String_Ugly(t *core.T) {
+	subject := &BuildOptions{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.String()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

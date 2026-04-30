@@ -4,9 +4,10 @@ import (
 	"net/http"
 	"sort"
 
-	coreapi "dappco.re/go/api"
-	providerpkg "dappco.re/go/api/pkg/provider"
-	"dappco.re/go/ws"
+	coreapi "dappco.re/go/build/pkg/api"
+	providerpkg "dappco.re/go/build/pkg/api/provider"
+	"dappco.re/go/build/pkg/build"
+	events "dappco.re/go/build/pkg/events"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,7 +15,7 @@ type toolDescriber interface {
 	Tools() []coreapi.ToolDescriptor
 }
 
-func defaultNewMCPServer(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) coreapi.RouteGroup {
+func defaultNewMCPServer(cfg Config, registry *providerpkg.Registry, hub *events.Hub) coreapi.RouteGroup {
 	if registry == nil {
 		registry = providerpkg.NewRegistry()
 	}
@@ -55,26 +56,27 @@ func defaultNewMCPServer(cfg Config, registry *providerpkg.Registry, hub *ws.Hub
 		Description: "Inspect the current project and return the build discovery summary used by the daemon.",
 		Group:       "build",
 	}, func(c *gin.Context) {
-		discovery, err := discoverProject(cfg.ProjectDir)
-		if err != nil {
+		discovery := discoverProject(cfg.ProjectDir)
+		if !discovery.OK {
 			c.JSON(http.StatusInternalServerError, coreapi.FailWithDetails(
 				"discover_failed",
 				"Failed to inspect the daemon project",
-				map[string]any{"error": err.Error()},
+				map[string]any{"error": discovery.Error()},
 			))
 			return
 		}
+		result := discovery.Value.(*build.DiscoveryResult)
 
 		c.JSON(http.StatusOK, coreapi.OK(map[string]any{
 			"project_dir":       cfg.ProjectDir,
-			"types":             discoveryTypes(discovery),
-			"primary_stack":     discovery.PrimaryStack,
-			"suggested_stack":   discovery.SuggestedStack,
-			"configured_type":   discovery.ConfiguredType,
-			"has_frontend":      discovery.HasFrontend,
-			"has_docs_config":   discovery.HasDocsConfig,
-			"has_deno_manifest": discovery.HasDenoManifest,
-			"distro":            discovery.Distro,
+			"types":             discoveryTypes(result),
+			"primary_stack":     result.PrimaryStack,
+			"suggested_stack":   result.SuggestedStack,
+			"configured_type":   result.ConfiguredType,
+			"has_frontend":      result.HasFrontend,
+			"has_docs_config":   result.HasDocsConfig,
+			"has_deno_manifest": result.HasDenoManifest,
+			"distro":            result.Distro,
 		}))
 	})
 
@@ -88,16 +90,17 @@ func defaultNewMCPServer(cfg Config, registry *providerpkg.Registry, hub *ws.Hub
 			"source":     "mcp.build_run",
 		})
 
-		if err := runWatchedBuild(c.Request.Context(), cfg.ProjectDir); err != nil {
+		built := runWatchedBuild(c.Request.Context(), cfg.ProjectDir)
+		if !built.OK {
 			sendEvent(hub, "build.failed", map[string]any{
 				"projectDir": cfg.ProjectDir,
 				"source":     "mcp.build_run",
-				"error":      err.Error(),
+				"error":      built.Error(),
 			})
 			c.JSON(http.StatusInternalServerError, coreapi.FailWithDetails(
 				"build_failed",
 				"Daemon build failed",
-				map[string]any{"error": err.Error()},
+				map[string]any{"error": built.Error()},
 			))
 			return
 		}

@@ -6,16 +6,17 @@ import (
 	"dappco.re/go/build/pkg/build"
 )
 
-func TestResolver_InitRegistersDefaultBuilderResolver_Good(t *testing.T) {
+func TestResolver_InitRegistersDefaultBuilderResolverGood(t *testing.T) {
 	resolver := build.DefaultBuilderResolver()
 	if stdlibAssertNil(resolver) {
 		t.Fatal("expected non-nil")
 	}
 
-	builder, err := resolver(build.ProjectTypeGo)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	result := resolver(build.ProjectTypeGo)
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
+	builder := result.Value.(build.Builder)
 	if stdlibAssertNil(builder) {
 		t.Fatal("expected non-nil")
 	}

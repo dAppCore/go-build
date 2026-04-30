@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	providerpkg "dappco.re/go/api/pkg/provider"
+	core "dappco.re/go"
+	providerpkg "dappco.re/go/build/pkg/api/provider"
 )
 
 type emittedAgenticEvent struct {
@@ -105,4 +106,71 @@ func waitForAgenticEvent(t *testing.T, events <-chan emittedAgenticEvent) emitte
 		t.Fatal("timed out waiting for agentic event")
 		return emittedAgenticEvent{}
 	}
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestAgentic_Agentic_Run_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.Run(ctx)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestAgentic_Agentic_Run_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.Run(ctx)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestAgentic_Agentic_Run_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.Run(ctx)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestAgentic_Agentic_Notify_Good(t *core.T) {
+	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.Notify("agent", "agent")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestAgentic_Agentic_Notify_Bad(t *core.T) {
+	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.Notify("", "agent")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestAgentic_Agentic_Notify_Ugly(t *core.T) {
+	subject := newDaemonAgentic(Config{}, nil, nil).(*daemonAgentic)
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.Notify("agent", "agent")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -6,12 +6,10 @@ import (
 	"io/fs"
 	"runtime"
 	"syscall"
+	"time"
 
-	"dappco.re/go/core"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
-	process "dappco.re/go/process"
-	processexec "dappco.re/go/process/exec"
+	"dappco.re/go"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 // DS returns the current platform directory separator.
@@ -44,28 +42,28 @@ func Join(parts ...string) string {
 // Abs resolves a path against the current working directory.
 //
 // Usage example: abs, err := ax.Abs("./testdata")
-func Abs(path string) (string, error) {
+func Abs(path string) core.Result {
 	if core.PathIsAbs(path) {
-		return Clean(path), nil
+		return core.Ok(Clean(path))
 	}
 
-	cwd, err := Getwd()
-	if err != nil {
-		return "", err
+	cwd := Getwd()
+	if !cwd.OK {
+		return cwd
 	}
 
-	return Join(cwd, path), nil
+	return core.Ok(Join(cwd.Value.(string), path))
 }
 
 // Rel returns target relative to base when target is inside base.
 //
 // Usage example: rel, err := ax.Rel(projectDir, artifactPath)
-func Rel(base, target string) (string, error) {
+func Rel(base, target string) core.Result {
 	base = Clean(base)
 	target = Clean(target)
 
 	if base == target {
-		return ".", nil
+		return core.Ok(".")
 	}
 
 	prefix := base
@@ -74,10 +72,10 @@ func Rel(base, target string) (string, error) {
 	}
 
 	if core.HasPrefix(target, prefix) {
-		return core.TrimPrefix(target, prefix), nil
+		return core.Ok(core.TrimPrefix(target, prefix))
 	}
 
-	return "", coreerr.E("ax.Rel", "path is outside base: "+target, nil)
+	return core.Fail(core.E("ax.Rel", "path is outside base: "+target, nil))
 }
 
 // Base returns the last path element.
@@ -121,136 +119,140 @@ func FromSlash(path string) string {
 // Getwd returns the current working directory from Core environment metadata.
 //
 // Usage example: cwd, err := ax.Getwd()
-func Getwd() (string, error) {
+func Getwd() core.Result {
 	cwd := core.Env("DIR_CWD")
 	if cwd == "" {
 		wd, err := syscall.Getwd()
 		if err != nil {
-			return "", coreerr.E("ax.Getwd", "failed to get current working directory", err)
+			return core.Fail(core.E("ax.Getwd", "failed to get current working directory", err))
 		}
-		return wd, nil
+		return core.Ok(wd)
 	}
-	return cwd, nil
+	return core.Ok(cwd)
 }
 
 // TempDir creates a temporary directory via Core's filesystem primitive.
 //
 // Usage example: dir, err := ax.TempDir("core-build-*")
-func TempDir(prefix string) (string, error) {
+func TempDir(prefix string) core.Result {
 	dir := (&core.Fs{}).NewUnrestricted().TempDir(prefix)
 	if dir == "" {
-		return "", coreerr.E("ax.TempDir", "failed to create temporary directory", nil)
+		return core.Fail(core.E("ax.TempDir", "failed to create temporary directory", nil))
 	}
-	return dir, nil
+	return core.Ok(dir)
 }
 
 // MkdirTemp creates a temporary directory via Core's filesystem primitive.
 //
 // Usage example: dir, err := ax.MkdirTemp("core-build-*")
-func MkdirTemp(prefix string) (string, error) {
+func MkdirTemp(prefix string) core.Result {
 	return TempDir(prefix)
 }
 
 // ReadFile reads a file into bytes via io.Local.
 //
 // Usage example: data, err := ax.ReadFile("go.mod")
-func ReadFile(path string) ([]byte, error) {
-	content, err := coreio.Local.Read(path)
-	if err != nil {
-		return nil, coreerr.E("ax.ReadFile", "failed to read file "+path, err)
+func ReadFile(path string) core.Result {
+	content := coreio.Local.Read(path)
+	if !content.OK {
+		return core.Fail(core.E("ax.ReadFile", "failed to read file "+path, core.NewError(content.Error())))
 	}
-	return []byte(content), nil
+	return core.Ok([]byte(content.Value.(string)))
 }
 
 // WriteFile writes bytes via io.Local with an explicit mode.
 //
 // Usage example: err := ax.WriteFile("README.md", []byte("hi"), 0o644)
-func WriteFile(path string, data []byte, mode fs.FileMode) error {
-	if err := coreio.Local.WriteMode(path, string(data), mode); err != nil {
-		return coreerr.E("ax.WriteFile", "failed to write file "+path, err)
+func WriteFile(path string, data []byte, mode fs.FileMode) core.Result {
+	written := coreio.Local.WriteMode(path, string(data), mode)
+	if !written.OK {
+		return core.Fail(core.E("ax.WriteFile", "failed to write file "+path, core.NewError(written.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 // WriteString writes text via io.Local with an explicit mode.
 //
 // Usage example: err := ax.WriteString("README.md", "hi", 0o644)
-func WriteString(path, data string, mode fs.FileMode) error {
-	if err := coreio.Local.WriteMode(path, data, mode); err != nil {
-		return coreerr.E("ax.WriteString", "failed to write file "+path, err)
+func WriteString(path, data string, mode fs.FileMode) core.Result {
+	written := coreio.Local.WriteMode(path, data, mode)
+	if !written.OK {
+		return core.Fail(core.E("ax.WriteString", "failed to write file "+path, core.NewError(written.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 // MkdirAll ensures a directory exists.
 //
 // Usage example: err := ax.MkdirAll("dist/linux_arm64", 0o755)
-func MkdirAll(path string, _ fs.FileMode) error {
-	if err := coreio.Local.EnsureDir(path); err != nil {
-		return coreerr.E("ax.MkdirAll", "failed to create directory "+path, err)
+func MkdirAll(path string, _ fs.FileMode) core.Result {
+	created := coreio.Local.EnsureDir(path)
+	if !created.OK {
+		return core.Fail(core.E("ax.MkdirAll", "failed to create directory "+path, core.NewError(created.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 // Mkdir ensures a directory exists.
 //
 // Usage example: err := ax.Mkdir(".core", 0o755)
-func Mkdir(path string, mode fs.FileMode) error {
+func Mkdir(path string, mode fs.FileMode) core.Result {
 	return MkdirAll(path, mode)
 }
 
 // RemoveAll removes a file or directory tree.
 //
 // Usage example: err := ax.RemoveAll("dist")
-func RemoveAll(path string) error {
-	if err := coreio.Local.DeleteAll(path); err != nil {
-		return coreerr.E("ax.RemoveAll", "failed to remove path "+path, err)
+func RemoveAll(path string) core.Result {
+	removed := coreio.Local.DeleteAll(path)
+	if !removed.OK {
+		return core.Fail(core.E("ax.RemoveAll", "failed to remove path "+path, core.NewError(removed.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 // Stat returns file metadata from io.Local.
 //
 // Usage example: info, err := ax.Stat("go.mod")
-func Stat(path string) (fs.FileInfo, error) {
-	info, err := coreio.Local.Stat(path)
-	if err != nil {
-		return nil, coreerr.E("ax.Stat", "failed to stat path "+path, err)
+func Stat(path string) core.Result {
+	info := coreio.Local.Stat(path)
+	if !info.OK {
+		return core.Fail(core.E("ax.Stat", "failed to stat path "+path, core.NewError(info.Error())))
 	}
-	return info, nil
+	return info
 }
 
 // ReadDir lists directory entries via io.Local.
 //
 // Usage example: entries, err := ax.ReadDir("dist")
-func ReadDir(path string) ([]fs.DirEntry, error) {
-	entries, err := coreio.Local.List(path)
-	if err != nil {
-		return nil, coreerr.E("ax.ReadDir", "failed to list directory "+path, err)
+func ReadDir(path string) core.Result {
+	entries := coreio.Local.List(path)
+	if !entries.OK {
+		return core.Fail(core.E("ax.ReadDir", "failed to list directory "+path, core.NewError(entries.Error())))
 	}
-	return entries, nil
+	return entries
 }
 
 // Open opens a file for reading via io.Local.
 //
 // Usage example: file, err := ax.Open("README.md")
-func Open(path string) (fs.File, error) {
-	file, err := coreio.Local.Open(path)
-	if err != nil {
-		return nil, coreerr.E("ax.Open", "failed to open file "+path, err)
+func Open(path string) core.Result {
+	file := coreio.Local.Open(path)
+	if !file.OK {
+		return core.Fail(core.E("ax.Open", "failed to open file "+path, core.NewError(file.Error())))
 	}
-	return file, nil
+	return file
 }
 
 // Create opens a file for writing via io.Local.
 //
 // Usage example: file, err := ax.Create("dist/output.txt")
-func Create(path string) (io.WriteCloser, error) {
-	file, err := coreio.Local.Create(path)
-	if err != nil {
-		return nil, coreerr.E("ax.Create", "failed to create file "+path, err)
+func Create(path string) core.Result {
+	file := coreio.Local.Create(path)
+	if !file.OK {
+		return core.Fail(core.E("ax.Create", "failed to create file "+path, core.NewError(file.Error())))
 	}
-	return file, nil
+	return file
 }
 
 // Exists reports whether a path exists.
@@ -277,11 +279,37 @@ func IsDir(path string) bool {
 // Chmod updates file permissions without importing os.
 //
 // Usage example: err := ax.Chmod("dist/app", 0o755)
-func Chmod(path string, mode fs.FileMode) error {
+func Chmod(path string, mode fs.FileMode) core.Result {
 	if err := syscall.Chmod(path, uint32(mode)); err != nil {
-		return coreerr.E("ax.Chmod", "failed to change permissions on "+path, err)
+		return core.Fail(core.E("ax.Chmod", "failed to change permissions on "+path, err))
 	}
-	return nil
+	return core.Ok(nil)
+}
+
+// Chtimes updates access and modification times without importing the OS package.
+//
+// Usage example: err := ax.Chtimes("dist/app", modTime, modTime)
+func Chtimes(path string, atime, mtime time.Time) core.Result {
+	times := []syscall.Timespec{
+		syscall.NsecToTimespec(atime.UnixNano()),
+		syscall.NsecToTimespec(mtime.UnixNano()),
+	}
+	if err := syscall.UtimesNano(path, times); err != nil {
+		return core.Fail(core.E("ax.Chtimes", "failed to change timestamps on "+path, err))
+	}
+	return core.Ok(nil)
+}
+
+// Readlink reads a symbolic link target without importing the OS package.
+//
+// Usage example: target, err := ax.Readlink("dist/current")
+func Readlink(path string) core.Result {
+	buffer := make([]byte, 4096)
+	n, err := syscall.Readlink(path, buffer)
+	if err != nil {
+		return core.Fail(core.E("ax.Readlink", "failed to read symlink "+path, err))
+	}
+	return core.Ok(string(buffer[:n]))
 }
 
 // Getuid returns the current process UID.
@@ -308,122 +336,179 @@ func Geteuid() int {
 // JSONMarshal returns a JSON string using Core's JSON wrapper.
 //
 // Usage example: data, err := ax.JSONMarshal(cfg)
-func JSONMarshal(value any) (string, error) {
+func JSONMarshal(value any) core.Result {
 	result := core.JSONMarshal(value)
 	if !result.OK {
-		err, ok := result.Value.(error)
-		if !ok {
-			return "", coreerr.E("ax.JSONMarshal", "failed to marshal JSON", nil)
-		}
-		return "", coreerr.E("ax.JSONMarshal", "failed to marshal JSON", err)
+		return core.Fail(core.E("ax.JSONMarshal", "failed to marshal JSON", core.NewError(result.Error())))
 	}
 	encoded, ok := result.Value.([]byte)
 	if !ok {
-		return "", coreerr.E("ax.JSONMarshal", "failed to marshal JSON", nil)
+		return core.Fail(core.E("ax.JSONMarshal", "failed to marshal JSON", nil))
 	}
-	return string(encoded), nil
+	return core.Ok(string(encoded))
 }
 
 // JSONUnmarshal decodes JSON into target using Core's JSON wrapper.
 //
 // Usage example: err := ax.JSONUnmarshal(data, &cfg)
-func JSONUnmarshal(data []byte, target any) error {
+func JSONUnmarshal(data []byte, target any) core.Result {
 	result := core.JSONUnmarshal(data, target)
 	if !result.OK {
-		err, ok := result.Value.(error)
-		if !ok {
-			return coreerr.E("ax.JSONUnmarshal", "failed to unmarshal JSON", nil)
-		}
-		return coreerr.E("ax.JSONUnmarshal", "failed to unmarshal JSON", err)
+		return core.Fail(core.E("ax.JSONUnmarshal", "failed to unmarshal JSON", core.NewError(result.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 // LookPath resolves a program on PATH via the Core process package.
 //
 // Usage example: path, err := ax.LookPath("git")
-func LookPath(name string) (string, error) {
-	program := process.Program{Name: name}
-	if err := program.Find(); err != nil {
-		return "", coreerr.E("ax.LookPath", "failed to locate command "+name, err)
+func LookPath(name string) core.Result {
+	path := resolveExecutable(name)
+	if !path.OK {
+		return core.Fail(core.E("ax.LookPath", "failed to locate command "+name, core.NewError(path.Error())))
 	}
-	return program.Path, nil
+	return path
 }
 
 // ResolveCommand resolves a program from PATH or a list of fallback paths.
 //
 // Usage example: path, err := ax.ResolveCommand("task", "/opt/homebrew/bin/task")
-func ResolveCommand(name string, fallbackPaths ...string) (string, error) {
-	path, err := LookPath(name)
-	if err == nil {
-		return path, nil
+func ResolveCommand(name string, fallbackPaths ...string) core.Result {
+	path := LookPath(name)
+	if path.OK {
+		return path
 	}
 
 	for _, fallbackPath := range fallbackPaths {
 		if IsFile(fallbackPath) {
-			return fallbackPath, nil
+			return core.Ok(fallbackPath)
 		}
 	}
 
-	return "", coreerr.E("ax.ResolveCommand", "failed to locate command "+name, err)
+	return core.Fail(core.E("ax.ResolveCommand", "failed to locate command "+name, core.NewError(path.Error())))
 }
 
 // Run executes a command and returns trimmed combined output.
 //
 // Usage example: output, err := ax.Run(ctx, "git", "status", "--short")
-func Run(ctx context.Context, command string, args ...string) (string, error) {
-	program := process.Program{Name: command}
-	return program.Run(ctx, args...)
+func Run(ctx context.Context, command string, args ...string) core.Result {
+	return CombinedOutput(ctx, "", nil, command, args...)
 }
 
 // RunDir executes a command in the provided directory and returns combined output.
 //
-// Usage example: output, err := ax.RunDir(ctx, repoDir, "git", "log", "--oneline")
-func RunDir(ctx context.Context, dir, command string, args ...string) (string, error) {
-	program := process.Program{Name: command}
-	return program.RunDir(ctx, dir, args...)
+// Usage example: output, err := ax.RunDir(ctx, repoDir, "git", "show", "--stat")
+func RunDir(ctx context.Context, dir, command string, args ...string) core.Result {
+	return CombinedOutput(ctx, dir, nil, command, args...)
 }
 
 // Exec executes a command without capturing output.
 //
 // Usage example: err := ax.Exec(ctx, "go", "test", "./...")
-func Exec(ctx context.Context, command string, args ...string) error {
-	return processexec.Command(ctx, command, args...).Run()
+func Exec(ctx context.Context, command string, args ...string) core.Result {
+	return runCommand(ctx, dirEnvCommand{command: command, args: args})
 }
 
 // ExecDir executes a command in a specific directory without capturing output.
 //
 // Usage example: err := ax.ExecDir(ctx, repoDir, "go", "test", "./...")
-func ExecDir(ctx context.Context, dir, command string, args ...string) error {
-	return processexec.Command(ctx, command, args...).WithDir(dir).Run()
+func ExecDir(ctx context.Context, dir, command string, args ...string) core.Result {
+	return runCommand(ctx, dirEnvCommand{dir: dir, command: command, args: args})
 }
 
 // ExecWithEnv executes a command with additional environment variables.
 //
 // Usage example: err := ax.ExecWithEnv(ctx, repoDir, []string{"GOOS=linux"}, "go", "build")
-func ExecWithEnv(ctx context.Context, dir string, env []string, command string, args ...string) error {
-	return processexec.Command(ctx, command, args...).WithDir(dir).WithEnv(env).Run()
+func ExecWithEnv(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
+	return runCommand(ctx, dirEnvCommand{dir: dir, env: env, command: command, args: args})
 }
 
 // ExecWithWriters executes a command and streams output to the provided writers.
 //
 // Usage example: err := ax.ExecWithWriters(ctx, repoDir, nil, w, w, "docker", "build", ".")
-func ExecWithWriters(ctx context.Context, dir string, env []string, stdout, stderr io.Writer, command string, args ...string) error {
-	cmd := processexec.Command(ctx, command, args...).WithDir(dir).WithEnv(env)
-	if stdout != nil {
-		cmd = cmd.WithStdout(stdout)
-	}
-	if stderr != nil {
-		cmd = cmd.WithStderr(stderr)
-	}
-	return cmd.Run()
+func ExecWithWriters(ctx context.Context, dir string, env []string, stdout, stderr io.Writer, command string, args ...string) core.Result {
+	return runCommand(ctx, dirEnvCommand{dir: dir, env: env, stdout: stdout, stderr: stderr, command: command, args: args})
 }
 
 // CombinedOutput executes a command and returns combined output.
 //
 // Usage example: output, err := ax.CombinedOutput(ctx, repoDir, nil, "go", "test", "./...")
-func CombinedOutput(ctx context.Context, dir string, env []string, command string, args ...string) (string, error) {
-	cmd := processexec.Command(ctx, command, args...).WithDir(dir).WithEnv(env)
-	output, err := cmd.CombinedOutput()
-	return core.Trim(string(output)), err
+func CombinedOutput(ctx context.Context, dir string, env []string, command string, args ...string) core.Result {
+	buffer := core.NewBuffer()
+	run := runCommand(ctx, dirEnvCommand{
+		dir:     dir,
+		env:     env,
+		stdout:  buffer,
+		stderr:  buffer,
+		command: command,
+		args:    args,
+	})
+	if !run.OK {
+		return core.Fail(core.E("ax.CombinedOutput", core.Trim(buffer.String()), core.NewError(run.Error())))
+	}
+	return core.Ok(core.Trim(buffer.String()))
+}
+
+type dirEnvCommand struct {
+	dir     string
+	env     []string
+	stdout  io.Writer
+	stderr  io.Writer
+	command string
+	args    []string
+}
+
+func runCommand(ctx context.Context, request dirEnvCommand) core.Result {
+	if ctx == nil {
+		return core.Fail(core.NewError("command context is required"))
+	}
+	resolved := resolveExecutable(request.command)
+	if !resolved.OK {
+		return resolved
+	}
+	path := resolved.Value.(string)
+	cmd := &core.Cmd{
+		Path:   path,
+		Args:   append([]string{path}, request.args...),
+		Dir:    request.dir,
+		Stdout: request.stdout,
+		Stderr: request.stderr,
+	}
+	if len(request.env) > 0 {
+		cmd.Env = append(core.Environ(), request.env...)
+	}
+	if err := cmd.Start(); err != nil {
+		return core.Fail(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	select {
+	case err := <-done:
+		return core.ResultOf(nil, err)
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			killErr := cmd.Process.Kill()
+			<-done
+			if killErr != nil {
+				return core.Fail(killErr)
+			}
+		}
+		return core.Fail(ctx.Err())
+	}
+}
+
+func resolveExecutable(name string) core.Result {
+	if name == "" {
+		return core.Fail(core.NewError("program name is empty"))
+	}
+	if core.Contains(name, "/") || core.Contains(name, "\\") {
+		return core.Ok(name)
+	}
+	found := core.App{}.Find(name, name)
+	if !found.OK {
+		return found
+	}
+	return core.Ok(found.Value.(*core.App).Path)
 }

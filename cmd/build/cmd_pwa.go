@@ -9,6 +9,7 @@ package buildcmd
 import (
 	// Note: AX-6 — context.Context is the command cancellation contract; core has no equivalent API.
 	"context"
+	"io/fs"
 	// Note: AX-6 — net/http is required for PWA downloads; core has no HTTP client primitive.
 	"net/http"
 	// Note: AX-6 — net/url is required for standards-compliant URL parsing/resolution; core has only path/string primitives here.
@@ -16,10 +17,8 @@ import (
 	// Note: AX-6 — unicode preserves Fields/slug whitespace semantics; core has no rune category primitive.
 	"unicode"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
-	"dappco.re/go/core/i18n"
-	coreerr "dappco.re/go/core/log"
 	"github.com/leaanthony/debme"
 	"github.com/leaanthony/gosod"
 	"golang.org/x/net/html"
@@ -27,9 +26,9 @@ import (
 
 // Error sentinels for build commands
 var (
-	errPathRequired     = coreerr.E("buildcmd.Init", "the --path flag is required", nil)
-	errURLRequired      = coreerr.E("buildcmd.Init", "the --url flag is required", nil)
-	errPWAInputRequired = coreerr.E("buildcmd.Init", "either --path or --url is required", nil)
+	errPathRequired     = core.E("buildcmd.Init", "the --path flag is required", nil)
+	errURLRequired      = core.E("buildcmd.Init", "the --url flag is required", nil)
+	errPWAInputRequired = core.E("buildcmd.Init", "either --path or --url is required", nil)
 )
 
 // runLocalPwaBuild points at the local PWA build entrypoint.
@@ -51,42 +50,60 @@ type pwaAppConfig struct {
 	Description string
 }
 
+type pwaHTMLExtraction struct {
+	Metadata pwaMetadata
+	Assets   []string
+}
+
+type pwaManifestFetch struct {
+	Manifest map[string]any
+	Body     []byte
+}
+
 // runPwaBuild downloads a PWA from URL and builds it.
-func runPwaBuild(ctx context.Context, pwaURL string) error {
-	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.starting"), pwaURL)
+func runPwaBuild(ctx context.Context, pwaURL string) core.Result {
+	core.Print(nil, "%s %s", "Building PWA", pwaURL)
 
-	tempDir, err := ax.TempDir("core-pwa-build-*")
-	if err != nil {
-		return coreerr.E("pwa.runPwaBuild", i18n.T("common.error.failed", map[string]any{"Action": "create temporary directory"}), err)
+	tempDirResult := ax.TempDir("core-pwa-build-*")
+	if !tempDirResult.OK {
+		return core.Fail(core.E("pwa.runPwaBuild", "failed to create temporary directory", core.NewError(tempDirResult.Error())))
 	}
+	tempDir := tempDirResult.Value.(string)
 	// defer os.RemoveAll(tempDir) // Keep temp dir for debugging
-	core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.downloading_to"), tempDir)
+	core.Print(nil, "%s %s", "Downloading to", tempDir)
 
-	if err := downloadPWA(ctx, pwaURL, tempDir); err != nil {
-		return coreerr.E("pwa.runPwaBuild", i18n.T("common.error.failed", map[string]any{"Action": "download PWA"}), err)
+	downloaded := downloadPWA(ctx, pwaURL, tempDir)
+	if !downloaded.OK {
+		return core.Fail(core.E("pwa.runPwaBuild", "failed to download PWA", core.NewError(downloaded.Error())))
 	}
 
 	return runBuild(ctx, tempDir)
 }
 
 // downloadPWA fetches a PWA from a URL and saves assets locally.
-func downloadPWA(ctx context.Context, baseURL, destDir string) error {
-	resp, err := getWithContext(ctx, baseURL)
-	if err != nil {
-		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch URL"})+" "+baseURL, err)
+func downloadPWA(ctx context.Context, baseURL, destDir string) core.Result {
+	respResult := getWithContext(ctx, baseURL)
+	if !respResult.OK {
+		return core.Fail(core.E("pwa.downloadPWA", "failed to fetch URL "+baseURL, core.NewError(respResult.Error())))
 	}
-	body, err := readAllBytes(resp.Body)
-	if err != nil {
-		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "read response body"}), err)
+	resp := respResult.Value.(*http.Response)
+	bodyResult := readAllBytes(resp.Body)
+	if !bodyResult.OK {
+		return core.Fail(core.E("pwa.downloadPWA", "failed to read response body", core.NewError(bodyResult.Error())))
 	}
+	body := bodyResult.Value.([]byte)
 
-	pageMetadata, assets, err := extractHTMLMetadataAndAssets(string(body), baseURL)
-	if err != nil {
-		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "parse HTML entry point"}), err)
+	extractedResult := extractHTMLMetadataAndAssets(string(body), baseURL)
+	if !extractedResult.OK {
+		return core.Fail(core.E("pwa.downloadPWA", "failed to parse HTML entry point", core.NewError(extractedResult.Error())))
 	}
+	extracted := extractedResult.Value.(pwaHTMLExtraction)
+	pageMetadata := extracted.Metadata
+	assets := extracted.Assets
 
-	if err := ax.WriteFile(ax.Join(destDir, "index.html"), body, 0o644); err != nil {
-		return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write index.html"}), err)
+	writtenIndex := ax.WriteFile(ax.Join(destDir, "index.html"), body, 0o644)
+	if !writtenIndex.OK {
+		return core.Fail(core.E("pwa.downloadPWA", "failed to write index.html", core.NewError(writtenIndex.Error())))
 	}
 
 	downloaded := map[string]struct{}{
@@ -94,20 +111,22 @@ func downloadPWA(ctx context.Context, baseURL, destDir string) error {
 	}
 
 	if pageMetadata.ManifestURL == "" {
-		core.Print(nil, "%s %s", i18n.T("common.label.warning"), i18n.T("cmd.build.pwa.no_manifest"))
+		core.Print(nil, "%s %s", "warning", "no manifest found")
 	} else {
-		core.Print(nil, "%s %s", i18n.T("cmd.build.pwa.found_manifest"), pageMetadata.ManifestURL)
+		core.Print(nil, "%s %s", "Found manifest", pageMetadata.ManifestURL)
 
-		manifest, manifestBody, err := fetchManifest(ctx, pageMetadata.ManifestURL)
-		if err != nil {
-			return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "fetch or parse manifest"}), err)
+		manifestResult := fetchManifest(ctx, pageMetadata.ManifestURL)
+		if !manifestResult.OK {
+			return core.Fail(core.E("pwa.downloadPWA", "failed to fetch or parse manifest", core.NewError(manifestResult.Error())))
 		}
+		manifestFetch := manifestResult.Value.(pwaManifestFetch)
 
-		if err := writeURLAsset(destDir, pageMetadata.ManifestURL, manifestBody); err != nil {
-			return coreerr.E("pwa.downloadPWA", i18n.T("common.error.failed", map[string]any{"Action": "write manifest"}), err)
+		manifestWritten := writeURLAsset(destDir, pageMetadata.ManifestURL, manifestFetch.Body)
+		if !manifestWritten.OK {
+			return core.Fail(core.E("pwa.downloadPWA", "failed to write manifest", core.NewError(manifestWritten.Error())))
 		}
 		downloaded[normalizeAssetURL(pageMetadata.ManifestURL)] = struct{}{}
-		assets = append(assets, collectAssets(manifest, pageMetadata.ManifestURL)...)
+		assets = append(assets, collectAssets(manifestFetch.Manifest, pageMetadata.ManifestURL)...)
 	}
 
 	for _, assetURL := range uniquePWAStrings(assets) {
@@ -118,41 +137,43 @@ func downloadPWA(ctx context.Context, baseURL, destDir string) error {
 		if _, ok := downloaded[normalized]; ok {
 			continue
 		}
-		if err := downloadAsset(ctx, assetURL, destDir); err != nil {
+		assetDownloaded := downloadAsset(ctx, assetURL, destDir)
+		if !assetDownloaded.OK {
 			if ctx.Err() != nil {
-				return coreerr.E("pwa.downloadPWA", "download cancelled", ctx.Err())
+				return core.Fail(core.E("pwa.downloadPWA", "download cancelled", ctx.Err()))
 			}
-			core.Print(nil, "%s %s %s: %v", i18n.T("common.label.warning"), i18n.T("common.error.failed", map[string]any{"Action": "download asset"}), assetURL, err)
+			core.Print(nil, "%s %s %s: %v", "warning", "failed to download asset", assetURL, assetDownloaded.Error())
 			continue
 		}
 		downloaded[normalized] = struct{}{}
 	}
 
-	core.Println(i18n.T("cmd.build.pwa.download_complete"))
-	return nil
+	core.Println("PWA download complete")
+	return core.Ok(nil)
 }
 
 // findManifestURL extracts the manifest URL from HTML content.
-func findManifestURL(htmlContent, baseURL string) (string, error) {
-	metadata, _, err := extractHTMLMetadataAndAssets(htmlContent, baseURL)
-	if err != nil {
-		return "", err
+func findManifestURL(htmlContent, baseURL string) core.Result {
+	extracted := extractHTMLMetadataAndAssets(htmlContent, baseURL)
+	if !extracted.OK {
+		return extracted
 	}
+	metadata := extracted.Value.(pwaHTMLExtraction).Metadata
 	if metadata.ManifestURL == "" {
-		return "", coreerr.E("pwa.findManifestURL", i18n.T("cmd.build.pwa.error.no_manifest_tag"), nil)
+		return core.Fail(core.E("pwa.findManifestURL", "manifest tag not found", nil))
 	}
-	return metadata.ManifestURL, nil
+	return core.Ok(metadata.ManifestURL)
 }
 
-func extractHTMLMetadataAndAssets(htmlContent, baseURL string) (pwaMetadata, []string, error) {
+func extractHTMLMetadataAndAssets(htmlContent, baseURL string) core.Result {
 	doc, err := html.Parse(core.NewReader(htmlContent))
 	if err != nil {
-		return pwaMetadata{}, nil, err
+		return core.Fail(err)
 	}
 
 	base, err := url.Parse(baseURL)
 	if err != nil {
-		return pwaMetadata{}, nil, err
+		return core.Fail(err)
 	}
 
 	var (
@@ -210,7 +231,7 @@ func extractHTMLMetadataAndAssets(htmlContent, baseURL string) (pwaMetadata, []s
 
 	metadata.Icons = uniquePWAStrings(metadata.Icons)
 	assets = uniquePWAStrings(assets)
-	return metadata, assets, nil
+	return core.Ok(pwaHTMLExtraction{Metadata: metadata, Assets: assets})
 }
 
 // relIncludesManifest reports whether a rel attribute declares a manifest link.
@@ -225,21 +246,24 @@ func relIncludesManifest(rel string) bool {
 }
 
 // fetchManifest downloads and parses a PWA manifest.
-func fetchManifest(ctx context.Context, manifestURL string) (map[string]any, []byte, error) {
-	resp, err := getWithContext(ctx, manifestURL)
-	if err != nil {
-		return nil, nil, err
+func fetchManifest(ctx context.Context, manifestURL string) core.Result {
+	respResult := getWithContext(ctx, manifestURL)
+	if !respResult.OK {
+		return respResult
 	}
-	body, err := readAllBytes(resp.Body)
-	if err != nil {
-		return nil, nil, err
+	resp := respResult.Value.(*http.Response)
+	bodyResult := readAllBytes(resp.Body)
+	if !bodyResult.OK {
+		return bodyResult
 	}
+	body := bodyResult.Value.([]byte)
 
 	var manifest map[string]any
-	if err := ax.JSONUnmarshal(body, &manifest); err != nil {
-		return nil, nil, err
+	decoded := ax.JSONUnmarshal(body, &manifest)
+	if !decoded.OK {
+		return decoded
 	}
-	return manifest, body, nil
+	return core.Ok(pwaManifestFetch{Manifest: manifest, Body: body})
 }
 
 // collectAssets extracts asset URLs from a PWA manifest.
@@ -249,36 +273,40 @@ func collectAssets(manifest map[string]any, manifestURL string) []string {
 }
 
 // downloadAsset fetches a single asset and saves it locally.
-func downloadAsset(ctx context.Context, assetURL, destDir string) error {
-	resp, err := getWithContext(ctx, assetURL)
-	if err != nil {
-		return err
+func downloadAsset(ctx context.Context, assetURL, destDir string) core.Result {
+	respResult := getWithContext(ctx, assetURL)
+	if !respResult.OK {
+		return respResult
 	}
-	body, err := readAllBytes(resp.Body)
-	if err != nil {
-		return err
+	resp := respResult.Value.(*http.Response)
+	bodyResult := readAllBytes(resp.Body)
+	if !bodyResult.OK {
+		return bodyResult
 	}
+	body := bodyResult.Value.([]byte)
 
 	return writeURLAsset(destDir, assetURL, body)
 }
 
-func writeURLAsset(destDir, assetURL string, body []byte) error {
-	targetPath, err := resolveAssetDestination(destDir, assetURL)
-	if err != nil {
-		return err
+func writeURLAsset(destDir, assetURL string, body []byte) core.Result {
+	targetPathResult := resolveAssetDestination(destDir, assetURL)
+	if !targetPathResult.OK {
+		return targetPathResult
 	}
-	if err := ax.MkdirAll(ax.Dir(targetPath), 0o755); err != nil {
-		return err
+	targetPath := targetPathResult.Value.(string)
+	created := ax.MkdirAll(ax.Dir(targetPath), 0o755)
+	if !created.OK {
+		return created
 	}
 	return ax.WriteFile(targetPath, body, 0o644)
 }
 
 // runBuild builds a desktop application from a local directory.
-func runBuild(ctx context.Context, fromPath string) error {
-	core.Print(nil, "%s %s", i18n.T("cmd.build.from_path.starting"), fromPath)
+func runBuild(ctx context.Context, fromPath string) core.Result {
+	core.Print(nil, "%s %s", "Building from path", fromPath)
 
 	if !ax.IsDir(fromPath) {
-		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.must_be_directory"), nil)
+		return core.Fail(core.E("pwa.runBuild", "path must be a directory", nil))
 	}
 
 	buildDir := ".core/build/app"
@@ -286,19 +314,20 @@ func runBuild(ctx context.Context, fromPath string) error {
 	appConfig := resolvePWAAppConfig(fromPath)
 	outputExe := appConfig.ModuleName
 
-	if err := ax.RemoveAll(buildDir); err != nil {
-		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "clean build directory"}), err)
+	removed := ax.RemoveAll(buildDir)
+	if !removed.OK {
+		return core.Fail(core.E("pwa.runBuild", "failed to clean build directory", core.NewError(removed.Error())))
 	}
 
 	// 1. Generate the project from the embedded template
-	core.Println(i18n.T("cmd.build.from_path.generating_template"))
+	core.Println("Generating template")
 	templateFS, err := debme.FS(guiTemplate, "tmpl/gui")
 	if err != nil {
-		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "anchor template filesystem"}), err)
+		return core.Fail(core.E("pwa.runBuild", "failed to anchor template filesystem", err))
 	}
 	sod := gosod.New(templateFS)
 	if sod == nil {
-		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "create new sod instance"}), nil)
+		return core.Fail(core.E("pwa.runBuild", "failed to create new sod instance", nil))
 	}
 
 	templateData := map[string]string{
@@ -307,31 +336,34 @@ func runBuild(ctx context.Context, fromPath string) error {
 		"AppDescriptionLiteral": core.Sprintf("%q", appConfig.Description),
 	}
 	if err := sod.Extract(buildDir, templateData); err != nil {
-		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "extract template"}), err)
+		return core.Fail(core.E("pwa.runBuild", "failed to extract template", err))
 	}
 
 	// 2. Copy the user's web app files
-	core.Println(i18n.T("cmd.build.from_path.copying_files"))
-	if err := copyDir(fromPath, htmlDir); err != nil {
-		return coreerr.E("pwa.runBuild", i18n.T("common.error.failed", map[string]any{"Action": "copy application files"}), err)
+	core.Println("Copying files")
+	copied := copyDir(fromPath, htmlDir)
+	if !copied.OK {
+		return core.Fail(core.E("pwa.runBuild", "failed to copy application files", core.NewError(copied.Error())))
 	}
 
 	// 3. Compile the application
-	core.Println(i18n.T("cmd.build.from_path.compiling"))
+	core.Println("Compiling")
 
 	// Run go mod tidy
-	if err := ax.ExecDir(ctx, buildDir, "go", "mod", "tidy"); err != nil {
-		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_mod_tidy"), err)
+	tidied := ax.ExecDir(ctx, buildDir, "go", "mod", "tidy")
+	if !tidied.OK {
+		return core.Fail(core.E("pwa.runBuild", "go mod tidy failed", core.NewError(tidied.Error())))
 	}
 
 	// Run go build
-	if err := ax.ExecDir(ctx, buildDir, "go", "build", "-o", outputExe); err != nil {
-		return coreerr.E("pwa.runBuild", i18n.T("cmd.build.from_path.error.go_build"), err)
+	built := ax.ExecDir(ctx, buildDir, "go", "build", "-o", outputExe)
+	if !built.OK {
+		return core.Fail(core.E("pwa.runBuild", "go build failed", core.NewError(built.Error())))
 	}
 
 	core.Println()
-	core.Print(nil, "%s %s/%s", i18n.T("cmd.build.from_path.success"), buildDir, outputExe)
-	return nil
+	core.Print(nil, "%s %s/%s", "Built", buildDir, outputExe)
+	return core.Ok(nil)
 }
 
 func resolvePWAAppConfig(fromPath string) pwaAppConfig {
@@ -372,30 +404,34 @@ func loadLocalPWAMetadata(dir string) pwaMetadata {
 		return pwaMetadata{}
 	}
 
-	content, err := ax.ReadFile(indexPath)
-	if err != nil {
+	contentResult := ax.ReadFile(indexPath)
+	if !contentResult.OK {
 		return pwaMetadata{}
 	}
+	content := contentResult.Value.([]byte)
 
-	metadata, _, err := extractHTMLMetadataAndAssets(string(content), "https://local.core/")
-	if err != nil {
+	extracted := extractHTMLMetadataAndAssets(string(content), "https://local.core/")
+	if !extracted.OK {
 		return pwaMetadata{}
 	}
+	metadata := extracted.Value.(pwaHTMLExtraction).Metadata
 
 	for _, manifestPath := range localManifestCandidates(dir, metadata.ManifestURL) {
 		if !ax.IsFile(manifestPath) {
 			continue
 		}
 
-		manifestBody, err := ax.ReadFile(manifestPath)
-		if err != nil {
+		manifestBodyResult := ax.ReadFile(manifestPath)
+		if !manifestBodyResult.OK {
 			continue
 		}
+		manifestBody := manifestBodyResult.Value.([]byte)
 
-		relativePath, err := ax.Rel(dir, manifestPath)
-		if err != nil {
+		relativePathResult := ax.Rel(dir, manifestPath)
+		if !relativePathResult.OK {
 			continue
 		}
+		relativePath := relativePathResult.Value.(string)
 		manifestURL := core.Concat("https://local.core/", localPWAURLPath(relativePath))
 		manifestMetadata, _ := manifestMetadataAndAssetsFromBytes(manifestBody, manifestURL)
 		return mergePWAMetadata(metadata, manifestMetadata)
@@ -404,68 +440,72 @@ func loadLocalPWAMetadata(dir string) pwaMetadata {
 	return metadata
 }
 
-func getWithContext(ctx context.Context, targetURL string) (*http.Response, error) {
+func getWithContext(ctx context.Context, targetURL string) core.Result {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
-		return nil, err
+		return core.Fail(err)
 	}
-	return http.DefaultClient.Do(req)
+	return core.ResultOf(http.DefaultClient.Do(req))
 }
 
-func readAllBytes(reader any) ([]byte, error) {
+func readAllBytes(reader any) core.Result {
 	result := core.ReadAll(reader)
 	if !result.OK {
 		if err, ok := result.Value.(error); ok {
-			return nil, err
+			return core.Fail(err)
 		}
-		return nil, coreerr.E("pwa.readAllBytes", "failed to read stream", nil)
+		return core.Fail(core.E("pwa.readAllBytes", "failed to read stream", nil))
 	}
 
 	content, ok := result.Value.(string)
 	if !ok {
-		return nil, coreerr.E("pwa.readAllBytes", "read stream returned non-string content", nil)
+		return core.Fail(core.E("pwa.readAllBytes", "read stream returned non-string content", nil))
 	}
-	return []byte(content), nil
+	return core.Ok([]byte(content))
 }
 
 // copyDir recursively copies a directory from src to dst.
-func copyDir(src, dst string) error {
-	if err := ax.MkdirAll(dst, 0o755); err != nil {
-		return err
+func copyDir(src, dst string) core.Result {
+	created := ax.MkdirAll(dst, 0o755)
+	if !created.OK {
+		return created
 	}
 
-	entries, err := ax.ReadDir(src)
-	if err != nil {
-		return err
+	entriesResult := ax.ReadDir(src)
+	if !entriesResult.OK {
+		return entriesResult
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	for _, entry := range entries {
 		srcPath := ax.Join(src, entry.Name())
 		dstPath := ax.Join(dst, entry.Name())
 
 		if entry.IsDir() {
-			if err := copyDir(srcPath, dstPath); err != nil {
-				return err
+			copied := copyDir(srcPath, dstPath)
+			if !copied.OK {
+				return copied
 			}
 			continue
 		}
 
-		srcFile, err := ax.Open(srcPath)
-		if err != nil {
-			return err
+		srcFile := ax.Open(srcPath)
+		if !srcFile.OK {
+			return srcFile
 		}
 
-		content, err := readAllBytes(srcFile)
-		if err != nil {
-			return err
+		content := readAllBytes(srcFile.Value)
+		if !content.OK {
+			return content
 		}
 
-		if err := ax.WriteFile(dstPath, content, 0o644); err != nil {
-			return err
+		written := ax.WriteFile(dstPath, content.Value.([]byte), 0o644)
+		if !written.OK {
+			return written
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func manifestMetadataAndAssets(manifest map[string]any, manifestURL string) (pwaMetadata, []string) {
@@ -510,7 +550,8 @@ func manifestMetadataAndAssets(manifest map[string]any, manifestURL string) (pwa
 
 func manifestMetadataAndAssetsFromBytes(body []byte, manifestURL string) (pwaMetadata, []string) {
 	var manifest map[string]any
-	if err := ax.JSONUnmarshal(body, &manifest); err != nil {
+	decoded := ax.JSONUnmarshal(body, &manifest)
+	if !decoded.OK {
 		return pwaMetadata{}, nil
 	}
 	return manifestMetadataAndAssets(manifest, manifestURL)
@@ -644,10 +685,10 @@ func normalizeAssetURL(raw string) string {
 	return parsed.String()
 }
 
-func resolveAssetDestination(destDir, assetURL string) (string, error) {
+func resolveAssetDestination(destDir, assetURL string) core.Result {
 	parsed, err := url.Parse(assetURL)
 	if err != nil {
-		return "", err
+		return core.Fail(err)
 	}
 
 	relativePath := cleanPWAURLPath(core.Concat("/", parsed.Path))
@@ -658,7 +699,7 @@ func resolveAssetDestination(destDir, assetURL string) (string, error) {
 		relativePath = joinPWAURLPath(relativePath, "index.html")
 	}
 
-	return ax.Join(destDir, ax.FromSlash(core.TrimPrefix(relativePath, "/"))), nil
+	return core.Ok(ax.Join(destDir, ax.FromSlash(core.TrimPrefix(relativePath, "/"))))
 }
 
 func localManifestCandidates(dir, manifestURL string) []string {

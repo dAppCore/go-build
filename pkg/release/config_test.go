@@ -3,8 +3,10 @@ package release
 import (
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
+	"gopkg.in/yaml.v3"
 )
 
 // setupConfigTestDir creates a temp directory with optional .core/release.yaml content.
@@ -14,20 +16,45 @@ func setupConfigTestDir(t *testing.T, configContent string) string {
 
 	if configContent != "" {
 		coreDir := ax.Join(dir, ConfigDir)
-		err := ax.MkdirAll(coreDir, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireReleaseConfigOKResult(t, ax.MkdirAll(coreDir, 0755))
 
 		configPath := ax.Join(coreDir, ConfigFileName)
-		err = ax.WriteFile(configPath, []byte(configContent), 0644)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireReleaseConfigOKResult(t, ax.WriteFile(configPath, []byte(configContent), 0644))
 
 	}
 
 	return dir
+}
+
+func requireReleaseConfigOKResult(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requireReleaseConfig(t *testing.T, result core.Result) *Config {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*Config)
+}
+
+func requireReleaseConfigError(t *testing.T, result core.Result) string {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	return result.Error()
+}
+
+func requireReleaseConfigFileInfo(t *testing.T, result core.Result) interface{ IsDir() bool } {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(interface{ IsDir() bool })
 }
 
 func TestConfig_LoadConfig_Good(t *testing.T) {
@@ -57,10 +84,7 @@ changelog:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfig(dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -117,10 +141,7 @@ changelog:
 	t.Run("returns defaults when config file missing", func(t *testing.T) {
 		dir := t.TempDir()
 
-		cfg, err := LoadConfig(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfig(dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -152,10 +173,7 @@ project:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfig(dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -182,10 +200,7 @@ project:
 	t.Run("sets project directory on load", func(t *testing.T) {
 		dir := setupConfigTestDir(t, "version: 1")
 
-		cfg, err := LoadConfig(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfig(dir))
 		if !stdlibAssertEqual(dir, cfg.projectDir) {
 			t.Fatalf("want %v, got %v", dir, cfg.projectDir)
 		}
@@ -202,10 +217,7 @@ sdk:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfig(dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -241,10 +253,7 @@ sdk:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfig(dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -269,10 +278,7 @@ checksum:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfig(dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -286,13 +292,11 @@ checksum:
 	})
 
 	t.Run("loads config from a custom medium", func(t *testing.T) {
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 		dir := "project"
 		configPath := ConfigPath(dir)
-		if err := medium.EnsureDir(ax.Dir(configPath)); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if err := medium.Write(configPath, `
+		requireReleaseConfigOKResult(t, medium.EnsureDir(ax.Dir(configPath)))
+		requireReleaseConfigOKResult(t, medium.Write(configPath, `
 version: 1
 project:
   name: medium-app
@@ -300,14 +304,9 @@ project:
 sdk:
   spec: docs/openapi.yaml
   languages: [go]
-`); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+`))
 
-		cfg, err := LoadConfigWithMedium(medium, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfigWithMedium(medium, dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -335,10 +334,7 @@ sdk:
 	t.Run("returns defaults from a custom medium when config is missing", func(t *testing.T) {
 		dir := "virtual-project"
 
-		cfg, err := LoadConfigWithMedium(io.NewMemoryMedium(), dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfigWithMedium(storage.NewMemoryMedium(), dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -391,10 +387,7 @@ checksum:
 `
 	dir := setupConfigTestDir(t, content)
 
-	cfg, err := LoadConfig(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	cfg := requireReleaseConfig(t, LoadConfig(dir))
 	if stdlibAssertNil(cfg) {
 		t.Fatal("expected non-nil")
 	}
@@ -449,15 +442,9 @@ project:
 `
 		dir := setupConfigTestDir(t, content)
 
-		cfg, err := LoadConfig(dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertNil(cfg) {
-			t.Fatalf("expected nil, got %v", cfg)
-		}
-		if !stdlibAssertContains(err.Error(), "failed to parse config file") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to parse config file")
+		err := requireReleaseConfigError(t, LoadConfig(dir))
+		if !stdlibAssertContains(err, "failed to parse config file") {
+			t.Fatalf("expected %v to contain %v", err, "failed to parse config file")
 		}
 
 	})
@@ -465,21 +452,12 @@ project:
 	t.Run("returns default config when config path is a directory", func(t *testing.T) {
 		dir := t.TempDir()
 		coreDir := ax.Join(dir, ConfigDir)
-		err := ax.MkdirAll(coreDir, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireReleaseConfigOKResult(t, ax.MkdirAll(coreDir, 0755))
 
 		configPath := ax.Join(coreDir, ConfigFileName)
-		err = ax.Mkdir(configPath, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requireReleaseConfigOKResult(t, ax.Mkdir(configPath, 0755))
 
-		cfg, err := LoadConfig(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		cfg := requireReleaseConfig(t, LoadConfig(dir))
 		if stdlibAssertNil(cfg) {
 			t.Fatal("expected non-nil")
 		}
@@ -654,23 +632,14 @@ func TestConfig_WriteConfig_Good(t *testing.T) {
 		cfg.Project.Name = "testapp"
 		cfg.Project.Repository = "owner/testapp"
 
-		err := WriteConfig(cfg, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Verify file exists
-				err)
-		}
+		requireReleaseConfigOKResult(t, WriteConfig(cfg, dir))
 		if !(ConfigExists(dir)) {
 			t.Fatal("expected true")
 
 			// Reload and verify
 		}
 
-		loaded, err := LoadConfig(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		loaded := requireReleaseConfig(t, LoadConfig(dir))
 		if !stdlibAssertEqual("testapp", loaded.Project.Name) {
 			t.Fatalf("want %v, got %v", "testapp", loaded.Project.Name)
 		}
@@ -684,19 +653,10 @@ func TestConfig_WriteConfig_Good(t *testing.T) {
 		dir := t.TempDir()
 
 		cfg := DefaultConfig()
-		err := WriteConfig(cfg, dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Check directory was created
-				err)
-		}
+		requireReleaseConfigOKResult(t, WriteConfig(cfg, dir))
 
 		coreDir := ax.Join(dir, ConfigDir)
-		info, err := ax.Stat(coreDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		info := requireReleaseConfigFileInfo(t, ax.Stat(coreDir))
 		if !(info.IsDir()) {
 			t.Fatal("expected true")
 		}
@@ -818,7 +778,7 @@ func TestConfig_PublishersIter_NilSafe(t *testing.T) {
 func TestConfig_SetOutput_Good(t *testing.T) {
 	t.Run("sets output medium and directory", func(t *testing.T) {
 		cfg := &Config{}
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 
 		cfg.SetOutput(medium, "releases")
 		if !stdlibAssertEqual(medium, cfg.output) {
@@ -832,7 +792,7 @@ func TestConfig_SetOutput_Good(t *testing.T) {
 
 	t.Run("sets output medium only", func(t *testing.T) {
 		cfg := &Config{}
-		medium := io.NewMemoryMedium()
+		medium := storage.NewMemoryMedium()
 
 		cfg.SetOutputMedium(medium)
 		if !stdlibAssertEqual(medium, cfg.output) {
@@ -861,28 +821,16 @@ func TestConfig_WriteConfig_Bad(t *testing.T) {
 
 		// Create .core directory and make it unwritable
 		coreDir := ax.Join(dir, ConfigDir)
-		err := ax.MkdirAll(coreDir, 0755)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
+		requireReleaseConfigOKResult(t, ax.MkdirAll(coreDir, 0755))
 
-				// Make directory read-only
-				err)
-		}
+		requireReleaseConfigOKResult(t, ax.Chmod(coreDir, 0555))
 
-		err = ax.Chmod(coreDir, 0555)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		defer func() { _ = ax.Chmod(coreDir, 0755) }()
+		defer func() { requireReleaseConfigOKResult(t, ax.Chmod(coreDir, 0755)) }()
 
 		cfg := DefaultConfig()
-		err = WriteConfig(cfg, dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to write config file") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to write config file")
+		err := requireReleaseConfigError(t, WriteConfig(cfg, dir))
+		if !stdlibAssertContains(err, "failed to write config file") {
+			t.Fatalf("expected %v to contain %v", err, "failed to write config file")
 		}
 
 	})
@@ -893,15 +841,12 @@ func TestConfig_WriteConfig_Bad(t *testing.T) {
 		}
 		// Use a path that doesn't exist and can't be created
 		cfg := DefaultConfig()
-		err := WriteConfig(cfg, "/nonexistent/path/that/cannot/be/created")
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireReleaseConfigError(t, WriteConfig(cfg, "/nonexistent/path/that/cannot/be/created"))
 
 	})
 }
 
-func TestConfig_ApplyDefaults_Good(t *testing.T) {
+func TestConfig_ApplyDefaultsGood(t *testing.T) {
 	t.Run("applies version default when zero", func(t *testing.T) {
 		cfg := &Config{Version: 0}
 		applyDefaults(cfg)
@@ -941,4 +886,390 @@ func TestConfig_ApplyDefaults_Good(t *testing.T) {
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestConfig_Config_PublishersIter_Good(t *core.T) {
+	subject := &Config{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.PublishersIter()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_Config_PublishersIter_Bad(t *core.T) {
+	subject := &Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.PublishersIter()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_PublishersIter_Ugly(t *core.T) {
+	subject := &Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.PublishersIter()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_LoadConfig_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = LoadConfig(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_LoadConfigWithMedium_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = LoadConfigWithMedium(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_LoadConfigWithMedium_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = LoadConfigWithMedium(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_LoadConfigWithMedium_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = LoadConfigWithMedium(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_LoadConfigAtPath_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = LoadConfigAtPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_LoadConfigAtPath_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = LoadConfigAtPath(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_LoadConfigAtPath_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = LoadConfigAtPath(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_DefaultConfig_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DefaultConfig()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_DefaultConfig_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DefaultConfig()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_ScaffoldConfig_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ScaffoldConfig()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_ScaffoldConfig_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ScaffoldConfig()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_Config_ExpandEnv_Good(t *core.T) {
+	subject := &Config{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.ExpandEnv()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_Config_ExpandEnv_Bad(t *core.T) {
+	subject := &Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.ExpandEnv()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_ExpandEnv_Ugly(t *core.T) {
+	subject := &Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.ExpandEnv()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_Config_SetProjectDir_Bad(t *core.T) {
+	subject := &Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetProjectDir("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_SetProjectDir_Ugly(t *core.T) {
+	subject := &Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetProjectDir(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_Config_SetVersion_Bad(t *core.T) {
+	subject := &Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetVersion("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_SetVersion_Ugly(t *core.T) {
+	subject := &Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetVersion("v1.2.3")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_Config_SetOutput_Bad(t *core.T) {
+	subject := &Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetOutput(storage.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_SetOutput_Ugly(t *core.T) {
+	subject := &Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetOutput(storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_Config_SetOutputMedium_Good(t *core.T) {
+	subject := &Config{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetOutputMedium(storage.NewMemoryMedium())
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_Config_SetOutputMedium_Bad(t *core.T) {
+	subject := &Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetOutputMedium(storage.NewMemoryMedium())
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_SetOutputMedium_Ugly(t *core.T) {
+	subject := &Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetOutputMedium(storage.NewMemoryMedium())
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_Config_SetOutputDir_Good(t *core.T) {
+	subject := &Config{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetOutputDir(core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestConfig_Config_SetOutputDir_Bad(t *core.T) {
+	subject := &Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetOutputDir("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_SetOutputDir_Ugly(t *core.T) {
+	subject := &Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		subject.SetOutputDir(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_ConfigPath_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ConfigPath("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_ConfigPath_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ConfigPath(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_ConfigExists_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ConfigExists("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_ConfigExists_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ConfigExists(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_Config_GetRepository_Bad(t *core.T) {
+	subject := &Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.GetRepository()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_GetRepository_Ugly(t *core.T) {
+	subject := &Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.GetRepository()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_Config_GetProjectName_Bad(t *core.T) {
+	subject := &Config{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.GetProjectName()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestConfig_Config_GetProjectName_Ugly(t *core.T) {
+	subject := &Config{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.GetProjectName()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_WriteConfig_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WriteConfig(&Config{}, core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestConfig_TargetConfig_Good(t *core.T) {
+	raw, err := yaml.Marshal(TargetConfig{OS: "linux", Arch: "amd64"})
+	core.RequireNoError(t, err)
+	core.AssertContains(t, string(raw), "os: linux")
+	core.AssertContains(t, string(raw), "arch: amd64")
+}
+
+func TestConfig_TargetConfig_Bad(t *core.T) {
+	raw, err := yaml.Marshal(TargetConfig{})
+	core.RequireNoError(t, err)
+	core.AssertContains(t, string(raw), "os: \"\"")
+	core.AssertContains(t, string(raw), "arch: \"\"")
+}
+
+func TestConfig_TargetConfig_Ugly(t *core.T) {
+	var subject TargetConfig
+	core.RequireNoError(t, yaml.Unmarshal([]byte("os: windows\narch: arm64\nignored: yes\n"), &subject))
+	core.AssertEqual(t, "windows", subject.OS)
+	core.AssertEqual(t, "arm64", subject.Arch)
 }

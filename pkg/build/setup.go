@@ -3,9 +3,9 @@ package build
 import (
 	"sort"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // SetupTool identifies a toolchain or installer surface required by the
@@ -59,17 +59,17 @@ type SetupPlan struct {
 // ComputeSetupPlan derives the action-style setup requirements from discovery
 // and config. When discovery is nil the function performs a fresh DiscoverFull
 // pass using the provided filesystem and directory.
-func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *DiscoveryResult) (*SetupPlan, error) {
+func ComputeSetupPlan(fs storage.Medium, dir string, cfg *BuildConfig, discovery *DiscoveryResult) core.Result {
 	if fs == nil {
-		fs = io.Local
+		fs = storage.Local
 	}
 
 	if discovery == nil {
-		var err error
-		discovery, err = DiscoverFull(fs, dir)
-		if err != nil {
-			return nil, err
+		discovered := DiscoverFull(fs, dir)
+		if !discovered.OK {
+			return discovered
 		}
+		discovery = discovered.Value.(*DiscoveryResult)
 	}
 
 	configuredType := resolveConfiguredBuildType(cfg, discovery)
@@ -135,7 +135,7 @@ func ComputeSetupPlan(fs io.Medium, dir string, cfg *BuildConfig, discovery *Dis
 		plan.addStep(SetupToolDeno, "Deno manifest or override detected")
 	}
 
-	return plan, nil
+	return core.Ok(plan)
 }
 
 func pythonSetupReason(hasPython, hasCPP, hasDocs bool) string {
@@ -156,12 +156,12 @@ func pythonSetupReason(hasPython, hasCPP, hasDocs bool) string {
 // ResolveFrontendSetupDirs returns frontend directories that participate in the
 // action-style setup phase.
 //
-//	dirs := build.ResolveFrontendSetupDirs(io.Local, ".", true)
+//	dirs := build.ResolveFrontendSetupDirs(storage.Local, ".", true)
 //	// ["./frontend"] when the project only has an empty frontend/ directory
 //	// ["./apps/web"] when a nested package.json is detected
-func ResolveFrontendSetupDirs(fs io.Medium, dir string, allowEmptyFallback bool) []string {
+func ResolveFrontendSetupDirs(fs storage.Medium, dir string, allowEmptyFallback bool) []string {
 	if fs == nil {
-		fs = io.Local
+		fs = storage.Local
 	}
 
 	var dirs []string
@@ -190,17 +190,17 @@ func ResolveFrontendSetupDirs(fs io.Medium, dir string, allowEmptyFallback bool)
 	return deduplicateAndSortPaths(dirs)
 }
 
-func collectFrontendSetupDirs(fs io.Medium, dir string, depth int, dirs *[]string) {
+func collectFrontendSetupDirs(fs storage.Medium, dir string, depth int, dirs *[]string) {
 	if depth >= 2 {
 		return
 	}
 
-	entries, err := fs.List(dir)
-	if err != nil {
+	entriesResult := fs.List(dir)
+	if !entriesResult.OK {
 		return
 	}
 
-	for _, entry := range entries {
+	for _, entry := range entriesResult.Value.([]core.FsDirEntry) {
 		if !entry.IsDir() {
 			continue
 		}
@@ -262,7 +262,7 @@ func resolveConfiguredBuildType(cfg *BuildConfig, discovery *DiscoveryResult) st
 	return ""
 }
 
-func resolveSetupLinuxPackages(fs io.Medium, configuredType string, discovery *DiscoveryResult, hasWails bool) []string {
+func resolveSetupLinuxPackages(fs storage.Medium, configuredType string, discovery *DiscoveryResult, hasWails bool) []string {
 	if discovery == nil {
 		return nil
 	}

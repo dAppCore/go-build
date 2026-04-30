@@ -1,24 +1,31 @@
 package publishers
 
-import "context"
+import (
+	"context"
 
-func (p *LinuxKitPublisher) publishQcow2(ctx context.Context, release *Release, cfg LinuxKitConfig, artifactPath string) error {
-	if err := p.publishLocalLinuxKitArtifact(release, artifactPath, "qcow2"); err != nil {
-		return err
+	"dappco.re/go"
+)
+
+func (p *LinuxKitPublisher) publishQcow2(ctx context.Context, release *Release, cfg LinuxKitConfig, artifactPath string) core.Result {
+	published := p.publishLocalLinuxKitArtifact(release, artifactPath, "qcow2")
+	if !published.OK {
+		return published
 	}
 
 	for _, target := range linuxKitCloudTargets(cfg, "aws") {
-		if err := p.uploadLinuxKitS3(ctx, release, target, artifactPath); err != nil {
-			return err
+		uploaded := p.uploadLinuxKitS3(ctx, release, target, artifactPath)
+		if !uploaded.OK {
+			return uploaded
 		}
 	}
 	for _, target := range linuxKitCloudTargets(cfg, "gcp") {
-		if err := p.uploadLinuxKitGCS(ctx, release, target, artifactPath); err != nil {
-			return err
+		uploaded := p.uploadLinuxKitGCS(ctx, release, target, artifactPath)
+		if !uploaded.OK {
+			return uploaded
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func isLinuxKitQcow2Format(format string) bool {

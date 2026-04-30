@@ -8,31 +8,30 @@ package buildcmd
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/internal/sdkcfg"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/core"
-	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // runBuildSDK handles the `core build sdk` command.
-func runBuildSDK(ctx context.Context, specPath, lang, version string, dryRun bool, skipUnavailable bool) error {
-	projectDir, err := ax.Getwd()
-	if err != nil {
-		return coreerr.E("build.SDK", "failed to get working directory", err)
+func runBuildSDK(ctx context.Context, specPath, lang, version string, dryRun bool, skipUnavailable bool) core.Result {
+	projectDirResult := ax.Getwd()
+	if !projectDirResult.OK {
+		return core.Fail(core.E("build.SDK", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
 
-	return runBuildSDKInDir(ctx, projectDir, specPath, lang, version, dryRun, skipUnavailable)
+	return runBuildSDKInDir(ctx, projectDirResult.Value.(string), specPath, lang, version, dryRun, skipUnavailable)
 }
 
-func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool, skipUnavailable bool) error {
-	config, err := sdkcfg.LoadProjectConfig(io.Local, projectDir)
-	if err != nil {
-		return coreerr.E("build.SDK", "failed to load sdk config", err)
+func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version string, dryRun bool, skipUnavailable bool) core.Result {
+	configResult := sdkcfg.LoadProjectConfig(storage.Local, projectDir)
+	if !configResult.OK {
+		return core.Fail(core.E("build.SDK", "failed to load sdk config", core.NewError(configResult.Error())))
 	}
+	config := configResult.Value.(*sdk.Config)
 	if specPath != "" {
 		config.Spec = specPath
 	}
@@ -46,50 +45,53 @@ func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version s
 	}
 	resolvedConfig := s.Config()
 
-	cli.Print("%s %s\n", buildHeaderStyle.Render(i18n.T("cmd.build.sdk.label")), i18n.T("cmd.build.sdk.generating"))
+	cli.Print("%s %s\n", buildHeaderStyle.Render("SDK"), "Generating SDK")
 	if dryRun {
-		cli.Print("  %s\n", buildDimStyle.Render(i18n.T("cmd.build.sdk.dry_run_mode")))
+		cli.Print("  %s\n", buildDimStyle.Render("dry run mode"))
 	}
 	cli.Blank()
 
 	// Validate the spec before generating anything.
-	detectedSpec, err := s.ValidateSpec(ctx)
-	if err != nil {
-		cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
-		return err
+	detectedSpecResult := s.ValidateSpec(ctx)
+	if !detectedSpecResult.OK {
+		cli.Print("%s %v\n", buildErrorStyle.Render("error"), detectedSpecResult.Error())
+		return detectedSpecResult
 	}
-	cli.Print("  %s %s\n", i18n.T("common.label.spec"), buildTargetStyle.Render(detectedSpec))
+	detectedSpec := detectedSpecResult.Value.(string)
+	cli.Print("  %s %s\n", "spec", buildTargetStyle.Render(detectedSpec))
 
 	if dryRun {
 		if lang != "" {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.language_label"), buildTargetStyle.Render(lang))
+			cli.Print("  %s %s\n", "language", buildTargetStyle.Render(lang))
 		} else {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.languages_label"), buildTargetStyle.Render(core.Join(", ", resolvedConfig.Languages...)))
+			cli.Print("  %s %s\n", "languages", buildTargetStyle.Render(core.Join(", ", resolvedConfig.Languages...)))
 		}
 		cli.Blank()
-		cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("cmd.build.label.ok")), i18n.T("cmd.build.sdk.would_generate"))
-		return nil
+		cli.Print("%s %s\n", buildSuccessStyle.Render("OK"), "Would generate SDK")
+		return core.Ok(nil)
 	}
 
 	if lang != "" {
 		// Generate single language
-		result, err := s.GenerateLanguageWithStatus(ctx, lang)
-		if err != nil {
-			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
-			return err
+		resultResult := s.GenerateLanguageWithStatus(ctx, lang)
+		if !resultResult.OK {
+			cli.Print("%s %v\n", buildErrorStyle.Render("error"), resultResult.Error())
+			return resultResult
 		}
+		result := resultResult.Value.(sdk.LanguageResult)
 		if result.Skipped {
 			cli.Print("  %s %s\n", "Skipped:", buildTargetStyle.Render(result.Language))
 		} else {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), buildTargetStyle.Render(result.Language))
+			cli.Print("  %s %s\n", "generated", buildTargetStyle.Render(result.Language))
 		}
 	} else {
 		// Generate all
-		results, err := s.GenerateWithStatus(ctx)
-		if err != nil {
-			cli.Print("%s %v\n", buildErrorStyle.Render(i18n.T("common.label.error")), err)
-			return err
+		resultsResult := s.GenerateWithStatus(ctx)
+		if !resultsResult.OK {
+			cli.Print("%s %v\n", buildErrorStyle.Render("error"), resultsResult.Error())
+			return resultsResult
 		}
+		results := resultsResult.Value.([]sdk.LanguageResult)
 		generated := make([]string, 0, len(results))
 		skipped := make([]string, 0)
 		for _, result := range results {
@@ -101,7 +103,7 @@ func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version s
 			}
 		}
 		if len(generated) > 0 {
-			cli.Print("  %s %s\n", i18n.T("cmd.build.sdk.generated_label"), buildTargetStyle.Render(core.Join(", ", generated...)))
+			cli.Print("  %s %s\n", "generated", buildTargetStyle.Render(core.Join(", ", generated...)))
 		}
 		if len(skipped) > 0 {
 			cli.Print("  %s %s\n", "Skipped:", buildTargetStyle.Render(core.Join(", ", skipped...)))
@@ -109,6 +111,6 @@ func runBuildSDKInDir(ctx context.Context, projectDir, specPath, lang, version s
 	}
 
 	cli.Blank()
-	cli.Print("%s %s\n", buildSuccessStyle.Render(i18n.T("common.label.success")), i18n.T("cmd.build.sdk.complete"))
-	return nil
+	cli.Print("%s %s\n", buildSuccessStyle.Render("Success"), "SDK generation complete")
+	return core.Ok(nil)
 }

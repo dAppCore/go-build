@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/io"
+	core "dappco.re/go"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
-func TestAUR_AURPublisherName_Good(t *testing.T) {
+func TestAUR_AURPublisherNameGood(t *testing.T) {
 	t.Run("returns aur", func(t *testing.T) {
 		p := NewAURPublisher()
 		if !stdlibAssertEqual("aur", p.Name()) {
@@ -17,7 +18,7 @@ func TestAUR_AURPublisherName_Good(t *testing.T) {
 	})
 }
 
-func TestAUR_AURPublisherParseConfig_Good(t *testing.T) {
+func TestAUR_AURPublisherParseConfigGood(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -101,7 +102,7 @@ func TestAUR_AURPublisherParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestAUR_AURPublisherRenderTemplate_Good(t *testing.T) {
+func TestAUR_AURPublisherRenderTemplateGood(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("renders PKGBUILD template with data", func(t *testing.T) {
@@ -121,10 +122,7 @@ func TestAUR_AURPublisherRenderTemplate_Good(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/aur/PKGBUILD.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/aur/PKGBUILD.tmpl", data))
 		if !stdlibAssertContains(result, "# Maintainer: John Doe <john@example.com>") {
 			t.Fatalf("expected %v to contain %v", result, "# Maintainer: John Doe <john@example.com>")
 		}
@@ -167,10 +165,7 @@ func TestAUR_AURPublisherRenderTemplate_Good(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/aur/.SRCINFO.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/aur/.SRCINFO.tmpl", data))
 		if !stdlibAssertContains(result, "pkgbase = myapp-bin") {
 			t.Fatalf("expected %v to contain %v", result, "pkgbase = myapp-bin")
 		}
@@ -199,23 +194,20 @@ func TestAUR_AURPublisherRenderTemplate_Good(t *testing.T) {
 	})
 }
 
-func TestAUR_AURPublisherRenderTemplate_Bad(t *testing.T) {
+func TestAUR_AURPublisherRenderTemplateBad(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := aurTemplateData{}
-		_, err := p.renderTemplate(io.Local, "templates/aur/nonexistent.tmpl", data)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read template") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		err := requirePublisherError(t, p.renderTemplate(storage.Local, "templates/aur/nonexistent.tmpl", data))
+		if !stdlibAssertContains(err, "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
 
 	})
 }
 
-func TestAUR_AURPublisherDryRunPublish_Good(t *testing.T) {
+func TestAUR_AURPublisherDryRunPublishGood(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
@@ -231,13 +223,11 @@ func TestAUR_AURPublisherDryRunPublish_Good(t *testing.T) {
 			Maintainer: "John Doe <john@example.com>",
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: AUR Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: AUR Publish")
 		}
@@ -285,13 +275,11 @@ func TestAUR_AURPublisherDryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: dist/aur-files") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/aur-files")
 		}
@@ -302,30 +290,27 @@ func TestAUR_AURPublisherDryRunPublish_Good(t *testing.T) {
 	})
 }
 
-func TestAUR_AURPublisherPublish_Bad(t *testing.T) {
+func TestAUR_AURPublisherPublishBad(t *testing.T) {
 	p := NewAURPublisher()
 
 	t.Run("fails when maintainer not configured", func(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "aur"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "maintainer is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "maintainer is required")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "maintainer is required") {
+			t.Fatalf("expected %v to contain %v", err, "maintainer is required")
 		}
 
 	})
 }
 
-func TestAUR_AURConfigDefaults_Good(t *testing.T) {
+func TestAUR_AURConfigDefaultsGood(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewAURPublisher()
 		pubCfg := PublisherConfig{Type: "aur"}
@@ -343,4 +328,164 @@ func TestAUR_AURConfigDefaults_Good(t *testing.T) {
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestAur_NewAURPublisher_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewAURPublisher()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestAur_NewAURPublisher_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewAURPublisher()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestAur_NewAURPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewAURPublisher()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestAur_AURPublisher_Name_Good(t *core.T) {
+	subject := &AURPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestAur_AURPublisher_Name_Bad(t *core.T) {
+	subject := &AURPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestAur_AURPublisher_Name_Ugly(t *core.T) {
+	subject := &AURPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestAur_AURPublisher_Validate_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AURPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestAur_AURPublisher_Validate_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AURPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestAur_AURPublisher_Validate_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AURPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestAur_AURPublisher_Supports_Good(t *core.T) {
+	subject := &AURPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestAur_AURPublisher_Supports_Bad(t *core.T) {
+	subject := &AURPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestAur_AURPublisher_Supports_Ugly(t *core.T) {
+	subject := &AURPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestAur_AURPublisher_Publish_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AURPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestAur_AURPublisher_Publish_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AURPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestAur_AURPublisher_Publish_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AURPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

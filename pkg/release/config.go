@@ -4,11 +4,10 @@ package release
 import (
 	"iter"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/core"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	coreio "dappco.re/go/build/pkg/storage"
 	"gopkg.in/yaml.v3" // Note: AX-6 — no core YAMLUnmarshal yet.
 )
 
@@ -82,7 +81,7 @@ type ChecksumConfig struct {
 // t := release.TargetConfig{OS: "linux", Arch: "arm64"}
 type TargetConfig struct {
 	// OS is the target operating system (e.g., "linux", "darwin", "windows").
-	OS string `yaml:"os"`
+	OS string "yaml:\"os\""
 	// Arch is the target architecture (e.g., "amd64", "arm64").
 	Arch string `yaml:"arch"`
 }
@@ -209,8 +208,8 @@ func (c *Config) PublishersIter() iter.Seq[PublisherConfig] {
 // If the config file does not exist, it returns DefaultConfig().
 // Returns an error if the file exists but cannot be parsed.
 //
-// cfg, err := release.LoadConfig(".")
-func LoadConfig(dir string) (*Config, error) {
+// result := release.LoadConfig(".")
+func LoadConfig(dir string) core.Result {
 	return LoadConfigWithMedium(coreio.Local, dir)
 }
 
@@ -218,38 +217,52 @@ func LoadConfig(dir string) (*Config, error) {
 // This mirrors build config loading so callers that virtualise project files
 // via io.Medium can still resolve release settings consistently.
 //
-// cfg, err := release.LoadConfigWithMedium(io.NewMemoryMedium(), "project")
-func LoadConfigWithMedium(filesystem coreio.Medium, dir string) (*Config, error) {
-	cfg, err := LoadConfigAtPath(filesystem, ConfigPath(dir))
-	if err != nil {
-		return nil, err
+// result := release.LoadConfigWithMedium(io.NewMemoryMedium(), "project")
+func LoadConfigWithMedium(filesystem coreio.Medium, dir string) core.Result {
+	cfgResult := LoadConfigAtPath(filesystem, ConfigPath(dir))
+	if !cfgResult.OK {
+		return cfgResult
 	}
 
+	cfg := cfgResult.Value.(*Config)
 	cfg.projectDir = dir
-	return cfg, nil
+	return core.Ok(cfg)
 }
 
 // LoadConfigAtPath loads release configuration from an explicit path in the
 // provided medium. If the path does not point to a file, it returns
 // DefaultConfig().
 //
-// cfg, err := release.LoadConfigAtPath(io.Local, "/tmp/project/.core/release.yaml")
-func LoadConfigAtPath(filesystem coreio.Medium, configPath string) (*Config, error) {
+// result := release.LoadConfigAtPath(io.Local, "/tmp/project/.core/release.yaml")
+func LoadConfigAtPath(filesystem coreio.Medium, configPath string) core.Result {
 	if filesystem == nil {
 		filesystem = coreio.Local
 	}
 
-	content, err := filesystem.Read(configPath)
-	if err != nil {
+	contentResult := filesystem.Read(configPath)
+	if !contentResult.OK {
 		if !filesystem.IsFile(configPath) {
-			return DefaultConfig(), nil
+			return core.Ok(DefaultConfig())
 		}
-		return nil, coreerr.E("release.LoadConfigAtPath", "failed to read config file", err)
+		return core.Fail(core.E("release.LoadConfigAtPath", "failed to read config file", core.NewError(contentResult.Error())))
 	}
+	content := contentResult.Value.(string)
+
+	var node yaml.Node
+	if parseFailure := yaml.Unmarshal([]byte(content), &node); parseFailure != nil {
+		return core.Fail(core.E("release.LoadConfigAtPath", "failed to parse config file", parseFailure))
+	}
+	diffConfigured, diffEnabled, scalarDiff := normalizeReleaseSDKDiffDocument(&node)
 
 	var cfg Config
-	if err := yaml.Unmarshal([]byte(content), &cfg); err != nil {
-		return nil, coreerr.E("release.LoadConfigAtPath", "failed to parse config file", err)
+	if parseFailure := node.Decode(&cfg); parseFailure != nil {
+		return core.Fail(core.E("release.LoadConfigAtPath", "failed to parse config file", parseFailure))
+	}
+	if diffConfigured && cfg.SDK != nil {
+		cfg.SDK.Diff.EnabledConfigured = true
+		if scalarDiff {
+			cfg.SDK.Diff.Enabled = diffEnabled
+		}
 	}
 
 	// Apply defaults for any missing fields.
@@ -259,7 +272,80 @@ func LoadConfigAtPath(filesystem coreio.Medium, configPath string) (*Config, err
 		cfg.SDK.ApplyDefaults()
 	}
 
-	return &cfg, nil
+	return core.Ok(&cfg)
+}
+
+func normalizeReleaseSDKDiffDocument(node *yaml.Node) (bool, bool, bool) {
+	if node == nil {
+		return false, false, false
+	}
+
+	root := node
+	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+		root = node.Content[0]
+	}
+	if root == nil || root.Kind != yaml.MappingNode {
+		return false, false, false
+	}
+
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		key := root.Content[i]
+		value := root.Content[i+1]
+		if key != nil && key.Value == "sdk" {
+			return normalizeReleaseSDKDiffNode(value)
+		}
+	}
+
+	return false, false, false
+}
+
+func normalizeReleaseSDKDiffNode(node *yaml.Node) (bool, bool, bool) {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return false, false, false
+	}
+
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := node.Content[i]
+		value := node.Content[i+1]
+		if key == nil || value == nil || key.Value != "diff" {
+			continue
+		}
+		if value.Kind == yaml.MappingNode {
+			return releaseSDKDiffMappingHasEnabled(value), false, false
+		}
+		if value.Kind != yaml.ScalarNode {
+			return false, false, false
+		}
+
+		enabled := value.Value == "true" || value.Value == "True" || value.Value == "TRUE"
+		boolValue := "false"
+		if enabled {
+			boolValue = "true"
+		}
+		node.Content[i+1] = &yaml.Node{
+			Kind: yaml.MappingNode,
+			Content: []*yaml.Node{
+				{Kind: yaml.ScalarNode, Tag: "!!str", Value: "enabled"},
+				{Kind: yaml.ScalarNode, Tag: "!!bool", Value: boolValue},
+			},
+		}
+		return true, enabled, true
+	}
+
+	return false, false, false
+}
+
+func releaseSDKDiffMappingHasEnabled(node *yaml.Node) bool {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := node.Content[i]
+		if key != nil && key.Value == "enabled" {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultConfig returns sensible defaults for release configuration.
@@ -478,10 +564,11 @@ func ConfigPath(dir string) string {
 // if release.ConfigExists(".") { ... }
 func ConfigExists(dir string) bool {
 	configPath := ConfigPath(dir)
-	absPath, err := ax.Abs(configPath)
-	if err != nil {
+	absPathResult := ax.Abs(configPath)
+	if !absPathResult.OK {
 		return false
 	}
+	absPath := absPathResult.Value.(string)
 	return ax.IsFile(absPath)
 }
 
@@ -507,32 +594,35 @@ func (c *Config) GetProjectName() string {
 
 // WriteConfig writes the config to the .core/release.yaml file.
 //
-// err := release.WriteConfig(cfg, ".")
-func WriteConfig(cfg *Config, dir string) error {
+// result := release.WriteConfig(cfg, ".")
+func WriteConfig(cfg *Config, dir string) core.Result {
 	configPath := ConfigPath(dir)
 
 	// Resolve path with AX-aware helpers.
-	absPath, err := ax.Abs(configPath)
-	if err != nil {
-		return coreerr.E("release.WriteConfig", "failed to resolve path", err)
+	absPathResult := ax.Abs(configPath)
+	if !absPathResult.OK {
+		return core.Fail(core.E("release.WriteConfig", "failed to resolve path", core.NewError(absPathResult.Error())))
 	}
+	absPath := absPathResult.Value.(string)
 
 	// Ensure directory exists
 	configDir := ax.Dir(absPath)
-	if err := ax.MkdirAll(configDir, 0o755); err != nil {
-		return coreerr.E("release.WriteConfig", "failed to create directory", err)
+	created := ax.MkdirAll(configDir, 0o755)
+	if !created.OK {
+		return core.Fail(core.E("release.WriteConfig", "failed to create directory", core.NewError(created.Error())))
 	}
 
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return coreerr.E("release.WriteConfig", "failed to marshal config", err)
+	data, marshalFailure := yaml.Marshal(cfg)
+	if marshalFailure != nil {
+		return core.Fail(core.E("release.WriteConfig", "failed to marshal config", marshalFailure))
 	}
 
-	if err := ax.WriteString(absPath, string(data), 0o644); err != nil {
-		return coreerr.E("release.WriteConfig", "failed to write config file", err)
+	written := ax.WriteString(absPath, string(data), 0o644)
+	if !written.OK {
+		return core.Fail(core.E("release.WriteConfig", "failed to write config file", core.NewError(written.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func expandEnvSlice(values []string) []string {

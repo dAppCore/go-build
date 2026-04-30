@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	coreapi "dappco.re/go/api"
-	providerpkg "dappco.re/go/api/pkg/provider"
-	"dappco.re/go/process"
-	"dappco.re/go/ws"
+	core "dappco.re/go"
+	coreapi "dappco.re/go/build/pkg/api"
+	providerpkg "dappco.re/go/build/pkg/api/provider"
+	events "dappco.re/go/build/pkg/events"
 )
 
 type stubAPIEngine struct {
@@ -25,12 +25,12 @@ func (e *stubAPIEngine) Register(group coreapi.RouteGroup) {
 	e.groups = append(e.groups, group.Name())
 }
 
-func (e *stubAPIEngine) Serve(ctx context.Context) error {
+func (e *stubAPIEngine) Serve(ctx context.Context) core.Result {
 	e.once.Do(func() {
 		close(e.serveStarted)
 	})
 	<-ctx.Done()
-	return context.Canceled
+	return core.Fail(context.Canceled)
 }
 
 type stubProcessDaemon struct {
@@ -39,14 +39,14 @@ type stubProcessDaemon struct {
 	ready   []bool
 }
 
-func (d *stubProcessDaemon) Start() error {
+func (d *stubProcessDaemon) Start() core.Result {
 	d.started = true
-	return nil
+	return core.Ok(nil)
 }
 
-func (d *stubProcessDaemon) Stop() error {
+func (d *stubProcessDaemon) Stop() core.Result {
 	d.stopped = true
-	return nil
+	return core.Ok(nil)
 }
 
 func (d *stubProcessDaemon) SetReady(ready bool) {
@@ -70,7 +70,7 @@ func (o *stubAgenticOrchestrator) Notify(channel string, payload any) {
 	o.notifications = append(o.notifications, channel)
 }
 
-func TestRun_WiresMCPAndAgentic_Good(t *testing.T) {
+func TestRun_WiresMCPAndAgenticGood(t *testing.T) {
 	originalHub := newHub
 	originalBuildProvider := newBuildProvider
 	originalRegistry := newProviderRegistry
@@ -93,8 +93,8 @@ func TestRun_WiresMCPAndAgentic_Good(t *testing.T) {
 	engine := &stubAPIEngine{serveStarted: make(chan struct{})}
 	agentic := &stubAgenticOrchestrator{runStarted: make(chan struct{})}
 
-	newHub = ws.NewHub
-	newBuildProvider = func(projectDir string, hub *ws.Hub) providerpkg.Provider {
+	newHub = events.NewHub
+	newBuildProvider = func(projectDir string, hub *events.Hub) providerpkg.Provider {
 		return stubDaemonProvider{
 			name:     "build",
 			basePath: "/api/v1/build",
@@ -102,31 +102,31 @@ func TestRun_WiresMCPAndAgentic_Good(t *testing.T) {
 		}
 	}
 	newProviderRegistry = providerpkg.NewRegistry
-	newAPIEngine = func(opts ...coreapi.Option) (apiEngine, error) {
-		return engine, nil
+	newAPIEngine = func(opts ...coreapi.Option) core.Result {
+		return core.Ok(engine)
 	}
-	newMCPServer = func(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) coreapi.RouteGroup {
+	newMCPServer = func(cfg Config, registry *providerpkg.Registry, hub *events.Hub) coreapi.RouteGroup {
 		if stdlibAssertNil(registry.Get("build")) {
 			t.Fatal("expected non-nil")
 		}
 
 		return stubRouteGroup{name: "mcp", basePath: "/api/v1/mcp"}
 	}
-	newAgenticOrchestrator = func(cfg Config, registry *providerpkg.Registry, hub *ws.Hub) agenticOrchestrator {
+	newAgenticOrchestrator = func(cfg Config, registry *providerpkg.Registry, hub *events.Hub) agenticOrchestrator {
 		if stdlibAssertNil(registry.Get("build")) {
 			t.Fatal("expected non-nil")
 		}
 
 		return agentic
 	}
-	newProcessDaemon = func(opts process.DaemonOptions) processDaemon {
+	newProcessDaemon = func(opts daemonOptions) processDaemon {
 		return stubDaemon
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	done := make(chan error, 1)
+	done := make(chan core.Result, 1)
 	go func() {
 		done <- Run(ctx, Config{
 			ProjectDir:       projectDir,
@@ -150,9 +150,9 @@ func TestRun_WiresMCPAndAgentic_Good(t *testing.T) {
 	cancel()
 
 	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+	case result := <-done:
+		if !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 	case <-time.After(2 * time.Second):

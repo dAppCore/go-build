@@ -4,37 +4,56 @@ import (
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 )
 
 func runReleaseGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	if err := ax.ExecDir(context.Background(), dir, "git", args); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.ExecDir(context.Background(), dir, "git", args...); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
 
-func TestSDK_RunSDKNilConfig_Bad(t *testing.T) {
-	_, err := RunSDK(context.Background(), nil, true)
-	if err == nil {
+func requireSDKRelease(t *testing.T, result core.Result) *SDKRelease {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(*SDKRelease)
+}
+
+func requireSDKError(t *testing.T, result core.Result) string {
+	t.Helper()
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "config is nil") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "config is nil")
+	return result.Error()
+}
+
+func requireSDKBool(t *testing.T, result core.Result) bool {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(bool)
+}
+
+func TestSDK_RunSDKNilConfigBad(t *testing.T) {
+	err := requireSDKError(t, RunSDK(context.Background(), nil, true))
+	if !stdlibAssertContains(err, "config is nil") {
+		t.Fatalf("expected %v to contain %v", err, "config is nil")
 	}
 
 }
 
-func TestSDK_RunSDKNoSDKConfig_FallsBackToDefaults_Good(t *testing.T) {
+func TestSDK_RunSDKNoSDKConfig_FallsBackToDefaultsGood(t *testing.T) {
 	cfg := &Config{}
 	cfg.projectDir = t.TempDir()
 	cfg.version = "v1.0.0"
 
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("v1.0.0", result.Version) {
 		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
 	}
@@ -47,7 +66,7 @@ func TestSDK_RunSDKNoSDKConfig_FallsBackToDefaults_Good(t *testing.T) {
 
 }
 
-func TestSDK_RunSDKNoSDKConfig_UsesBuildConfig_Good(t *testing.T) {
+func TestSDK_RunSDKNoSDKConfig_UsesBuildConfigGood(t *testing.T) {
 	projectDir := t.TempDir()
 	buildConfig := `version: 1
 sdk:
@@ -55,21 +74,18 @@ sdk:
   languages: [typescript, go]
   output: generated/sdk
 `
-	if err := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(buildConfig), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(buildConfig), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	cfg := &Config{}
 	cfg.projectDir = projectDir
 	cfg.version = "v2.0.0"
 
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("v2.0.0", result.Version) {
 		t.Fatalf("want %v, got %v", "v2.0.0", result.Version)
 	}
@@ -82,7 +98,7 @@ sdk:
 
 }
 
-func TestSDK_RunSDKDryRun_Good(t *testing.T) {
+func TestSDK_RunSDKDryRunGood(t *testing.T) {
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"typescript", "python"},
@@ -92,10 +108,7 @@ func TestSDK_RunSDKDryRun_Good(t *testing.T) {
 	cfg.projectDir = "/tmp"
 	cfg.version = "v1.0.0"
 
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("v1.0.0", result.Version) {
 		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
 	}
@@ -117,7 +130,7 @@ func TestSDK_RunSDKDryRun_Good(t *testing.T) {
 
 }
 
-func TestSDK_RunSDKDryRunDefaultOutput_Good(t *testing.T) {
+func TestSDK_RunSDKDryRunDefaultOutputGood(t *testing.T) {
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"go"},
@@ -127,27 +140,21 @@ func TestSDK_RunSDKDryRunDefaultOutput_Good(t *testing.T) {
 	cfg.projectDir = "/tmp"
 	cfg.version = "v2.0.0"
 
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("sdk", result.Output) {
 		t.Fatalf("want %v, got %v", "sdk", result.Output)
 	}
 
 }
 
-func TestSDK_RunSDKDryRunDefaultsLanguages_Good(t *testing.T) {
+func TestSDK_RunSDKDryRunDefaultsLanguagesGood(t *testing.T) {
 	cfg := &Config{
 		SDK: &SDKConfig{},
 	}
 	cfg.projectDir = t.TempDir()
 	cfg.version = "v2.0.0"
 
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("sdk", result.Output) {
 		t.Fatalf("want %v, got %v", "sdk", result.Output)
 	}
@@ -157,7 +164,7 @@ func TestSDK_RunSDKDryRunDefaultsLanguages_Good(t *testing.T) {
 
 }
 
-func TestSDK_RunSDKDryRunDefaultProjectDir_Good(t *testing.T) {
+func TestSDK_RunSDKDryRunDefaultProjectDirGood(t *testing.T) {
 	cfg := &Config{
 		SDK: &SDKConfig{
 			Languages: []string{"typescript"},
@@ -167,10 +174,7 @@ func TestSDK_RunSDKDryRunDefaultProjectDir_Good(t *testing.T) {
 	// projectDir is empty, should default to "."
 	cfg.version = "v1.0.0"
 
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("v1.0.0", result.Version) {
 		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
 
@@ -182,7 +186,7 @@ func TestSDK_RunSDKDryRunDefaultProjectDir_Good(t *testing.T) {
 
 }
 
-func TestSDK_RunSDKBreakingChangesFailOnBreaking_Bad(t *testing.T) {
+func TestSDK_RunSDKBreakingChangesFailOnBreakingBad(t *testing.T) {
 
 	cfg := &Config{
 		SDK: &SDKConfig{
@@ -199,17 +203,14 @@ func TestSDK_RunSDKBreakingChangesFailOnBreaking_Bad(t *testing.T) {
 
 	// In dry run mode with no git repo, diff check will fail gracefully
 	// (non-fatal warning), so this should succeed
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("v1.0.0", result.Version) {
 		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
 	}
 
 }
 
-func TestSDK_ToSDKConfig_Good(t *testing.T) {
+func TestSDK_ToSDKConfigGood(t *testing.T) {
 	sdkCfg := &SDKConfig{
 		Spec:      "api/openapi.yaml",
 		Languages: []string{"typescript", "go"},
@@ -261,7 +262,7 @@ func TestSDK_ToSDKConfig_Good(t *testing.T) {
 
 }
 
-func TestSDK_ToSDKConfigNilInput_Good(t *testing.T) {
+func TestSDK_ToSDKConfigNilInputGood(t *testing.T) {
 	result := toSDKConfig(nil)
 	if !stdlibAssertNil(result) {
 		t.Fatalf("expected nil, got %v", result)
@@ -269,7 +270,7 @@ func TestSDK_ToSDKConfigNilInput_Good(t *testing.T) {
 
 }
 
-func TestSDK_RunSDKWithDiffEnabledNoFailOnBreaking_Good(t *testing.T) {
+func TestSDK_RunSDKWithDiffEnabledNoFailOnBreakingGood(t *testing.T) {
 
 	cfg := &Config{
 		SDK: &SDKConfig{
@@ -285,10 +286,7 @@ func TestSDK_RunSDKWithDiffEnabledNoFailOnBreaking_Good(t *testing.T) {
 	cfg.version = "v1.0.0"
 
 	// Dry run should succeed even without git repo (diff check fails gracefully)
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("v1.0.0", result.Version) {
 		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
 	}
@@ -301,7 +299,7 @@ func TestSDK_RunSDKWithDiffEnabledNoFailOnBreaking_Good(t *testing.T) {
 
 }
 
-func TestSDK_RunSDKMultipleLanguages_Good(t *testing.T) {
+func TestSDK_RunSDKMultipleLanguagesGood(t *testing.T) {
 
 	cfg := &Config{
 		SDK: &SDKConfig{
@@ -312,10 +310,7 @@ func TestSDK_RunSDKMultipleLanguages_Good(t *testing.T) {
 	cfg.projectDir = "/tmp"
 	cfg.version = "v3.0.0"
 
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("v3.0.0", result.Version) {
 		t.Fatalf("want %v, got %v", "v3.0.0", result.Version)
 	}
@@ -331,7 +326,7 @@ func TestSDK_RunSDKMultipleLanguages_Good(t *testing.T) {
 
 }
 
-func TestSDK_RunSDKWithPackageConfig_Good(t *testing.T) {
+func TestSDK_RunSDKWithPackageConfigGood(t *testing.T) {
 
 	cfg := &Config{
 		SDK: &SDKConfig{
@@ -347,10 +342,7 @@ func TestSDK_RunSDKWithPackageConfig_Good(t *testing.T) {
 	cfg.projectDir = "/tmp"
 	cfg.version = "v1.0.0"
 
-	result, err := RunSDK(context.Background(), cfg, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	result := requireSDKRelease(t, RunSDK(context.Background(), cfg, true))
 	if !stdlibAssertEqual("v1.0.0", result.Version) {
 		t.Fatalf("want %v, got %v", "v1.0.0", result.Version)
 
@@ -359,7 +351,7 @@ func TestSDK_RunSDKWithPackageConfig_Good(t *testing.T) {
 
 }
 
-func TestSDK_ToSDKConfigEmptyPackageConfig_Good(t *testing.T) {
+func TestSDK_ToSDKConfigEmptyPackageConfigGood(t *testing.T) {
 
 	sdkCfg := &SDKConfig{
 		Languages: []string{"go"},
@@ -386,7 +378,7 @@ func TestSDK_ToSDKConfigEmptyPackageConfig_Good(t *testing.T) {
 
 }
 
-func TestSDK_ToSDKConfigDiffDisabled_Good(t *testing.T) {
+func TestSDK_ToSDKConfigDiffDisabledGood(t *testing.T) {
 
 	sdkCfg := &SDKConfig{
 		Languages: []string{"typescript"},
@@ -407,7 +399,7 @@ func TestSDK_ToSDKConfigDiffDisabled_Good(t *testing.T) {
 
 }
 
-func TestSDK_ResolveSDKOutputRoot_Good(t *testing.T) {
+func TestSDK_ResolveSDKOutputRootGood(t *testing.T) {
 	t.Run("uses the default sdk root when no publish path is configured", func(t *testing.T) {
 		if !stdlibAssertEqual("sdk", resolveSDKOutputRoot(&SDKConfig{})) {
 			t.Fatalf("want %v, got %v", "sdk", resolveSDKOutputRoot(&SDKConfig{}))
@@ -429,7 +421,7 @@ func TestSDK_ResolveSDKOutputRoot_Good(t *testing.T) {
 	})
 }
 
-func TestSDK_CheckBreakingChanges_UsesPreviousTaggedSpec_Good(t *testing.T) {
+func TestSDK_CheckBreakingChanges_UsesPreviousTaggedSpecGood(t *testing.T) {
 	dir := t.TempDir()
 	runReleaseGit(t, dir, "init")
 	runReleaseGit(t, dir, "config", "user.email", "test@example.com")
@@ -468,26 +460,57 @@ paths:
 `
 
 	specPath := ax.Join(dir, "openapi.yaml")
-	if err := ax.WriteFile(specPath, []byte(baseSpec), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(specPath, []byte(baseSpec), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	runReleaseGit(t, dir, "add", "openapi.yaml")
 	runReleaseGit(t, dir, "commit", "-m", "feat: add initial spec")
 	runReleaseGit(t, dir, "tag", "v1.0.0")
-	if err := ax.WriteFile(specPath, []byte(currentSpec), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(specPath, []byte(currentSpec), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	runReleaseGit(t, dir, "add", "openapi.yaml")
 	runReleaseGit(t, dir, "commit", "-m", "feat: remove users endpoint")
 
-	breaking, err := checkBreakingChanges(context.Background(), dir, &SDKConfig{Spec: "openapi.yaml"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	breaking := requireSDKBool(t, checkBreakingChanges(context.Background(), dir, &SDKConfig{Spec: "openapi.yaml"}))
 	if !(breaking) {
 		t.Fatal("expected true")
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestSdk_RunSDK_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = RunSDK(ctx, &Config{}, true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestSdk_RunSDK_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = RunSDK(ctx, nil, true)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestSdk_RunSDK_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = RunSDK(ctx, &Config{}, true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

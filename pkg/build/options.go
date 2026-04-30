@@ -5,7 +5,7 @@ package build
 import (
 	"strconv"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // BuildOptions holds computed build flags from config + discovery.

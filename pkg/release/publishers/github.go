@@ -9,10 +9,9 @@ import (
 	"net/url"  // Note: AX-6 — parses GitHub remote URLs using the structured URL parser.
 	"sort"     // Note: AX-6 — keeps remote selection deterministic with origin first.
 
-	"dappco.re/go/build/internal/ax" // Note: AX-6 — Core-backed command, path, JSON, and temp helpers.
-	"dappco.re/go/core"              // Note: AX-6 — approved string helpers and Core error joining.
-	coreio "dappco.re/go/core/io"    // Note: AX-6 — Core Medium abstraction for artifact filesystem access.
-	coreerr "dappco.re/go/core/log"  // Note: AX-6 — wraps GitHub publisher errors with Core logging semantics.
+	"dappco.re/go"                          // Note: AX-6 — approved string helpers and Core error joining.
+	"dappco.re/go/build/internal/ax"        // Note: AX-6 — Core-backed command, path, JSON, and temp helpers.
+	coreio "dappco.re/go/build/pkg/storage" // Note: AX-6 — Core Medium abstraction for artifact filesystem access.
 )
 
 // GitHubPublisher publishes releases to GitHub using the gh CLI.
@@ -35,7 +34,7 @@ func NewGitHubPublisher() *GitHubPublisher {
 // DetectGitHubRepository detects the owner/repo pair from any GitHub remote in
 // the repository. Repositories that use Forge or another self-hosted origin can
 // still resolve against a secondary `github` remote.
-func DetectGitHubRepository(ctx context.Context, dir string) (string, error) {
+func DetectGitHubRepository(ctx context.Context, dir string) core.Result {
 	return detectRepository(ctx, dir)
 }
 
@@ -47,7 +46,7 @@ func (p *GitHubPublisher) Name() string {
 }
 
 // Validate checks that the GitHub publisher has a release to publish.
-func (p *GitHubPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+func (p *GitHubPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) core.Result {
 	_ = ctx
 	_ = pubCfg
 	_ = relCfg
@@ -61,10 +60,11 @@ func (p *GitHubPublisher) Supports(target string) bool {
 
 // Publish publishes the release to GitHub using the gh CLI.
 //
-// err := pub.Publish(ctx, rel, pubCfg, relCfg, false) // dryRun=true to preview
-func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	if err := validatePublisherRelease(p.Name(), release); err != nil {
-		return err
+// result := pub.Publish(ctx, rel, pubCfg, relCfg, false) // dryRun=true to preview
+func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) core.Result {
+	validated := validatePublisherRelease(p.Name(), release)
+	if !validated.OK {
+		return validated
 	}
 
 	// Determine repository
@@ -74,32 +74,34 @@ func (p *GitHubPublisher) Publish(ctx context.Context, release *Release, pubCfg 
 	}
 	if repo == "" {
 		// Try to detect from git remote
-		detectedRepo, err := detectRepository(ctx, release.ProjectDir)
-		if err != nil {
-			return coreerr.E("github.Publish", "could not determine repository", err)
+		detectedRepoResult := detectRepository(ctx, release.ProjectDir)
+		if !detectedRepoResult.OK {
+			return core.Fail(core.E("github.Publish", "could not determine repository", core.NewError(detectedRepoResult.Error())))
 		}
-		repo = detectedRepo
+		repo = detectedRepoResult.Value.(string)
 	}
 
 	if dryRun {
 		return p.dryRunPublish(release, pubCfg, repo)
 	}
 
-	ghCommand, err := resolveGhCli()
-	if err != nil {
-		return err
+	ghCommandResult := resolveGhCli()
+	if !ghCommandResult.OK {
+		return ghCommandResult
 	}
+	ghCommand := ghCommandResult.Value.(string)
 
 	// Validate gh CLI is available and authenticated for actual publish
-	if err := validateGhAuth(ctx, ghCommand); err != nil {
-		return err
+	authenticated := validateGhAuth(ctx, ghCommand)
+	if !authenticated.OK {
+		return authenticated
 	}
 
 	return p.executePublish(ctx, release, pubCfg, repo, ghCommand)
 }
 
 // dryRunPublish shows what would be done without actually publishing.
-func (p *GitHubPublisher) dryRunPublish(release *Release, pubCfg PublisherConfig, repo string) error {
+func (p *GitHubPublisher) dryRunPublish(release *Release, pubCfg PublisherConfig, repo string) core.Result {
 	prerelease := shouldMarkGitHubPrerelease(release, pubCfg)
 
 	publisherPrintln()
@@ -131,28 +133,30 @@ func (p *GitHubPublisher) dryRunPublish(release *Release, pubCfg PublisherConfig
 	publisherPrintln()
 	publisherPrintln("=== END DRY RUN ===")
 
-	return nil
+	return core.Ok(nil)
 }
 
 // executePublish actually creates the release and uploads artifacts.
-func (p *GitHubPublisher) executePublish(ctx context.Context, release *Release, pubCfg PublisherConfig, repo, ghCommand string) error {
+func (p *GitHubPublisher) executePublish(ctx context.Context, release *Release, pubCfg PublisherConfig, repo, ghCommand string) core.Result {
 	// Build the release create command
 	args := p.buildCreateArgs(release, pubCfg, repo)
 
-	artifactPaths, cleanup, err := p.materializeArtifacts(release)
-	if err != nil {
-		return err
+	materializedResult := p.materializeArtifacts(release)
+	if !materializedResult.OK {
+		return materializedResult
 	}
-	defer cleanup()
+	materialized := materializedResult.Value.(githubArtifactMaterialization)
+	defer materialized.cleanup()
 
-	args = append(args, artifactPaths...)
+	args = append(args, materialized.paths...)
 
 	// Execute gh release create
-	if err := publisherRun(ctx, release.ProjectDir, nil, ghCommand, args...); err != nil {
-		return coreerr.E("github.Publish", "gh release create failed", err)
+	created := publisherRun(ctx, release.ProjectDir, nil, ghCommand, args...)
+	if !created.OK {
+		return core.Fail(core.E("github.Publish", "gh release create failed", core.NewError(created.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // buildCreateArgs builds the arguments for gh release create.
@@ -234,10 +238,15 @@ func isCoreSemver(version string) bool {
 	return true
 }
 
-func (p *GitHubPublisher) materializeArtifacts(release *Release) ([]string, func(), error) {
+type githubArtifactMaterialization struct {
+	paths   []string
+	cleanup func()
+}
+
+func (p *GitHubPublisher) materializeArtifacts(release *Release) core.Result {
 	artifactFS := releaseArtifactFS(release)
 	if artifactFS == nil {
-		return nil, func() {}, coreerr.E("github.Publish", "artifact filesystem is nil", nil)
+		return core.Fail(core.E("github.Publish", "artifact filesystem is nil", nil))
 	}
 
 	paths := make([]string, 0, len(release.Artifacts))
@@ -245,29 +254,32 @@ func (p *GitHubPublisher) materializeArtifacts(release *Release) ([]string, func
 		for _, artifact := range release.Artifacts {
 			paths = append(paths, artifact.Path)
 		}
-		return paths, func() {}, nil
+		return core.Ok(githubArtifactMaterialization{paths: paths, cleanup: func() {}})
 	}
 
-	tempDir, err := ax.TempDir("github-release-artifacts-*")
-	if err != nil {
-		return nil, func() {}, coreerr.E("github.Publish", "failed to create artifact staging directory", err)
+	tempDirResult := ax.TempDir("github-release-artifacts-*")
+	if !tempDirResult.OK {
+		return core.Fail(core.E("github.Publish", "failed to create artifact staging directory", core.NewError(tempDirResult.Error())))
 	}
+	tempDir := tempDirResult.Value.(string)
 
 	for i, artifact := range release.Artifacts {
 		localPath := ax.Join(tempDir, core.Sprintf("%03d", i), ax.Base(artifact.Path))
-		if err := copyArtifactPathToLocal(artifactFS, artifact.Path, localPath); err != nil {
-			_ = ax.RemoveAll(tempDir)
-			return nil, func() {}, coreerr.E("github.Publish", "failed to stage artifact "+artifact.Path, err)
+		copied := copyArtifactPathToLocal(artifactFS, artifact.Path, localPath)
+		if !copied.OK {
+			cleaned := ax.RemoveAll(tempDir)
+			if !cleaned.OK {
+				return core.Fail(core.E("github.Publish", "failed to clean up artifact staging directory", core.NewError(cleaned.Error())))
+			}
+			return core.Fail(core.E("github.Publish", "failed to stage artifact "+artifact.Path, core.NewError(copied.Error())))
 		}
 		paths = append(paths, localPath)
 	}
 
-	return paths, func() {
-		_ = ax.RemoveAll(tempDir)
-	}, nil
+	return core.Ok(githubArtifactMaterialization{paths: paths, cleanup: func() { ax.RemoveAll(tempDir) }})
 }
 
-func copyArtifactPathToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) error {
+func copyArtifactPathToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) core.Result {
 	if artifactFS.IsDir(sourcePath) {
 		return copyArtifactDirToLocal(artifactFS, sourcePath, destinationPath)
 	}
@@ -275,52 +287,58 @@ func copyArtifactPathToLocal(artifactFS coreio.Medium, sourcePath, destinationPa
 	return copyArtifactFileToLocal(artifactFS, sourcePath, destinationPath)
 }
 
-func copyArtifactDirToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) error {
-	if err := coreio.Local.EnsureDir(destinationPath); err != nil {
-		return coreerr.E("github.copyArtifactDirToLocal", "failed to create destination directory", err)
+func copyArtifactDirToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) core.Result {
+	created := coreio.Local.EnsureDir(destinationPath)
+	if !created.OK {
+		return core.Fail(core.E("github.copyArtifactDirToLocal", "failed to create destination directory", core.NewError(created.Error())))
 	}
 
-	entries, err := artifactFS.List(sourcePath)
-	if err != nil {
-		return coreerr.E("github.copyArtifactDirToLocal", "failed to list artifact directory", err)
+	entriesResult := artifactFS.List(sourcePath)
+	if !entriesResult.OK {
+		return core.Fail(core.E("github.copyArtifactDirToLocal", "failed to list artifact directory", core.NewError(entriesResult.Error())))
 	}
+	entries := entriesResult.Value.([]fs.DirEntry)
 
 	for _, entry := range entries {
 		childSource := ax.Join(sourcePath, entry.Name())
 		childDestination := ax.Join(destinationPath, entry.Name())
-		if err := copyArtifactPathToLocal(artifactFS, childSource, childDestination); err != nil {
-			return err
+		copied := copyArtifactPathToLocal(artifactFS, childSource, childDestination)
+		if !copied.OK {
+			return copied
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func copyArtifactFileToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) error {
-	file, err := artifactFS.Open(sourcePath)
-	if err != nil {
-		return coreerr.E("github.copyArtifactFileToLocal", "failed to open artifact", err)
+func copyArtifactFileToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) core.Result {
+	fileResult := artifactFS.Open(sourcePath)
+	if !fileResult.OK {
+		return core.Fail(core.E("github.copyArtifactFileToLocal", "failed to open artifact", core.NewError(fileResult.Error())))
 	}
-	defer func() { _ = file.Close() }()
+	file := fileResult.Value.(core.FsFile)
+	defer file.Close()
 
-	content, err := stdio.ReadAll(file)
-	if err != nil {
-		return coreerr.E("github.copyArtifactFileToLocal", "failed to read artifact", err)
+	content, readFailure := stdio.ReadAll(file)
+	if readFailure != nil {
+		return core.Fail(core.E("github.copyArtifactFileToLocal", "failed to read artifact", readFailure))
 	}
 
 	mode := fs.FileMode(0o644)
-	if info, err := artifactFS.Stat(sourcePath); err == nil {
-		mode = info.Mode()
+	infoResult := artifactFS.Stat(sourcePath)
+	if infoResult.OK {
+		mode = infoResult.Value.(fs.FileInfo).Mode()
 	}
 
-	if err := coreio.Local.WriteMode(destinationPath, string(content), mode); err != nil {
-		return coreerr.E("github.copyArtifactFileToLocal", "failed to write staged artifact", err)
+	written := coreio.Local.WriteMode(destinationPath, string(content), mode)
+	if !written.OK {
+		return core.Fail(core.E("github.copyArtifactFileToLocal", "failed to write staged artifact", core.NewError(written.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func resolveGhCli(paths ...string) (string, error) {
+func resolveGhCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/gh",
@@ -328,99 +346,104 @@ func resolveGhCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("gh", paths...)
-	if err != nil {
-		return "", coreerr.E("github.resolveGhCli", "gh CLI not found. Install it from https://cli.github.com", err)
+	command := ax.ResolveCommand("gh", paths...)
+	if !command.OK {
+		return core.Fail(core.E("github.resolveGhCli", "gh CLI not found. Install it from https://cli.github.com", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }
 
 // validateGhCli checks if the gh CLI is available and authenticated.
-func validateGhCli(ctx context.Context) error {
-	ghCommand, err := resolveGhCli()
-	if err != nil {
-		return err
+func validateGhCli(ctx context.Context) core.Result {
+	ghCommandResult := resolveGhCli()
+	if !ghCommandResult.OK {
+		return ghCommandResult
 	}
 
-	return validateGhAuth(ctx, ghCommand)
+	return validateGhAuth(ctx, ghCommandResult.Value.(string))
 }
 
-func validateGhAuth(ctx context.Context, ghCommand string) error {
-	output, err := ax.CombinedOutput(ctx, "", nil, ghCommand, "auth", "status")
-	if err != nil {
-		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", err)
+func validateGhAuth(ctx context.Context, ghCommand string) core.Result {
+	outputResult := ax.CombinedOutput(ctx, "", nil, ghCommand, "auth", "status")
+	if !outputResult.OK {
+		return core.Fail(core.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", core.NewError(outputResult.Error())))
 	}
+	output := outputResult.Value.(string)
 
 	if !core.Contains(output, "Logged in") {
-		return coreerr.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", nil)
+		return core.Fail(core.E("github.validateGhCli", "not authenticated with gh CLI. Run 'gh auth login' first", nil))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // detectRepository detects the GitHub repository from git remote.
-func detectRepository(ctx context.Context, dir string) (string, error) {
-	remotes, err := listGitRemotes(ctx, dir)
-	if err != nil {
-		return "", coreerr.E("github.detectRepository", "failed to list git remotes", err)
+func detectRepository(ctx context.Context, dir string) core.Result {
+	remotesResult := listGitRemotes(ctx, dir)
+	if !remotesResult.OK {
+		return core.Fail(core.E("github.detectRepository", "failed to list git remotes", core.NewError(remotesResult.Error())))
 	}
+	remotes := remotesResult.Value.([]gitRemote)
 	if len(remotes) == 0 {
-		repo, ghErr := detectRepositoryViaGh(ctx, dir)
-		if ghErr == nil {
-			return repo, nil
+		repoResult := detectRepositoryViaGh(ctx, dir)
+		if repoResult.OK {
+			return repoResult
 		}
-		return "", coreerr.E("github.detectRepository", "no git remotes configured", ghErr)
+		return core.Fail(core.E("github.detectRepository", "no git remotes configured", core.NewError(repoResult.Error())))
 	}
 
-	var parseErr error
+	var parseFailure error
 	for _, remote := range remotes {
-		repo, err := parseGitHubRepo(remote.URL)
-		if err == nil {
-			return repo, nil
+		repoResult := parseGitHubRepo(remote.URL)
+		if repoResult.OK {
+			return repoResult
 		}
-		if parseErr == nil {
-			parseErr = err
+		if parseFailure == nil {
+			parseFailure = core.NewError(repoResult.Error())
 		}
 	}
 
-	repo, ghErr := detectRepositoryViaGh(ctx, dir)
-	if ghErr == nil {
-		return repo, nil
+	repoResult := detectRepositoryViaGh(ctx, dir)
+	if repoResult.OK {
+		return repoResult
 	}
-	if parseErr == nil {
-		parseErr = ghErr
-	} else if ghErr != nil {
-		parseErr = core.ErrorJoin(parseErr, ghErr)
+	if parseFailure == nil {
+		parseFailure = core.NewError(repoResult.Error())
+	} else {
+		parseFailure = core.ErrorJoin(parseFailure, core.NewError(repoResult.Error()))
 	}
 
-	return "", coreerr.E("github.detectRepository", "no GitHub remote found", parseErr)
+	return core.Fail(core.E("github.detectRepository", "no GitHub remote found", parseFailure))
 }
 
-func detectRepositoryViaGh(ctx context.Context, dir string) (string, error) {
-	ghCommand, err := resolveGhCli()
-	if err != nil {
-		return "", coreerr.E("github.detectRepositoryViaGh", "gh CLI not available for repository fallback", err)
+func detectRepositoryViaGh(ctx context.Context, dir string) core.Result {
+	ghCommandResult := resolveGhCli()
+	if !ghCommandResult.OK {
+		return core.Fail(core.E("github.detectRepositoryViaGh", "gh CLI not available for repository fallback", core.NewError(ghCommandResult.Error())))
 	}
+	ghCommand := ghCommandResult.Value.(string)
 
-	output, err := ax.CombinedOutput(ctx, dir, nil, ghCommand, "repo", "view", "--json", "nameWithOwner")
-	if err != nil {
-		return "", coreerr.E("github.detectRepositoryViaGh", "gh repo view failed", err)
+	outputResult := ax.CombinedOutput(ctx, dir, nil, ghCommand, "repo", "view", "--json", "nameWithOwner")
+	if !outputResult.OK {
+		return core.Fail(core.E("github.detectRepositoryViaGh", "gh repo view failed", core.NewError(outputResult.Error())))
 	}
+	output := outputResult.Value.(string)
 
 	var payload struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	}
-	if err := ax.JSONUnmarshal([]byte(output), &payload); err != nil {
-		return "", coreerr.E("github.detectRepositoryViaGh", "failed to parse gh repo view output", err)
+	decoded := ax.JSONUnmarshal([]byte(output), &payload)
+	if !decoded.OK {
+		return core.Fail(core.E("github.detectRepositoryViaGh", "failed to parse gh repo view output", core.NewError(decoded.Error())))
 	}
 
 	repo := core.Trim(payload.NameWithOwner)
 	if repo == "" {
-		return "", coreerr.E("github.detectRepositoryViaGh", "gh repo view did not report a repository", nil)
+		return core.Fail(core.E("github.detectRepositoryViaGh", "gh repo view did not report a repository", nil))
 	}
 
-	return repo, nil
+	return core.Ok(repo)
 }
 
 // parseGitHubRepo extracts owner/repo from a GitHub URL.
@@ -428,31 +451,32 @@ func detectRepositoryViaGh(ctx context.Context, dir string) (string, error) {
 //   - git@github.com:owner/repo.git
 //   - https://github.com/owner/repo.git
 //   - https://github.com/owner/repo
-func parseGitHubRepo(url string) (string, error) {
-	url = core.Trim(url)
-	if url == "" {
-		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+url, nil)
+func parseGitHubRepo(remoteURL string) core.Result {
+	remoteURL = core.Trim(remoteURL)
+	if remoteURL == "" {
+		return core.Fail(core.E("github.parseGitHubRepo", "not a GitHub URL: "+remoteURL, nil))
 	}
 
 	// SSH format
-	if core.HasPrefix(url, "git@github.com:") {
-		repo := core.TrimPrefix(url, "git@github.com:")
+	if core.HasPrefix(remoteURL, "git@github.com:") {
+		repo := core.TrimPrefix(remoteURL, "git@github.com:")
 		return normaliseGitHubRepoPath(repo)
 	}
 
-	parsed, err := urlpkgParse(url)
-	if err == nil && core.Lower(parsed.Hostname()) == "github.com" {
+	parsed, parseFailure := url.Parse(remoteURL)
+	if parseFailure == nil && core.Lower(parsed.Hostname()) == "github.com" {
 		return normaliseGitHubRepoPath(parsed.Path)
 	}
 
-	return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+url, nil)
+	return core.Fail(core.E("github.parseGitHubRepo", "not a GitHub URL: "+remoteURL, nil))
 }
 
-func listGitRemotes(ctx context.Context, dir string) ([]gitRemote, error) {
-	output, err := ax.RunDir(ctx, dir, "git", "remote", "-v")
-	if err != nil {
-		return nil, err
+func listGitRemotes(ctx context.Context, dir string) core.Result {
+	outputResult := ax.RunDir(ctx, dir, "git", "remote", "-v")
+	if !outputResult.OK {
+		return outputResult
 	}
+	output := outputResult.Value.(string)
 
 	seen := make(map[string]struct{})
 	remotes := make([]gitRemote, 0)
@@ -476,8 +500,8 @@ func listGitRemotes(ctx context.Context, dir string) ([]gitRemote, error) {
 		seen[key] = struct{}{}
 		remotes = append(remotes, gitRemote{Name: name, URL: remoteURL})
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
+	if scanFailure := scanner.Err(); scanFailure != nil {
+		return core.Fail(scanFailure)
 	}
 
 	sort.SliceStable(remotes, func(i, j int) bool {
@@ -493,24 +517,24 @@ func listGitRemotes(ctx context.Context, dir string) ([]gitRemote, error) {
 		return remotes[i].Name < remotes[j].Name
 	})
 
-	return remotes, nil
+	return core.Ok(remotes)
 }
 
-func normaliseGitHubRepoPath(path string) (string, error) {
+func normaliseGitHubRepoPath(path string) core.Result {
 	path = core.Trim(path)
 	path = trimSlashes(path)
 	path = core.TrimSuffix(path, ".git")
 	path = trimSlashes(path)
 	if path == "" {
-		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil)
+		return core.Fail(core.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil))
 	}
 
 	parts := core.Split(path, "/")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", coreerr.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil)
+		return core.Fail(core.E("github.parseGitHubRepo", "not a GitHub URL: "+path, nil))
 	}
 
-	return parts[0] + "/" + parts[1], nil
+	return core.Ok(parts[0] + "/" + parts[1])
 }
 
 func splitRemoteFields(line string) []string {
@@ -553,51 +577,52 @@ func trimSlashes(path string) string {
 	return path
 }
 
-func urlpkgParse(rawURL string) (*url.URL, error) {
-	return url.Parse(rawURL)
-}
-
 // UploadArtifact uploads a single artifact to an existing release.
 // This can be used to add artifacts to a release after creation.
 //
-// err := publishers.UploadArtifact(ctx, "host-uk/core-build", "v1.2.3", "dist/core-build_v1.2.3_linux_amd64.tar.gz")
-func UploadArtifact(ctx context.Context, repo, version, artifactPath string) error {
-	ghCommand, err := resolveGhCli()
-	if err != nil {
-		return err
+// result := publishers.UploadArtifact(ctx, "host-uk/core-build", "v1.2.3", "dist/core-build_v1.2.3_linux_amd64.tar.gz")
+func UploadArtifact(ctx context.Context, repo, version, artifactPath string) core.Result {
+	ghCommandResult := resolveGhCli()
+	if !ghCommandResult.OK {
+		return ghCommandResult
+	}
+	ghCommand := ghCommandResult.Value.(string)
+
+	uploaded := publisherRun(ctx, "", nil, ghCommand, "release", "upload", version, artifactPath, "--repo", repo)
+	if !uploaded.OK {
+		return core.Fail(core.E("github.UploadArtifact", "failed to upload "+artifactPath, core.NewError(uploaded.Error())))
 	}
 
-	if err := publisherRun(ctx, "", nil, ghCommand, "release", "upload", version, artifactPath, "--repo", repo); err != nil {
-		return coreerr.E("github.UploadArtifact", "failed to upload "+artifactPath, err)
-	}
-
-	return nil
+	return core.Ok(nil)
 }
 
 // DeleteRelease deletes a release by tag name.
 //
-// err := publishers.DeleteRelease(ctx, "host-uk/core-build", "v1.2.3")
-func DeleteRelease(ctx context.Context, repo, version string) error {
-	ghCommand, err := resolveGhCli()
-	if err != nil {
-		return err
+// result := publishers.DeleteRelease(ctx, "host-uk/core-build", "v1.2.3")
+func DeleteRelease(ctx context.Context, repo, version string) core.Result {
+	ghCommandResult := resolveGhCli()
+	if !ghCommandResult.OK {
+		return ghCommandResult
+	}
+	ghCommand := ghCommandResult.Value.(string)
+
+	deleted := publisherRun(ctx, "", nil, ghCommand, "release", "delete", version, "--repo", repo, "--yes")
+	if !deleted.OK {
+		return core.Fail(core.E("github.DeleteRelease", "failed to delete "+version, core.NewError(deleted.Error())))
 	}
 
-	if err := publisherRun(ctx, "", nil, ghCommand, "release", "delete", version, "--repo", repo, "--yes"); err != nil {
-		return coreerr.E("github.DeleteRelease", "failed to delete "+version, err)
-	}
-
-	return nil
+	return core.Ok(nil)
 }
 
 // ReleaseExists checks if a release exists for the given version.
 //
 // exists := publishers.ReleaseExists(ctx, "host-uk/core-build", "v1.2.3")
 func ReleaseExists(ctx context.Context, repo, version string) bool {
-	ghCommand, err := resolveGhCli()
-	if err != nil {
+	ghCommandResult := resolveGhCli()
+	if !ghCommandResult.OK {
 		return false
 	}
+	ghCommand := ghCommandResult.Value.(string)
 
-	return ax.Exec(ctx, ghCommand, "release", "view", version, "--repo", repo) == nil
+	return ax.Exec(ctx, ghCommand, "release", "view", version, "--repo", repo).OK
 }

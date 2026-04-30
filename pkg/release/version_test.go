@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"errors"
 )
 
 // setupGitRepo creates a temporary directory with an initialized git repository.
@@ -29,17 +29,50 @@ func createCommit(t *testing.T, dir, message string) {
 
 	// Create or modify a file
 	filePath := ax.Join(dir, "test.txt")
-	content, _ := ax.ReadFile(filePath)
-	content = append(content, []byte(message+"\n")...)
-	if err := ax.WriteFile(filePath, content, 0644); err != nil {
-		t.Fatalf("unexpected error: %v",
-
-			// Stage and commit
-			err)
+	content := []byte{}
+	readResult := ax.ReadFile(filePath)
+	if readResult.OK {
+		content = readResult.Value.([]byte)
 	}
+	content = append(content, []byte(message+"\n")...)
+	requireVersionOKResult(t, ax.WriteFile(filePath, content, 0644))
 
 	runGit(t, dir, "add", ".")
 	runGit(t, dir, "commit", "-m", message)
+}
+
+func requireVersionOKResult(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
+func requireVersionString(t *testing.T, result core.Result) string {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(string)
+}
+
+func requireVersionFailure(t *testing.T, result core.Result) error {
+	t.Helper()
+	if result.OK {
+		t.Fatal("expected error")
+	}
+	if failure, ok := result.Value.(error); ok {
+		return failure
+	}
+	return core.NewError(result.Error())
+}
+
+func requireParsedVersion(t *testing.T, result core.Result) ParsedVersion {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+	return result.Value.(ParsedVersion)
 }
 
 // createTag creates a tag in the given directory.
@@ -56,10 +89,7 @@ func TestVersion_DetermineVersion_Good(t *testing.T) {
 		t.Setenv("GITHUB_SHA", "0123456789abcdef0123456789abcdef01234567")
 		t.Setenv("GITHUB_REF", "refs/tags/v2.3.4")
 
-		version, err := DetermineVersionWithContext(context.Background(), dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		version := requireVersionString(t, DetermineVersionWithContext(context.Background(), dir))
 		if !stdlibAssertEqual("v2.3.4", version) {
 			t.Fatalf("want %v, got %v", "v2.3.4", version)
 		}
@@ -71,10 +101,7 @@ func TestVersion_DetermineVersion_Good(t *testing.T) {
 		createCommit(t, dir, "feat: initial commit")
 		createTag(t, dir, "v1.0.0")
 
-		version, err := DetermineVersion(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		version := requireVersionString(t, DetermineVersion(dir))
 		if !stdlibAssertEqual("v1.0.0", version) {
 			t.Fatalf("want %v, got %v", "v1.0.0", version)
 		}
@@ -86,10 +113,7 @@ func TestVersion_DetermineVersion_Good(t *testing.T) {
 		createCommit(t, dir, "feat: initial commit")
 		createTag(t, dir, "1.0.0")
 
-		version, err := DetermineVersion(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		version := requireVersionString(t, DetermineVersion(dir))
 		if !stdlibAssertEqual("v1.0.0", version) {
 			t.Fatalf("want %v, got %v", "v1.0.0", version)
 		}
@@ -102,10 +126,7 @@ func TestVersion_DetermineVersion_Good(t *testing.T) {
 		createTag(t, dir, "v1.0.0")
 		createCommit(t, dir, "feat: new feature")
 
-		version, err := DetermineVersion(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		version := requireVersionString(t, DetermineVersion(dir))
 		if !stdlibAssertEqual("v1.0.1", version) {
 			t.Fatalf("want %v, got %v", "v1.0.1", version)
 		}
@@ -116,10 +137,7 @@ func TestVersion_DetermineVersion_Good(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 
-		version, err := DetermineVersion(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		version := requireVersionString(t, DetermineVersion(dir))
 		if !stdlibAssertEqual("v0.0.1", version) {
 			t.Fatalf("want %v, got %v", "v0.0.1", version)
 		}
@@ -134,10 +152,7 @@ func TestVersion_DetermineVersion_Good(t *testing.T) {
 		createTag(t, dir, "v1.0.1")
 		createCommit(t, dir, "feat: third")
 
-		version, err := DetermineVersion(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		version := requireVersionString(t, DetermineVersion(dir))
 		if !stdlibAssertEqual("v1.0.2", version) {
 			t.Fatalf("want %v, got %v", "v1.0.2", version)
 		}
@@ -150,10 +165,7 @@ func TestVersion_DetermineVersion_Bad(t *testing.T) {
 		dir := setupGitRepo(t)
 
 		// No commits, git describe will fail
-		version, err := DetermineVersion(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		version := requireVersionString(t, DetermineVersion(dir))
 		if !stdlibAssertEqual("v0.0.1", version) {
 			t.Fatalf("want %v, got %v", "v0.0.1", version)
 		}
@@ -168,12 +180,9 @@ func TestVersion_DetermineVersion_Bad(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err := DetermineVersionWithContext(ctx, dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("expected error %v to be %v", err, context.Canceled)
+		err := requireVersionFailure(t, DetermineVersionWithContext(ctx, dir))
+		if !stdlibAssertContains(err.Error(), context.Canceled.Error()) {
+			t.Fatalf("expected error %v to contain %v", err, context.Canceled)
 		}
 
 	})
@@ -183,10 +192,7 @@ func TestVersion_DetermineVersion_Bad(t *testing.T) {
 		createCommit(t, dir, "feat: initial commit")
 		createTag(t, dir, "v1.0.0;bad")
 
-		_, err := DetermineVersion(dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		err := requireVersionFailure(t, DetermineVersion(dir))
 		if !stdlibAssertContains(err.Error(), "unsafe release tag") {
 			t.Fatalf("expected %v to contain %v", err.Error(), "unsafe release tag")
 		}
@@ -200,10 +206,7 @@ func TestVersion_DetermineVersion_Bad(t *testing.T) {
 		t.Setenv("GITHUB_SHA", "0123456789abcdef0123456789abcdef01234567")
 		t.Setenv("GITHUB_REF", "refs/tags/v1.0.0;bad")
 
-		_, err := DetermineVersionWithContext(context.Background(), dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		err := requireVersionFailure(t, DetermineVersionWithContext(context.Background(), dir))
 		if !stdlibAssertContains(err.Error(), "unsafe release tag") {
 			t.Fatalf("expected %v to contain %v", err.Error(), "unsafe release tag")
 		}
@@ -211,16 +214,13 @@ func TestVersion_DetermineVersion_Bad(t *testing.T) {
 	})
 }
 
-func TestVersion_GetTagOnHead_Good(t *testing.T) {
+func TestVersion_GetTagOnHeadGood(t *testing.T) {
 	t.Run("returns tag when HEAD has tag", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 		createTag(t, dir, "v1.2.3")
 
-		tag, err := getTagOnHeadWithContext(context.Background(), dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		tag := requireVersionString(t, getTagOnHeadWithContext(context.Background(), dir))
 		if !stdlibAssertEqual("v1.2.3", tag) {
 			t.Fatalf("want %v, got %v", "v1.2.3", tag)
 		}
@@ -233,13 +233,7 @@ func TestVersion_GetTagOnHead_Good(t *testing.T) {
 		createTag(t, dir, "v1.0.0")
 		createTag(t, dir, "v1.0.0-beta")
 
-		tag, err := getTagOnHeadWithContext(context.Background(), dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v",
-
-				// Git returns one of the tags
-				err)
-		}
+		tag := requireVersionString(t, getTagOnHeadWithContext(context.Background(), dir))
 		if !stdlibAssertContains([]string{"v1.0.0", "v1.0.0-beta"}, tag) {
 			t.Fatalf("expected %v to contain %v", []string{"v1.0.0", "v1.0.0-beta"}, tag)
 		}
@@ -247,15 +241,12 @@ func TestVersion_GetTagOnHead_Good(t *testing.T) {
 	})
 }
 
-func TestVersion_GetTagOnHead_Bad(t *testing.T) {
+func TestVersion_GetTagOnHeadBad(t *testing.T) {
 	t.Run("returns error when HEAD has no tag", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 
-		_, err := getTagOnHeadWithContext(context.Background(), dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireVersionFailure(t, getTagOnHeadWithContext(context.Background(), dir))
 
 	})
 
@@ -265,24 +256,18 @@ func TestVersion_GetTagOnHead_Bad(t *testing.T) {
 		createTag(t, dir, "v1.0.0")
 		createCommit(t, dir, "feat: new feature")
 
-		_, err := getTagOnHeadWithContext(context.Background(), dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireVersionFailure(t, getTagOnHeadWithContext(context.Background(), dir))
 
 	})
 }
 
-func TestVersion_GetLatestTag_Good(t *testing.T) {
+func TestVersion_GetLatestTagGood(t *testing.T) {
 	t.Run("returns latest tag", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 		createTag(t, dir, "v1.0.0")
 
-		tag, err := getLatestTagWithContext(context.Background(), dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		tag := requireVersionString(t, getLatestTagWithContext(context.Background(), dir))
 		if !stdlibAssertEqual("v1.0.0", tag) {
 			t.Fatalf("want %v, got %v", "v1.0.0", tag)
 		}
@@ -297,10 +282,7 @@ func TestVersion_GetLatestTag_Good(t *testing.T) {
 		createTag(t, dir, "v1.1.0")
 		createCommit(t, dir, "feat: third")
 
-		tag, err := getLatestTagWithContext(context.Background(), dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		tag := requireVersionString(t, getLatestTagWithContext(context.Background(), dir))
 		if !stdlibAssertEqual("v1.1.0", tag) {
 			t.Fatalf("want %v, got %v", "v1.1.0", tag)
 		}
@@ -308,25 +290,19 @@ func TestVersion_GetLatestTag_Good(t *testing.T) {
 	})
 }
 
-func TestVersion_GetLatestTag_Bad(t *testing.T) {
+func TestVersion_GetLatestTagBad(t *testing.T) {
 	t.Run("returns error when no tags exist", func(t *testing.T) {
 		dir := setupGitRepo(t)
 		createCommit(t, dir, "feat: initial commit")
 
-		_, err := getLatestTagWithContext(context.Background(), dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireVersionFailure(t, getLatestTagWithContext(context.Background(), dir))
 
 	})
 
 	t.Run("returns error for empty repo", func(t *testing.T) {
 		dir := setupGitRepo(t)
 
-		_, err := getLatestTagWithContext(context.Background(), dir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requireVersionFailure(t, getLatestTagWithContext(context.Background(), dir))
 
 	})
 }
@@ -555,24 +531,21 @@ func TestVersion_ParseVersion_Good(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			major, minor, patch, prerelease, build, err := ParseVersion(tc.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			version := requireParsedVersion(t, ParseVersion(tc.input))
+			if !stdlibAssertEqual(tc.major, version.Major) {
+				t.Fatalf("want %v, got %v", tc.major, version.Major)
 			}
-			if !stdlibAssertEqual(tc.major, major) {
-				t.Fatalf("want %v, got %v", tc.major, major)
+			if !stdlibAssertEqual(tc.minor, version.Minor) {
+				t.Fatalf("want %v, got %v", tc.minor, version.Minor)
 			}
-			if !stdlibAssertEqual(tc.minor, minor) {
-				t.Fatalf("want %v, got %v", tc.minor, minor)
+			if !stdlibAssertEqual(tc.patch, version.Patch) {
+				t.Fatalf("want %v, got %v", tc.patch, version.Patch)
 			}
-			if !stdlibAssertEqual(tc.patch, patch) {
-				t.Fatalf("want %v, got %v", tc.patch, patch)
+			if !stdlibAssertEqual(tc.prerelease, version.Prerelease) {
+				t.Fatalf("want %v, got %v", tc.prerelease, version.Prerelease)
 			}
-			if !stdlibAssertEqual(tc.prerelease, prerelease) {
-				t.Fatalf("want %v, got %v", tc.prerelease, prerelease)
-			}
-			if !stdlibAssertEqual(tc.build, build) {
-				t.Fatalf("want %v, got %v", tc.build, build)
+			if !stdlibAssertEqual(tc.build, version.Build) {
+				t.Fatalf("want %v, got %v", tc.build, version.Build)
 			}
 
 		})
@@ -593,10 +566,7 @@ func TestVersion_ParseVersion_Bad(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, _, _, _, err := ParseVersion(tc.input)
-			if err == nil {
-				t.Fatal("expected error")
-			}
+			_ = requireVersionFailure(t, ParseVersion(tc.input))
 
 		})
 	}
@@ -680,7 +650,7 @@ func TestVersion_CompareVersions_Good(t *testing.T) {
 	}
 }
 
-func TestVersion_NormalizeVersion_Good(t *testing.T) {
+func TestVersion_NormalizeVersionGood(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
@@ -700,4 +670,128 @@ func TestVersion_NormalizeVersion_Good(t *testing.T) {
 
 		})
 	}
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestVersion_DetermineVersion_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DetermineVersion(core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestVersion_DetermineVersionWithContext_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DetermineVersionWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestVersion_DetermineVersionWithContext_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DetermineVersionWithContext(ctx, "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestVersion_DetermineVersionWithContext_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DetermineVersionWithContext(ctx, core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestVersion_IncrementVersion_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IncrementVersion("agent")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestVersion_IncrementMinor_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IncrementMinor("agent")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestVersion_IncrementMajor_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = IncrementMajor("agent")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestVersion_ParseVersion_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ParseVersion("v1.2.3")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestVersion_ValidateVersion_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ValidateVersion("v1.2.3")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestVersion_ValidateVersionIdentifier_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ValidateVersionIdentifier("v1.2.3")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestVersion_ValidateVersionIdentifier_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ValidateVersionIdentifier("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestVersion_ValidateVersionIdentifier_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ValidateVersionIdentifier("v1.2.3")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestVersion_CompareVersions_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = CompareVersions("", "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
 }

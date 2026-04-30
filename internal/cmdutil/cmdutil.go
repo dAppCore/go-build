@@ -4,8 +4,8 @@ import (
 	"context"
 	"strconv"
 
-	"dappco.re/go/core"
-	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go"
+	"dappco.re/go/build/internal/cli"
 )
 
 // ContextOrBackground returns the active CLI context when available.

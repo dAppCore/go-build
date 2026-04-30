@@ -1,14 +1,13 @@
 package build
 
 import (
-	"strings"
-
-	"dappco.re/go/io"
+	core "dappco.re/go"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // RuntimeConfigFromBuildConfig maps persisted build settings onto a runtime
 // builder config while preserving the caller's output/name/version overrides.
-func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, binaryName string, buildConfig *BuildConfig, push bool, imageName string, version string) *Config {
+func RuntimeConfigFromBuildConfig(filesystem storage.Medium, projectDir, outputDir, binaryName string, buildConfig *BuildConfig, push bool, imageName string, version string) *Config {
 	if buildConfig == nil {
 		buildConfig = DefaultConfig()
 	}
@@ -86,7 +85,7 @@ func RuntimeConfigFromBuildConfig(filesystem io.Medium, projectDir, outputDir, b
 }
 
 func versionIsSafeRelease(version string) bool {
-	return ValidateVersionString(version) == nil
+	return ValidateVersionString(version).OK
 }
 
 func stripVersionTemplateFlags(values []string) []string {
@@ -122,10 +121,10 @@ func stripVersionTemplateValues(values []string) []string {
 }
 
 func containsVersionTemplate(value string) bool {
-	return strings.Contains(value, "v{{.Version}}") ||
-		strings.Contains(value, "v{{Version}}") ||
-		strings.Contains(value, "{{.Tag}}") ||
-		strings.Contains(value, "{{Tag}}") ||
-		strings.Contains(value, "{{.Version}}") ||
-		strings.Contains(value, "{{Version}}")
+	return core.Contains(value, "v{{.Version}}") ||
+		core.Contains(value, "v{{Version}}") ||
+		core.Contains(value, "{{.Tag}}") ||
+		core.Contains(value, "{{Tag}}") ||
+		core.Contains(value, "{{.Version}}") ||
+		core.Contains(value, "{{Version}}")
 }

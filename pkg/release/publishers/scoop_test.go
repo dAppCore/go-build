@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	"os"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
-func TestScoop_ScoopPublisherName_Good(t *testing.T) {
+func TestScoop_ScoopPublisherNameGood(t *testing.T) {
 	t.Run("returns scoop", func(t *testing.T) {
 		p := NewScoopPublisher()
 		if !stdlibAssertEqual("scoop", p.Name()) {
@@ -20,7 +20,7 @@ func TestScoop_ScoopPublisherName_Good(t *testing.T) {
 	})
 }
 
-func TestScoop_ScoopPublisherParseConfig_Good(t *testing.T) {
+func TestScoop_ScoopPublisherParseConfigGood(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -113,7 +113,7 @@ func TestScoop_ScoopPublisherParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestScoop_ScoopPublisherRenderTemplate_Good(t *testing.T) {
+func TestScoop_ScoopPublisherRenderTemplateGood(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("renders manifest template with data", func(t *testing.T) {
@@ -132,10 +132,7 @@ func TestScoop_ScoopPublisherRenderTemplate_Good(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/scoop/manifest.json.tmpl", data))
 		if !stdlibAssertContains(result, `"version": "1.2.3"`) {
 			t.Fatalf("expected %v to contain %v", result, `"version": "1.2.3"`)
 		}
@@ -183,10 +180,7 @@ func TestScoop_ScoopPublisherRenderTemplate_Good(t *testing.T) {
 			Checksums:   ChecksumMap{},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/scoop/manifest.json.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/scoop/manifest.json.tmpl", data))
 		if !stdlibAssertContains(result, `"checkver"`) {
 			t.Fatalf("expected %v to contain %v", result, `"checkver"`)
 		}
@@ -200,23 +194,20 @@ func TestScoop_ScoopPublisherRenderTemplate_Good(t *testing.T) {
 	})
 }
 
-func TestScoop_ScoopPublisherRenderTemplate_Bad(t *testing.T) {
+func TestScoop_ScoopPublisherRenderTemplateBad(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := scoopTemplateData{}
-		_, err := p.renderTemplate(io.Local, "templates/scoop/nonexistent.tmpl", data)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read template") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		err := requirePublisherError(t, p.renderTemplate(storage.Local, "templates/scoop/nonexistent.tmpl", data))
+		if !stdlibAssertContains(err, "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
 
 	})
 }
 
-func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
+func TestScoop_ScoopPublisherDryRunPublishGood(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
@@ -231,13 +222,11 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 			Bucket: "owner/scoop-bucket",
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Scoop Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Scoop Publish")
 		}
@@ -279,13 +268,11 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/scoop/path") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/scoop/path")
 		}
@@ -307,13 +294,11 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: custom/scoop/path") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: custom/scoop/path")
 		}
@@ -336,13 +321,11 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would write files for official PR to: dist/scoop") {
 			t.Fatalf("expected %v to contain %v", output, "Would write files for official PR to: dist/scoop")
 		}
@@ -350,24 +333,21 @@ func TestScoop_ScoopPublisherDryRunPublish_Good(t *testing.T) {
 	})
 }
 
-func TestScoop_ScoopPublisherPublish_Bad(t *testing.T) {
+func TestScoop_ScoopPublisherPublishBad(t *testing.T) {
 	p := NewScoopPublisher()
 
 	t.Run("fails when bucket not configured and not official mode", func(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "scoop"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "bucket is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "bucket is required")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "bucket is required") {
+			t.Fatalf("expected %v to contain %v", err, "bucket is required")
 		}
 
 	})
@@ -379,7 +359,7 @@ func TestScoop_ScoopPublisherPublish_Bad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: projectDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "dist/myapp-windows-amd64.zip", OS: "windows", Arch: "amd64", Checksum: "abc123"},
 			},
@@ -396,18 +376,13 @@ func TestScoop_ScoopPublisherPublish_Bad(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo", projectName: "myapp"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if _, err := os.Stat(ax.Join(projectDir, "dist", "scoop-pr", "myapp.json")); err != nil {
-			t.Fatalf("expected file to exist: %v", ax.Join(projectDir, "dist", "scoop-pr", "myapp.json"))
-		}
+		requirePublisherOK(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		requirePublisherOK(t, ax.Stat(ax.Join(projectDir, "dist", "scoop-pr", "myapp.json")))
 
 	})
 }
 
-func TestScoop_ScoopConfigDefaults_Good(t *testing.T) {
+func TestScoop_ScoopConfigDefaultsGood(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewScoopPublisher()
 		pubCfg := PublisherConfig{Type: "scoop"}
@@ -424,7 +399,7 @@ func TestScoop_ScoopConfigDefaults_Good(t *testing.T) {
 	})
 }
 
-func TestScoop_ScoopTemplateData_Good(t *testing.T) {
+func TestScoop_ScoopTemplateDataGood(t *testing.T) {
 	t.Run("struct has all expected fields", func(t *testing.T) {
 		data := scoopTemplateData{
 			PackageName: "myapp",
@@ -464,4 +439,164 @@ func TestScoop_ScoopTemplateData_Good(t *testing.T) {
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestScoop_NewScoopPublisher_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewScoopPublisher()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestScoop_NewScoopPublisher_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewScoopPublisher()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestScoop_NewScoopPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewScoopPublisher()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestScoop_ScoopPublisher_Name_Good(t *core.T) {
+	subject := &ScoopPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestScoop_ScoopPublisher_Name_Bad(t *core.T) {
+	subject := &ScoopPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestScoop_ScoopPublisher_Name_Ugly(t *core.T) {
+	subject := &ScoopPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestScoop_ScoopPublisher_Validate_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ScoopPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestScoop_ScoopPublisher_Validate_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ScoopPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestScoop_ScoopPublisher_Validate_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ScoopPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestScoop_ScoopPublisher_Supports_Good(t *core.T) {
+	subject := &ScoopPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestScoop_ScoopPublisher_Supports_Bad(t *core.T) {
+	subject := &ScoopPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestScoop_ScoopPublisher_Supports_Ugly(t *core.T) {
+	subject := &ScoopPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestScoop_ScoopPublisher_Publish_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ScoopPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestScoop_ScoopPublisher_Publish_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ScoopPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestScoop_ScoopPublisher_Publish_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ScoopPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

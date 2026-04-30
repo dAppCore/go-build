@@ -1,17 +1,17 @@
 package buildcmd
 
 import (
+	"dappco.re/go"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
-	"dappco.re/go/core/cli/pkg/cli"
 )
 
-func emitCIErrorAnnotation(err error) {
-	if err == nil {
+func emitCIErrorAnnotation(result core.Result) {
+	if result.OK {
 		return
 	}
 
-	message := core.Trim(err.Error())
+	message := core.Trim(result.Error())
 	if message == "" {
 		return
 	}

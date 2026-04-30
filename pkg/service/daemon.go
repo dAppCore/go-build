@@ -2,72 +2,69 @@ package service
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	buildapi "dappco.re/go/build/pkg/api"
+	coreapi "dappco.re/go/build/pkg/api"
+	providerpkg "dappco.re/go/build/pkg/api/provider"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
+	"dappco.re/go/build/pkg/events"
 	"dappco.re/go/build/pkg/release"
-	coreapi "dappco.re/go/api"
-	providerpkg "dappco.re/go/api/pkg/provider"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
-	"dappco.re/go/process"
-	"dappco.re/go/ws"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 type apiEngine interface {
 	Register(group coreapi.RouteGroup)
-	Serve(ctx context.Context) error
+	Serve(ctx context.Context) core.Result
 }
 
 type processDaemon interface {
-	Start() error
-	Stop() error
+	Start() core.Result
+	Stop() core.Result
 	SetReady(ready bool)
 }
 
 var (
-	newHub           = ws.NewHub
-	newBuildProvider = func(projectDir string, hub *ws.Hub) providerpkg.Provider {
+	newHub           = events.NewHub
+	newBuildProvider = func(projectDir string, hub *events.Hub) providerpkg.Provider {
 		return buildapi.NewProvider(projectDir, hub)
 	}
 	newProviderRegistry    = providerpkg.NewRegistry
-	newAPIEngine           = func(opts ...coreapi.Option) (apiEngine, error) { return coreapi.New(opts...) }
+	newAPIEngine           = func(opts ...coreapi.Option) core.Result { return coreapi.New(opts...) }
 	newMCPServer           = defaultNewMCPServer
 	newAgenticOrchestrator = defaultNewAgenticOrchestrator
 	runWatchedBuild        = defaultRunWatchedBuild
-	discoverProject        = func(projectDir string) (*build.DiscoveryResult, error) {
-		return build.DiscoverFull(io.Local, projectDir)
+	discoverProject        = func(projectDir string) core.Result {
+		return build.DiscoverFull(storage.Local, projectDir)
 	}
-	newProcessDaemon = func(opts process.DaemonOptions) processDaemon { return process.NewDaemon(opts) }
+	newProcessDaemon = func(opts daemonOptions) processDaemon { return newManagedDaemon(opts) }
 )
 
 // Run starts the background daemon for cfg until ctx is cancelled.
-func Run(ctx context.Context, cfg Config) error {
+func Run(ctx context.Context, cfg Config) core.Result {
 	if ctx == nil {
-		return coreerr.E("service.Run", "daemon context is required", nil)
+		return core.Fail(core.E("service.Run", "daemon context is required", nil))
 	}
 
 	cfg = cfg.Normalized()
-	if err := ax.MkdirAll(filepath.Dir(cfg.PIDFile), 0o755); err != nil {
-		return coreerr.E("service.Run", "failed to create pid directory", err)
+	created := ax.MkdirAll(core.PathDir(cfg.PIDFile), 0o755)
+	if !created.OK {
+		return core.Fail(core.E("service.Run", "failed to create pid directory", core.NewError(created.Error())))
 	}
 
-	daemon := newProcessDaemon(process.DaemonOptions{
+	daemon := newProcessDaemon(daemonOptions{
 		PIDFile:         cfg.PIDFile,
 		HealthAddr:      cfg.HealthAddr,
 		ShutdownTimeout: 30 * time.Second,
 	})
-	if err := daemon.Start(); err != nil {
-		return err
+	started := daemon.Start()
+	if !started.OK {
+		return started
 	}
 
 	hub := newHub()
@@ -89,15 +86,19 @@ func Run(ctx context.Context, cfg Config) error {
 		go agentic.Run(ctx)
 	}
 
-	engine, err := newAPIEngine(
+	engineResult := newAPIEngine(
 		coreapi.WithAddr(cfg.APIAddr),
 		coreapi.WithWSPath("/api/v1/build/events"),
 		coreapi.WithWSHandler(hub.Handler()),
 	)
-	if err != nil {
-		stopErr := daemon.Stop()
-		return errors.Join(err, stopErr)
+	if !engineResult.OK {
+		stopped := daemon.Stop()
+		if !stopped.OK {
+			return core.Fail(core.E("service.Run", engineResult.Error()+": "+stopped.Error(), nil))
+		}
+		return engineResult
 	}
+	engine := engineResult.Value.(apiEngine)
 	if buildProvider != nil {
 		engine.Register(buildProvider)
 	}
@@ -117,7 +118,7 @@ func Run(ctx context.Context, cfg Config) error {
 		})
 	}
 
-	serverErrCh := make(chan error, 1)
+	serverErrCh := make(chan core.Result, 1)
 	go func() {
 		serverErrCh <- engine.Serve(ctx)
 	}()
@@ -130,27 +131,30 @@ func Run(ctx context.Context, cfg Config) error {
 	daemon.SetReady(true)
 
 	select {
-	case err := <-serverErrCh:
-		stopErr := daemon.Stop()
-		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, http.ErrServerClosed) {
-			return stopErr
+	case served := <-serverErrCh:
+		stopped := daemon.Stop()
+		if served.OK || core.Contains(served.Error(), context.Canceled.Error()) || core.Contains(served.Error(), http.ErrServerClosed.Error()) {
+			return stopped
 		}
-		return errors.Join(err, stopErr)
+		if !stopped.OK {
+			return core.Fail(core.E("service.Run", served.Error()+": "+stopped.Error(), nil))
+		}
+		return served
 	case <-ctx.Done():
 		return daemon.Stop()
 	}
 }
 
-func defaultRunWatchedBuild(ctx context.Context, projectDir string) error {
-	filesystem := io.Local
+func defaultRunWatchedBuild(ctx context.Context, projectDir string) core.Result {
+	filesystem := storage.Local
 
 	var buildConfig *build.BuildConfig
 	if build.ConfigExists(filesystem, projectDir) {
-		var err error
-		buildConfig, err = build.LoadConfig(filesystem, projectDir)
-		if err != nil {
-			return coreerr.E("service.defaultRunWatchedBuild", "failed to load build config", err)
+		loaded := build.LoadConfig(filesystem, projectDir)
+		if !loaded.OK {
+			return core.Fail(core.E("service.defaultRunWatchedBuild", "failed to load build config", core.NewError(loaded.Error())))
 		}
+		buildConfig = loaded.Value.(*build.BuildConfig)
 	}
 
 	pipeline := &build.Pipeline{
@@ -159,16 +163,15 @@ func defaultRunWatchedBuild(ctx context.Context, projectDir string) error {
 		ResolveVersion: release.DetermineVersionWithContext,
 	}
 
-	plan, err := pipeline.Plan(ctx, build.PipelineRequest{
+	plan := pipeline.Plan(ctx, build.PipelineRequest{
 		ProjectDir:  projectDir,
 		BuildConfig: buildConfig,
 	})
-	if err != nil {
-		return err
+	if !plan.OK {
+		return plan
 	}
 
-	_, err = pipeline.Run(ctx, plan)
-	return err
+	return pipeline.Run(ctx, plan.Value.(*build.PipelinePlan))
 }
 
 func schedulerLoop(ctx context.Context, cfg Config, emitter daemonEventEmitter) {
@@ -180,15 +183,15 @@ func schedulerLoop(ctx context.Context, cfg Config, emitter daemonEventEmitter) 
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			discovery, err := discoverProject(cfg.ProjectDir)
+			discovery := discoverProject(cfg.ProjectDir)
 			payload := map[string]any{
 				"projectDir": cfg.ProjectDir,
 				"timestamp":  time.Now().UTC().Format(time.RFC3339),
 			}
-			if err != nil {
-				payload["error"] = err.Error()
+			if !discovery.OK {
+				payload["error"] = discovery.Error()
 			} else {
-				payload["types"] = discoveryTypes(discovery)
+				payload["types"] = discoveryTypes(discovery.Value.(*build.DiscoveryResult))
 			}
 			emitter.Emit("service.discovery", payload)
 		}
@@ -199,11 +202,12 @@ func watchLoop(ctx context.Context, cfg Config, emitter daemonEventEmitter) {
 	ticker := time.NewTicker(cfg.WatchInterval)
 	defer ticker.Stop()
 
-	current, err := snapshotFiles(cfg)
-	if err != nil {
-		emitter.Emit("service.watch.error", map[string]any{"error": err.Error()})
+	currentResult := snapshotFiles(cfg)
+	if !currentResult.OK {
+		emitter.Emit("service.watch.error", map[string]any{"error": currentResult.Error()})
 		return
 	}
+	current := currentResult.Value.(map[string]time.Time)
 
 	buildQueue := make(chan []string, 1)
 	go buildWorker(ctx, cfg, emitter, buildQueue)
@@ -213,11 +217,12 @@ func watchLoop(ctx context.Context, cfg Config, emitter daemonEventEmitter) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			next, err := snapshotFiles(cfg)
-			if err != nil {
-				emitter.Emit("service.watch.error", map[string]any{"error": err.Error()})
+			nextResult := snapshotFiles(cfg)
+			if !nextResult.OK {
+				emitter.Emit("service.watch.error", map[string]any{"error": nextResult.Error()})
 				continue
 			}
+			next := nextResult.Value.(map[string]time.Time)
 
 			changed := diffSnapshots(current, next)
 			current = next
@@ -249,11 +254,11 @@ func buildWorker(ctx context.Context, cfg Config, emitter daemonEventEmitter, bu
 				"paths":      changed,
 			})
 
-			err := runWatchedBuild(ctx, cfg.ProjectDir)
-			if err != nil {
+			built := runWatchedBuild(ctx, cfg.ProjectDir)
+			if !built.OK {
 				emitter.Emit("build.failed", map[string]any{
 					"projectDir": cfg.ProjectDir,
-					"error":      err.Error(),
+					"error":      built.Error(),
 				})
 				continue
 			}
@@ -266,17 +271,17 @@ func buildWorker(ctx context.Context, cfg Config, emitter daemonEventEmitter, bu
 	}
 }
 
-func snapshotFiles(cfg Config) (map[string]time.Time, error) {
+func snapshotFiles(cfg Config) core.Result {
 	snapshot := make(map[string]time.Time)
 
 	for _, root := range cfg.WatchPaths {
-		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		err := core.PathWalkDir(root, func(path string, entry core.FsDirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
 			if shouldSkipWatchPath(cfg.ProjectDir, path) {
 				if entry.IsDir() {
-					return filepath.SkipDir
+					return core.PathSkipDir
 				}
 				return nil
 			}
@@ -292,26 +297,26 @@ func snapshotFiles(cfg Config) (map[string]time.Time, error) {
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return core.Fail(err)
 		}
 	}
 
-	return snapshot, nil
+	return core.Ok(snapshot)
 }
 
 func shouldSkipWatchPath(projectDir, path string) bool {
-	projectDir = filepath.Clean(projectDir)
-	path = filepath.Clean(path)
+	projectDir = core.PathJoin(projectDir)
+	path = core.PathJoin(path)
 
 	skipRoots := []string{
-		filepath.Join(projectDir, ".git"),
-		filepath.Join(projectDir, "dist"),
-		filepath.Join(projectDir, ".core", "cache"),
-		filepath.Join(projectDir, ".core", "build", "app"),
+		core.PathJoin(projectDir, ".git"),
+		core.PathJoin(projectDir, "dist"),
+		core.PathJoin(projectDir, ".core", "cache"),
+		core.PathJoin(projectDir, ".core", "build", "app"),
 	}
 	for _, root := range skipRoots {
-		root = filepath.Clean(root)
-		if path == root || strings.HasPrefix(path, root+string(filepath.Separator)) {
+		root = core.PathJoin(root)
+		if path == root || core.HasPrefix(path, root+string(core.PathSeparator)) {
 			return true
 		}
 	}
@@ -354,18 +359,21 @@ func discoveryTypes(discovery *build.DiscoveryResult) []string {
 	return types
 }
 
-func sendEvent(hub *ws.Hub, channel string, payload any) {
+func sendEvent(hub *events.Hub, channel string, payload any) {
 	if hub == nil {
 		return
 	}
-	_ = hub.SendToChannel(channel, ws.Message{
-		Type: ws.TypeEvent,
+	sent := hub.SendToChannel(channel, events.Message{
+		Type: events.TypeEvent,
 		Data: payload,
 	})
+	if !sent.OK {
+		return
+	}
 }
 
 type daemonEventEmitter struct {
-	hub     *ws.Hub
+	hub     *events.Hub
 	agentic agenticOrchestrator
 }
 

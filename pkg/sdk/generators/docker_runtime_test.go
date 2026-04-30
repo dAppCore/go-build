@@ -2,16 +2,19 @@ package generators
 
 import (
 	"context"
-	"os"
-	"strings"
+	"io/fs"
 	"testing"
 	"time"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 )
 
+const dockerRuntimeTestProbeTimeout = 10 * time.Second
+
 func resetDockerRuntimeState() {
 	resetDockerRuntimeAvailabilityCache()
+	availabilityProbeTimeout = dockerRuntimeTestProbeTimeout
 }
 
 func setAvailabilityProbeTimeout(t *testing.T, timeout time.Duration) {
@@ -28,45 +31,46 @@ func writeFakeDockerRuntime(t *testing.T, dir, script string) string {
 	t.Helper()
 
 	dockerPath := ax.Join(dir, "docker")
-	if err := ax.WriteFile(dockerPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(dockerPath, []byte(script), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	return dockerPath
 }
 
-func TestSDK_ResolveDockerRuntimeCli_Good(t *testing.T) {
+func TestSDK_ResolveDockerRuntimeCliGood(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "docker")
-	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("PATH", "")
 
-	command, err := resolveDockerRuntimeCli(fallbackPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	commandResult := resolveDockerRuntimeCli(fallbackPath)
+	if !commandResult.OK {
+		t.Fatalf("unexpected error: %v", commandResult.Error())
 	}
+	command := commandResult.Value.(string)
 	if !stdlibAssertEqual(fallbackPath, command) {
 		t.Fatalf("want %v, got %v", fallbackPath, command)
 	}
 
 }
 
-func TestSDK_ResolveDockerRuntimeCli_Bad(t *testing.T) {
+func TestSDK_ResolveDockerRuntimeCliBad(t *testing.T) {
 	t.Setenv("PATH", "")
-	_, err := resolveDockerRuntimeCli(ax.Join(t.TempDir(), "missing-docker"))
-	if err == nil {
+	result := resolveDockerRuntimeCli(ax.Join(t.TempDir(), "missing-docker"))
+	if result.OK {
 		t.Fatal("expected error")
 	}
-	if !stdlibAssertContains(err.Error(), "docker CLI not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "docker CLI not found")
+	if !stdlibAssertContains(result.Error(), "docker CLI not found") {
+		t.Fatalf("expected %v to contain %v", result.Error(), "docker CLI not found")
 	}
 
 }
 
-func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
+func TestSDK_GeneratorAvailabilityUsesDockerFallbackGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -91,7 +95,7 @@ func TestSDK_GeneratorAvailabilityUsesDockerFallback_Good(t *testing.T) {
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityCachesSuccessfulProbe_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityCachesSuccessfulProbeGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -106,17 +110,18 @@ func TestSDK_DockerRuntimeAvailabilityCachesSuccessfulProbe_Good(t *testing.T) {
 		t.Fatal("expected true")
 	}
 
-	content, err := ax.ReadFile(countFile)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	contentResult := ax.ReadFile(countFile)
+	if !contentResult.OK {
+		t.Fatalf("unexpected error: %v", contentResult.Error())
 	}
-	if len(strings.Fields(string(content))) != 1 {
-		t.Fatalf("want len %v, got %v", 1, len(strings.Fields(string(content))))
+	content := contentResult.Value.([]byte)
+	if len(dockerRuntimeFields(string(content))) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(dockerRuntimeFields(string(content))))
 	}
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityCachesFailedProbe_Bad(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityCachesFailedProbeBad(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -131,17 +136,40 @@ func TestSDK_DockerRuntimeAvailabilityCachesFailedProbe_Bad(t *testing.T) {
 		t.Fatal("expected false")
 	}
 
-	content, err := ax.ReadFile(countFile)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	contentResult := ax.ReadFile(countFile)
+	if !contentResult.OK {
+		t.Fatalf("unexpected error: %v", contentResult.Error())
 	}
-	if len(strings.Fields(string(content))) != 1 {
-		t.Fatalf("want len %v, got %v", 1, len(strings.Fields(string(content))))
+	content := contentResult.Value.([]byte)
+	if len(dockerRuntimeFields(string(content))) != 1 {
+		t.Fatalf("want len %v, got %v", 1, len(dockerRuntimeFields(string(content))))
 	}
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T) {
+func dockerRuntimeFields(value string) []string {
+	value = core.Trim(value)
+	var fields []string
+	start := -1
+	for i, r := range value {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			if start >= 0 {
+				fields = append(fields, value[start:i])
+				start = -1
+			}
+			continue
+		}
+		if start < 0 {
+			start = i
+		}
+	}
+	if start >= 0 {
+		fields = append(fields, value[start:])
+	}
+	return fields
+}
+
+func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextBad(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -160,7 +188,7 @@ func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContext_Bad(t *testing.T)
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextAfterCachedSuccess_Bad(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextAfterCachedSuccessBad(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -179,7 +207,7 @@ func TestSDK_DockerRuntimeAvailabilityRespectsCancelledContextAfterCachedSuccess
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeoutBad(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 	setAvailabilityProbeTimeout(t, 20*time.Millisecond)
@@ -198,7 +226,7 @@ func TestSDK_DockerRuntimeAvailabilityUsesProbeTimeout_Bad(t *testing.T) {
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailure_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailureGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -208,8 +236,8 @@ func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailure_Good(t *testing.T) {
 	if dockerRuntimeAvailable() {
 		t.Fatal("expected false")
 	}
-	if err := ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 0\nfi\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 	if !(dockerRuntimeAvailable()) {
 		t.Fatal("expected true")
@@ -217,7 +245,7 @@ func TestSDK_DockerRuntimeAvailabilityRechecksAfterFailure_Good(t *testing.T) {
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChanges_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChangesGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -237,7 +265,7 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandChanges
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutatesInPlace_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutatesInPlaceGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -251,8 +279,8 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutates
 	}
 
 	time.Sleep(20 * time.Millisecond)
-	if err := ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then\n  exit 1\nfi\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 	if dockerRuntimeAvailable() {
 		t.Fatal("expected false")
@@ -260,7 +288,7 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandMutates
 
 }
 
-func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandKeepsSizeAndMTime_Good(t *testing.T) {
+func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandKeepsSizeAndMTimeGood(t *testing.T) {
 	resetDockerRuntimeState()
 	t.Cleanup(resetDockerRuntimeState)
 
@@ -273,15 +301,16 @@ func TestSDK_DockerRuntimeAvailabilityInvalidatesCachedSuccessWhenCommandKeepsSi
 		t.Fatal("expected true")
 	}
 
-	info, err := os.Stat(dockerPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	infoResult := ax.Stat(dockerPath)
+	if !infoResult.OK {
+		t.Fatalf("unexpected error: %v", infoResult.Error())
 	}
-	if err := ax.WriteFile(dockerPath, []byte(failureScript), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	info := infoResult.Value.(fs.FileInfo)
+	if result := ax.WriteFile(dockerPath, []byte(failureScript), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
-	if err := os.Chtimes(dockerPath, info.ModTime(), info.ModTime()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.Chtimes(dockerPath, info.ModTime(), info.ModTime()); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 	if dockerRuntimeAvailable() {
 		t.Fatal("expected false")

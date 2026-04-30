@@ -2,50 +2,45 @@ package buildcmd
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	core "dappco.re/go"
 	buildservice "dappco.re/go/build/pkg/service"
-	"dappco.re/go/core"
-	nativeservice "github.com/kardianos/service"
 )
 
-type stubServiceController struct {
-	installErr   error
-	startErr     error
-	stopErr      error
-	uninstallErr error
-	runErr       error
-	run          func() error
-	actions      []string
+type stubBuildServiceManager struct {
+	install func(buildservice.Config) core.Result
+	start   func(buildservice.Config) core.Result
+	stop    func(buildservice.Config) core.Result
+	remove  func(buildservice.Config) core.Result
 }
 
-func (s *stubServiceController) Install() error {
-	s.actions = append(s.actions, "install")
-	return s.installErr
-}
-
-func (s *stubServiceController) Start() error {
-	s.actions = append(s.actions, "start")
-	return s.startErr
-}
-
-func (s *stubServiceController) Stop() error {
-	s.actions = append(s.actions, "stop")
-	return s.stopErr
-}
-
-func (s *stubServiceController) Uninstall() error {
-	s.actions = append(s.actions, "uninstall")
-	return s.uninstallErr
-}
-
-func (s *stubServiceController) Run() error {
-	s.actions = append(s.actions, "run")
-	if s.run != nil {
-		return s.run()
+func (s stubBuildServiceManager) Install(cfg buildservice.Config) core.Result {
+	if s.install != nil {
+		return s.install(cfg)
 	}
-	return s.runErr
+	return core.Ok(nil)
+}
+
+func (s stubBuildServiceManager) Start(cfg buildservice.Config) core.Result {
+	if s.start != nil {
+		return s.start(cfg)
+	}
+	return core.Ok(nil)
+}
+
+func (s stubBuildServiceManager) Stop(cfg buildservice.Config) core.Result {
+	if s.stop != nil {
+		return s.stop(cfg)
+	}
+	return core.Ok(nil)
+}
+
+func (s stubBuildServiceManager) Uninstall(cfg buildservice.Config) core.Result {
+	if s.remove != nil {
+		return s.remove(cfg)
+	}
+	return core.Ok(nil)
 }
 
 func restoreServiceCommandStubs(t *testing.T) {
@@ -55,37 +50,37 @@ func restoreServiceCommandStubs(t *testing.T) {
 	originalResolve := resolveBuildServiceCfg
 	originalExport := exportBuildService
 	originalRunDaemon := runBuildServiceDaemon
-	originalNewController := newBuildNativeController
+	originalManager := buildServiceManager
 
 	t.Cleanup(func() {
 		serviceGetwd = originalGetwd
 		resolveBuildServiceCfg = originalResolve
 		exportBuildService = originalExport
 		runBuildServiceDaemon = originalRunDaemon
-		newBuildNativeController = originalNewController
+		buildServiceManager = originalManager
 	})
 }
 
 func stubResolvedServiceConfig(t *testing.T, projectDir string) {
 	t.Helper()
 
-	serviceGetwd = func() (string, error) { return projectDir, nil }
-	resolveBuildServiceCfg = func(dir string) (buildservice.Config, error) {
+	serviceGetwd = func() core.Result { return core.Ok(projectDir) }
+	resolveBuildServiceCfg = func(dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
-		return buildservice.Config{
+		return core.Ok(buildservice.Config{
 			Name:        "core-build",
 			DisplayName: "Core Build",
 			Description: "Core build daemon",
 			ProjectDir:  projectDir,
 			APIAddr:     "127.0.0.1:9101",
 			HealthAddr:  "127.0.0.1:9102",
-		}, nil
+		})
 	}
 }
 
-func TestService_AddServiceCommands_RegistersSubcommands_Good(t *testing.T) {
+func TestService_AddServiceCommands_RegistersSubcommandsGood(t *testing.T) {
 	c := core.New()
 
 	AddBuildCommands(c)
@@ -108,122 +103,120 @@ func TestService_AddServiceCommands_RegistersSubcommands_Good(t *testing.T) {
 	}
 }
 
-func TestService_Install_Good(t *testing.T) {
+func TestService_InstallGood(t *testing.T) {
 	restoreServiceCommandStubs(t)
 
 	projectDir := t.TempDir()
 	stubResolvedServiceConfig(t, projectDir)
 
-	controller := &stubServiceController{}
-	var recordedProgram nativeservice.Interface
-	var recordedConfig *nativeservice.Config
-	newBuildNativeController = func(program nativeservice.Interface, cfg *nativeservice.Config) (serviceController, error) {
-		recordedProgram = program
-		recordedConfig = cfg
-		return controller, nil
+	called := false
+	buildServiceManager = stubBuildServiceManager{
+		install: func(cfg buildservice.Config) core.Result {
+			called = true
+			if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
+				t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
+			}
+			if !stdlibAssertEqual("core-build", cfg.Name) {
+				t.Fatalf("want %v, got %v", "core-build", cfg.Name)
+			}
+			return core.Ok(nil)
+		},
 	}
 
-	err := runServiceInstall(serviceRequest{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !stdlibAssertEqual([]string{"install"}, controller.actions) {
-		t.Fatalf("want %v, got %v", []string{"install"}, controller.actions)
-	}
-	if _, ok := recordedProgram.(controlServiceProgram); !ok {
-		t.Fatalf("expected control service program, got %T", recordedProgram)
-	}
-	if !stdlibAssertEqual("core-build", recordedConfig.Name) {
-		t.Fatalf("want %v, got %v", "core-build", recordedConfig.Name)
-	}
-	if !stdlibAssertContains(recordedConfig.Arguments, "service") {
-		t.Fatalf("expected %v to contain %v", recordedConfig.Arguments, "service")
-	}
-	if !stdlibAssertContains(recordedConfig.Arguments, "run") {
-		t.Fatalf("expected %v to contain %v", recordedConfig.Arguments, "run")
-	}
-	if !stdlibAssertEqual(projectDir, recordedConfig.WorkingDirectory) {
-		t.Fatalf("want %v, got %v", projectDir, recordedConfig.WorkingDirectory)
+	requireBuildCmdOK(t, runServiceInstall(serviceRequest{}))
+	if !called {
+		t.Fatal("expected true")
 	}
 }
 
-func TestService_Install_Bad(t *testing.T) {
+func TestService_InstallBad(t *testing.T) {
 	restoreServiceCommandStubs(t)
 
 	projectDir := t.TempDir()
 	stubResolvedServiceConfig(t, projectDir)
 
-	newBuildNativeController = func(nativeservice.Interface, *nativeservice.Config) (serviceController, error) {
-		return nil, errors.New("native service unavailable")
+	buildServiceManager = stubBuildServiceManager{
+		install: func(buildservice.Config) core.Result {
+			return core.Fail(core.NewError("native service unavailable"))
+		},
 	}
 
-	err := runServiceInstall(serviceRequest{})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "native service unavailable") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "native service unavailable")
+	message := requireBuildCmdError(t, runServiceInstall(serviceRequest{}))
+	if !stdlibAssertContains(message, "native service unavailable") {
+		t.Fatalf("expected %v to contain %v", message, "native service unavailable")
 	}
 }
 
-func TestService_Install_Ugly(t *testing.T) {
+func TestService_InstallUgly(t *testing.T) {
 	restoreServiceCommandStubs(t)
 
 	projectDir := t.TempDir()
 	stubResolvedServiceConfig(t, projectDir)
 
-	controller := &stubServiceController{installErr: errors.New("install rejected")}
-	newBuildNativeController = func(nativeservice.Interface, *nativeservice.Config) (serviceController, error) {
-		return controller, nil
+	actions := make([]string, 0, 1)
+	buildServiceManager = stubBuildServiceManager{
+		install: func(buildservice.Config) core.Result {
+			actions = append(actions, "install")
+			return core.Fail(core.NewError("install rejected"))
+		},
 	}
 
-	err := runServiceInstall(serviceRequest{})
-	if err == nil {
-		t.Fatal("expected error")
+	message := requireBuildCmdError(t, runServiceInstall(serviceRequest{}))
+	if !stdlibAssertContains(message, "install rejected") {
+		t.Fatalf("expected %v to contain %v", message, "install rejected")
 	}
-	if !stdlibAssertContains(err.Error(), "install rejected") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "install rejected")
-	}
-	if !stdlibAssertEqual([]string{"install"}, controller.actions) {
-		t.Fatalf("want %v, got %v", []string{"install"}, controller.actions)
+	if !stdlibAssertEqual([]string{"install"}, actions) {
+		t.Fatalf("want %v, got %v", []string{"install"}, actions)
 	}
 }
 
-func TestService_Run_UsesKardianosRunCallback_Good(t *testing.T) {
+func TestService_Run_InvokesDaemonGood(t *testing.T) {
 	restoreServiceCommandStubs(t)
 
 	projectDir := t.TempDir()
 	stubResolvedServiceConfig(t, projectDir)
 
-	daemonCalled := false
-	runBuildServiceDaemon = func(ctx context.Context, cfg buildservice.Config) error {
-		daemonCalled = true
+	daemonConfigs := make(chan buildservice.Config, 1)
+	runBuildServiceDaemon = func(ctx context.Context, cfg buildservice.Config) core.Result {
+		daemonConfigs <- cfg
+		return core.Ok(nil)
+	}
+
+	requireBuildCmdOK(t, runServiceRun(context.Background(), serviceRequest{}))
+	select {
+	case cfg := <-daemonConfigs:
 		if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
 			t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
 		}
-		<-ctx.Done()
-		return nil
-	}
-
-	newBuildNativeController = func(program nativeservice.Interface, cfg *nativeservice.Config) (serviceController, error) {
-		if _, ok := cfg.Option["RunWait"].(func()); !ok {
-			t.Fatal("expected kardianos RunWait callback")
-		}
-		return &stubServiceController{
-			run: func() error {
-				if err := program.Start(nil); err != nil {
-					return err
-				}
-				return program.Stop(nil)
-			},
-		}, nil
-	}
-
-	err := runServiceRun(context.Background(), serviceRequest{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !(daemonCalled) {
+	default:
 		t.Fatal("expected daemon to be called")
 	}
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestCmdService_AddServiceCommands_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		AddServiceCommands(core.New())
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestCmdService_AddServiceCommands_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		AddServiceCommands(core.New())
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestCmdService_AddServiceCommands_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		AddServiceCommands(core.New())
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

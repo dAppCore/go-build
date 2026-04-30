@@ -1,6 +1,6 @@
 package build
 
-import "dappco.re/go/core"
+import "dappco.re/go"
 
 // ExpandVersionTemplate resolves the RFC-documented version placeholders used
 // across build and release config surfaces.

@@ -1,12 +1,9 @@
 package build
 
 import (
-	"strings"
-
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 const (
@@ -53,9 +50,9 @@ func GenerateXcodeCloudScripts(projectDir string, cfg *BuildConfig) map[string]s
 }
 
 // WriteXcodeCloudScripts writes the Xcode Cloud helper scripts to ci_scripts/.
-func WriteXcodeCloudScripts(filesystem io.Medium, projectDir string, cfg *BuildConfig) ([]string, error) {
+func WriteXcodeCloudScripts(filesystem storage.Medium, projectDir string, cfg *BuildConfig) core.Result {
 	if filesystem == nil {
-		return nil, coreerr.E("build.WriteXcodeCloudScripts", "filesystem medium is required", nil)
+		return core.Fail(core.E("build.WriteXcodeCloudScripts", "filesystem medium is required", nil))
 	}
 
 	scripts := GenerateXcodeCloudScripts(projectDir, cfg)
@@ -66,20 +63,22 @@ func WriteXcodeCloudScripts(filesystem io.Medium, projectDir string, cfg *BuildC
 	}
 
 	baseDir := ax.Join(projectDir, XcodeCloudScriptsDir)
-	if err := filesystem.EnsureDir(baseDir); err != nil {
-		return nil, coreerr.E("build.WriteXcodeCloudScripts", "failed to create Xcode Cloud scripts directory", err)
+	created := filesystem.EnsureDir(baseDir)
+	if !created.OK {
+		return core.Fail(core.E("build.WriteXcodeCloudScripts", "failed to create Xcode Cloud scripts directory", core.NewError(created.Error())))
 	}
 
 	paths := make([]string, 0, len(orderedNames))
 	for _, name := range orderedNames {
 		path := ax.Join(baseDir, name)
-		if err := filesystem.WriteMode(path, scripts[name], 0o755); err != nil {
-			return nil, coreerr.E("build.WriteXcodeCloudScripts", "failed to write "+name, err)
+		written := filesystem.WriteMode(path, scripts[name], 0o755)
+		if !written.OK {
+			return core.Fail(core.E("build.WriteXcodeCloudScripts", "failed to write "+name, core.NewError(written.Error())))
 		}
 		paths = append(paths, path)
 	}
 
-	return paths, nil
+	return core.Ok(paths)
 }
 
 func resolveXcodeCloudBundleName(projectDir string, cfg *BuildConfig) string {
@@ -137,11 +136,11 @@ func resolveXcodeCloudBuildCommand(cfg *BuildConfig) string {
 		args = append(args, "--team-id", shellQuote(options.TeamID))
 	}
 
-	return strings.Join(args, " ")
+	return core.Join(" ", args...)
 }
 
 func generateXcodeCloudPostCloneScript() string {
-	return strings.TrimSpace(`#!/usr/bin/env bash
+	return core.Trim(`#!/usr/bin/env bash
 set -euo pipefail
 
 export PATH="${HOME}/go/bin:${HOME}/.deno/bin:${HOME}/.bun/bin:${PATH}"
@@ -310,7 +309,7 @@ done < <(find_visible_files 3 -name package.json | sort)
 }
 
 func generateXcodeCloudPreXcodebuildScript(buildCommand string) string {
-	return strings.TrimSpace(core.Sprintf(`#!/usr/bin/env bash
+	return core.Trim(core.Sprintf(`#!/usr/bin/env bash
 set -euo pipefail
 
 export PATH="${HOME}/go/bin:${HOME}/.deno/bin:${HOME}/.bun/bin:${PATH}"
@@ -323,7 +322,7 @@ func generateXcodeCloudPostXcodebuildScript(bundleName string) string {
 	bundlePath := ax.Join("dist", "apple", bundleName+".app")
 	executablePath := ax.Join(bundlePath, "Contents", "MacOS", bundleName)
 
-	return strings.TrimSpace(core.Sprintf(`#!/usr/bin/env bash
+	return core.Trim(core.Sprintf(`#!/usr/bin/env bash
 set -euo pipefail
 
 BUNDLE_PATH=%s
@@ -354,5 +353,5 @@ func shellQuote(value string) string {
 		return "''"
 	}
 
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+	return "'" + core.Replace(value, "'", `'"'"'`) + "'"
 }

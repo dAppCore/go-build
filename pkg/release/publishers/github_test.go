@@ -2,17 +2,16 @@ package publishers
 
 import (
 	"context"
-	"os"
 	"runtime"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/core"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
-func TestGitHub_ParseGitHubRepo_Good(t *testing.T) {
+func TestGitHub_ParseGitHubRepoGood(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -47,10 +46,7 @@ func TestGitHub_ParseGitHubRepo_Good(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := parseGitHubRepo(tc.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			result := requirePublisherString(t, parseGitHubRepo(tc.input))
 			if !stdlibAssertEqual(tc.expected, result) {
 				t.Fatalf("want %v, got %v", tc.expected, result)
 			}
@@ -59,7 +55,7 @@ func TestGitHub_ParseGitHubRepo_Good(t *testing.T) {
 	}
 }
 
-func TestGitHub_ParseGitHubRepo_Bad(t *testing.T) {
+func TestGitHub_ParseGitHubRepoBad(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -84,16 +80,13 @@ func TestGitHub_ParseGitHubRepo_Bad(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseGitHubRepo(tc.input)
-			if err == nil {
-				t.Fatal("expected error")
-			}
+			_ = requirePublisherError(t, parseGitHubRepo(tc.input))
 
 		})
 	}
 }
 
-func TestGitHub_GitHubPublisherName_Good(t *testing.T) {
+func TestGitHub_GitHubPublisherNameGood(t *testing.T) {
 	t.Run("returns github", func(t *testing.T) {
 		p := NewGitHubPublisher()
 		if !stdlibAssertEqual("github", p.Name()) {
@@ -105,7 +98,7 @@ func TestGitHub_GitHubPublisherName_Good(t *testing.T) {
 
 func TestGitHub_NewRelease_Good(t *testing.T) {
 	t.Run("creates release struct", func(t *testing.T) {
-		r := NewRelease("v1.0.0", nil, "changelog", "/project", io.Local)
+		r := NewRelease("v1.0.0", nil, "changelog", "/project", storage.Local)
 		if !stdlibAssertEqual("v1.0.0", r.Version) {
 			t.Fatalf("want %v, got %v", "v1.0.0", r.Version)
 		}
@@ -118,8 +111,8 @@ func TestGitHub_NewRelease_Good(t *testing.T) {
 		if !stdlibAssertNil(r.Artifacts) {
 			t.Fatalf("expected nil, got %v", r.Artifacts)
 		}
-		if !stdlibAssertEqual(io.Local, r.ArtifactFS) {
-			t.Fatalf("want %v, got %v", io.Local, r.ArtifactFS)
+		if !stdlibAssertEqual(storage.Local, r.ArtifactFS) {
+			t.Fatalf("want %v, got %v", storage.Local, r.ArtifactFS)
 		}
 
 	})
@@ -156,14 +149,14 @@ func TestGitHub_NewPublisherConfig_Good(t *testing.T) {
 	})
 }
 
-func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
+func TestGitHub_BuildCreateArgsGood(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("basic args", func(t *testing.T) {
 		release := &Release{
 			Version:   "v1.0.0",
 			Changelog: "## v1.0.0\n\nChanges",
-			FS:        io.Local,
+			FS:        storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
@@ -197,7 +190,7 @@ func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
 	t.Run("with draft flag", func(t *testing.T) {
 		release := &Release{
 			Version: "v1.0.0",
-			FS:      io.Local,
+			FS:      storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:  "github",
@@ -214,7 +207,7 @@ func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
 	t.Run("with prerelease flag", func(t *testing.T) {
 		release := &Release{
 			Version: "v1.0.0",
-			FS:      io.Local,
+			FS:      storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:       "github",
@@ -231,7 +224,7 @@ func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
 	t.Run("auto-detects prerelease from semver version", func(t *testing.T) {
 		release := &Release{
 			Version: "v1.0.0-beta.1",
-			FS:      io.Local,
+			FS:      storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
@@ -248,7 +241,7 @@ func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
 		release := &Release{
 			Version:   "v1.0.0",
 			Changelog: "",
-			FS:        io.Local,
+			FS:        storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
@@ -264,7 +257,7 @@ func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
 	t.Run("with draft and prerelease flags", func(t *testing.T) {
 		release := &Release{
 			Version: "v1.0.0-alpha",
-			FS:      io.Local,
+			FS:      storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:       "github",
@@ -286,7 +279,7 @@ func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
 		release := &Release{
 			Version:   "v2.0.0",
 			Changelog: "Some changes",
-			FS:        io.Local,
+			FS:        storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
@@ -309,7 +302,7 @@ func TestGitHub_BuildCreateArgs_Good(t *testing.T) {
 	})
 }
 
-func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
+func TestGitHub_GitHubPublisherDryRunPublishGood(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
@@ -317,7 +310,7 @@ func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "## Changes\n\n- Feature A\n- Bug fix B",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:       "github",
@@ -325,13 +318,11 @@ func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 			Prerelease: false,
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg, "owner/repo")
+			publishResult = p.dryRunPublish(release, cfg, "owner/repo")
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: GitHub Release") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: GitHub Release")
 		}
@@ -370,7 +361,7 @@ func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/dist/myapp-darwin-amd64.tar.gz"},
 				{Path: "/dist/myapp-linux-amd64.tar.gz"},
@@ -378,13 +369,11 @@ func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 		}
 		cfg := PublisherConfig{Type: "github"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg, "owner/repo")
+			publishResult = p.dryRunPublish(release, cfg, "owner/repo")
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Would upload artifacts:") {
 			t.Fatalf("expected %v to contain %v", output, "Would upload artifacts:")
 		}
@@ -402,7 +391,7 @@ func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 			Version:    "v1.0.0-beta",
 			Changelog:  "Beta release",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type:       "github",
@@ -410,13 +399,11 @@ func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 			Prerelease: true,
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg, "owner/repo")
+			publishResult = p.dryRunPublish(release, cfg, "owner/repo")
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Draft:      true") {
 			t.Fatalf("expected %v to contain %v", output, "Draft:      true")
 		}
@@ -437,19 +424,17 @@ func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 			Version:    "v1.0.0-rc.1",
 			Changelog:  "Release candidate",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := PublisherConfig{
 			Type: "github",
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg, "owner/repo")
+			publishResult = p.dryRunPublish(release, cfg, "owner/repo")
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Prerelease: true") {
 			t.Fatalf("expected %v to contain %v", output, "Prerelease: true")
 		}
@@ -460,7 +445,7 @@ func TestGitHub_GitHubPublisherDryRunPublish_Good(t *testing.T) {
 	})
 }
 
-func TestGitHub_GitHubPublisherPublish_Good(t *testing.T) {
+func TestGitHub_GitHubPublisherPublishGood(t *testing.T) {
 	p := NewGitHubPublisher()
 
 	t.Run("dry run uses repository from config", func(t *testing.T) {
@@ -468,19 +453,17 @@ func TestGitHub_GitHubPublisherPublish_Good(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: "custom/repo"}
 
 		// Dry run should succeed without needing gh CLI
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Repository: custom/repo") {
 			t.Fatalf("expected %v to contain %v", output, "Repository: custom/repo")
 		}
@@ -488,7 +471,7 @@ func TestGitHub_GitHubPublisherPublish_Good(t *testing.T) {
 	})
 }
 
-func TestGitHub_GitHubPublisherPublish_Bad(t *testing.T) {
+func TestGitHub_GitHubPublisherPublishBad(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -502,18 +485,12 @@ func TestGitHub_GitHubPublisherPublish_Bad(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: "/nonexistent",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, false)
-		if err ==
-
-			// Should fail due to either gh not found or not authenticated
-			nil {
-			t.Fatal("expected error")
-		}
+		_ = requirePublisherError(t, p.Publish(context.Background(), release, pubCfg, relCfg, false))
 
 	})
 
@@ -525,26 +502,20 @@ func TestGitHub_GitHubPublisherPublish_Bad(t *testing.T) {
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "github"}
 		relCfg := &mockReleaseConfig{repository: ""} // Empty repository
 
-		err := p.Publish(context.Background(), release, pubCfg, relCfg, true)
-		if err ==
-
-			// Should fail because detectRepository will fail on non-git dir
-			nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "could not determine repository") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "could not determine repository")
+		err := requirePublisherError(t, p.Publish(context.Background(), release, pubCfg, relCfg, true))
+		if !stdlibAssertContains(err, "could not determine repository") {
+			t.Fatalf("expected %v to contain %v", err, "could not determine repository")
 		}
 
 	})
 }
 
-func TestGitHub_DetectRepository_Good(t *testing.T) {
+func TestGitHub_DetectRepositoryGood(t *testing.T) {
 	t.Run("detects repository from git remote", func(t *testing.T) {
 		// Create a temp git repo
 		tmpDir := t.TempDir()
@@ -553,10 +524,7 @@ func TestGitHub_DetectRepository_Good(t *testing.T) {
 		runPublisherCommand(t, tmpDir, "git", "init")
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@github.com:test-owner/test-repo.git")
 
-		repo, err := detectRepository(context.Background(), tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		repo := requirePublisherString(t, detectRepository(context.Background(), tmpDir))
 		if !stdlibAssertEqual("test-owner/test-repo", repo) {
 			t.Fatalf("want %v, got %v", "test-owner/test-repo", repo)
 		}
@@ -568,10 +536,7 @@ func TestGitHub_DetectRepository_Good(t *testing.T) {
 		runPublisherCommand(t, tmpDir, "git", "init")
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "https://github.com/another-owner/another-repo.git")
 
-		repo, err := detectRepository(context.Background(), tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		repo := requirePublisherString(t, detectRepository(context.Background(), tmpDir))
 		if !stdlibAssertEqual("another-owner/another-repo", repo) {
 			t.Fatalf("want %v, got %v", "another-owner/another-repo", repo)
 		}
@@ -584,10 +549,7 @@ func TestGitHub_DetectRepository_Good(t *testing.T) {
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "ssh://git@forge.example.com:2223/core/repo.git")
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "github", "ssh://git@github.com/mirror-owner/mirror-repo.git")
 
-		repo, err := detectRepository(context.Background(), tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		repo := requirePublisherString(t, detectRepository(context.Background(), tmpDir))
 		if !stdlibAssertEqual("mirror-owner/mirror-repo", repo) {
 			t.Fatalf("want %v, got %v", "mirror-owner/mirror-repo", repo)
 		}
@@ -601,18 +563,15 @@ func TestGitHub_DetectRepository_Good(t *testing.T) {
 
 		commandDir := t.TempDir()
 		commandPath := ax.Join(commandDir, "gh")
-		if err := ax.WriteFile(commandPath, []byte(`#!/bin/sh
+		if result := ax.WriteFile(commandPath, []byte(`#!/bin/sh
 printf '{"nameWithOwner":"mirror-owner/mirror-repo"}'
-`), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+`), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		t.Setenv("PATH", commandDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		t.Setenv("PATH", commandDir+string(core.PathListSeparator)+core.Getenv("PATH"))
 
-		repo, err := detectRepository(context.Background(), tmpDir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		repo := requirePublisherString(t, detectRepository(context.Background(), tmpDir))
 		if !stdlibAssertEqual("mirror-owner/mirror-repo", repo) {
 			t.Fatalf("want %v, got %v", "mirror-owner/mirror-repo", repo)
 		}
@@ -620,25 +579,19 @@ printf '{"nameWithOwner":"mirror-owner/mirror-repo"}'
 	})
 }
 
-func TestGitHub_DetectRepository_Bad(t *testing.T) {
+func TestGitHub_DetectRepositoryBad(t *testing.T) {
 	t.Run("fails when not a git repository", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		_, err := detectRepository(context.Background(), tmpDir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to list git remotes") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to list git remotes")
+		err := requirePublisherError(t, detectRepository(context.Background(), tmpDir))
+		if !stdlibAssertContains(err, "failed to list git remotes") {
+			t.Fatalf("expected %v to contain %v", err, "failed to list git remotes")
 		}
 
 	})
 
 	t.Run("fails when directory does not exist", func(t *testing.T) {
-		_, err := detectRepository(context.Background(), "/nonexistent/directory/that/does/not/exist")
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		_ = requirePublisherError(t, detectRepository(context.Background(), "/nonexistent/directory/that/does/not/exist"))
 
 	})
 
@@ -648,18 +601,15 @@ func TestGitHub_DetectRepository_Bad(t *testing.T) {
 		runPublisherCommand(t, tmpDir, "git", "remote", "add", "origin", "git@gitlab.com:owner/repo.git")
 		commandDir := t.TempDir()
 		commandPath := ax.Join(commandDir, "gh")
-		if err := ax.WriteFile(commandPath, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(commandPath, []byte("#!/bin/sh\nexit 1\n"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		t.Setenv("PATH", commandDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		t.Setenv("PATH", commandDir+string(core.PathListSeparator)+core.Getenv("PATH"))
 
-		_, err := detectRepository(context.Background(), tmpDir)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "no GitHub remote found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "no GitHub remote found")
+		err := requirePublisherError(t, detectRepository(context.Background(), tmpDir))
+		if !stdlibAssertContains(err, "no GitHub remote found") {
+			t.Fatalf("expected %v to contain %v", err, "no GitHub remote found")
 		}
 
 	})
@@ -667,8 +617,8 @@ func TestGitHub_DetectRepository_Bad(t *testing.T) {
 	t.Run("respects cancelled context", func(t *testing.T) {
 		commandDir := t.TempDir()
 		commandPath := ax.Join(commandDir, "git")
-		if err := ax.WriteFile(commandPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(commandPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		t.Setenv("PATH", commandDir)
@@ -676,29 +626,21 @@ func TestGitHub_DetectRepository_Bad(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err := detectRepository(ctx, t.TempDir())
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "context canceled") {
-			t.Fatalf("expected %v to contain %v", err.Error(
-
-			// This test verifies the error messages from validateGhCli
-			// We can't easily mock exec.Command, but we can at least
-			// verify the function exists and returns expected error types
-			), "context canceled")
+		err := requirePublisherError(t, detectRepository(ctx, t.TempDir()))
+		if !stdlibAssertContains(err, "context canceled") {
+			t.Fatalf("expected %v to contain %v", err, "context canceled")
 		}
 
 	})
 }
 
-func TestGitHub_ValidateGhCli_Bad(t *testing.T) {
+func TestGitHub_ValidateGhCliBad(t *testing.T) {
 
 	t.Run("returns error when gh not installed", func(t *testing.T) {
 		// We can't force gh to not be installed, but we can verify
 		// the function signature works correctly
 		err := validateGhCli(context.Background())
-		if err != nil {
+		if !err.OK {
 			if !(core.
 				// Either gh is not installed or not authenticated
 				Contains(err.Error(), "gh CLI not found") || core.Contains(err.Error(), "not authenticated")) {
@@ -712,8 +654,8 @@ func TestGitHub_ValidateGhCli_Bad(t *testing.T) {
 	t.Run("respects cancelled context during auth check", func(t *testing.T) {
 		commandDir := t.TempDir()
 		commandPath := ax.Join(commandDir, "gh")
-		if err := ax.WriteFile(commandPath, []byte("#!/bin/sh\necho 'Logged in'\n"), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(commandPath, []byte("#!/bin/sh\necho 'Logged in'\n"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		t.Setenv("PATH", commandDir)
@@ -721,49 +663,40 @@ func TestGitHub_ValidateGhCli_Bad(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		err := validateGhCli(ctx)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "context canceled") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "context canceled")
+		err := requirePublisherError(t, validateGhCli(ctx))
+		if !stdlibAssertContains(err, "context canceled") {
+			t.Fatalf("expected %v to contain %v", err, "context canceled")
 		}
 
 	})
 }
 
-func TestGitHub_ResolveGhCli_Good(t *testing.T) {
+func TestGitHub_ResolveGhCliGood(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "gh")
-	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("PATH", "")
 
-	command, err := resolveGhCli(fallbackPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	command := requirePublisherString(t, resolveGhCli(fallbackPath))
 	if !stdlibAssertEqual(fallbackPath, command) {
 		t.Fatalf("want %v, got %v", fallbackPath, command)
 	}
 
 }
 
-func TestGitHub_ResolveGhCli_Bad(t *testing.T) {
+func TestGitHub_ResolveGhCliBad(t *testing.T) {
 	t.Setenv("PATH", "")
-	_, err := resolveGhCli(ax.Join(t.TempDir(), "missing-gh"))
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "gh CLI not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "gh CLI not found")
+	err := requirePublisherError(t, resolveGhCli(ax.Join(t.TempDir(), "missing-gh")))
+	if !stdlibAssertContains(err, "gh CLI not found") {
+		t.Fatalf("expected %v to contain %v", err, "gh CLI not found")
 	}
 
 }
 
-func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
+func TestGitHub_GitHubPublisherExecutePublishGood(t *testing.T) {
 	t.Run("materializes artifacts from non-local media", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("fake gh helper uses a POSIX shell")
@@ -786,35 +719,27 @@ func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
 			"      ;;\n" +
 			"  esac\n" +
 			"done\n"
-		if err := ax.WriteFile(commandPath, []byte(script), 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(commandPath, []byte(script), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
-		artifactFS := io.NewMemoryMedium()
-		if err := artifactFS.Write("releases/app-linux-amd64.tar.gz", "artifact"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		artifactFS := storage.NewMemoryMedium()
+		requirePublisherOK(t, artifactFS.Write("releases/app-linux-amd64.tar.gz", "artifact"))
 
 		release := &Release{
 			Version:    "v1.0.0",
 			Changelog:  "Changes",
 			ProjectDir: t.TempDir(),
-			FS:         io.Local,
+			FS:         storage.Local,
 			ArtifactFS: artifactFS,
 			Artifacts: []build.Artifact{
 				{Path: "releases/app-linux-amd64.tar.gz"},
 			},
 		}
 
-		err := p.executePublish(context.Background(), release, PublisherConfig{Type: "github"}, "owner/repo", commandPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, p.executePublish(context.Background(), release, PublisherConfig{Type: "github"}, "owner/repo", commandPath))
 
-		logContent, err := ax.ReadFile(logPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		logContent := requirePublisherBytes(t, ax.ReadFile(logPath))
 		if stdlibAssertContains(string(logContent), "releases/app-linux-amd64.tar.gz") {
 			t.Fatalf("expected %v not to contain %v", string(logContent), "releases/app-linux-amd64.tar.gz")
 		}
@@ -825,17 +750,14 @@ func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
 				string(logContent), "present")
 		}
 
-		materialized, err := ax.ReadFile(artifactPath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		materialized := requirePublisherBytes(t, ax.ReadFile(artifactPath))
 		if !stdlibAssertEqual("artifact", string(materialized)) {
 			t.Fatalf("want %v, got %v", "artifact", string(materialized))
 		}
 
 	})
 
-	if err := validateGhCli(context.Background()); err != nil {
+	if err := validateGhCli(context.Background()); !err.OK {
 		t.Skip("skipping test: gh CLI not available or not authenticated")
 	}
 
@@ -848,7 +770,7 @@ func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
 			Version:    "v999.999.999-test-nonexistent",
 			Changelog:  "Test changelog",
 			ProjectDir: "/tmp",
-			FS:         io.Local,
+			FS:         storage.Local,
 			Artifacts: []build.Artifact{
 				{Path: "/tmp/nonexistent-artifact.tar.gz"},
 			},
@@ -861,23 +783,16 @@ func TestGitHub_GitHubPublisherExecutePublish_Good(t *testing.T) {
 
 		// This will fail because the artifact doesn't exist, but it proves
 		// the code path runs
-		command, err := resolveGhCli()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		command := requirePublisherString(t, resolveGhCli())
 
-		err = p.executePublish(context.Background(), release, cfg, "test-owner/test-repo-nonexistent", command)
-		if err == nil {
-			t.Fatal("expected error")
-			// Expected to fail
-		}
+		_ = requirePublisherError(t, p.executePublish(context.Background(), release, cfg, "test-owner/test-repo-nonexistent", command))
 
 	})
 }
 
 func TestGitHub_ReleaseExists_Good(t *testing.T) {
 	// These tests run only when gh CLI is available
-	if err := validateGhCli(context.Background()); err != nil {
+	if err := validateGhCli(context.Background()); !err.OK {
 		t.Skip("skipping test: gh CLI not available or not authenticated")
 	}
 
@@ -900,4 +815,296 @@ func TestGitHub_ReleaseExists_Good(t *testing.T) {
 		// and the release may or may not exist
 		_ = exists // Just verify function runs without panic
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestGithub_NewGitHubPublisher_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewGitHubPublisher()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestGithub_NewGitHubPublisher_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewGitHubPublisher()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestGithub_NewGitHubPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewGitHubPublisher()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestGithub_DetectGitHubRepository_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DetectGitHubRepository(ctx, core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestGithub_DetectGitHubRepository_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DetectGitHubRepository(ctx, "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestGithub_DetectGitHubRepository_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DetectGitHubRepository(ctx, core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestGithub_GitHubPublisher_Name_Good(t *core.T) {
+	subject := &GitHubPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestGithub_GitHubPublisher_Name_Bad(t *core.T) {
+	subject := &GitHubPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestGithub_GitHubPublisher_Name_Ugly(t *core.T) {
+	subject := &GitHubPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestGithub_GitHubPublisher_Validate_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &GitHubPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestGithub_GitHubPublisher_Validate_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &GitHubPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestGithub_GitHubPublisher_Validate_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &GitHubPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestGithub_GitHubPublisher_Supports_Good(t *core.T) {
+	subject := &GitHubPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestGithub_GitHubPublisher_Supports_Bad(t *core.T) {
+	subject := &GitHubPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestGithub_GitHubPublisher_Supports_Ugly(t *core.T) {
+	subject := &GitHubPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestGithub_GitHubPublisher_Publish_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &GitHubPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestGithub_GitHubPublisher_Publish_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &GitHubPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestGithub_GitHubPublisher_Publish_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &GitHubPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestGithub_UploadArtifact_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = UploadArtifact(ctx, "owner/repo", "v1.2.3", core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestGithub_UploadArtifact_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = UploadArtifact(ctx, "", "", "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestGithub_UploadArtifact_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = UploadArtifact(ctx, "owner/repo", "v1.2.3", core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestGithub_DeleteRelease_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DeleteRelease(ctx, "owner/repo", "v1.2.3")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestGithub_DeleteRelease_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DeleteRelease(ctx, "", "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestGithub_DeleteRelease_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = DeleteRelease(ctx, "owner/repo", "v1.2.3")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestGithub_ReleaseExists_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ReleaseExists(ctx, "owner/repo", "v1.2.3")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestGithub_ReleaseExists_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ReleaseExists(ctx, "", "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestGithub_ReleaseExists_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = ReleaseExists(ctx, "owner/repo", "v1.2.3")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

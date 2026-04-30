@@ -4,9 +4,8 @@ package publishers
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
-	coreerr "dappco.re/go/log"
 )
 
 // LinuxKitConfig holds configuration for the LinuxKit publisher.
@@ -62,22 +61,23 @@ func (p *LinuxKitPublisher) Name() string {
 }
 
 // Validate checks the LinuxKit publisher configuration before publishing.
-func (p *LinuxKitPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) error {
+func (p *LinuxKitPublisher) Validate(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig) core.Result {
 	_ = ctx
 	_ = relCfg
-	if err := validatePublisherRelease(p.Name(), release); err != nil {
-		return err
+	validated := validatePublisherRelease(p.Name(), release)
+	if !validated.OK {
+		return validated
 	}
 
 	lkCfg := p.parseConfig(pubCfg, release.ProjectDir)
 	if !release.FS.Exists(lkCfg.Config) {
-		return coreerr.E("linuxkit.Validate", "config file not found: "+lkCfg.Config, nil)
+		return core.Fail(core.E("linuxkit.Validate", "config file not found: "+lkCfg.Config, nil))
 	}
 	if len(lkCfg.Formats) == 0 {
-		return coreerr.E("linuxkit.Validate", "at least one LinuxKit format is required", nil)
+		return core.Fail(core.E("linuxkit.Validate", "at least one LinuxKit format is required", nil))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // Supports reports whether the publisher handles the requested target.
@@ -87,26 +87,28 @@ func (p *LinuxKitPublisher) Supports(target string) bool {
 
 // Publish builds LinuxKit images and routes them by output format.
 //
-// err := pub.Publish(ctx, rel, pubCfg, relCfg, false)
-func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) error {
-	if err := validatePublisherRelease(p.Name(), release); err != nil {
-		return err
+// result := pub.Publish(ctx, rel, pubCfg, relCfg, false)
+func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCfg PublisherConfig, relCfg ReleaseConfig, dryRun bool) core.Result {
+	validated := validatePublisherRelease(p.Name(), release)
+	if !validated.OK {
+		return validated
 	}
 
-	linuxkitCommand, err := resolveLinuxKitCli()
-	if err != nil {
-		return err
+	linuxkitCommandResult := resolveLinuxKitCli()
+	if !linuxkitCommandResult.OK {
+		return linuxkitCommandResult
 	}
+	linuxkitCommand := linuxkitCommandResult.Value.(string)
 
 	// Parse LinuxKit-specific config from publisher config
 	lkCfg := p.parseConfig(pubCfg, release.ProjectDir)
 
 	// Validate config file exists
 	if release.FS == nil {
-		return coreerr.E("linuxkit.Publish", "release filesystem (FS) is nil", nil)
+		return core.Fail(core.E("linuxkit.Publish", "release filesystem (FS) is nil", nil))
 	}
 	if !release.FS.Exists(lkCfg.Config) {
-		return coreerr.E("linuxkit.Publish", "config file not found: "+lkCfg.Config, nil)
+		return core.Fail(core.E("linuxkit.Publish", "config file not found: "+lkCfg.Config, nil))
 	}
 
 	// Determine repository for dry-run display.
@@ -115,11 +117,11 @@ func (p *LinuxKitPublisher) Publish(ctx context.Context, release *Release, pubCf
 		repo = relCfg.GetRepository()
 	}
 	if repo == "" && dryRun {
-		detectedRepo, err := detectRepository(ctx, release.ProjectDir)
-		if err != nil {
-			return coreerr.E("linuxkit.Publish", "could not determine repository", err)
+		detectedRepoResult := detectRepository(ctx, release.ProjectDir)
+		if !detectedRepoResult.OK {
+			return core.Fail(core.E("linuxkit.Publish", "could not determine repository", core.NewError(detectedRepoResult.Error())))
 		}
-		repo = detectedRepo
+		repo = detectedRepoResult.Value.(string)
 	}
 
 	if dryRun {
@@ -177,7 +179,7 @@ func (p *LinuxKitPublisher) parseConfig(pubCfg PublisherConfig, projectDir strin
 }
 
 // dryRunPublish shows what would be done without actually building.
-func (p *LinuxKitPublisher) dryRunPublish(release *Release, cfg LinuxKitConfig, repo string) error {
+func (p *LinuxKitPublisher) dryRunPublish(release *Release, cfg LinuxKitConfig, repo string) core.Result {
 	publisherPrintln()
 	publisherPrintln("=== DRY RUN: LinuxKit Build & Publish ===")
 	publisherPrintln()
@@ -228,16 +230,17 @@ func (p *LinuxKitPublisher) dryRunPublish(release *Release, cfg LinuxKitConfig, 
 	publisherPrintln()
 	publisherPrintln("=== END DRY RUN ===")
 
-	return nil
+	return core.Ok(nil)
 }
 
 // executePublish builds LinuxKit images and routes them by format.
-func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release, cfg LinuxKitConfig, linuxkitCommand string) error {
+func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release, cfg LinuxKitConfig, linuxkitCommand string) core.Result {
 	outputDir := ax.Join(release.ProjectDir, "dist", "linuxkit")
 
 	// Create output directory
-	if err := release.FS.EnsureDir(outputDir); err != nil {
-		return coreerr.E("linuxkit.Publish", "failed to create output directory", err)
+	created := release.FS.EnsureDir(outputDir)
+	if !created.OK {
+		return core.Fail(core.E("linuxkit.Publish", "failed to create output directory", core.NewError(created.Error())))
 	}
 
 	baseName := p.buildBaseName(release.Version)
@@ -256,19 +259,21 @@ func (p *LinuxKitPublisher) executePublish(ctx context.Context, release *Release
 			// Build the image
 			args := p.buildLinuxKitArgs(cfg.Config, format, outputName, outputDir, arch)
 			publisherPrint("Building LinuxKit image: %s (%s)", outputName, format)
-			if err := publisherRun(ctx, release.ProjectDir, nil, linuxkitCommand, args...); err != nil {
-				return coreerr.E("linuxkit.Publish", "build failed for "+platform+"/"+format, err)
+			built := publisherRun(ctx, release.ProjectDir, nil, linuxkitCommand, args...)
+			if !built.OK {
+				return core.Fail(core.E("linuxkit.Publish", "build failed for "+platform+"/"+format, core.NewError(built.Error())))
 			}
 
 			// Track artifact for upload
 			artifactPath := p.getArtifactPath(outputDir, outputName, format)
-			if err := p.publishLinuxKitArtifact(ctx, release, cfg, format, artifactPath); err != nil {
-				return err
+			published := p.publishLinuxKitArtifact(ctx, release, cfg, format, artifactPath)
+			if !published.OK {
+				return published
 			}
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 // buildBaseName creates the base name for output files.
@@ -338,7 +343,7 @@ func (p *LinuxKitPublisher) getFormatExtension(format string) string {
 }
 
 // resolveLinuxKitCli returns the executable path for the linuxkit CLI.
-func resolveLinuxKitCli(paths ...string) (string, error) {
+func resolveLinuxKitCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/linuxkit",
@@ -346,18 +351,19 @@ func resolveLinuxKitCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("linuxkit", paths...)
-	if err != nil {
-		return "", coreerr.E("linuxkit.resolveLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", err)
+	command := ax.ResolveCommand("linuxkit", paths...)
+	if !command.OK {
+		return core.Fail(core.E("linuxkit.resolveLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }
 
 // validateLinuxKitCli checks if the linuxkit CLI is available.
-func validateLinuxKitCli() error {
-	if _, err := resolveLinuxKitCli(); err != nil {
-		return coreerr.E("linuxkit.validateLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", err)
+func validateLinuxKitCli() core.Result {
+	resolved := resolveLinuxKitCli()
+	if !resolved.OK {
+		return core.Fail(core.E("linuxkit.validateLinuxKitCli", "linuxkit CLI not found. Install it from https://github.com/linuxkit/linuxkit", core.NewError(resolved.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }

@@ -3,8 +3,7 @@ package builders
 import (
 	"context"
 
-	coreerr "dappco.re/go/log"
-	"dappco.re/go/process"
+	"dappco.re/go"
 )
 
 // AppleNotariseConfig defines a notarisation request for a built Apple artifact.
@@ -22,9 +21,9 @@ type AppleNotariseConfig struct {
 // Notarise records notarytool submit and stapler staple invocations.
 // A real run requires Apple Developer credentials, either through a
 // notarytool keychain profile, App Store Connect API key, or Apple ID credentials.
-func (b *AppleBuilder) Notarise(ctx context.Context, artifactPath string, options AppleOptions) error {
+func (b *AppleBuilder) Notarise(ctx context.Context, artifactPath string, options AppleOptions) core.Result {
 	if artifactPath == "" {
-		return coreerr.E("AppleBuilder.Notarise", "artifact path is required", nil)
+		return core.Fail(core.E("AppleBuilder.Notarise", "artifact path is required", nil))
 	}
 
 	submitArgs := []string{
@@ -36,16 +35,17 @@ func (b *AppleBuilder) Notarise(ctx context.Context, artifactPath string, option
 	submitArgs = append(submitArgs, appleNotaryAuthArgs(options)...)
 
 	// TODO(#484): xcrun notarytool requires macOS and Apple Developer
-	// credentials. The skeleton records the go-process invocation only.
-	if err := b.runExternal(ctx, "notarytool-submit", process.RunOptions{
+	// credentials. The skeleton records the command invocation only.
+	submitted := b.runExternal(ctx, "notarytool-submit", RunOptions{
 		Command: "xcrun",
 		Args:    submitArgs,
-	}); err != nil {
-		return err
+	})
+	if !submitted.OK {
+		return submitted
 	}
 
 	// TODO(#484): xcrun stapler requires a notarised artifact on macOS.
-	return b.runExternal(ctx, "stapler-staple", process.RunOptions{
+	return b.runExternal(ctx, "stapler-staple", RunOptions{
 		Command: "xcrun",
 		Args:    []string{"stapler", "staple", artifactPath},
 	})

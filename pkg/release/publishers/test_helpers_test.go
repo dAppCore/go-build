@@ -1,21 +1,21 @@
 package publishers
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 )
 
 func capturePublisherOutput(t *testing.T, fn func()) string {
 	t.Helper()
 
-	var buf bytes.Buffer
+	buf := core.NewBuffer()
 	oldStdout := publisherStdout
 	oldStderr := publisherStderr
-	publisherStdout = &buf
-	publisherStderr = &buf
+	publisherStdout = buf
+	publisherStderr = buf
 	defer func() {
 		publisherStdout = oldStdout
 		publisherStderr = oldStderr
@@ -27,8 +27,8 @@ func capturePublisherOutput(t *testing.T, fn func()) string {
 
 func runPublisherCommand(t *testing.T, dir, command string, args ...string) {
 	t.Helper()
-	if err := ax.ExecDir(context.Background(), dir, command, args); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.ExecDir(context.Background(), dir, command, args...); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }

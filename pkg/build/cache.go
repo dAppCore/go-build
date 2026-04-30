@@ -3,11 +3,9 @@
 package build
 
 import (
-
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	storage "dappco.re/go/build/pkg/storage"
 	"gopkg.in/yaml.v3"
 )
 
@@ -15,7 +13,7 @@ import (
 // no cache directory is supplied.
 //
 //	cfg := build.CacheConfig{Enabled: true}
-//	// SetupCache(io.Local, ".", &cfg) -> ".core/cache"
+//	// SetupCache(storage.Local, ".", &cfg) -> ".core/cache"
 const DefaultCacheDirectory = ".core/cache"
 
 // DefaultProcessCacheDirectory is the RFC-documented cache directory used by
@@ -66,7 +64,7 @@ type CacheConfig struct {
 // MarshalYAML emits the documented cache configuration shape with the Dir field.
 //
 //	data, err := yaml.Marshal(build.CacheConfig{Enabled: true, Dir: ".core/cache"})
-func (c CacheConfig) MarshalYAML() (any, error) {
+func (c CacheConfig) MarshalYAML() core.Result {
 	type rawCacheConfig struct {
 		Enabled     bool     `yaml:"enabled"`
 		Dir         string   `yaml:"dir,omitempty"`
@@ -75,19 +73,19 @@ func (c CacheConfig) MarshalYAML() (any, error) {
 		RestoreKeys []string `yaml:"restore_keys,omitempty"`
 	}
 
-	return rawCacheConfig{
+	return core.Ok(rawCacheConfig{
 		Enabled:     c.Enabled,
 		Dir:         c.effectiveDirectory(),
 		KeyPrefix:   c.KeyPrefix,
 		Paths:       c.Paths,
 		RestoreKeys: c.RestoreKeys,
-	}, nil
+	})
 }
 
 // UnmarshalYAML accepts both the concise build config keys and the longer aliases.
 //
 //	err := yaml.Unmarshal([]byte("dir: .core/cache"), &cfg)
-func (c *CacheConfig) UnmarshalYAML(value *yaml.Node) error {
+func (c *CacheConfig) UnmarshalYAML(value *yaml.Node) core.Result {
 	type rawCacheConfig struct {
 		Enabled     bool     `yaml:"enabled"`
 		Directory   string   `yaml:"directory"`
@@ -100,7 +98,7 @@ func (c *CacheConfig) UnmarshalYAML(value *yaml.Node) error {
 
 	var raw rawCacheConfig
 	if err := value.Decode(&raw); err != nil {
-		return err
+		return core.Fail(err)
 	}
 
 	c.Enabled = raw.Enabled
@@ -110,14 +108,14 @@ func (c *CacheConfig) UnmarshalYAML(value *yaml.Node) error {
 	c.Paths = raw.Paths
 	c.RestoreKeys = raw.RestoreKeys
 
-	return nil
+	return core.Ok(nil)
 }
 
 // SetupCache normalises cache paths and ensures the cache directories exist.
 //
 // The canonical form is the 3-argument variant:
 //
-//	err := build.SetupCache(io.Local, ".", &build.CacheConfig{
+//	err := build.SetupCache(storage.Local, ".", &build.CacheConfig{
 //	    Enabled: true,
 //	    Paths: []string{"~/.cache/go-build", "~/go/pkg/mod"},
 //	})
@@ -125,12 +123,12 @@ func (c *CacheConfig) UnmarshalYAML(value *yaml.Node) error {
 // A compatibility 1-argument form is also supported for the RFC-shaped API:
 //
 //	err := build.SetupCache(build.CacheConfig{Enabled: true})
-func SetupCache(args ...any) error {
+func SetupCache(args ...any) core.Result {
 	switch len(args) {
 	case 1:
 		cfg, ok := cacheConfigArg(args[0])
 		if !ok || cfg == nil || !cfg.Enabled {
-			return nil
+			return core.Ok(nil)
 		}
 
 		// The single-argument form configures the process environment for callers
@@ -143,17 +141,17 @@ func SetupCache(args ...any) error {
 			cfg.Paths = []string{"~/.cache/go-build", "~/go/pkg/mod"}
 		}
 		applyCacheEnvironment(cfg)
-		return nil
+		return core.Ok(nil)
 	case 3:
-		fs, _ := args[0].(io.Medium)
+		fs, _ := args[0].(storage.Medium)
 		dir, _ := args[1].(string)
 		cfg, ok := args[2].(*CacheConfig)
 		if !ok {
-			return coreerr.E("build.SetupCache", "third argument must be *CacheConfig", nil)
+			return core.Fail(core.E("build.SetupCache", "third argument must be *CacheConfig", nil))
 		}
 		return setupCacheWithMedium(fs, dir, cfg)
 	default:
-		return coreerr.E("build.SetupCache", "expected 1 or 3 arguments", nil)
+		return core.Fail(core.E("build.SetupCache", "expected 1 or 3 arguments", nil))
 	}
 }
 
@@ -168,9 +166,9 @@ func cacheConfigArg(arg any) (*CacheConfig, bool) {
 	}
 }
 
-func setupCacheWithMedium(fs io.Medium, dir string, cfg *CacheConfig) error {
+func setupCacheWithMedium(fs storage.Medium, dir string, cfg *CacheConfig) core.Result {
 	if fs == nil || cfg == nil || !cfg.Enabled {
-		return nil
+		return core.Ok(nil)
 	}
 
 	directory := cfg.effectiveDirectory()
@@ -184,8 +182,9 @@ func setupCacheWithMedium(fs io.Medium, dir string, cfg *CacheConfig) error {
 		cfg.Paths = DefaultBuildCachePaths(dir)
 	}
 
-	if err := fs.EnsureDir(directory); err != nil {
-		return coreerr.E("build.SetupCache", "failed to create cache directory", err)
+	created := fs.EnsureDir(directory)
+	if !created.OK {
+		return core.Fail(core.E("build.SetupCache", "failed to create cache directory", core.NewError(created.Error())))
 	}
 
 	normalisedPaths := make([]string, 0, len(cfg.Paths))
@@ -194,22 +193,23 @@ func setupCacheWithMedium(fs io.Medium, dir string, cfg *CacheConfig) error {
 		if path == "" {
 			continue
 		}
-		if err := fs.EnsureDir(path); err != nil {
-			return coreerr.E("build.SetupCache", "failed to create cache path "+path, err)
+		created = fs.EnsureDir(path)
+		if !created.OK {
+			return core.Fail(core.E("build.SetupCache", "failed to create cache path "+path, core.NewError(created.Error())))
 		}
 		normalisedPaths = append(normalisedPaths, path)
 	}
 	cfg.Paths = deduplicateStrings(normalisedPaths)
 
-	return nil
+	return core.Ok(nil)
 }
 
 // SetupBuildCache prepares the cache configuration stored on a build config.
 //
-//	err := build.SetupBuildCache(io.Local, ".", cfg)
-func SetupBuildCache(fs io.Medium, dir string, cfg *BuildConfig) error {
+//	err := build.SetupBuildCache(storage.Local, ".", cfg)
+func SetupBuildCache(fs storage.Medium, dir string, cfg *BuildConfig) core.Result {
 	if fs == nil || cfg == nil {
-		return nil
+		return core.Ok(nil)
 	}
 
 	return setupCacheWithMedium(fs, dir, &cfg.Build.Cache)
@@ -217,14 +217,14 @@ func SetupBuildCache(fs io.Medium, dir string, cfg *BuildConfig) error {
 
 // CacheKey returns a deterministic cache key from go.sum, go.work.sum, and the target platform.
 //
-//	key := build.CacheKey(io.Local, ".", "linux", "amd64") // "go-linux-amd64-abc123..."
-func CacheKey(fs io.Medium, dir, goos, goarch string) string {
+//	key := build.CacheKey(storage.Local, ".", "linux", "amd64") // "go-linux-amd64-abc123..."
+func CacheKey(fs storage.Medium, dir, goos, goarch string) string {
 	var seed []byte
 
 	if fs != nil {
 		for _, name := range []string{"go.sum", "go.work.sum"} {
-			if content, err := fs.Read(ax.Join(dir, name)); err == nil {
-				seed = append(seed, content...)
+			if content := fs.Read(ax.Join(dir, name)); content.OK {
+				seed = append(seed, content.Value.(string)...)
 				seed = append(seed, '\n')
 			}
 		}
@@ -245,9 +245,9 @@ func CacheKey(fs io.Medium, dir, goos, goarch string) string {
 // CacheKeyWithConfig returns a deterministic cache key and applies the optional
 // cache key prefix from configuration.
 //
-//	key := build.CacheKeyWithConfig(io.Local, ".", "linux", "amd64", &cfg.Cache)
+//	key := build.CacheKeyWithConfig(storage.Local, ".", "linux", "amd64", &cfg.Cache)
 //	// "demo-go-linux-amd64-abc123..."
-func CacheKeyWithConfig(fs io.Medium, dir, goos, goarch string, cfg *CacheConfig) string {
+func CacheKeyWithConfig(fs storage.Medium, dir, goos, goarch string, cfg *CacheConfig) string {
 	key := CacheKey(fs, dir, goos, goarch)
 	if cfg == nil {
 		return key
@@ -327,12 +327,15 @@ func appendIfMissing(values []string, value string) []string {
 }
 
 func applyCacheEnvironment(cfg *CacheConfig) {
+	setenv := core.Setenv
 	for _, env := range CacheEnvironment(cfg) {
 		parts := core.SplitN(env, "=", 2)
 		if len(parts) != 2 {
 			continue
 		}
-		_ = core.Setenv(parts[0], parts[1])
+		if set := setenv(parts[0], parts[1]); !set.OK {
+			continue
+		}
 	}
 }
 

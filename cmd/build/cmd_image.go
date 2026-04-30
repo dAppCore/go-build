@@ -5,14 +5,13 @@ import (
 	"io/fs" // AX-6: fs.FileMode is structural for core/io.Medium.WriteMode.
 	"slices"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
-	"dappco.re/go/core"
-	"dappco.re/go/core/cli/pkg/cli"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	coreio "dappco.re/go/build/pkg/storage"
 )
 
 type immutableImageVersion struct {
@@ -49,14 +48,14 @@ func AddImageCommand(c *core.Core) {
 	c.Command("build/image", core.Command{
 		Description: "Build immutable LinuxKit base images",
 		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runBuildImage(ImageBuildRequest{
+			return runBuildImage(ImageBuildRequest{
 				Context:   cmdutil.ContextOrBackground(),
 				Base:      resolveImageBase(opts),
 				Format:    cmdutil.OptionString(opts, "format"),
 				OutputDir: cmdutil.OptionString(opts, "output"),
 				List:      cmdutil.OptionBool(opts, "list"),
 				Rebuild:   cmdutil.OptionBool(opts, "rebuild"),
-			}))
+			})
 		},
 	})
 }
@@ -69,16 +68,17 @@ func resolveImageBase(opts core.Options) string {
 }
 
 // runBuildImage renders the embedded immutable LinuxKit image template and builds the requested formats.
-func runBuildImage(req ImageBuildRequest) error {
+func runBuildImage(req ImageBuildRequest) core.Result {
 	ctx := req.Context
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	projectDir, err := ax.Getwd()
-	if err != nil {
-		return coreerr.E("build.runBuildImage", "failed to get working directory", err)
+	projectDirResult := ax.Getwd()
+	if !projectDirResult.OK {
+		return core.Fail(core.E("build.runBuildImage", "failed to get working directory", core.NewError(projectDirResult.Error())))
 	}
+	projectDir := projectDirResult.Value.(string)
 
 	imageBuilder := builders.NewLinuxKitImageBuilder()
 	if req.List {
@@ -86,13 +86,14 @@ func runBuildImage(req ImageBuildRequest) error {
 		for _, baseImage := range imageBuilder.ListBaseImages() {
 			cli.Print("  %s %s %s\n", buildTargetStyle.Render(baseImage.Name), buildDimStyle.Render(baseImage.Version), baseImage.Description)
 		}
-		return nil
+		return core.Ok(nil)
 	}
 
-	buildConfig, err := build.LoadConfig(coreio.Local, projectDir)
-	if err != nil {
-		return coreerr.E("build.runBuildImage", "failed to load build config", err)
+	buildConfigResult := build.LoadConfig(coreio.Local, projectDir)
+	if !buildConfigResult.OK {
+		return core.Fail(core.E("build.runBuildImage", "failed to load build config", core.NewError(buildConfigResult.Error())))
 	}
+	buildConfig := buildConfigResult.Value.(*build.BuildConfig)
 
 	if req.Base != "" {
 		buildConfig.LinuxKit.Base = req.Base
@@ -111,8 +112,9 @@ func runBuildImage(req ImageBuildRequest) error {
 
 	versionInfo := resolveImmutableImageVersion(ctx, projectDir)
 	version := versionInfo.BuildVersion
-	if err := build.ValidateVersionIdentifier(version); err != nil {
-		return coreerr.E("build.runBuildImage", "unsafe release tag detected for immutable image", err)
+	validVersion := build.ValidateVersionIdentifier(version)
+	if !validVersion.OK {
+		return core.Fail(core.E("build.runBuildImage", "unsafe release tag detected for immutable image", core.NewError(validVersion.Error())))
 	}
 
 	imageName := buildConfig.LinuxKit.Base
@@ -142,42 +144,52 @@ func runBuildImage(req ImageBuildRequest) error {
 	if usedCache {
 		cli.Print("%s %s\n", buildSuccessStyle.Render("Using"), "cached immutable image artifacts")
 	} else {
-		artifacts, err = imageBuilder.Build(ctx, runtimeCfg)
-		if err != nil {
-			return err
+		built := imageBuilder.Build(ctx, runtimeCfg)
+		if !built.OK {
+			return built
 		}
-		if err := writeImageBuildCacheMetadata(coreio.Local, outputDir, imageName, cacheCfg, versionInfo.CacheVersion); err != nil {
-			return coreerr.E("build.runBuildImage", "failed to write image cache metadata", err)
+		artifacts = built.Value.([]build.Artifact)
+		written := writeImageBuildCacheMetadata(coreio.Local, outputDir, imageName, cacheCfg, versionInfo.CacheVersion)
+		if !written.OK {
+			return core.Fail(core.E("build.runBuildImage", "failed to write image cache metadata", core.NewError(written.Error())))
 		}
 	}
 
-	versionedArtifacts, err := retainVersionedImageArtifacts(coreio.Local, artifacts, versionInfo.RetainVersion)
-	if err != nil {
-		return coreerr.E("build.runBuildImage", "failed to retain versioned immutable image artifacts", err)
+	versionedArtifactsResult := retainVersionedImageArtifacts(coreio.Local, artifacts, versionInfo.RetainVersion)
+	if !versionedArtifactsResult.OK {
+		return core.Fail(core.E("build.runBuildImage", "failed to retain versioned immutable image artifacts", core.NewError(versionedArtifactsResult.Error())))
 	}
+	versionedArtifacts := versionedArtifactsResult.Value.([]string)
 
 	publishedRef := ""
 	if containsImageFormat(formats, "oci") && core.Trim(runtimeCfg.LinuxKit.Registry) != "" {
 		ociArtifactPath := imageBuilder.ArtifactPath(outputDir, imageName, "oci")
-		publishedRef, err = publishOCIImageArchive(ctx, projectDir, ociArtifactPath, runtimeCfg.LinuxKit.Registry, imageName, version)
-		if err != nil {
-			return err
+		published := publishOCIImageArchive(ctx, projectDir, ociArtifactPath, runtimeCfg.LinuxKit.Registry, imageName, version)
+		if !published.OK {
+			return published
 		}
+		publishedRef = published.Value.(string)
 	}
 
 	if !usedCache {
 		cli.Print("%s %s\n", buildSuccessStyle.Render("Built"), buildTargetStyle.Render(imageName))
 	}
 	for _, artifact := range artifacts {
-		relPath, relErr := ax.Rel(projectDir, artifact.Path)
-		if relErr != nil {
+		relPathResult := ax.Rel(projectDir, artifact.Path)
+		relPath := artifact.Path
+		if relPathResult.OK {
+			relPath = relPathResult.Value.(string)
+		} else {
 			relPath = artifact.Path
 		}
 		cli.Print("  %s\n", relPath)
 	}
 	for _, artifactPath := range versionedArtifacts {
-		relPath, relErr := ax.Rel(projectDir, artifactPath)
-		if relErr != nil {
+		relPathResult := ax.Rel(projectDir, artifactPath)
+		relPath := artifactPath
+		if relPathResult.OK {
+			relPath = relPathResult.Value.(string)
+		} else {
 			relPath = artifactPath
 		}
 		cli.Print("  %s\n", relPath)
@@ -186,7 +198,7 @@ func runBuildImage(req ImageBuildRequest) error {
 		cli.Print("%s %s\n", buildSuccessStyle.Render("Published"), buildTargetStyle.Render(publishedRef))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
 func resolveImmutableImageVersion(ctx context.Context, projectDir string) immutableImageVersion {
@@ -194,16 +206,16 @@ func resolveImmutableImageVersion(ctx context.Context, projectDir string) immuta
 		ctx = context.Background()
 	}
 
-	if _, err := ax.LookPath("git"); err != nil {
+	if git := ax.LookPath("git"); !git.OK {
 		return immutableImageVersion{BuildVersion: "dev"}
 	}
 
-	tag, err := ax.RunDir(ctx, projectDir, "git", "describe", "--tags", "--exact-match", "HEAD")
-	if err != nil {
+	tagResult := ax.RunDir(ctx, projectDir, "git", "describe", "--tags", "--exact-match", "HEAD")
+	if !tagResult.OK {
 		return immutableImageVersion{BuildVersion: "dev"}
 	}
 
-	tag = core.Trim(tag)
+	tag := core.Trim(tagResult.Value.(string))
 	if tag == "" {
 		return immutableImageVersion{BuildVersion: "dev"}
 	}
@@ -266,10 +278,10 @@ func containsImageFormat(formats []string, want string) bool {
 	return false
 }
 
-func retainVersionedImageArtifacts(filesystem coreio.Medium, artifacts []build.Artifact, version string) ([]string, error) {
+func retainVersionedImageArtifacts(filesystem coreio.Medium, artifacts []build.Artifact, version string) core.Result {
 	versionTag := normalizeImageVersionTag(version)
 	if versionTag == "" {
-		return nil, nil
+		return core.Ok([]string(nil))
 	}
 
 	versionedPaths := make([]string, 0, len(artifacts))
@@ -281,13 +293,14 @@ func retainVersionedImageArtifacts(filesystem coreio.Medium, artifacts []build.A
 		if versionedPath == artifact.Path {
 			continue
 		}
-		if err := copyImageArtifact(filesystem, artifact.Path, versionedPath); err != nil {
-			return nil, err
+		copied := copyImageArtifact(filesystem, artifact.Path, versionedPath)
+		if !copied.OK {
+			return copied
 		}
 		versionedPaths = append(versionedPaths, versionedPath)
 	}
 
-	return versionedPaths, nil
+	return core.Ok(versionedPaths)
 }
 
 func versionedImageArtifactPath(path, versionTag string) string {
@@ -333,50 +346,54 @@ func isImageVersionTagEdge(ch byte) bool {
 	return ch == '-' || ch == '.'
 }
 
-func copyImageArtifact(filesystem coreio.Medium, sourcePath, destinationPath string) error {
-	content, err := filesystem.Read(sourcePath)
-	if err != nil {
-		return err
+func copyImageArtifact(filesystem coreio.Medium, sourcePath, destinationPath string) core.Result {
+	content := filesystem.Read(sourcePath)
+	if !content.OK {
+		return content
 	}
 
 	mode := fs.FileMode(0o644)
-	if info, err := filesystem.Stat(sourcePath); err == nil {
-		mode = info.Mode()
+	if info := filesystem.Stat(sourcePath); info.OK {
+		mode = info.Value.(fs.FileInfo).Mode()
 	}
 
-	return filesystem.WriteMode(destinationPath, content, mode)
+	return filesystem.WriteMode(destinationPath, content.Value.(string), mode)
 }
 
-func publishOCIImageArchive(ctx context.Context, projectDir, artifactPath, registry, imageName, version string) (string, error) {
+func publishOCIImageArchive(ctx context.Context, projectDir, artifactPath, registry, imageName, version string) core.Result {
 	if core.Trim(registry) == "" || core.Trim(artifactPath) == "" {
-		return "", nil
+		return core.Ok("")
 	}
 
-	dockerCommand, err := resolveImageDockerCli()
-	if err != nil {
-		return "", coreerr.E("build.runBuildImage", "failed to resolve docker CLI for OCI publish", err)
+	dockerCommandResult := resolveImageDockerCli()
+	if !dockerCommandResult.OK {
+		return core.Fail(core.E("build.runBuildImage", "failed to resolve docker CLI for OCI publish", core.NewError(dockerCommandResult.Error())))
 	}
+	dockerCommand := dockerCommandResult.Value.(string)
 
 	destinationRef := resolveOCIImageReference(registry, imageName, version)
-	sourceRef, err := loadOCIImageArchive(ctx, projectDir, dockerCommand, artifactPath)
-	if err != nil {
-		return "", err
+	sourceRefResult := loadOCIImageArchive(ctx, projectDir, dockerCommand, artifactPath)
+	if !sourceRefResult.OK {
+		return sourceRefResult
 	}
+	sourceRef := sourceRefResult.Value.(string)
 
 	if sourceRef != destinationRef {
-		if err := ax.ExecWithEnv(ctx, projectDir, nil, dockerCommand, "image", "tag", sourceRef, destinationRef); err != nil {
-			return "", coreerr.E("build.runBuildImage", "failed to tag OCI image for registry publish", err)
+		tagged := ax.ExecWithEnv(ctx, projectDir, nil, dockerCommand, "image", "tag", sourceRef, destinationRef)
+		if !tagged.OK {
+			return core.Fail(core.E("build.runBuildImage", "failed to tag OCI image for registry publish", core.NewError(tagged.Error())))
 		}
 	}
 
-	if err := ax.ExecWithEnv(ctx, projectDir, nil, dockerCommand, "image", "push", destinationRef); err != nil {
-		return "", coreerr.E("build.runBuildImage", "failed to push OCI image to registry", err)
+	pushed := ax.ExecWithEnv(ctx, projectDir, nil, dockerCommand, "image", "push", destinationRef)
+	if !pushed.OK {
+		return core.Fail(core.E("build.runBuildImage", "failed to push OCI image to registry", core.NewError(pushed.Error())))
 	}
 
-	return destinationRef, nil
+	return core.Ok(destinationRef)
 }
 
-func resolveImageDockerCli() (string, error) {
+func resolveImageDockerCli() core.Result {
 	return ax.ResolveCommand("docker",
 		"/usr/local/bin/docker",
 		"/opt/homebrew/bin/docker",
@@ -405,18 +422,18 @@ func trimTrailingImageRegistrySlashes(registry string) string {
 	return registry
 }
 
-func loadOCIImageArchive(ctx context.Context, projectDir, dockerCommand, artifactPath string) (string, error) {
-	output, err := ax.CombinedOutput(ctx, projectDir, nil, dockerCommand, "image", "load", "--input", artifactPath)
-	if err != nil {
-		return "", coreerr.E("build.runBuildImage", "failed to load OCI image archive", err)
+func loadOCIImageArchive(ctx context.Context, projectDir, dockerCommand, artifactPath string) core.Result {
+	output := ax.CombinedOutput(ctx, projectDir, nil, dockerCommand, "image", "load", "--input", artifactPath)
+	if !output.OK {
+		return core.Fail(core.E("build.runBuildImage", "failed to load OCI image archive", core.NewError(output.Error())))
 	}
 
-	reference := parseLoadedDockerImageReference(output)
+	reference := parseLoadedDockerImageReference(output.Value.(string))
 	if reference == "" {
-		return "", coreerr.E("build.runBuildImage", "docker image load did not report a loaded image reference", nil)
+		return core.Fail(core.E("build.runBuildImage", "docker image load did not report a loaded image reference", nil))
 	}
 
-	return reference, nil
+	return core.Ok(reference)
 }
 
 func parseLoadedDockerImageReference(output string) string {
@@ -444,8 +461,12 @@ func allImageArtifactsExist(filesystem coreio.Medium, imageBuilder *builders.Lin
 		}
 	}
 
-	metadata, err := loadImageBuildCacheMetadata(filesystem, outputDir, imageName)
-	if err != nil || metadata == nil {
+	metadataResult := loadImageBuildCacheMetadata(filesystem, outputDir, imageName)
+	if !metadataResult.OK || metadataResult.Value == nil {
+		return false
+	}
+	metadata, ok := metadataResult.Value.(*imageBuildCacheMetadata)
+	if !ok || metadata == nil {
 		return false
 	}
 	expected := buildImageCacheMetadata(imageName, cfg, version)
@@ -461,32 +482,33 @@ func allImageArtifactsExist(filesystem coreio.Medium, imageBuilder *builders.Lin
 	return core.Trim(metadata.BuildVersion) == expectedVersion
 }
 
-func writeImageBuildCacheMetadata(filesystem coreio.Medium, outputDir, imageName string, cfg build.LinuxKitConfig, version string) error {
+func writeImageBuildCacheMetadata(filesystem coreio.Medium, outputDir, imageName string, cfg build.LinuxKitConfig, version string) core.Result {
 	metadata := buildImageCacheMetadata(imageName, cfg, version)
-	encoded, err := ax.JSONMarshal(metadata)
-	if err != nil {
-		return err
+	encoded := ax.JSONMarshal(metadata)
+	if !encoded.OK {
+		return encoded
 	}
-	return filesystem.Write(imageBuildCacheMetadataPath(outputDir, imageName), encoded)
+	return filesystem.Write(imageBuildCacheMetadataPath(outputDir, imageName), encoded.Value.(string))
 }
 
-func loadImageBuildCacheMetadata(filesystem coreio.Medium, outputDir, imageName string) (*imageBuildCacheMetadata, error) {
+func loadImageBuildCacheMetadata(filesystem coreio.Medium, outputDir, imageName string) core.Result {
 	path := imageBuildCacheMetadataPath(outputDir, imageName)
 	if !filesystem.Exists(path) {
-		return nil, nil
+		return core.Ok((*imageBuildCacheMetadata)(nil))
 	}
 
-	content, err := filesystem.Read(path)
-	if err != nil {
-		return nil, err
+	content := filesystem.Read(path)
+	if !content.OK {
+		return content
 	}
 
 	var metadata imageBuildCacheMetadata
-	if err := ax.JSONUnmarshal([]byte(content), &metadata); err != nil {
-		return nil, err
+	decoded := ax.JSONUnmarshal([]byte(content.Value.(string)), &metadata)
+	if !decoded.OK {
+		return decoded
 	}
 
-	return &metadata, nil
+	return core.Ok(&metadata)
 }
 
 func imageBuildCacheMetadataPath(outputDir, imageName string) string {

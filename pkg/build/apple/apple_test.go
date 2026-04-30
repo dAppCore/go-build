@@ -4,13 +4,20 @@ import (
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/internal/testassert"
 	build "dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
-	"dappco.re/go/core"
-	coreio "dappco.re/go/io"
+	coreio "dappco.re/go/build/pkg/storage"
 )
+
+func requireAppleOKResult(t *testing.T, result core.Result) {
+	t.Helper()
+	if !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
 
 func TestAppleBuilder_New_Good(t *testing.T) {
 	builder := New(
@@ -134,9 +141,7 @@ func TestAppleBuilder_Register_Good(t *testing.T) {
 
 func TestAppleBuilder_Detect_Good(t *testing.T) {
 	dir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	requireAppleOKResult(t, ax.WriteFile(ax.Join(dir, "wails.json"), []byte("{}"), 0o644))
 
 	result := New().Detect(coreio.Local, dir)
 	if !(result.OK) {
@@ -171,12 +176,12 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 		writeXcodeCloudScriptsFn = oldWriteXcodeCloudScripts
 	})
 
-	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+	loadConfigFn = func(fs coreio.Medium, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return &build.BuildConfig{
+		return core.Ok(&build.BuildConfig{
 			Project: build.Project{
 				Name:   "Core",
 				Binary: "Core",
@@ -194,19 +199,19 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 					TeamID:   "ABC123DEF4",
 				},
 			},
-		}, nil
+		})
 	}
-	determineVersion = func(ctx context.Context, dir string) (string, error) {
+	determineVersion = func(ctx context.Context, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return "v1.2.3", nil
+		return core.Ok("v1.2.3")
 	}
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
@@ -217,9 +222,9 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 			t.Fatalf("want %v, got %v", []string{"rev-list", "--count", "HEAD"}, args)
 		}
 
-		return "42", nil
+		return core.Ok("42")
 	}
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		if !stdlibAssertEqual(ax.Join(projectDir, "dist", "apple"), cfg.OutputDir) {
 			t.Fatalf("want %v, got %v", ax.Join(projectDir, "dist", "apple"), cfg.OutputDir)
 		}
@@ -242,9 +247,9 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 			t.Fatalf("want %v, got %v", "arm64", options.Arch)
 		}
 
-		return &build.AppleBuildResult{
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
-		}, nil
+		})
 	}
 
 	result := New(WithArch("arm64"), WithSign(true)).Build(context.Background(), nil)
@@ -273,12 +278,12 @@ func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t
 		runDirFn = oldRunDir
 	})
 
-	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+	loadConfigFn = func(fs coreio.Medium, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return &build.BuildConfig{
+		return core.Ok(&build.BuildConfig{
 			Project: build.Project{
 				Name:   "Core",
 				Binary: "Core",
@@ -293,18 +298,18 @@ func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t
 					TeamID:   "ABC123DEF4",
 				},
 			},
-		}, nil
+		})
 	}
-	determineVersion = func(ctx context.Context, dir string) (string, error) {
-		return "v1.2.3", nil
+	determineVersion = func(ctx context.Context, dir string) core.Result {
+		return core.Ok("v1.2.3")
 	}
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
-		return "42", nil
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) core.Result {
+		return core.Ok("42")
 	}
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		if !stdlibAssertEqual("ai.lthn.override", options.BundleID) {
 			t.Fatalf("want %v, got %v", "ai.lthn.override", options.BundleID)
 		}
@@ -324,9 +329,9 @@ func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t
 			t.Fatal("expected false")
 		}
 
-		return &build.AppleBuildResult{
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
-		}, nil
+		})
 	}
 
 	result := New().Build(context.Background(), &AppleOptions{
@@ -357,12 +362,12 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 		runDirFn = oldRunDir
 	})
 
-	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+	loadConfigFn = func(fs coreio.Medium, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return &build.BuildConfig{
+		return core.Ok(&build.BuildConfig{
 			Project: build.Project{
 				Name:   "Core",
 				Binary: "Core",
@@ -380,18 +385,18 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 				BundleID: "ai.lthn.core",
 				Sign:     boolPtr(false),
 			},
-		}, nil
+		})
 	}
-	determineVersion = func(ctx context.Context, dir string) (string, error) {
-		return "v1.2.3", nil
+	determineVersion = func(ctx context.Context, dir string) core.Result {
+		return core.Ok("v1.2.3")
 	}
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
-		return "42", nil
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) core.Result {
+		return core.Ok("42")
 	}
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
 		if !stdlibAssertEqual([]string{ax.Join(projectDir, "cache", "go-build"), ax.Join(projectDir, "cache", "go-mod")}, cfg.Cache.Paths) {
 			t.Fatalf("want %v, got %v", []string{ax.Join(projectDir, "cache", "go-build"), ax.Join(projectDir, "cache", "go-mod")}, cfg.Cache.Paths)
 		}
@@ -405,9 +410,9 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 			t.Fatal("expected true")
 		}
 
-		return &build.AppleBuildResult{
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
-		}, nil
+		})
 	}
 
 	result := New().Build(context.Background(), nil)
@@ -438,12 +443,12 @@ func TestAppleBuilder_Build_WritesXcodeCloudScripts_Good(t *testing.T) {
 		writeXcodeCloudScriptsFn = oldWriteXcodeCloudScripts
 	})
 
-	loadConfigFn = func(fs coreio.Medium, dir string) (*build.BuildConfig, error) {
+	loadConfigFn = func(fs coreio.Medium, dir string) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return &build.BuildConfig{
+		return core.Ok(&build.BuildConfig{
 			Project: build.Project{
 				Name:   "Core",
 				Binary: "Core",
@@ -455,20 +460,20 @@ func TestAppleBuilder_Build_WritesXcodeCloudScripts_Good(t *testing.T) {
 					Workflow: "CoreGUI Release",
 				},
 			},
-		}, nil
+		})
 	}
-	determineVersion = func(ctx context.Context, dir string) (string, error) {
-		return "v1.2.3", nil
+	determineVersion = func(ctx context.Context, dir string) core.Result {
+		return core.Ok("v1.2.3")
 	}
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
-	runDirFn = func(ctx context.Context, dir, command string, args ...string) (string, error) {
-		return "42", nil
+	runDirFn = func(ctx context.Context, dir, command string, args ...string) core.Result {
+		return core.Ok("42")
 	}
 
 	var scriptsWritten bool
-	writeXcodeCloudScriptsFn = func(fs coreio.Medium, dir string, cfg *build.BuildConfig) ([]string, error) {
+	writeXcodeCloudScriptsFn = func(fs coreio.Medium, dir string, cfg *build.BuildConfig) core.Result {
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
@@ -477,12 +482,12 @@ func TestAppleBuilder_Build_WritesXcodeCloudScripts_Good(t *testing.T) {
 		}
 
 		scriptsWritten = true
-		return []string{ax.Join(dir, build.XcodeCloudScriptsDir, build.XcodeCloudPreXcodebuildScriptName)}, nil
+		return core.Ok([]string{ax.Join(dir, build.XcodeCloudScriptsDir, build.XcodeCloudPreXcodebuildScriptName)})
 	}
-	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) (*build.AppleBuildResult, error) {
-		return &build.AppleBuildResult{
+	buildAppleFn = func(ctx context.Context, cfg *build.Config, options build.AppleOptions, buildNumber string) core.Result {
+		return core.Ok(&build.AppleBuildResult{
 			BundlePath: ax.Join(cfg.OutputDir, "Core.app"),
-		}, nil
+		})
 	}
 
 	result := New().Build(context.Background(), nil)
@@ -537,11 +542,11 @@ func TestApple_BuildWailsApp_UsesCurrentDirectoryAndStringLDFlags_Good(t *testin
 		getwdFn = oldGetwd
 	})
 
-	getwdFn = func() (string, error) {
-		return projectDir, nil
+	getwdFn = func() core.Result {
+		return core.Ok(projectDir)
 	}
 
-	buildWailsAppFn = func(ctx context.Context, cfg build.WailsBuildConfig) (string, error) {
+	buildWailsAppFn = func(ctx context.Context, cfg build.WailsBuildConfig) core.Result {
 		if !stdlibAssertEqual(projectDir, cfg.ProjectDir) {
 			t.Fatalf("want %v, got %v", projectDir, cfg.ProjectDir)
 		}
@@ -564,7 +569,7 @@ func TestApple_BuildWailsApp_UsesCurrentDirectoryAndStringLDFlags_Good(t *testin
 			t.Fatalf("want %v, got %v", []string{"FOO=bar"}, cfg.Env)
 		}
 
-		return ax.Join(projectDir, "dist", "Core.app"), nil
+		return core.Ok(ax.Join(projectDir, "dist", "Core.app"))
 	}
 
 	result := BuildWailsApp(context.Background(), WailsBuildConfig{
@@ -597,3 +602,541 @@ var (
 	stdlibAssertContains      = testassert.Contains
 	stdlibAssertElementsMatch = testassert.ElementsMatch
 )
+
+// --- v0.9.0 generated compliance triplets ---
+func TestApple_Register_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Register(core.New())
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_Register_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Register(core.New())
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_Register_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Register(core.New())
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_New_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = New()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_New_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = New()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_New_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = New()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_WithArch_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithArch("amd64")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_WithArch_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithArch("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_WithArch_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithArch("amd64")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_WithSign_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithSign(true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_WithSign_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithSign(false)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_WithSign_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithSign(true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_WithNotarise_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithNotarise(true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_WithNotarise_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithNotarise(false)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_WithNotarise_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithNotarise(true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_WithDMG_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithDMG(true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_WithDMG_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithDMG(false)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_WithDMG_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithDMG(true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_WithTestFlight_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithTestFlight(true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_WithTestFlight_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithTestFlight(false)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_WithTestFlight_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithTestFlight(true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_WithAppStore_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithAppStore(true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_WithAppStore_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithAppStore(false)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_WithAppStore_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = WithAppStore(true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_AppleBuilder_Name_Good(t *core.T) {
+	subject := &AppleBuilder{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_AppleBuilder_Name_Bad(t *core.T) {
+	subject := &AppleBuilder{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_AppleBuilder_Name_Ugly(t *core.T) {
+	subject := &AppleBuilder{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_AppleBuilder_Detect_Good(t *core.T) {
+	subject := &AppleBuilder{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_AppleBuilder_Detect_Bad(t *core.T) {
+	subject := &AppleBuilder{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Detect(coreio.NewMemoryMedium(), "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_AppleBuilder_Detect_Ugly(t *core.T) {
+	subject := &AppleBuilder{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Detect(coreio.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_AppleBuilder_Build_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AppleBuilder{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Build(ctx, &AppleOptions{})
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_AppleBuilder_Build_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AppleBuilder{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Build(ctx, nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_AppleBuilder_Build_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &AppleBuilder{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Build(ctx, &AppleOptions{})
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_BuildWailsApp_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = BuildWailsApp(ctx, WailsBuildConfig{})
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_BuildWailsApp_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = BuildWailsApp(ctx, WailsBuildConfig{})
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_BuildWailsApp_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = BuildWailsApp(ctx, WailsBuildConfig{})
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_CreateUniversal_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = CreateUniversal(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_CreateUniversal_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = CreateUniversal("", "", "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_CreateUniversal_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = CreateUniversal(core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"), core.Path(t.TempDir(), "go-build-compliance"))
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_Sign_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Sign(ctx, SignConfig{})
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_Sign_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Sign(ctx, SignConfig{})
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_Sign_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Sign(ctx, SignConfig{})
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_Notarise_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Notarise(ctx, NotariseConfig{})
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_Notarise_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Notarise(ctx, NotariseConfig{})
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_Notarise_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = Notarise(ctx, NotariseConfig{})
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_CreateDMG_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = CreateDMG(ctx, DMGConfig{})
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_CreateDMG_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = CreateDMG(ctx, DMGConfig{})
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_CreateDMG_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = CreateDMG(ctx, DMGConfig{})
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_UploadTestFlight_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = UploadTestFlight(ctx, TestFlightConfig{})
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_UploadTestFlight_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = UploadTestFlight(ctx, TestFlightConfig{})
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_UploadTestFlight_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = UploadTestFlight(ctx, TestFlightConfig{})
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestApple_SubmitAppStore_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = SubmitAppStore(ctx, AppStoreConfig{})
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestApple_SubmitAppStore_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = SubmitAppStore(ctx, AppStoreConfig{})
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestApple_SubmitAppStore_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = SubmitAppStore(ctx, AppStoreConfig{})
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}

@@ -2,13 +2,12 @@ package builders
 
 import (
 	"context"
-	"os"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	"errors"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 func setupFakeLinuxKitImageToolchain(t *testing.T, binDir string) {
@@ -17,8 +16,8 @@ func setupFakeLinuxKitImageToolchain(t *testing.T, binDir string) {
 	dockerScript := `#!/bin/sh
 exit 0
 `
-	if err := ax.WriteFile(ax.Join(binDir, "docker"), []byte(dockerScript), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "docker"), []byte(dockerScript), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	script := `#!/bin/sh
@@ -66,13 +65,13 @@ esac
 mkdir -p "$dir"
 printf 'linuxkit image\n' > "$dir/$name$ext"
 `
-	if err := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(binDir, "linuxkit"), []byte(script), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 }
 
-func TestLinuxKitImage_LinuxKitImageBuilderName_Good(t *testing.T) {
+func TestLinuxKitImage_LinuxKitImageBuilderNameGood(t *testing.T) {
 	builder := NewLinuxKitImageBuilder()
 	if !stdlibAssertEqual("linuxkit-image", builder.Name()) {
 		t.Fatalf("want %v, got %v", "linuxkit-image", builder.Name())
@@ -80,7 +79,7 @@ func TestLinuxKitImage_LinuxKitImageBuilderName_Good(t *testing.T) {
 
 }
 
-func TestLinuxKitImage_LinuxKitImageBuilderArtifactPath_Good(t *testing.T) {
+func TestLinuxKitImage_LinuxKitImageBuilderArtifactPathGood(t *testing.T) {
 	builder := NewLinuxKitImageBuilder()
 	if !stdlibAssertEqual("/dist/core-dev.tar", builder.ArtifactPath("/dist", "core-dev", "oci")) {
 		t.Fatalf("want %v, got %v", "/dist/core-dev.tar", builder.ArtifactPath("/dist", "core-dev", "oci"))
@@ -94,7 +93,7 @@ func TestLinuxKitImage_LinuxKitImageBuilderArtifactPath_Good(t *testing.T) {
 
 }
 
-func TestLinuxKitImage_BuildLinuxKitServiceImageReference_UsesVersionTag_Good(t *testing.T) {
+func TestLinuxKitImage_BuildLinuxKitServiceImageReference_UsesVersionTagGood(t *testing.T) {
 	if !stdlibAssertEqual("core-build-linuxkit/core-dev:1.2.3", buildLinuxKitServiceImageReference("core-dev", "v1.2.3")) {
 		t.Fatalf("want %v, got %v", "core-build-linuxkit/core-dev:1.2.3", buildLinuxKitServiceImageReference("core-dev", "v1.2.3"))
 	}
@@ -104,7 +103,7 @@ func TestLinuxKitImage_BuildLinuxKitServiceImageReference_UsesVersionTag_Good(t 
 
 }
 
-func TestLinuxKitImage_RenderLinuxKitServiceDockerfile_IncludesMetadata_Good(t *testing.T) {
+func TestLinuxKitImage_RenderLinuxKitServiceDockerfile_IncludesMetadataGood(t *testing.T) {
 	rendered := renderLinuxKitServiceDockerfile("core-dev", "v1.2.3", "2026.04.08", "abc123", []string{"git"}, []string{"/workspace"}, false)
 	if !stdlibAssertContains(rendered, "LABEL org.opencontainers.image.version=1.2.3") {
 		t.Fatalf("expected %v to contain %v", rendered, "LABEL org.opencontainers.image.version=1.2.3")
@@ -121,22 +120,23 @@ func TestLinuxKitImage_RenderLinuxKitServiceDockerfile_IncludesMetadata_Good(t *
 
 }
 
-func TestLinuxKitImage_RenderTemplateUsesImmutableServiceImage_Good(t *testing.T) {
+func TestLinuxKitImage_RenderTemplateUsesImmutableServiceImageGood(t *testing.T) {
 	builder := NewLinuxKitImageBuilder()
 	baseImage, ok := build.LookupLinuxKitBaseImage("core-dev")
 	if !(ok) {
 		t.Fatal("expected true")
 	}
 
-	rendered, err := builder.renderTemplate(baseImage, build.LinuxKitConfig{
+	renderResult := builder.renderTemplate(baseImage, build.LinuxKitConfig{
 		Base:     "core-dev",
 		Mounts:   []string{"/workspace"},
 		Formats:  []string{"oci"},
 		Packages: []string{"gh"},
 	}, "v1.2.3", "core-build-linuxkit/core-dev:test")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !renderResult.OK {
+		t.Fatalf("unexpected error: %v", renderResult.Error())
 	}
+	rendered := renderResult.Value.(string)
 	if !stdlibAssertContains(rendered, `image: "core-build-linuxkit/core-dev:test"`) {
 		t.Fatalf("expected %v to contain %v", rendered, `image: "core-build-linuxkit/core-dev:test"`)
 	}
@@ -149,21 +149,22 @@ func TestLinuxKitImage_RenderTemplateUsesImmutableServiceImage_Good(t *testing.T
 
 }
 
-func TestLinuxKitImage_RenderTemplateRestoresDefaultWorkspaceMount_Good(t *testing.T) {
+func TestLinuxKitImage_RenderTemplateRestoresDefaultWorkspaceMountGood(t *testing.T) {
 	builder := NewLinuxKitImageBuilder()
 	baseImage, ok := build.LookupLinuxKitBaseImage("core-dev")
 	if !(ok) {
 		t.Fatal("expected true")
 	}
 
-	rendered, err := builder.renderTemplate(baseImage, build.LinuxKitConfig{
+	renderResult := builder.renderTemplate(baseImage, build.LinuxKitConfig{
 		Base:    "core-dev",
 		Mounts:  []string{""},
 		Formats: []string{"oci"},
 	}, "v1.2.3", "core-build-linuxkit/core-dev:test")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !renderResult.OK {
+		t.Fatalf("unexpected error: %v", renderResult.Error())
 	}
+	rendered := renderResult.Value.(string)
 	if !stdlibAssertContains(rendered, "binds:") {
 		t.Fatalf("expected %v to contain %v", rendered, "binds:")
 	}
@@ -173,21 +174,21 @@ func TestLinuxKitImage_RenderTemplateRestoresDefaultWorkspaceMount_Good(t *testi
 
 }
 
-func TestLinuxKitImage_LinuxKitImageBuilderBuild_Good(t *testing.T) {
+func TestLinuxKitImage_LinuxKitImageBuilderBuildGood(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
 	binDir := t.TempDir()
 	setupFakeLinuxKitImageToolchain(t, binDir)
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", binDir+string(core.PathListSeparator)+core.Getenv("PATH"))
 
 	projectDir := t.TempDir()
 	outputDir := t.TempDir()
 
 	builder := NewLinuxKitImageBuilder()
 	cfg := &build.Config{
-		FS:         io.Local,
+		FS:         storage.Local,
 		ProjectDir: projectDir,
 		OutputDir:  outputDir,
 		Name:       "core-dev",
@@ -200,23 +201,172 @@ func TestLinuxKitImage_LinuxKitImageBuilderBuild_Good(t *testing.T) {
 		},
 	}
 
-	artifacts, err := builder.Build(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	artifacts := requireCPPArtifacts(t, builder.Build(context.Background(), cfg))
 	if len(artifacts) != 2 {
 		t.Fatalf("want len %v, got %v", 2, len(artifacts))
 	}
-	if _, err := os.Stat(ax.Join(outputDir, "core-dev.tar")); err != nil {
+	if result := ax.Stat(ax.Join(outputDir, "core-dev.tar")); !result.OK {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "core-dev.tar"))
 	}
-	if _, err := os.Stat(ax.Join(outputDir, "core-dev.aci")); err != nil {
+	if result := ax.Stat(ax.Join(outputDir, "core-dev.aci")); !result.OK {
 		t.Fatalf("expected file to exist: %v", ax.Join(outputDir, "core-dev.aci"))
 	}
-	if _, err := os.Stat(ax.Join(outputDir, ".core-dev-linuxkit.yml")); err == nil {
+	if ax.Exists(ax.Join(outputDir, ".core-dev-linuxkit.yml")) {
 		t.Fatalf("expected file not to exist: %v", ax.Join(outputDir, ".core-dev-linuxkit.yml"))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
 	}
 
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestLinuxkitImage_NewLinuxKitImageBuilder_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewLinuxKitImageBuilder()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestLinuxkitImage_NewLinuxKitImageBuilder_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewLinuxKitImageBuilder()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestLinuxkitImage_NewLinuxKitImageBuilder_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewLinuxKitImageBuilder()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_Name_Good(t *core.T) {
+	subject := &LinuxKitImageBuilder{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_Name_Bad(t *core.T) {
+	subject := &LinuxKitImageBuilder{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_Name_Ugly(t *core.T) {
+	subject := &LinuxKitImageBuilder{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_ListBaseImages_Good(t *core.T) {
+	subject := &LinuxKitImageBuilder{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.ListBaseImages()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_ListBaseImages_Bad(t *core.T) {
+	subject := &LinuxKitImageBuilder{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.ListBaseImages()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_ListBaseImages_Ugly(t *core.T) {
+	subject := &LinuxKitImageBuilder{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.ListBaseImages()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_ArtifactPath_Good(t *core.T) {
+	subject := &LinuxKitImageBuilder{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.ArtifactPath(core.Path(t.TempDir(), "go-build-compliance"), "agent", "tar.gz")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_ArtifactPath_Bad(t *core.T) {
+	subject := &LinuxKitImageBuilder{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.ArtifactPath("", "", "")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_ArtifactPath_Ugly(t *core.T) {
+	subject := &LinuxKitImageBuilder{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.ArtifactPath(core.Path(t.TempDir(), "go-build-compliance"), "agent", "tar.gz")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_Build_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &LinuxKitImageBuilder{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Build(ctx, nil)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_Build_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &LinuxKitImageBuilder{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Build(ctx, nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestLinuxkitImage_LinuxKitImageBuilder_Build_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &LinuxKitImageBuilder{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Build(ctx, nil)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -3,9 +3,9 @@ package signing
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 // GPGSigner signs files using GPG.
@@ -39,39 +39,38 @@ func (s *GPGSigner) Available() bool {
 	if s.KeyID == "" {
 		return false
 	}
-	_, err := resolveGpgCli()
-	return err == nil
+	return resolveGpgCli().OK
 }
 
 // Sign creates a detached ASCII-armored signature.
 // For file.txt, creates file.txt.asc
 //
-// err := s.Sign(ctx, io.Local, "dist/CHECKSUMS.txt") // creates CHECKSUMS.txt.asc
-func (s *GPGSigner) Sign(ctx context.Context, fs io.Medium, file string) error {
+// err := s.Sign(ctx, storage.Local, "dist/CHECKSUMS.txt") // creates CHECKSUMS.txt.asc
+func (s *GPGSigner) Sign(ctx context.Context, fs storage.Medium, file string) core.Result {
 	if s.KeyID == "" {
-		return coreerr.E("gpg.Sign", "gpg not available or key not configured", nil)
+		return core.Fail(core.E("gpg.Sign", "gpg not available or key not configured", nil))
 	}
 
-	gpgCommand, err := resolveGpgCli()
-	if err != nil {
-		return coreerr.E("gpg.Sign", "gpg not available or key not configured", err)
+	gpgCommand := resolveGpgCli()
+	if !gpgCommand.OK {
+		return core.Fail(core.E("gpg.Sign", "gpg not available or key not configured", core.NewError(gpgCommand.Error())))
 	}
 
-	output, err := ax.CombinedOutput(ctx, "", nil, gpgCommand,
+	output := ax.CombinedOutput(ctx, "", nil, gpgCommand.Value.(string),
 		"--detach-sign",
 		"--armor",
 		"--local-user", s.KeyID,
 		"--output", file+".asc",
 		file,
 	)
-	if err != nil {
-		return coreerr.E("gpg.Sign", output, err)
+	if !output.OK {
+		return core.Fail(core.E("gpg.Sign", output.Error(), core.NewError(output.Error())))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func resolveGpgCli(paths ...string) (string, error) {
+func resolveGpgCli(paths ...string) core.Result {
 	if len(paths) == 0 {
 		paths = []string{
 			"/usr/local/bin/gpg",
@@ -80,10 +79,10 @@ func resolveGpgCli(paths ...string) (string, error) {
 		}
 	}
 
-	command, err := ax.ResolveCommand("gpg", paths...)
-	if err != nil {
-		return "", coreerr.E("gpg.resolveGpgCli", "gpg CLI not found. Install it from https://gnupg.org/download/", err)
+	command := ax.ResolveCommand("gpg", paths...)
+	if !command.OK {
+		return core.Fail(core.E("gpg.resolveGpgCli", "gpg CLI not found. Install it from https://gnupg.org/download/", core.NewError(command.Error())))
 	}
 
-	return command, nil
+	return command
 }

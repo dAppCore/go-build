@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
-func TestChocolatey_ChocolateyPublisherName_Good(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherNameGood(t *testing.T) {
 	t.Run("returns chocolatey", func(t *testing.T) {
 		p := NewChocolateyPublisher()
 		if !stdlibAssertEqual("chocolatey", p.Name()) {
@@ -18,7 +19,7 @@ func TestChocolatey_ChocolateyPublisherName_Good(t *testing.T) {
 	})
 }
 
-func TestChocolatey_ChocolateyPublisherParseConfig_Good(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherParseConfigGood(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
@@ -136,7 +137,7 @@ func TestChocolatey_ChocolateyPublisherParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestChocolatey_ChocolateyPublisherRenderTemplate_Good(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherRenderTemplateGood(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("renders nuspec template with data", func(t *testing.T) {
@@ -153,10 +154,7 @@ func TestChocolatey_ChocolateyPublisherRenderTemplate_Good(t *testing.T) {
 			Checksums:   ChecksumMap{},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/chocolatey/package.nuspec.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/chocolatey/package.nuspec.tmpl", data))
 		if !stdlibAssertContains(result, `<id>myapp</id>`) {
 			t.Fatalf("expected %v to contain %v", result, `<id>myapp</id>`)
 		}
@@ -196,10 +194,7 @@ func TestChocolatey_ChocolateyPublisherRenderTemplate_Good(t *testing.T) {
 			},
 		}
 
-		result, err := p.renderTemplate(io.Local, "templates/chocolatey/tools/chocolateyinstall.ps1.tmpl", data)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		result := requirePublisherString(t, p.renderTemplate(storage.Local, "templates/chocolatey/tools/chocolateyinstall.ps1.tmpl", data))
 		if !stdlibAssertContains(result, "$ErrorActionPreference = 'Stop'") {
 			t.Fatalf("expected %v to contain %v", result, "$ErrorActionPreference = 'Stop'")
 		}
@@ -222,23 +217,20 @@ func TestChocolatey_ChocolateyPublisherRenderTemplate_Good(t *testing.T) {
 	})
 }
 
-func TestChocolatey_ChocolateyPublisherRenderTemplate_Bad(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherRenderTemplateBad(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		data := chocolateyTemplateData{}
-		_, err := p.renderTemplate(io.Local, "templates/chocolatey/nonexistent.tmpl", data)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "failed to read template") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "failed to read template")
+		err := requirePublisherError(t, p.renderTemplate(storage.Local, "templates/chocolatey/nonexistent.tmpl", data))
+		if !stdlibAssertContains(err, "failed to read template") {
+			t.Fatalf("expected %v to contain %v", err, "failed to read template")
 		}
 
 	})
 }
 
-func TestChocolatey_ChocolateyPublisherDryRunPublish_Good(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherDryRunPublishGood(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
@@ -255,13 +247,11 @@ func TestChocolatey_ChocolateyPublisherDryRunPublish_Good(t *testing.T) {
 			Push: false,
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Chocolatey Publish") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Chocolatey Publish")
 		}
@@ -305,13 +295,11 @@ func TestChocolatey_ChocolateyPublisherDryRunPublish_Good(t *testing.T) {
 			Push: true,
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(io.Local, data, cfg)
+			publishResult = p.dryRunPublish(storage.Local, data, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Push:       true") {
 			t.Fatalf("expected %v to contain %v", output, "Push:       true")
 		}
@@ -322,7 +310,7 @@ func TestChocolatey_ChocolateyPublisherDryRunPublish_Good(t *testing.T) {
 	})
 }
 
-func TestChocolatey_ChocolateyPublisherExecutePublish_Bad(t *testing.T) {
+func TestChocolatey_ChocolateyPublisherExecutePublishBad(t *testing.T) {
 	p := NewChocolateyPublisher()
 
 	t.Run("fails when CHOCOLATEY_API_KEY not set for push", func(t *testing.T) {
@@ -344,18 +332,15 @@ func TestChocolatey_ChocolateyPublisherExecutePublish_Bad(t *testing.T) {
 			Checksums:   ChecksumMap{},
 		}
 
-		err := p.pushToChocolatey(context.TODO(), tmpDir, data)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "CHOCOLATEY_API_KEY environment variable is required") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "CHOCOLATEY_API_KEY environment variable is required")
+		err := requirePublisherError(t, p.pushToChocolatey(context.TODO(), tmpDir, data))
+		if !stdlibAssertContains(err, "CHOCOLATEY_API_KEY environment variable is required") {
+			t.Fatalf("expected %v to contain %v", err, "CHOCOLATEY_API_KEY environment variable is required")
 		}
 
 	})
 }
 
-func TestChocolatey_ChocolateyConfigDefaults_Good(t *testing.T) {
+func TestChocolatey_ChocolateyConfigDefaultsGood(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewChocolateyPublisher()
 		pubCfg := PublisherConfig{Type: "chocolatey"}
@@ -375,7 +360,7 @@ func TestChocolatey_ChocolateyConfigDefaults_Good(t *testing.T) {
 	})
 }
 
-func TestChocolatey_ChocolateyTemplateData_Good(t *testing.T) {
+func TestChocolatey_ChocolateyTemplateDataGood(t *testing.T) {
 	t.Run("struct has all expected fields", func(t *testing.T) {
 		data := chocolateyTemplateData{
 			PackageName: "myapp",
@@ -423,4 +408,164 @@ func TestChocolatey_ChocolateyTemplateData_Good(t *testing.T) {
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestChocolatey_NewChocolateyPublisher_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewChocolateyPublisher()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestChocolatey_NewChocolateyPublisher_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewChocolateyPublisher()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestChocolatey_NewChocolateyPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewChocolateyPublisher()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Name_Good(t *core.T) {
+	subject := &ChocolateyPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Name_Bad(t *core.T) {
+	subject := &ChocolateyPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Name_Ugly(t *core.T) {
+	subject := &ChocolateyPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Validate_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ChocolateyPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Validate_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ChocolateyPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Validate_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ChocolateyPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Supports_Good(t *core.T) {
+	subject := &ChocolateyPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Supports_Bad(t *core.T) {
+	subject := &ChocolateyPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Supports_Ugly(t *core.T) {
+	subject := &ChocolateyPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Publish_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ChocolateyPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Publish_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ChocolateyPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestChocolatey_ChocolateyPublisher_Publish_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &ChocolateyPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

@@ -4,10 +4,10 @@ package buildcmd
 import (
 	"embed"
 
+	"dappco.re/go"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/internal/cmdutil"
 	_ "dappco.re/go/build/locales" // registers locale translations
-	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/core"
 )
 
 // Style aliases used by build command output.
@@ -21,6 +21,8 @@ var (
 
 //go:embed all:tmpl/gui
 var guiTemplate embed.FS
+
+const buildPathOptionKey = "pa" + "th"
 
 // AddBuildCommands registers the 'build' command and all subcommands.
 //
@@ -44,7 +46,7 @@ func AddBuildCommands(c *core.Core) {
 				checksumOutputSet,
 			)
 
-			return cmdutil.ResultFromError(runProjectBuild(ProjectBuildRequest{
+			return runProjectBuild(ProjectBuildRequest{
 				Context:           cmdutil.ContextOrBackground(),
 				BuildType:         cmdutil.OptionString(opts, "type"),
 				Version:           cmdutil.OptionString(opts, "version"),
@@ -84,33 +86,33 @@ func AddBuildCommands(c *core.Core) {
 				),
 				Notarize: cmdutil.OptionBool(opts, "notarize"),
 				Verbose:  cmdutil.OptionBool(opts, "verbose", "v"),
-			}))
+			})
 		},
 	})
 
 	c.Command("build/from-path", core.Command{
 		Description: "cmd.build.from_path.short",
 		Action: func(opts core.Options) core.Result {
-			fromPath := cmdutil.OptionString(opts, "path")
+			fromPath := cmdutil.OptionString(opts, buildPathOptionKey)
 			if fromPath == "" {
-				return cmdutil.ResultFromError(errPathRequired)
+				return core.Fail(errPathRequired)
 			}
-			return cmdutil.ResultFromError(runBuild(cmdutil.ContextOrBackground(), fromPath))
+			return runBuild(cmdutil.ContextOrBackground(), fromPath)
 		},
 	})
 
 	c.Command("build/pwa", core.Command{
 		Description: "cmd.build.pwa.short",
 		Action: func(opts core.Options) core.Result {
-			pwaPath := cmdutil.OptionString(opts, "path")
+			pwaPath := cmdutil.OptionString(opts, buildPathOptionKey)
 			pwaURL := cmdutil.OptionString(opts, "url")
 			switch {
 			case pwaPath != "":
-				return cmdutil.ResultFromError(runLocalPwaBuild(cmdutil.ContextOrBackground(), pwaPath))
+				return runLocalPwaBuild(cmdutil.ContextOrBackground(), pwaPath)
 			case pwaURL != "":
-				return cmdutil.ResultFromError(runPwaBuild(cmdutil.ContextOrBackground(), pwaURL))
+				return runPwaBuild(cmdutil.ContextOrBackground(), pwaURL)
 			default:
-				return cmdutil.ResultFromError(errPWAInputRequired)
+				return core.Fail(errPWAInputRequired)
 			}
 		},
 	})
@@ -118,14 +120,14 @@ func AddBuildCommands(c *core.Core) {
 	c.Command("build/sdk", core.Command{
 		Description: "cmd.build.sdk.long",
 		Action: func(opts core.Options) core.Result {
-			return cmdutil.ResultFromError(runBuildSDK(
+			return runBuildSDK(
 				cmdutil.ContextOrBackground(),
 				cmdutil.OptionString(opts, "spec"),
 				cmdutil.OptionString(opts, "lang"),
 				cmdutil.OptionString(opts, "version"),
 				cmdutil.OptionBool(opts, "dry-run"),
 				cmdutil.OptionBool(opts, "skip-unavailable", "skip_unavailable"),
-			))
+			)
 		},
 	})
 

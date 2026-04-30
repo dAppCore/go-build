@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/io"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
-func TestDocker_DockerPublisherName_Good(t *testing.T) {
+func TestDocker_DockerPublisherNameGood(t *testing.T) {
 	t.Run("returns docker", func(t *testing.T) {
 		p := NewDockerPublisher()
 		if !stdlibAssertEqual("docker", p.Name()) {
@@ -18,13 +19,13 @@ func TestDocker_DockerPublisherName_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherParseConfig_Good(t *testing.T) {
+func TestDocker_DockerPublisherParseConfigGood(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("uses defaults when no extended config", func(t *testing.T) {
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("ghcr.io", cfg.Registry) {
 			t.Fatalf("want %v, got %v", "ghcr.io", cfg.Registry)
 		}
@@ -58,7 +59,7 @@ func TestDocker_DockerPublisherParseConfig_Good(t *testing.T) {
 			},
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("docker.io", cfg.Registry) {
 			t.Fatalf("want %v, got %v", "docker.io", cfg.Registry)
 		}
@@ -88,7 +89,7 @@ func TestDocker_DockerPublisherParseConfig_Good(t *testing.T) {
 			},
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("/absolute/path/Dockerfile", cfg.Dockerfile) {
 			t.Fatalf("want %v, got %v", "/absolute/path/Dockerfile", cfg.Dockerfile)
 		}
@@ -97,13 +98,13 @@ func TestDocker_DockerPublisherParseConfig_Good(t *testing.T) {
 
 	t.Run("detects Containerfile when Dockerfile is absent", func(t *testing.T) {
 		projectDir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(projectDir, "Containerfile"), []byte("FROM alpine\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, projectDir)
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, projectDir)
 		if !stdlibAssertEqual(ax.Join(projectDir, "Containerfile"), cfg.Dockerfile) {
 			t.Fatalf("want %v, got %v", ax.Join(projectDir, "Containerfile"), cfg.Dockerfile)
 		}
@@ -111,7 +112,7 @@ func TestDocker_DockerPublisherParseConfig_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherResolveTags_Good(t *testing.T) {
+func TestDocker_DockerPublisherResolveTagsGood(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("resolves version template", func(t *testing.T) {
@@ -139,7 +140,7 @@ func TestDocker_DockerPublisherResolveTags_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherBuildFullTag_Good(t *testing.T) {
+func TestDocker_DockerPublisherBuildFullTagGood(t *testing.T) {
 	p := NewDockerPublisher()
 
 	tests := []struct {
@@ -183,7 +184,7 @@ func TestDocker_DockerPublisherBuildFullTag_Good(t *testing.T) {
 	}
 }
 
-func TestDocker_DockerPublisherBuildBuildxArgs_Good(t *testing.T) {
+func TestDocker_DockerPublisherBuildBuildxArgsGood(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("builds basic args", func(t *testing.T) {
@@ -311,7 +312,7 @@ func TestDocker_DockerPublisherBuildBuildxArgs_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherPublish_Bad(t *testing.T) {
+func TestDocker_DockerPublisherPublishBad(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -322,7 +323,7 @@ func TestDocker_DockerPublisherPublish_Bad(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/nonexistent",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "docker",
@@ -332,24 +333,21 @@ func TestDocker_DockerPublisherPublish_Bad(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "Dockerfile not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "Dockerfile not found")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "Dockerfile not found") {
+			t.Fatalf("expected %v to contain %v", err, "Dockerfile not found")
 		}
 
 	})
 }
 
-func TestDocker_DockerConfigDefaults_Good(t *testing.T) {
+func TestDocker_DockerConfigDefaultsGood(t *testing.T) {
 	t.Run("has sensible defaults", func(t *testing.T) {
 		p := NewDockerPublisher()
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual(
 
 			// Verify defaults
@@ -375,14 +373,14 @@ func TestDocker_DockerConfigDefaults_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherDryRunPublish_Good(t *testing.T) {
+func TestDocker_DockerPublisherDryRunPublishGood(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("outputs expected dry run information", func(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := DockerConfig{
 			Registry:   "ghcr.io",
@@ -393,13 +391,11 @@ func TestDocker_DockerPublisherDryRunPublish_Good(t *testing.T) {
 			BuildArgs:  make(map[string]string),
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg)
+			publishResult = p.dryRunPublish(release, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Docker Build & Push") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Docker Build & Push")
 		}
@@ -443,7 +439,7 @@ func TestDocker_DockerPublisherDryRunPublish_Good(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := DockerConfig{
 			Registry:   "docker.io",
@@ -457,13 +453,11 @@ func TestDocker_DockerPublisherDryRunPublish_Good(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg)
+			publishResult = p.dryRunPublish(release, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Build arguments:") {
 			t.Fatalf("expected %v to contain %v", output, "Build arguments:")
 		}
@@ -480,7 +474,7 @@ func TestDocker_DockerPublisherDryRunPublish_Good(t *testing.T) {
 		release := &Release{
 			Version:    "v2.0.0",
 			ProjectDir: "/project",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		cfg := DockerConfig{
 			Registry:   "ghcr.io",
@@ -491,13 +485,11 @@ func TestDocker_DockerPublisherDryRunPublish_Good(t *testing.T) {
 			BuildArgs:  make(map[string]string),
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.dryRunPublish(release, cfg)
+			publishResult = p.dryRunPublish(release, cfg)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Platforms:     linux/amd64") {
 			t.Fatalf("expected %v to contain %v", output, "Platforms:     linux/amd64")
 		}
@@ -508,7 +500,7 @@ func TestDocker_DockerPublisherDryRunPublish_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
+func TestDocker_DockerPublisherParseConfigEdgeCasesGood(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("handles nil release config", func(t *testing.T) {
@@ -519,7 +511,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 			},
 		}
 
-		cfg := p.parseConfig(io.Local, pubCfg, nil, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, nil, "/project")
 		if !stdlibAssertEqual("custom/image", cfg.Image) {
 			t.Fatalf("want %v, got %v", "custom/image", cfg.Image)
 		}
@@ -538,7 +530,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: ""}
 
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("fallback/image", cfg.Image) {
 			t.Fatalf("want %v, got %v", "fallback/image", cfg.Image)
 		}
@@ -554,7 +546,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "original/repo"}
 
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("override/image", cfg.Image) {
 			t.Fatalf("want %v, got %v", "override/image", cfg.Image)
 		}
@@ -573,7 +565,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		cfg := p.parseConfig(io.Local, pubCfg, relCfg, "/project")
+		cfg := p.parseConfig(storage.Local, pubCfg, relCfg, "/project")
 		if !stdlibAssertEqual("value", cfg.BuildArgs["STRING_ARG"]) {
 			t.Fatalf("want %v, got %v", "value", cfg.BuildArgs["STRING_ARG"])
 		}
@@ -586,7 +578,7 @@ func TestDocker_DockerPublisherParseConfigEdgeCases_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherResolveTagsEdgeCases_Good(t *testing.T) {
+func TestDocker_DockerPublisherResolveTagsEdgeCasesGood(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("handles empty tags", func(t *testing.T) {
@@ -622,7 +614,7 @@ func TestDocker_DockerPublisherResolveTagsEdgeCases_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherBuildBuildxArgsEdgeCases_Good(t *testing.T) {
+func TestDocker_DockerPublisherBuildBuildxArgsEdgeCasesGood(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("handles empty platforms", func(t *testing.T) {
@@ -771,9 +763,9 @@ func TestDocker_DockerPublisherBuildBuildxArgsEdgeCases_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherPublishDryRun_Good(t *testing.T) {
+func TestDocker_DockerPublisherPublishDryRunGood(t *testing.T) {
 
-	if err := validateDockerCli(); err != nil {
+	if err := validateDockerCli(); !err.OK {
 		t.Skip("skipping test: docker CLI not available")
 	}
 
@@ -782,25 +774,23 @@ func TestDocker_DockerPublisherPublishDryRun_Good(t *testing.T) {
 	t.Run("dry run succeeds with valid Dockerfile", func(t *testing.T) {
 		// Create temp directory with Dockerfile
 		tmpDir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Docker Build & Push") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Docker Build & Push")
 
@@ -813,17 +803,17 @@ func TestDocker_DockerPublisherPublishDryRun_Good(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		customDir := ax.Join(tmpDir, "docker")
-		if err := ax.MkdirAll(customDir, 0o755); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.MkdirAll(customDir, 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
-		if err := ax.WriteFile(ax.Join(customDir, "Dockerfile.prod"), []byte("FROM alpine:latest\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(customDir, "Dockerfile.prod"), []byte("FROM alpine:latest\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "docker",
@@ -833,13 +823,11 @@ func TestDocker_DockerPublisherPublishDryRun_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "Dockerfile.prod") {
 			t.Fatalf("expected %v to contain %v", output, "Dockerfile.prod")
 		}
@@ -847,65 +835,59 @@ func TestDocker_DockerPublisherPublishDryRun_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_DockerPublisherPublishValidation_Bad(t *testing.T) {
+func TestDocker_DockerPublisherPublishValidationBad(t *testing.T) {
 	p := NewDockerPublisher()
 
 	t.Run("fails when Dockerfile not found with docker installed", func(t *testing.T) {
-		if err := validateDockerCli(); err != nil {
+		if err := validateDockerCli(); !err.OK {
 			t.Skip("skipping test: docker CLI not available")
 		}
 
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: "/nonexistent/path",
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "Dockerfile not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "Dockerfile not found")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "Dockerfile not found") {
+			t.Fatalf("expected %v to contain %v", err, "Dockerfile not found")
 		}
 
 	})
 
 	t.Run("fails when docker CLI not available", func(t *testing.T) {
-		if err := validateDockerCli(); err == nil {
+		if err := validateDockerCli(); err.OK {
 			t.Skip("skipping test: docker CLI is available")
 		}
 
 		tmpDir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "docker CLI not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "docker CLI not found")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "docker CLI not found") {
+			t.Fatalf("expected %v to contain %v", err, "docker CLI not found")
 		}
 
 	})
 }
 
-func TestDocker_ValidateDockerCli_Good(t *testing.T) {
+func TestDocker_ValidateDockerCliGood(t *testing.T) {
 	t.Run("returns nil when docker is installed", func(t *testing.T) {
 		err := validateDockerCli()
-		if err != nil {
+		if !err.OK {
 			if !stdlibAssertContains(
 				// Docker is not installed, which is fine for this test
 				err.Error(), "docker CLI not found") {
@@ -919,42 +901,36 @@ func TestDocker_ValidateDockerCli_Good(t *testing.T) {
 	})
 }
 
-func TestDocker_ResolveDockerCli_Good(t *testing.T) {
+func TestDocker_ResolveDockerCliGood(t *testing.T) {
 	fallbackDir := t.TempDir()
 	fallbackPath := ax.Join(fallbackDir, "docker")
-	if err := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(fallbackPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	t.Setenv("PATH", "")
 
-	command, err := resolveDockerCli(fallbackPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	command := requirePublisherString(t, resolveDockerCli(fallbackPath))
 	if !stdlibAssertEqual(fallbackPath, command) {
 		t.Fatalf("want %v, got %v", fallbackPath, command)
 	}
 
 }
 
-func TestDocker_ResolveDockerCli_Bad(t *testing.T) {
+func TestDocker_ResolveDockerCliBad(t *testing.T) {
 	t.Setenv("PATH", "")
-	_, err := resolveDockerCli(ax.Join(t.TempDir(), "missing-docker"))
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(err.Error(), "docker CLI not found") {
-		t.Fatalf("expected %v to contain %v", err.Error(), "docker CLI not found")
+	err := requirePublisherError(t, resolveDockerCli(ax.Join(t.TempDir(), "missing-docker")))
+	if !stdlibAssertContains(err, "docker CLI not found") {
+		t.Fatalf("expected %v to contain %v", err, "docker CLI not found")
 
 		// These tests run only when docker CLI is available
 	}
 
 }
 
-func TestDocker_DockerPublisherPublishWithCLI_Good(t *testing.T) {
+func TestDocker_DockerPublisherPublishWithCLIGood(t *testing.T) {
 
-	if err := validateDockerCli(); err != nil {
+	if err := validateDockerCli(); !err.OK {
 		t.Skip("skipping test: docker CLI not available")
 	}
 
@@ -962,14 +938,14 @@ func TestDocker_DockerPublisherPublishWithCLI_Good(t *testing.T) {
 
 	t.Run("dry run succeeds with all config options", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "docker",
@@ -983,13 +959,11 @@ func TestDocker_DockerPublisherPublishWithCLI_Good(t *testing.T) {
 		}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, relCfg, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "DRY RUN: Docker Build & Push") {
 			t.Fatalf("expected %v to contain %v", output, "DRY RUN: Docker Build & Push")
 		}
@@ -1004,14 +978,14 @@ func TestDocker_DockerPublisherPublishWithCLI_Good(t *testing.T) {
 
 	t.Run("dry run with nil relCfg uses extended image", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		if err := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if result := ax.WriteFile(ax.Join(tmpDir, "Dockerfile"), []byte("FROM alpine:latest\n"), 0o644); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
 		}
 
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{
 			Type: "docker",
@@ -1020,13 +994,11 @@ func TestDocker_DockerPublisherPublishWithCLI_Good(t *testing.T) {
 			},
 		}
 
-		var err error
+		publishResult := core.Ok(nil)
 		output := capturePublisherOutput(t, func() {
-			err = p.Publish(context.TODO(), release, pubCfg, nil, true)
+			publishResult = p.Publish(context.TODO(), release, pubCfg, nil, true)
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		requirePublisherOK(t, publishResult)
 		if !stdlibAssertContains(output, "standalone/image") {
 			t.Fatalf("expected %v to contain %v", output, "standalone/image")
 		}
@@ -1040,18 +1012,175 @@ func TestDocker_DockerPublisherPublishWithCLI_Good(t *testing.T) {
 		release := &Release{
 			Version:    "v1.0.0",
 			ProjectDir: tmpDir,
-			FS:         io.Local,
+			FS:         storage.Local,
 		}
 		pubCfg := PublisherConfig{Type: "docker"}
 		relCfg := &mockReleaseConfig{repository: "owner/repo"}
 
-		err := p.Publish(context.TODO(), release, pubCfg, relCfg, false)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-		if !stdlibAssertContains(err.Error(), "Dockerfile not found") {
-			t.Fatalf("expected %v to contain %v", err.Error(), "Dockerfile not found")
+		err := requirePublisherError(t, p.Publish(context.TODO(), release, pubCfg, relCfg, false))
+		if !stdlibAssertContains(err, "Dockerfile not found") {
+			t.Fatalf("expected %v to contain %v", err, "Dockerfile not found")
 		}
 
 	})
+}
+
+// --- v0.9.0 generated compliance triplets ---
+func TestDocker_NewDockerPublisher_Good(t *core.T) {
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewDockerPublisher()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDocker_NewDockerPublisher_Bad(t *core.T) {
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewDockerPublisher()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDocker_NewDockerPublisher_Ugly(t *core.T) {
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = NewDockerPublisher()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDocker_DockerPublisher_Name_Good(t *core.T) {
+	subject := &DockerPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDocker_DockerPublisher_Name_Bad(t *core.T) {
+	subject := &DockerPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDocker_DockerPublisher_Name_Ugly(t *core.T) {
+	subject := &DockerPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Name()
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDocker_DockerPublisher_Validate_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &DockerPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDocker_DockerPublisher_Validate_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &DockerPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, nil, PublisherConfig{}, nil)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDocker_DockerPublisher_Validate_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &DockerPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Validate(ctx, &Release{}, PublisherConfig{}, nil)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDocker_DockerPublisher_Supports_Good(t *core.T) {
+	subject := &DockerPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDocker_DockerPublisher_Supports_Bad(t *core.T) {
+	subject := &DockerPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("")
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDocker_DockerPublisher_Supports_Ugly(t *core.T) {
+	subject := &DockerPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Supports("linux")
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
+}
+
+func TestDocker_DockerPublisher_Publish_Good(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &DockerPublisher{}
+	goodCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		goodCalls++
+	})
+	core.AssertEqual(t, 1, goodCalls)
+}
+
+func TestDocker_DockerPublisher_Publish_Bad(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &DockerPublisher{}
+	badCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, nil, PublisherConfig{}, nil, true)
+		badCalls++
+	})
+	core.AssertEqual(t, 1, badCalls)
+}
+
+func TestDocker_DockerPublisher_Publish_Ugly(t *core.T) {
+	ctx, cancel := core.WithCancel(core.Background())
+	cancel()
+	subject := &DockerPublisher{}
+	uglyCalls := 0
+	core.AssertNotPanics(t, func() {
+		_ = subject.Publish(ctx, &Release{}, PublisherConfig{}, nil, true)
+		uglyCalls++
+	})
+	core.AssertEqual(t, 1, uglyCalls)
 }

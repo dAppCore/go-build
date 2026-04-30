@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"slices"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 )
 
@@ -34,7 +34,7 @@ type Generator interface {
 	Language() string
 
 	// Generate creates SDK from OpenAPI spec.
-	Generate(ctx context.Context, opts Options) error
+	Generate(ctx context.Context, opts Options) core.Result
 
 	// Available checks if generator dependencies are installed.
 	Available() bool

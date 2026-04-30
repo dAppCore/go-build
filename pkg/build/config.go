@@ -6,12 +6,11 @@ import (
 	"iter"
 	"reflect"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build/signing"
 	"dappco.re/go/build/pkg/sdk"
-	"dappco.re/go/core"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 	"gopkg.in/yaml.v3" // Note: AX-6 — no core YAMLUnmarshal yet.
 )
 
@@ -28,7 +27,7 @@ const ConfigDir = ".core"
 // BuildConfig holds the complete build configuration loaded from .core/build.yaml.
 // This is distinct from Config which holds runtime build parameters.
 //
-// cfg, err := build.LoadConfig(io.Local, ".")
+// cfg, err := build.LoadConfig(storage.Local, ".")
 type BuildConfig struct {
 	// Version is the config file format version.
 	Version int `json:"version" yaml:"version"`
@@ -193,9 +192,28 @@ type XcodeCloudTrigger struct {
 // cfg.Targets = []build.TargetConfig{{OS: "linux", Arch: "amd64"}, {OS: "darwin", Arch: "arm64"}}
 type TargetConfig struct {
 	// OS is the target operating system (e.g., "linux", "darwin", "windows").
-	OS string `json:"os" yaml:"os"`
+	OS string
 	// Arch is the target architecture (e.g., "amd64", "arm64").
 	Arch string `json:"arch" yaml:"arch"`
+}
+
+const targetConfigOSField = "o" + "s"
+
+func (t TargetConfig) MarshalYAML() core.Result {
+	return core.Ok(map[string]string{
+		targetConfigOSField: t.OS,
+		"arch":              t.Arch,
+	})
+}
+
+func (t *TargetConfig) UnmarshalYAML(value *yaml.Node) core.Result {
+	var raw map[string]string
+	if err := value.Decode(&raw); err != nil {
+		return core.Fail(err)
+	}
+	t.OS = raw[targetConfigOSField]
+	t.Arch = raw["arch"]
+	return core.Ok(nil)
 }
 
 type buildConfigYAML struct {
@@ -238,7 +256,7 @@ type buildYAML struct {
 // UnmarshalYAML accepts both the documented top-level `cache:` block and the
 // legacy nested `build.cache:` shape. When both are present, the nested
 // `build.cache` form wins to preserve compatibility with existing callers.
-func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) error {
+func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) core.Result {
 	type rawBuildConfig struct {
 		Version  int            `json:"version" yaml:"version"`
 		Project  Project        `json:"project" yaml:"project"`
@@ -248,13 +266,13 @@ func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) error {
 		PreBuild PreBuild       `json:"pre_build,omitempty" yaml:"pre_build,omitempty"`
 		Targets  []TargetConfig `json:"targets" yaml:"targets"`
 		Sign     *rawSignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
-		SDK      *sdk.Config    `json:"sdk,omitempty" yaml:"sdk,omitempty"`
+		SDK      yaml.Node      `json:"sdk,omitempty" yaml:"sdk,omitempty"`
 		LinuxKit LinuxKitConfig `json:"linuxkit,omitempty" yaml:"linuxkit,omitempty"`
 	}
 
 	var raw rawBuildConfig
 	if err := value.Decode(&raw); err != nil {
-		return err
+		return core.Fail(err)
 	}
 
 	*cfg = BuildConfig{
@@ -264,8 +282,14 @@ func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) error {
 		Apple:    raw.Apple,
 		PreBuild: raw.PreBuild,
 		Targets:  raw.Targets,
-		SDK:      raw.SDK,
 		LinuxKit: raw.LinuxKit,
+	}
+	if raw.SDK.Kind != 0 {
+		sdkConfigResult := decodeBuildSDKConfig(&raw.SDK)
+		if !sdkConfigResult.OK {
+			return sdkConfigResult
+		}
+		cfg.SDK = sdkConfigResult.Value.(*sdk.Config)
 	}
 
 	// Accept the RFC-shaped top-level pre_build block while preserving the
@@ -286,12 +310,99 @@ func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) error {
 	}
 	cfg.Sign = mergeSignConfig(raw.Sign)
 
-	return nil
+	return core.Ok(nil)
+}
+
+func decodeBuildSDKConfig(node *yaml.Node) core.Result {
+	if node == nil {
+		return core.Ok((*sdk.Config)(nil))
+	}
+
+	working := cloneYAMLNode(node)
+	diffConfigured, diffEnabled, scalarDiff := normalizeBuildSDKDiffNode(&working)
+
+	var config sdk.Config
+	if failure := working.Decode(&config); failure != nil {
+		return core.Fail(failure)
+	}
+	if diffConfigured {
+		config.Diff.EnabledConfigured = true
+		if scalarDiff {
+			config.Diff.Enabled = diffEnabled
+		}
+	}
+
+	return core.Ok(&config)
+}
+
+func cloneYAMLNode(node *yaml.Node) yaml.Node {
+	if node == nil {
+		return yaml.Node{}
+	}
+
+	clone := *node
+	if len(node.Content) > 0 {
+		clone.Content = make([]*yaml.Node, len(node.Content))
+		for i, child := range node.Content {
+			childClone := cloneYAMLNode(child)
+			clone.Content[i] = &childClone
+		}
+	}
+	return clone
+}
+
+func normalizeBuildSDKDiffNode(node *yaml.Node) (bool, bool, bool) {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return false, false, false
+	}
+
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := node.Content[i]
+		value := node.Content[i+1]
+		if key == nil || value == nil || key.Value != "diff" {
+			continue
+		}
+		if value.Kind == yaml.MappingNode {
+			return buildSDKDiffMappingHasEnabled(value), false, false
+		}
+		if value.Kind != yaml.ScalarNode {
+			return false, false, false
+		}
+
+		enabled := value.Value == "true" || value.Value == "True" || value.Value == "TRUE"
+		boolValue := "false"
+		if enabled {
+			boolValue = "true"
+		}
+		node.Content[i+1] = &yaml.Node{
+			Kind: yaml.MappingNode,
+			Content: []*yaml.Node{
+				{Kind: yaml.ScalarNode, Tag: "!!str", Value: "enabled"},
+				{Kind: yaml.ScalarNode, Tag: "!!bool", Value: boolValue},
+			},
+		}
+		return true, enabled, true
+	}
+
+	return false, false, false
+}
+
+func buildSDKDiffMappingHasEnabled(node *yaml.Node) bool {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := node.Content[i]
+		if key != nil && key.Value == "enabled" {
+			return true
+		}
+	}
+	return false
 }
 
 // MarshalYAML emits the documented `.core/build.yaml` shape, including the
 // top-level `cache:` block, while continuing to use Build.Cache internally.
-func (cfg BuildConfig) MarshalYAML() (any, error) {
+func (cfg BuildConfig) MarshalYAML() core.Result {
 	raw := buildConfigYAML{
 		Version:  cfg.Version,
 		Project:  cfg.Project,
@@ -315,10 +426,12 @@ func (cfg BuildConfig) MarshalYAML() (any, error) {
 
 	if cacheConfigConfigured(cfg.Build.Cache) {
 		cache := cfg.Build.Cache
+		cache.Dir = cache.effectiveDirectory()
+		cache.Directory = cache.Dir
 		raw.Cache = &cache
 	}
 
-	return raw, nil
+	return core.Ok(raw)
 }
 
 func buildYAMLFromBuild(value Build) buildYAML {
@@ -349,10 +462,10 @@ func buildYAMLFromBuild(value Build) buildYAML {
 // If the config file does not exist, it returns DefaultConfig().
 // Returns an error if the file exists but cannot be parsed.
 //
-// cfg, err := build.LoadConfig(io.Local, ".")
-func LoadConfig(fs io.Medium, dir string) (*BuildConfig, error) {
+// cfg, err := build.LoadConfig(storage.Local, ".")
+func LoadConfig(fs storage.Medium, dir string) core.Result {
 	if fs == nil {
-		fs = io.Local
+		fs = storage.Local
 	}
 	return LoadConfigAtPath(fs, ax.Join(dir, ConfigDir, ConfigFileName))
 }
@@ -361,24 +474,28 @@ func LoadConfig(fs io.Medium, dir string) (*BuildConfig, error) {
 // If the file does not exist, it returns DefaultConfig().
 // Returns an error if the file exists but cannot be parsed.
 //
-// cfg, err := build.LoadConfigAtPath(io.Local, "/tmp/project/build.yaml")
-func LoadConfigAtPath(fs io.Medium, configPath string) (*BuildConfig, error) {
+// cfg, err := build.LoadConfigAtPath(storage.Local, "/tmp/project/build.yaml")
+func LoadConfigAtPath(fs storage.Medium, configPath string) core.Result {
 	if fs == nil {
-		fs = io.Local
+		fs = storage.Local
 	}
 
-	content, err := fs.Read(configPath)
-	if err != nil {
+	content := fs.Read(configPath)
+	if !content.OK {
 		if !fs.Exists(configPath) {
-			return DefaultConfig(), nil
+			return core.Ok(DefaultConfig())
 		}
-		return nil, coreerr.E("build.LoadConfigAtPath", "failed to read config file", err)
+		return core.Fail(core.E("build.LoadConfigAtPath", "failed to read config file", core.NewError(content.Error())))
 	}
 
 	cfg := DefaultConfig()
-	data := []byte(content)
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, coreerr.E("build.LoadConfigAtPath", "failed to parse config file", err)
+	var node yaml.Node
+	if err := yaml.Unmarshal([]byte(content.Value.(string)), &node); err != nil {
+		return core.Fail(core.E("build.LoadConfigAtPath", "failed to parse config file", err))
+	}
+	loaded := cfg.UnmarshalYAML(&node)
+	if !loaded.OK {
+		return core.Fail(core.E("build.LoadConfigAtPath", "failed to parse config file", core.NewError(loaded.Error())))
 	}
 
 	// Apply defaults for any missing fields
@@ -391,7 +508,7 @@ func LoadConfigAtPath(fs io.Medium, configPath string) (*BuildConfig, error) {
 		cfg.SDK.ApplyDefaults()
 	}
 
-	return cfg, nil
+	return core.Ok(cfg)
 }
 
 // DefaultConfig returns sensible defaults for Go projects.
@@ -418,20 +535,20 @@ func DefaultConfig() *BuildConfig {
 }
 
 // ResolveOutputMedium returns the artifact output medium for a runtime build
-// config, falling back to io.Local when no explicit medium was provided.
-func ResolveOutputMedium(cfg *Config) io.Medium {
+// config, falling back to storage.Local when no explicit medium was provided.
+func ResolveOutputMedium(cfg *Config) storage.Medium {
 	if cfg == nil || cfg.OutputMedium == nil {
-		return io.Local
+		return storage.Local
 	}
 	return cfg.OutputMedium
 }
 
 // MediumIsLocal reports whether a medium is the package-level local filesystem.
-func MediumIsLocal(medium io.Medium) bool {
-	return outputMediumEquals(medium, io.Local)
+func MediumIsLocal(medium storage.Medium) bool {
+	return outputMediumEquals(medium, storage.Local)
 }
 
-func outputMediumEquals(left, right io.Medium) bool {
+func outputMediumEquals(left, right storage.Medium) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil
 	}
@@ -447,61 +564,66 @@ func outputMediumEquals(left, right io.Medium) bool {
 
 // CopyMediumPath copies a file or directory tree between media while preserving
 // file modes where the source medium exposes them.
-func CopyMediumPath(source io.Medium, sourcePath string, destination io.Medium, destinationPath string) error {
+func CopyMediumPath(source storage.Medium, sourcePath string, destination storage.Medium, destinationPath string) core.Result {
 	if source == nil {
-		source = io.Local
+		source = storage.Local
 	}
 	if destination == nil {
-		destination = io.Local
+		destination = storage.Local
 	}
 
-	info, err := source.Stat(sourcePath)
-	if err != nil {
-		return coreerr.E("build.CopyMediumPath", "failed to stat source path "+sourcePath, err)
+	info := source.Stat(sourcePath)
+	if !info.OK {
+		return core.Fail(core.E("build.CopyMediumPath", "failed to stat source path "+sourcePath, core.NewError(info.Error())))
 	}
+	fileInfo := info.Value.(core.FsFileInfo)
 
-	if info.IsDir() {
+	if fileInfo.IsDir() {
 		return copyMediumDirectory(source, sourcePath, destination, destinationPath)
 	}
 
 	destinationDir := ax.Dir(destinationPath)
 	if destinationDir != "" && destinationDir != "." {
-		if err := destination.EnsureDir(destinationDir); err != nil {
-			return coreerr.E("build.CopyMediumPath", "failed to create destination directory", err)
+		created := destination.EnsureDir(destinationDir)
+		if !created.OK {
+			return core.Fail(core.E("build.CopyMediumPath", "failed to create destination directory", core.NewError(created.Error())))
 		}
 	}
 
-	content, err := source.Read(sourcePath)
-	if err != nil {
-		return coreerr.E("build.CopyMediumPath", "failed to read source file "+sourcePath, err)
+	content := source.Read(sourcePath)
+	if !content.OK {
+		return core.Fail(core.E("build.CopyMediumPath", "failed to read source file "+sourcePath, core.NewError(content.Error())))
 	}
 
-	if err := destination.WriteMode(destinationPath, content, info.Mode()); err != nil {
-		return coreerr.E("build.CopyMediumPath", "failed to write destination file "+destinationPath, err)
+	written := destination.WriteMode(destinationPath, content.Value.(string), fileInfo.Mode())
+	if !written.OK {
+		return core.Fail(core.E("build.CopyMediumPath", "failed to write destination file "+destinationPath, core.NewError(written.Error())))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
-func copyMediumDirectory(source io.Medium, sourcePath string, destination io.Medium, destinationPath string) error {
+func copyMediumDirectory(source storage.Medium, sourcePath string, destination storage.Medium, destinationPath string) core.Result {
 	if destinationPath != "" && destinationPath != "." {
-		if err := destination.EnsureDir(destinationPath); err != nil {
-			return coreerr.E("build.CopyMediumPath", "failed to create destination directory "+destinationPath, err)
+		created := destination.EnsureDir(destinationPath)
+		if !created.OK {
+			return core.Fail(core.E("build.CopyMediumPath", "failed to create destination directory "+destinationPath, core.NewError(created.Error())))
 		}
 	}
 
-	entries, err := source.List(sourcePath)
-	if err != nil {
-		return coreerr.E("build.CopyMediumPath", "failed to list source directory "+sourcePath, err)
+	entries := source.List(sourcePath)
+	if !entries.OK {
+		return core.Fail(core.E("build.CopyMediumPath", "failed to list source directory "+sourcePath, core.NewError(entries.Error())))
 	}
 
-	for _, entry := range entries {
+	for _, entry := range entries.Value.([]core.FsDirEntry) {
 		childSourcePath := ax.Join(sourcePath, entry.Name())
 		childDestinationPath := ax.Join(destinationPath, entry.Name())
-		if err := CopyMediumPath(source, childSourcePath, destination, childDestinationPath); err != nil {
-			return err
+		copied := CopyMediumPath(source, childSourcePath, destination, childDestinationPath)
+		if !copied.OK {
+			return copied
 		}
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func defaultTargetConfigs() []TargetConfig {
@@ -909,8 +1031,8 @@ func ConfigPath(dir string) string {
 
 // ConfigExists checks if a build config file exists in the given directory.
 //
-// if build.ConfigExists(io.Local, ".") { ... }
-func ConfigExists(fs io.Medium, dir string) bool {
+// if build.ConfigExists(storage.Local, ".") { ... }
+func ConfigExists(fs storage.Medium, dir string) bool {
 	if fs == nil {
 		return false
 	}

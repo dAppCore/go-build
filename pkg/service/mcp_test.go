@@ -1,19 +1,19 @@
 package service
 
 import (
-	"bytes"
 	"context"
+	core "dappco.re/go"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"dappco.re/go/build/internal/ax"
-	coreapi "dappco.re/go/api"
-	providerpkg "dappco.re/go/api/pkg/provider"
+	coreapi "dappco.re/go/build/pkg/api"
+	providerpkg "dappco.re/go/build/pkg/api/provider"
 )
 
-func TestMCP_DefaultNewMCPServer_ExposesDaemonTools_Good(t *testing.T) {
+func TestMCP_DefaultNewMCPServer_ExposesDaemonToolsGood(t *testing.T) {
 	projectDir := t.TempDir()
 	registry := providerpkg.NewRegistry()
 	registry.Add(stubDaemonProvider{
@@ -32,10 +32,10 @@ func TestMCP_DefaultNewMCPServer_ExposesDaemonTools_Good(t *testing.T) {
 
 }
 
-func TestMCP_BuildRunAndDiscover_Good(t *testing.T) {
+func TestMCP_BuildRunAndDiscoverGood(t *testing.T) {
 	projectDir := t.TempDir()
-	if err := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if result := ax.WriteFile(ax.Join(projectDir, "go.mod"), []byte("module example.com/demo\n"), 0o644); !result.OK {
+		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
 	registry := providerpkg.NewRegistry()
@@ -51,20 +51,22 @@ func TestMCP_BuildRunAndDiscover_Good(t *testing.T) {
 	})
 
 	called := false
-	runWatchedBuild = func(ctx context.Context, dir string) error {
+	runWatchedBuild = func(ctx context.Context, dir string) core.Result {
 		called = true
 		if !stdlibAssertEqual(projectDir, dir) {
 			t.Fatalf("want %v, got %v", projectDir, dir)
 		}
 
-		return nil
+		return core.Ok(nil)
 	}
 
 	group := defaultNewMCPServer(DefaultConfig(projectDir).Normalized(), registry, nil)
 
-	engine, err := coreapi.New()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	engineResult := coreapi.New()
+	requireServiceOK(t, engineResult)
+	engine, ok := engineResult.Value.(*coreapi.Engine)
+	if !ok {
+		t.Fatalf("expected *coreapi.Engine result, got %T", engineResult.Value)
 	}
 
 	engine.Register(group)
@@ -93,7 +95,7 @@ func TestMCP_BuildRunAndDiscover_Good(t *testing.T) {
 func postTool(t *testing.T, url string) string {
 	t.Helper()
 
-	response, err := http.Post(url, "application/json", bytes.NewBufferString(`{}`))
+	response, err := http.Post(url, "application/json", core.NewBufferString(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

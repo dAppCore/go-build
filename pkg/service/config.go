@@ -1,17 +1,14 @@
 package service
 
 import (
-	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 	"unicode"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	storage "dappco.re/go/build/pkg/storage"
 )
 
 const (
@@ -61,22 +58,23 @@ type ExportedConfig struct {
 }
 
 // ResolveConfig loads service defaults for the project in projectDir.
-func ResolveConfig(projectDir string) (Config, error) {
+func ResolveConfig(projectDir string) core.Result {
 	if projectDir == "" {
-		var err error
-		projectDir, err = os.Getwd()
-		if err != nil {
-			return Config{}, coreerr.E("service.ResolveConfig", "failed to get working directory", err)
+		wd := core.Getwd()
+		if !wd.OK {
+			return core.Fail(core.E("service.ResolveConfig", "failed to get working directory", core.NewError(wd.Error())))
 		}
+		projectDir = wd.Value.(string)
 	}
 
-	projectDir = filepath.Clean(projectDir)
+	projectDir = core.PathJoin(projectDir)
 	cfg := DefaultConfig(projectDir)
 
-	buildCfg, err := build.LoadConfig(io.Local, projectDir)
-	if err != nil {
-		return Config{}, coreerr.E("service.ResolveConfig", "failed to load build config", err)
+	loaded := build.LoadConfig(storage.Local, projectDir)
+	if !loaded.OK {
+		return core.Fail(core.E("service.ResolveConfig", "failed to load build config", core.NewError(loaded.Error())))
 	}
+	buildCfg := loaded.Value.(*build.BuildConfig)
 	if buildCfg != nil {
 		rawName := firstNonEmpty(buildCfg.Project.Binary, buildCfg.Project.Name, cfg.Name)
 		cfg.Name = normaliseServiceName(rawName)
@@ -86,13 +84,13 @@ func ResolveConfig(projectDir string) (Config, error) {
 		}
 	}
 
-	return cfg.Normalized(), nil
+	return core.Ok(cfg.Normalized())
 }
 
 // DefaultConfig returns the default daemon and service manager settings.
 func DefaultConfig(projectDir string) Config {
-	projectDir = filepath.Clean(projectDir)
-	rawName := filepath.Base(projectDir)
+	projectDir = core.PathJoin(projectDir)
+	rawName := core.PathBase(projectDir)
 	name := normaliseServiceName(rawName)
 
 	return Config{
@@ -113,19 +111,19 @@ func DefaultConfig(projectDir string) Config {
 // Normalized returns a copy of cfg with defaults, environment, and arguments applied.
 func (cfg Config) Normalized() Config {
 	if cfg.ProjectDir == "" {
-		if cwd, err := os.Getwd(); err == nil {
-			cfg.ProjectDir = cwd
+		if cwd := core.Getwd(); cwd.OK {
+			cfg.ProjectDir = cwd.Value.(string)
 		}
 	}
-	cfg.ProjectDir = filepath.Clean(cfg.ProjectDir)
+	cfg.ProjectDir = core.PathJoin(cfg.ProjectDir)
 
 	if cfg.WorkingDirectory == "" {
 		cfg.WorkingDirectory = cfg.ProjectDir
 	}
-	cfg.WorkingDirectory = filepath.Clean(cfg.WorkingDirectory)
+	cfg.WorkingDirectory = core.PathJoin(cfg.WorkingDirectory)
 
 	if cfg.Name == "" {
-		cfg.Name = normaliseServiceName(filepath.Base(cfg.ProjectDir))
+		cfg.Name = normaliseServiceName(core.PathBase(cfg.ProjectDir))
 	}
 	if cfg.DisplayName == "" {
 		cfg.DisplayName = displayName(cfg.Name)
@@ -134,8 +132,14 @@ func (cfg Config) Normalized() Config {
 		cfg.Description = "Core build daemon for " + cfg.DisplayName
 	}
 	if cfg.Executable == "" {
-		if executable, err := os.Executable(); err == nil {
-			cfg.Executable = executable
+		args := core.Args()
+		if len(args) > 0 {
+			executable := core.PathAbs(args[0])
+			if executable.OK {
+				cfg.Executable = executable.Value.(string)
+			} else {
+				cfg.Executable = args[0]
+			}
 		}
 	}
 	if cfg.APIAddr == "" {
@@ -160,10 +164,10 @@ func (cfg Config) Normalized() Config {
 		if path == "" {
 			continue
 		}
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(cfg.ProjectDir, path)
+		if !core.PathIsAbs(path) {
+			path = core.PathJoin(cfg.ProjectDir, path)
 		}
-		path = filepath.Clean(path)
+		path = core.PathJoin(path)
 		if _, ok := seen[path]; ok {
 			continue
 		}
@@ -188,7 +192,7 @@ func (cfg Config) Normalized() Config {
 	setDefaultEnv(env, "CORE_BUILD_API_ADDR", cfg.APIAddr)
 	setDefaultEnv(env, "CORE_BUILD_HEALTH_ADDR", cfg.HealthAddr)
 	setDefaultEnv(env, "CORE_BUILD_PID_FILE", cfg.PIDFile)
-	setDefaultEnv(env, "CORE_BUILD_WATCH_PATHS", strings.Join(cfg.WatchPaths, ","))
+	setDefaultEnv(env, "CORE_BUILD_WATCH_PATHS", core.Join(",", cfg.WatchPaths...))
 	cfg.Environment = env
 
 	cfg.Arguments = serviceRunArguments(cfg)
@@ -196,37 +200,37 @@ func (cfg Config) Normalized() Config {
 }
 
 // ResolveNativeFormat maps an explicit format or the current platform to a native service type.
-func ResolveNativeFormat(format string) (NativeFormat, error) {
-	format = strings.TrimSpace(strings.ToLower(format))
+func ResolveNativeFormat(format string) core.Result {
+	format = core.Trim(core.Lower(format))
 	switch format {
 	case "":
 		switch runtime.GOOS {
 		case "linux":
-			return NativeFormatSystemd, nil
+			return core.Ok(NativeFormatSystemd)
 		case "darwin":
-			return NativeFormatLaunchd, nil
+			return core.Ok(NativeFormatLaunchd)
 		case "windows":
-			return NativeFormatWindows, nil
+			return core.Ok(NativeFormatWindows)
 		default:
-			return "", coreerr.E("service.ResolveNativeFormat", "unsupported platform: "+runtime.GOOS, nil)
+			return core.Fail(core.E("service.ResolveNativeFormat", "unsupported platform: "+runtime.GOOS, nil))
 		}
 	case string(NativeFormatSystemd):
-		return NativeFormatSystemd, nil
+		return core.Ok(NativeFormatSystemd)
 	case string(NativeFormatLaunchd), "plist":
-		return NativeFormatLaunchd, nil
+		return core.Ok(NativeFormatLaunchd)
 	case string(NativeFormatWindows), "windows-service", "powershell":
-		return NativeFormatWindows, nil
+		return core.Ok(NativeFormatWindows)
 	default:
-		return "", coreerr.E("service.ResolveNativeFormat", "unsupported native service format: "+format, nil)
+		return core.Fail(core.E("service.ResolveNativeFormat", "unsupported native service format: "+format, nil))
 	}
 }
 
 func defaultPIDFile(name string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(os.TempDir(), name+".pid")
+	home := core.UserHomeDir()
+	if !home.OK {
+		return core.PathJoin(core.TempDir(), name+".pid")
 	}
-	return filepath.Join(home, ".core", "run", name+".pid")
+	return core.PathJoin(home.Value.(string), ".core", "run", name+".pid")
 }
 
 func serviceRunArguments(cfg Config) []string {
@@ -243,7 +247,7 @@ func serviceRunArguments(cfg Config) []string {
 		"--schedule-interval", cfg.ScheduleInterval.String(),
 	}
 	if len(cfg.WatchPaths) > 0 {
-		args = append(args, "--watch-paths", strings.Join(cfg.WatchPaths, ","))
+		args = append(args, "--watch-paths", core.Join(",", cfg.WatchPaths...))
 	}
 	return args
 }
@@ -257,7 +261,7 @@ func setDefaultEnv(env map[string]string, key, value string) {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = core.Trim(value)
 		if value != "" {
 			return value
 		}
@@ -266,12 +270,12 @@ func firstNonEmpty(values ...string) string {
 }
 
 func normaliseServiceName(name string) string {
-	name = strings.TrimSpace(strings.ToLower(name))
+	name = core.Trim(core.Lower(name))
 	if name == "" {
 		return "core-build"
 	}
 
-	var b strings.Builder
+	b := core.NewBuilder()
 	lastHyphen := false
 	for _, r := range name {
 		switch {
@@ -286,7 +290,7 @@ func normaliseServiceName(name string) string {
 		}
 	}
 
-	value := strings.Trim(b.String(), "-")
+	value := trimHyphens(b.String())
 	if value == "" {
 		return "core-build"
 	}
@@ -294,20 +298,18 @@ func normaliseServiceName(name string) string {
 }
 
 func displayName(name string) string {
-	name = strings.TrimSpace(name)
+	name = core.Trim(name)
 	if name == "" {
 		return "Core Build"
 	}
 
-	fields := strings.FieldsFunc(name, func(r rune) bool {
-		return r == '-' || r == '_' || unicode.IsSpace(r)
-	})
+	fields := serviceNameFields(name)
 	if len(fields) == 0 {
 		return "Core Build"
 	}
 
 	for i, field := range fields {
-		runes := []rune(strings.ToLower(field))
+		runes := []rune(core.Lower(field))
 		if len(runes) == 0 {
 			continue
 		}
@@ -315,5 +317,36 @@ func displayName(name string) string {
 		fields[i] = string(runes)
 	}
 
-	return strings.Join(fields, " ")
+	return core.Join(" ", fields...)
+}
+
+func serviceNameFields(name string) []string {
+	var fields []string
+	start := -1
+	for i, r := range name {
+		if r == '-' || r == '_' || unicode.IsSpace(r) {
+			if start >= 0 {
+				fields = append(fields, name[start:i])
+				start = -1
+			}
+			continue
+		}
+		if start < 0 {
+			start = i
+		}
+	}
+	if start >= 0 {
+		fields = append(fields, name[start:])
+	}
+	return fields
+}
+
+func trimHyphens(value string) string {
+	for core.HasPrefix(value, "-") {
+		value = core.TrimPrefix(value, "-")
+	}
+	for core.HasSuffix(value, "-") {
+		value = core.TrimSuffix(value, "-")
+	}
+	return value
 }

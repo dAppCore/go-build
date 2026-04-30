@@ -3,12 +3,11 @@ package publishers
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/core"
-	coreerr "dappco.re/go/log"
 )
 
-func (p *LinuxKitPublisher) publishLinuxKitArtifact(ctx context.Context, release *Release, cfg LinuxKitConfig, format, artifactPath string) error {
+func (p *LinuxKitPublisher) publishLinuxKitArtifact(ctx context.Context, release *Release, cfg LinuxKitConfig, format, artifactPath string) core.Result {
 	switch {
 	case isLinuxKitIsoFormat(format):
 		return p.publishIso(ctx, release, artifactPath)
@@ -25,14 +24,15 @@ func (p *LinuxKitPublisher) publishLinuxKitArtifact(ctx context.Context, release
 	}
 }
 
-func (p *LinuxKitPublisher) publishIso(ctx context.Context, release *Release, artifactPath string) error {
+func (p *LinuxKitPublisher) publishIso(ctx context.Context, release *Release, artifactPath string) core.Result {
 	_ = ctx
 	return p.publishLocalLinuxKitArtifact(release, artifactPath, "iso")
 }
 
-func (p *LinuxKitPublisher) publishLocalLinuxKitArtifact(release *Release, artifactPath, format string) error {
-	if err := p.ensureLinuxKitArtifact(release, artifactPath); err != nil {
-		return err
+func (p *LinuxKitPublisher) publishLocalLinuxKitArtifact(release *Release, artifactPath, format string) core.Result {
+	ensured := p.ensureLinuxKitArtifact(release, artifactPath)
+	if !ensured.OK {
+		return ensured
 	}
 
 	publisherPrint("Produced LinuxKit %s artifact: %s", format, ax.Base(artifactPath))
@@ -40,17 +40,17 @@ func (p *LinuxKitPublisher) publishLocalLinuxKitArtifact(release *Release, artif
 		publisherPrint("  Load with: docker load < %s", ax.Base(artifactPath))
 	}
 
-	return nil
+	return core.Ok(nil)
 }
 
-func (p *LinuxKitPublisher) ensureLinuxKitArtifact(release *Release, artifactPath string) error {
+func (p *LinuxKitPublisher) ensureLinuxKitArtifact(release *Release, artifactPath string) core.Result {
 	if release == nil || release.FS == nil {
-		return coreerr.E("linuxkit.Publish", "release filesystem (FS) is nil", nil)
+		return core.Fail(core.E("linuxkit.Publish", "release filesystem (FS) is nil", nil))
 	}
 	if !release.FS.Exists(artifactPath) {
-		return coreerr.E("linuxkit.Publish", "artifact not found after build: "+artifactPath, nil)
+		return core.Fail(core.E("linuxkit.Publish", "artifact not found after build: "+artifactPath, nil))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 func isLinuxKitIsoFormat(format string) bool {
