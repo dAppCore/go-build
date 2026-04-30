@@ -24,6 +24,48 @@ go test ./pkg/build/... -run TestWorkflow_WriteReleaseWorkflow_Good
 go test ./pkg/build/... -run TestApple_
 ```
 
+## Repo Layout
+
+```
+core/go-build/
+├── go/                                ← Go module root (module dappco.re/go/build)
+│   ├── cmd/                           ← CLI entry points
+│   ├── internal/                      ← Go internal packages
+│   ├── pkg/                           ← Go library packages
+│   ├── tests/                         ← Go tests/fixtures
+│   │   └── cli/
+│   ├── go.mod
+│   ├── go.sum
+│   ├── CLAUDE.md                      ← symlink to root CLAUDE.md
+│   ├── README.md                      ← symlink to root README.md
+│   ├── AGENTS.md                      ← symlink to root AGENTS.md
+│   └── docs                           ← symlink to root docs/
+├── docs/                              ← cross-language docs (symlinked into go/)
+├── locales/                           ← locale content
+├── ui/                                ← language-specific UI
+├── README.md
+├── CLAUDE.md
+├── AGENTS.md
+└── ...
+```
+
+Future language siblings are expected at repo root (`php/`, `ts/`, `py/`) while Go stays in `go/`.
+
+## Go Resolution Modes
+
+This repo is intentionally non-workspace: a single Go module under `go/`.
+
+| Mode | When | What runs |
+|------|------|-----------|
+| **Local module mode** | Standard local commands from repo root via `cd go` | Uses `go/ go.mod` and cached dependencies in module mode. |
+| **`GOWORK=off`** | CI and reproducible verification | Uses `go/` module graph directly, without workspace indirection. |
+
+```bash
+cd go
+go mod tidy
+GOWORK=off GOFLAGS=-mod=mod go test -count=1 -short ./...
+```
+
 ## Main Packages
 
 - `pkg/build/`: discovery, config loading, caches, checksums, archives, workflow generation, Apple implementation
