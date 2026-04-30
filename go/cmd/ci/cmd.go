@@ -10,6 +10,6 @@ import (
 // AddCICommands registers the 'ci' command and all subcommands.
 //
 // ci.AddCICommands(root)
-func AddCICommands(c *core.Core) {
-	registerCICommands(c)
+func AddCICommands(c *core.Core) core.Result {
+	return registerCICommands(c)
 }
