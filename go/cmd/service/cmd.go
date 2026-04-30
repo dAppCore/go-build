@@ -29,49 +29,49 @@ type serviceRequest = servicecommon.Request
 
 // AddServiceCommands registers `core service` commands.
 func AddServiceCommands(c *core.Core) {
-	c.Command("service", core.Command{
+	_ = c.Command("service", core.Command{
 		Description: "cmd.service.long",
 		Action: func(opts core.Options) core.Result {
 			return core.Fail(core.E("service", "use a subcommand: install, start, stop, uninstall, export", nil))
 		},
 	})
 
-	c.Command("service/install", core.Command{
+	_ = c.Command("service/install", core.Command{
 		Description: "cmd.service.install.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceInstall(requestFromOptions(opts))
 		},
 	})
 
-	c.Command("service/start", core.Command{
+	_ = c.Command("service/start", core.Command{
 		Description: "cmd.service.start.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceStart(requestFromOptions(opts))
 		},
 	})
 
-	c.Command("service/stop", core.Command{
+	_ = c.Command("service/stop", core.Command{
 		Description: "cmd.service.stop.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceStop(requestFromOptions(opts))
 		},
 	})
 
-	c.Command("service/uninstall", core.Command{
+	_ = c.Command("service/uninstall", core.Command{
 		Description: "cmd.service.uninstall.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceUninstall(requestFromOptions(opts))
 		},
 	})
 
-	c.Command("service/export", core.Command{
+	_ = c.Command("service/export", core.Command{
 		Description: "cmd.service.export.long",
 		Action: func(opts core.Options) core.Result {
 			return runServiceExport(requestFromOptions(opts))
 		},
 	})
 
-	c.Command("service/run", core.Command{
+	_ = c.Command("service/run", core.Command{
 		Description: "cmd.service.run.long",
 		Hidden:      true,
 		Action: func(opts core.Options) core.Result {
@@ -201,8 +201,4 @@ func loadServiceConfig(req serviceRequest) core.Result {
 
 func applyServiceOverrides(cfg *buildservice.Config, req serviceRequest) core.Result {
 	return servicecommon.ApplyOverrides(cfg, req)
-}
-
-func parseCSV(value string) []string {
-	return servicecommon.ParseCSV(value)
 }

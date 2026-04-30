@@ -49,7 +49,7 @@ func TestCli_SetStdout_Ugly(t *core.T) {
 func TestCli_SetStderr_Good(t *core.T) {
 	buffer := core.NewBuffer()
 	SetStderr(buffer)
-	Err("%s", "stderr")
+	_ = Err("%s", "stderr")
 	core.AssertEqual(t, "", buffer.String())
 }
 

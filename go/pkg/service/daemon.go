@@ -8,7 +8,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
-	buildapi "dappco.re/go/build/pkg/api"
 	coreapi "dappco.re/go/build/pkg/api"
 	providerpkg "dappco.re/go/build/pkg/api/provider"
 	"dappco.re/go/build/pkg/build"
@@ -29,11 +28,11 @@ type processDaemon interface {
 	SetReady(ready bool)
 }
 
-var (
-	newHub           = events.NewHub
-	newBuildProvider = func(projectDir string, hub *events.Hub) providerpkg.Provider {
-		return buildapi.NewProvider(projectDir, hub)
-	}
+	var (
+		newHub           = events.NewHub
+		newBuildProvider = func(projectDir string, hub *events.Hub) providerpkg.Provider {
+			return coreapi.NewProvider(projectDir, hub)
+		}
 	newProviderRegistry    = providerpkg.NewRegistry
 	newAPIEngine           = func(opts ...coreapi.Option) core.Result { return coreapi.New(opts...) }
 	newMCPServer           = defaultNewMCPServer

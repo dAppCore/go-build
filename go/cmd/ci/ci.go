@@ -20,7 +20,7 @@ var (
 )
 
 func registerCICommands(c *core.Core) {
-	c.Command("ci", core.Command{
+	_ = c.Command("ci", core.Command{
 		Description: "cmd.ci.long",
 		Action: func(opts core.Options) core.Result {
 			dryRun := !cmdutil.OptionBool(opts, "we-are-go-for-launch")
@@ -34,14 +34,14 @@ func registerCICommands(c *core.Core) {
 		},
 	})
 
-	c.Command("ci/init", core.Command{
+	_ = c.Command("ci/init", core.Command{
 		Description: "cmd.ci.init.long",
 		Action: func(opts core.Options) core.Result {
 			return runCIReleaseInit()
 		},
 	})
 
-	c.Command("ci/changelog", core.Command{
+	_ = c.Command("ci/changelog", core.Command{
 		Description: "cmd.ci.changelog.long",
 		Action: func(opts core.Options) core.Result {
 			return runChangelog(
@@ -52,7 +52,7 @@ func registerCICommands(c *core.Core) {
 		},
 	})
 
-	c.Command("ci/version", core.Command{
+	_ = c.Command("ci/version", core.Command{
 		Description: "cmd.ci.version.long",
 		Action: func(opts core.Options) core.Result {
 			return runCIReleaseVersion(cmdutil.ContextOrBackground())

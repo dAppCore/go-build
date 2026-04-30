@@ -11,9 +11,7 @@ var (
 	stdlibAssertEqual         = testassert.Equal
 	stdlibAssertNil           = testassert.Nil
 	stdlibAssertEmpty         = testassert.Empty
-	stdlibAssertZero          = testassert.Zero
 	stdlibAssertContains      = testassert.Contains
-	stdlibAssertElementsMatch = testassert.ElementsMatch
 )
 
 func requirePublisherOK(t *testing.T, result core.Result) {

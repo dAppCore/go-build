@@ -277,7 +277,7 @@ func (p *HomebrewPublisher) commitToTap(ctx context.Context, tap string, data ho
 		return core.Fail(core.E("homebrew.commitToTap", "failed to create temp directory", core.NewError(tmpDirResult.Error())))
 	}
 	tmpDir := tmpDirResult.Value.(string)
-	defer func() { ax.RemoveAll(tmpDir) }()
+	defer func() { _ = ax.RemoveAll(tmpDir) }()
 
 	// Clone the tap
 	publisherPrint("Cloning tap %s...", tap)

@@ -276,7 +276,7 @@ func (p *GitHubPublisher) materializeArtifacts(release *Release) core.Result {
 		paths = append(paths, localPath)
 	}
 
-	return core.Ok(githubArtifactMaterialization{paths: paths, cleanup: func() { ax.RemoveAll(tempDir) }})
+	return core.Ok(githubArtifactMaterialization{paths: paths, cleanup: func() { _ = ax.RemoveAll(tempDir) }})
 }
 
 func copyArtifactPathToLocal(artifactFS coreio.Medium, sourcePath, destinationPath string) core.Result {
@@ -317,7 +317,7 @@ func copyArtifactFileToLocal(artifactFS coreio.Medium, sourcePath, destinationPa
 		return core.Fail(core.E("github.copyArtifactFileToLocal", "failed to open artifact", core.NewError(fileResult.Error())))
 	}
 	file := fileResult.Value.(core.FsFile)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	content, readFailure := stdio.ReadAll(file)
 	if readFailure != nil {

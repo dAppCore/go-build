@@ -1319,18 +1319,6 @@ func assertLinuxKitArtifactExists(t *testing.T, result linuxKitPublishFixtureRes
 	}
 }
 
-func assertLinuxKitPublishError(t *testing.T, format, linuxKitMode, expected string) {
-	t.Helper()
-
-	result := runLinuxKitPublishFixture(t, []string{format}, linuxKitMode, nil)
-	if result.Err.OK {
-		t.Fatal("expected error")
-	}
-	if !stdlibAssertContains(result.Err.Error(), expected) {
-		t.Fatalf("expected %v to contain %v", result.Err.Error(), expected)
-	}
-}
-
 func readLinuxKitCloudLog(t *testing.T, path string) string {
 	t.Helper()
 

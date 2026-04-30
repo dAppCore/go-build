@@ -22,7 +22,6 @@ var (
 
 var (
 	stdout io.Writer = core.Stdout()
-	stderr io.Writer = core.Stderr()
 )
 
 func SetStdout(w io.Writer) {
@@ -35,10 +34,8 @@ func SetStdout(w io.Writer) {
 
 func SetStderr(w io.Writer) {
 	if w == nil {
-		stderr = core.Stderr()
 		return
 	}
-	stderr = w
 }
 
 func Print(format string, args ...any) {

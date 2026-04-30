@@ -274,7 +274,7 @@ func (p *AURPublisher) pushToAUR(ctx context.Context, data aurTemplateData, pkgb
 		return core.Fail(core.E("aur.pushToAUR", "failed to create temp directory", core.NewError(tmpDirResult.Error())))
 	}
 	tmpDir := tmpDirResult.Value.(string)
-	defer func() { ax.RemoveAll(tmpDir) }()
+	defer func() { _ = ax.RemoveAll(tmpDir) }()
 
 	// Clone existing AUR repo (or initialise new one)
 	publisherPrint("Cloning AUR package %s-bin...", data.PackageName)

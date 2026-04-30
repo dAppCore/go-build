@@ -37,7 +37,7 @@ func AddSDKCommands(c *core.Core) {
 	registerSDKGenerateCommand(c, "sdk")
 	registerSDKGenerateCommand(c, "sdk/generate")
 
-	c.Command("sdk/diff", core.Command{
+	_ = c.Command("sdk/diff", core.Command{
 		Description: "cmd.sdk.diff.long",
 		Action: func(opts core.Options) core.Result {
 			return runSDKDiff(
@@ -48,7 +48,7 @@ func AddSDKCommands(c *core.Core) {
 		},
 	})
 
-	c.Command("sdk/validate", core.Command{
+	_ = c.Command("sdk/validate", core.Command{
 		Description: "cmd.sdk.validate.long",
 		Action: func(opts core.Options) core.Result {
 			return runSDKValidate(
@@ -59,7 +59,7 @@ func AddSDKCommands(c *core.Core) {
 }
 
 func registerSDKGenerateCommand(c *core.Core, path string) {
-	c.Command(path, core.Command{
+	_ = c.Command(path, core.Command{
 		Description: "cmd.sdk.long",
 		Action: func(opts core.Options) core.Result {
 			return runSDKGenerate(

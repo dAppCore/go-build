@@ -56,7 +56,6 @@ const (
 )
 
 var (
-	providerResolveProjectType = resolveProjectType
 	providerGetBuilder         = getBuilder
 	providerDetermineVersion   = release.DetermineVersionWithContext
 	providerLoadReleaseConfig  = release.LoadConfig

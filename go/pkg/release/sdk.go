@@ -201,7 +201,7 @@ func materializeTaggedSDKSpec(ctx context.Context, projectDir, tag, specPath str
 		return core.Fail(core.E("release.materializeTaggedSDKSpec", "failed to write tagged spec", core.NewError(written.Error())))
 	}
 
-	return core.Ok(taggedSDKSpec{path: tempPath, cleanup: func() { ax.RemoveAll(tempDir) }})
+	return core.Ok(taggedSDKSpec{path: tempPath, cleanup: func() { _ = ax.RemoveAll(tempDir) }})
 }
 
 func resolveReleaseSDKConfig(projectDir string, cfg *Config) core.Result {

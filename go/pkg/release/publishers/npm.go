@@ -207,7 +207,7 @@ func (p *NpmPublisher) executePublish(ctx context.Context, m coreio.Medium, data
 		return core.Fail(core.E("npm.Publish", "failed to create temp directory", core.NewError(tmpDirResult.Error())))
 	}
 	tmpDir := tmpDirResult.Value.(string)
-	defer func() { ax.RemoveAll(tmpDir) }()
+	defer func() { _ = ax.RemoveAll(tmpDir) }()
 
 	// Create bin directory
 	binDir := ax.Join(tmpDir, "bin")

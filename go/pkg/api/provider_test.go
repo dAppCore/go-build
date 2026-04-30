@@ -445,7 +445,7 @@ func TestProvider_BuildProviderResolveDirGood(t *testing.T) {
 func TestProvider_BuildProviderResolveDirRelativeGood(t *testing.T) {
 	p := NewProvider(".", nil)
 	dir := requireProviderString(t, p.resolveDir())
-	if !(len(dir) > 1 && dir[0] == '/') {
+	if len(dir) <= 1 || dir[0] != '/' {
 		t.Fatal("expected true")
 	}
 
@@ -513,18 +513,15 @@ func TestProvider_StreamEvents_UsesHubHandlerGood(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 	if err := conn.WriteJSON(events.Message{Type: events.TypeSubscribe, Data: "build.complete"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	{
 		deadline := time.Now().Add(time.Second)
-		for {
-			if (func() bool {
-				return hub.ChannelSubscriberCount("build.complete") == 1
-			})() {
-				break
-			}
+		for hub.ChannelSubscriberCount("build.complete") != 1 {
 			if time.Now().After(deadline) {
 				t.Fatal("condition was not satisfied")
 			}
@@ -1260,7 +1257,7 @@ sign:
 	if stdlibAssertContains(recorder.Body.String(), `"checksum_file"`) {
 		t.Fatalf("expected %v not to contain %v", recorder.Body.String(), `"checksum_file"`)
 	}
-	if !(storage.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider")) || storage.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider.exe"))) {
+	if !storage.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider")) && !storage.Local.Exists(ax.Join(projectDir, "dist", runtime.GOOS+"_"+runtime.GOARCH, "provider.exe")) {
 		t.Fatal("expected true")
 	}
 	if storage.Local.Exists(ax.Join(projectDir, "dist", "CHECKSUMS.txt")) {

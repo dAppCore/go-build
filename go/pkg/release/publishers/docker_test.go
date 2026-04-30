@@ -689,12 +689,11 @@ func TestDocker_DockerPublisherBuildBuildxArgsEdgeCasesGood(t *testing.T) {
 				}
 			}
 		}
-		if !(foundVersionArg ||
-
-			// Note: VERSION is both in BuildArgs and auto-added, so we just check it exists
-			foundAutoVersion) {
-			t.Fatal("VERSION build arg not found")
-		}
+			if !foundVersionArg &&
+				// Note: VERSION is both in BuildArgs and auto-added, so we just check it exists
+				!foundAutoVersion {
+				t.Fatal("VERSION build arg not found")
+			}
 		if !(foundSimpleArg) {
 			t.Fatal("SIMPLE_VER build arg not expanded")
 		}

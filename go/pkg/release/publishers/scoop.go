@@ -238,7 +238,7 @@ func (p *ScoopPublisher) commitToBucket(ctx context.Context, bucket string, data
 		return core.Fail(core.E("scoop.commitToBucket", "failed to create temp directory", core.NewError(tmpDirResult.Error())))
 	}
 	tmpDir := tmpDirResult.Value.(string)
-	defer func() { ax.RemoveAll(tmpDir) }()
+	defer func() { _ = ax.RemoveAll(tmpDir) }()
 
 	publisherPrint("Cloning bucket %s...", bucket)
 	cloned := publisherRun(ctx, "", nil, "gh", "repo", "clone", bucket, tmpDir, "--", "--depth=1")

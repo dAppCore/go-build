@@ -641,9 +641,9 @@ func TestGitHub_ValidateGhCliBad(t *testing.T) {
 		// the function signature works correctly
 		err := validateGhCli(context.Background())
 		if !err.OK {
-			if !(core.
+			if !core.Contains(err.Error(), "gh CLI not found") &&
 				// Either gh is not installed or not authenticated
-				Contains(err.Error(), "gh CLI not found") || core.Contains(err.Error(), "not authenticated")) {
+				!core.Contains(err.Error(), "not authenticated") {
 				t.Fatalf("unexpected error: %s", err.Error())
 			}
 
