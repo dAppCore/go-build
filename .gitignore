@@ -31,3 +31,9 @@ dist/
 *.test
 coverage.out
 *.coverprofile
+.lintdeps/
+.scannerwork/
+node_modules.bak/
+coverage/
+htmlcov/
+.coverage
