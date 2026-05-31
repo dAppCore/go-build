@@ -131,6 +131,26 @@ func TestTypeScript_CopyPath_Bad(t *core.T) {
 	core.AssertTrue(t, core.Contains(result.Error(), "failed to stat source path"))
 }
 
+func TestTypeScript_ResolveNativeCli_Fallback_Ugly(t *core.T) {
+	// openapi-typescript-codegen is not a PATH-installed tool in CI, so the
+	// fallback path is deterministically taken. (npx is intentionally not
+	// tested this way: it is commonly present on PATH and would resolve there
+	// rather than via the fabricated fallback.)
+	g := NewTypeScriptGenerator()
+	fallback := ax.Join(t.TempDir(), "openapi-typescript-codegen")
+	core.AssertTrue(t, ax.WriteString(fallback, "#!/bin/sh\n", 0o755).OK)
+	resolved := g.resolveNativeCli("/no/such/tool", fallback)
+	core.AssertTrue(t, resolved.OK)
+	core.AssertEqual(t, fallback, resolved.Value.(string))
+}
+
+func TestTypeScript_ResolveNativeCli_AllMissing_Bad(t *core.T) {
+	g := NewTypeScriptGenerator()
+	resolved := g.resolveNativeCli("/no/such/tool-a", "/no/such/tool-b")
+	core.AssertFalse(t, resolved.OK)
+	core.AssertTrue(t, core.Contains(resolved.Error(), "openapi-typescript-codegen not found"))
+}
+
 func TestGenerator_LanguagesIter_EarlyBreak_Ugly(t *core.T) {
 	registry := NewRegistry()
 	registry.Register(NewGoGenerator())
