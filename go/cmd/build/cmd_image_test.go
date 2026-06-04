@@ -356,30 +356,74 @@ func TestBuildCmd_publishOCIImageArchive_Good(t *testing.T) {
 
 }
 
-// --- v0.9.0 generated compliance triplets ---
+// --- AddImageCommand (meaningful) ---
+
 func TestCmdImage_AddImageCommand_Good(t *core.T) {
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddImageCommand(core.New())
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+	c := core.New()
+	result := AddImageCommand(c)
+	core.AssertTrue(t, result.OK)
+	registered := c.Command("build/image")
+	core.AssertTrue(t, registered.OK)
+	core.AssertNotNil(t, registered.Value.(*core.Command).Action)
 }
 
 func TestCmdImage_AddImageCommand_Bad(t *core.T) {
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddImageCommand(core.New())
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+	c := core.New()
+	core.AssertTrue(t, AddImageCommand(c).OK)
+	result := AddImageCommand(c)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "already registered")
 }
 
 func TestCmdImage_AddImageCommand_Ugly(t *core.T) {
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddImageCommand(core.New())
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+	// Edge case: build/image coexists with an unrelated pre-registered command.
+	c := core.New()
+	core.AssertTrue(t, c.Command("build/other", core.Command{
+		Action: func(core.Options) core.Result { return core.Ok(nil) },
+	}).OK)
+	core.AssertTrue(t, AddImageCommand(c).OK)
+	core.AssertTrue(t, c.Command("build/image").OK)
+}
+
+// TestCmdImage_AddImageCommand_ListActionWired drives the registered build/image
+// action with --list, which enumerates the available LinuxKit base images
+// without invoking docker/linuxkit. This covers the action closure and the list
+// branch deterministically.
+func TestCmdImage_AddImageCommand_ListActionWired(t *core.T) {
+	c := core.New()
+	core.AssertTrue(t, AddImageCommand(c).OK)
+	buf := captureBuildStdout(t)
+
+	result := c.Command("build/image").Value.(*core.Command).Run(core.NewOptions(
+		core.Option{Key: "list", Value: true},
+	))
+	core.AssertTrue(t, result.OK)
+	core.AssertContains(t, buf.String(), "immutable LinuxKit")
+}
+
+// --- resolveImageBase (cmd_image.go) ---
+
+func TestCmdImage_resolveImageBase_Good(t *core.T) {
+	// The explicit `base` option takes priority.
+	out := resolveImageBase(core.NewOptions(
+		core.Option{Key: "base", Value: "core-minimal"},
+		core.Option{Key: "_arg", Value: "ignored"},
+	))
+	core.AssertEqual(t, "core-minimal", out)
+}
+
+func TestCmdImage_resolveImageBase_Bad(t *core.T) {
+	// With no base/name and no positional arg, the result is empty.
+	core.AssertEqual(t, "", resolveImageBase(core.NewOptions()))
+}
+
+func TestCmdImage_resolveImageBase_Ugly(t *core.T) {
+	// Edge case: the positional `_arg` is used as a fallback when no named base
+	// is given; and the `name` alias is honoured for the named form.
+	core.AssertEqual(t, "from-arg", resolveImageBase(core.NewOptions(
+		core.Option{Key: "_arg", Value: "from-arg"},
+	)))
+	core.AssertEqual(t, "from-name", resolveImageBase(core.NewOptions(
+		core.Option{Key: "name", Value: "from-name"},
+	)))
 }

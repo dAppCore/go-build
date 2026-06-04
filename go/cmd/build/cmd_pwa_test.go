@@ -6,8 +6,82 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 )
+
+// --- joinPWAURLPath (cmd_pwa.go) ---
+
+func TestPwa_joinPWAURLPath_Good(t *core.T) {
+	core.AssertEqual(t, "a/b/c", joinPWAURLPath("a", "b", "c"))
+}
+
+func TestPwa_joinPWAURLPath_Bad(t *core.T) {
+	// No parts joins to an empty string which cleans to "." (current dir),
+	// not a usable URL path — the degenerate case callers must avoid.
+	core.AssertEqual(t, ".", joinPWAURLPath())
+}
+
+func TestPwa_joinPWAURLPath_Ugly(t *core.T) {
+	// Edge case: leading/trailing slashes in the parts are normalised away.
+	core.AssertEqual(t, "/a/b", joinPWAURLPath("/a/", "/b/"))
+}
+
+// --- copyDir (cmd_pwa.go) ---
+
+func TestPwa_copyDir_Good(t *core.T) {
+	src := t.TempDir()
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(src, "a.txt"), []byte("A"), 0o644))
+	requireBuildCmdOK(t, ax.MkdirAll(ax.Join(src, "sub"), 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(src, "sub", "b.txt"), []byte("B"), 0o644))
+
+	dst := ax.Join(t.TempDir(), "out")
+	result := copyDir(src, dst)
+	core.AssertTrue(t, result.OK)
+	// Files and nested directories are copied recursively.
+	core.AssertTrue(t, ax.Exists(ax.Join(dst, "a.txt")))
+	core.AssertTrue(t, ax.Exists(ax.Join(dst, "sub", "b.txt")))
+	copied := requireBuildCmdBytes(t, ax.ReadFile(ax.Join(dst, "sub", "b.txt")))
+	core.AssertEqual(t, "B", string(copied))
+}
+
+func TestPwa_copyDir_Bad(t *core.T) {
+	// A non-existent source directory fails when its entries cannot be read.
+	result := copyDir(ax.Join(t.TempDir(), "does-not-exist"), ax.Join(t.TempDir(), "out"))
+	core.AssertFalse(t, result.OK)
+}
+
+func TestPwa_copyDir_Ugly(t *core.T) {
+	// Edge case: an empty source directory copies to an empty destination,
+	// creating the destination directory.
+	src := t.TempDir()
+	dst := ax.Join(t.TempDir(), "empty-out")
+	result := copyDir(src, dst)
+	core.AssertTrue(t, result.OK)
+	core.AssertTrue(t, ax.IsDir(dst))
+}
+
+// --- runBuild / runPwaBuild error paths (cmd_pwa.go) ---
+//
+// The success paths shell `go mod tidy` and `go build` after template
+// extraction (and, for runPwaBuild, a network download). Those external/network
+// steps are not exercised here; the deterministic validation/error branches are.
+
+func TestPwa_runBuild_Bad(t *core.T) {
+	captureBuildStdout(t)
+	// A path that is not a directory is rejected before any compilation.
+	result := runBuild(context.Background(), ax.Join(t.TempDir(), "not-a-directory"))
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "must be a directory")
+}
+
+func TestPwa_runPwaBuild_Bad(t *core.T) {
+	captureBuildStdout(t)
+	// An unreachable/invalid URL fails the download step before any build.
+	result := runPwaBuild(context.Background(), "http://127.0.0.1:1/does-not-exist")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "failed to download PWA")
+}
 
 func TestPwa_FindManifestURLGood(t *testing.T) {
 	t.Run("accepts a standard manifest link", func(t *testing.T) {
@@ -183,4 +257,41 @@ func TestPwa_ResolvePWAAppConfig_UsesLocalMetadataGood(t *testing.T) {
 		t.Fatalf("want %v, got %v", "Manifest description", cfg.Description)
 	}
 
+}
+
+// --- resolvePWAAppConfig fallbacks (cmd_pwa.go) ---
+
+func TestPwa_resolvePWAAppConfig_Good(t *core.T) {
+	// A directory with no index.html falls back to the directory base name for
+	// the display name and a slugified module name.
+	dir := ax.Join(t.TempDir(), "MyCoolApp")
+	requireBuildCmdOK(t, ax.MkdirAll(dir, 0o755))
+
+	cfg := resolvePWAAppConfig(dir)
+	core.AssertEqual(t, "MyCoolApp", cfg.DisplayName)
+	core.AssertEqual(t, "mycoolapp", cfg.ModuleName)
+	core.AssertNotEmpty(t, cfg.Description)
+}
+
+func TestPwa_resolvePWAAppConfig_Bad(t *core.T) {
+	// A temp-build directory name is masked to a generic "PWA App" rather than
+	// leaking the scratch directory name.
+	dir := ax.Join(t.TempDir(), "core-pwa-build-123456")
+	requireBuildCmdOK(t, ax.MkdirAll(dir, 0o755))
+
+	cfg := resolvePWAAppConfig(dir)
+	core.AssertEqual(t, "PWA App", cfg.DisplayName)
+	core.AssertEqual(t, "pwa-app", cfg.ModuleName)
+}
+
+func TestPwa_resolvePWAAppConfig_Ugly(t *core.T) {
+	// Edge case: local index.html metadata takes precedence over the directory
+	// name for both display name and module slug.
+	dir := t.TempDir()
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(dir, "index.html"),
+		[]byte(`<html><head><title>Stardust Console</title></head></html>`), 0o644))
+
+	cfg := resolvePWAAppConfig(dir)
+	core.AssertEqual(t, "Stardust Console", cfg.DisplayName)
+	core.AssertEqual(t, "stardust-console", cfg.ModuleName)
 }

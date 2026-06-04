@@ -249,30 +249,158 @@ func TestBuildCmd_runRelease_CIModeEmitsGitHubAnnotationOnError_Bad(t *testing.T
 
 }
 
-// --- v0.9.0 generated compliance triplets ---
-func TestCmdRelease_AddReleaseCommand_Good(t *core.T) {
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddReleaseCommand(core.New())
-		goodCalls++
+// restoreReleaseStubs snapshots and restores the release command seams.
+func restoreReleaseStubs(t *core.T) {
+	t.Helper()
+	g, ce, lc, fr, sr := getReleaseWorkingDir, releaseConfigExistsFn, loadReleaseConfigFn, runFullReleaseFn, runSDKReleaseFn
+	t.Cleanup(func() {
+		getReleaseWorkingDir = g
+		releaseConfigExistsFn = ce
+		loadReleaseConfigFn = lc
+		runFullReleaseFn = fr
+		runSDKReleaseFn = sr
 	})
-	core.AssertEqual(t, 1, goodCalls)
+}
+
+// --- AddReleaseCommand (meaningful) ---
+
+func TestCmdRelease_AddReleaseCommand_Good(t *core.T) {
+	c := core.New()
+	result := AddReleaseCommand(c)
+	core.AssertTrue(t, result.OK)
+	core.AssertTrue(t, c.Command("build/release").OK)
+	core.AssertTrue(t, c.Command("release").OK)
+	core.AssertNotNil(t, c.Command("release").Value.(*core.Command).Action)
 }
 
 func TestCmdRelease_AddReleaseCommand_Bad(t *core.T) {
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddReleaseCommand(core.New())
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+	// The top-level `release` alias is pre-occupied -> registration aborts at
+	// the second step after `build/release` registers.
+	c := core.New()
+	core.AssertTrue(t, c.Command("release", core.Command{
+		Action: func(core.Options) core.Result { return core.Ok(nil) },
+	}).OK)
+	result := AddReleaseCommand(c)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "already registered")
 }
 
 func TestCmdRelease_AddReleaseCommand_Ugly(t *core.T) {
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddReleaseCommand(core.New())
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+	// Edge case: `build/release` pre-occupied -> the very first registration
+	// step fails and the `release` alias is never reached.
+	c := core.New()
+	core.AssertTrue(t, c.Command("build/release", core.Command{
+		Action: func(core.Options) core.Result { return core.Ok(nil) },
+	}).OK)
+	result := AddReleaseCommand(c)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "build/release")
+	core.AssertFalse(t, c.Command("release").OK)
+}
+
+// TestCmdRelease_registerReleaseCommand_ActionWired drives the registered
+// release action (and thus runRelease) via the command surface. The test
+// working directory has no release config, so it fails fast with a config error.
+func TestCmdRelease_registerReleaseCommand_ActionWired(t *core.T) {
+	c := core.New()
+	core.AssertTrue(t, AddReleaseCommand(c).OK)
+	captureBuildStdout(t)
+
+	result := c.Command("release").Value.(*core.Command).Run(core.NewOptions(
+		core.Option{Key: "target", Value: "bogus-target"},
+	))
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "config not found")
+}
+
+// --- runRelease: remaining branches ---
+
+func TestCmdRelease_runRelease_FullReleaseGood(t *core.T) {
+	restoreReleaseStubs(t)
+	projectDir := t.TempDir()
+	getReleaseWorkingDir = func() core.Result { return core.Ok(projectDir) }
+	releaseConfigExistsFn = func(string) bool { return true }
+	loadReleaseConfigFn = func(dir string) core.Result {
+		cfg := release.DefaultConfig()
+		cfg.SetProjectDir(dir)
+		return core.Ok(cfg)
+	}
+	ran := false
+	runFullReleaseFn = func(ctx context.Context, cfg *release.Config, dryRun bool) core.Result {
+		ran = true
+		core.AssertTrue(t, dryRun)
+		return core.Ok(&release.Release{Version: "v2.0.0", Artifacts: nil})
+	}
+	buf := captureBuildStdout(t)
+
+	result := runRelease(context.Background(), true, false, "release", "", false, false, "")
+	core.AssertTrue(t, result.OK)
+	core.AssertTrue(t, ran)
+	out := buf.String()
+	core.AssertContains(t, out, "Release completed")
+	core.AssertContains(t, out, "v2.0.0")
+}
+
+func TestCmdRelease_runRelease_UnsupportedTargetBad(t *core.T) {
+	restoreReleaseStubs(t)
+	projectDir := t.TempDir()
+	getReleaseWorkingDir = func() core.Result { return core.Ok(projectDir) }
+	releaseConfigExistsFn = func(string) bool { return true }
+	loadReleaseConfigFn = func(dir string) core.Result {
+		cfg := release.DefaultConfig()
+		cfg.SetProjectDir(dir)
+		return core.Ok(cfg)
+	}
+	captureBuildStdout(t)
+
+	result := runRelease(context.Background(), true, false, "bogus-target", "", false, false, "")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "unsupported release target: bogus-target")
+}
+
+func TestCmdRelease_runRelease_LoadConfigErrorUgly(t *core.T) {
+	// Edge case: config exists but fails to load -> wrapped load error.
+	restoreReleaseStubs(t)
+	getReleaseWorkingDir = func() core.Result { return core.Ok(t.TempDir()) }
+	releaseConfigExistsFn = func(string) bool { return true }
+	loadReleaseConfigFn = func(string) core.Result { return core.Fail(core.NewError("corrupt-config")) }
+	captureBuildStdout(t)
+
+	result := runRelease(context.Background(), true, false, "release", "", false, false, "")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "corrupt-config")
+}
+
+// TestCmdRelease_runRelease_GetwdError covers the working-directory failure
+// branch before any config work.
+func TestCmdRelease_runRelease_GetwdError(t *core.T) {
+	restoreReleaseStubs(t)
+	getReleaseWorkingDir = func() core.Result { return core.Fail(core.NewError("no-cwd")) }
+	resolveCalled := false
+	releaseConfigExistsFn = func(string) bool { resolveCalled = true; return true }
+
+	result := runRelease(context.Background(), true, false, "release", "", false, false, "")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "get working directory")
+	core.AssertFalse(t, resolveCalled)
+}
+
+// TestCmdRelease_runRelease_FullReleaseError surfaces a failing release run.
+func TestCmdRelease_runRelease_FullReleaseError(t *core.T) {
+	restoreReleaseStubs(t)
+	getReleaseWorkingDir = func() core.Result { return core.Ok(t.TempDir()) }
+	releaseConfigExistsFn = func(string) bool { return true }
+	loadReleaseConfigFn = func(dir string) core.Result {
+		cfg := release.DefaultConfig()
+		cfg.SetProjectDir(dir)
+		return core.Ok(cfg)
+	}
+	runFullReleaseFn = func(context.Context, *release.Config, bool) core.Result {
+		return core.Fail(core.NewError("publish-failed"))
+	}
+	captureBuildStdout(t)
+
+	result := runRelease(context.Background(), false, false, "release", "", false, false, "")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "publish-failed")
 }

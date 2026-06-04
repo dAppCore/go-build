@@ -9,7 +9,69 @@ import (
 	"dappco.re/go/build/internal/testassert"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/signing"
+	storage "dappco.re/go/build/pkg/storage"
 )
+
+// --- loadAppleBuildConfig (cmd_apple.go) ---
+
+func TestCmdApple_loadAppleBuildConfig_Good(t *core.T) {
+	// With no explicit config path, the project's .core/build.yaml is loaded.
+	projectDir := t.TempDir()
+	requireBuildCmdOK(t, ax.MkdirAll(ax.Join(projectDir, ".core"), 0o755))
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, ".core", "build.yaml"), []byte(`version: 1
+project:
+  name: Demo
+  binary: demo
+`), 0o644))
+
+	result := loadAppleBuildConfig(storage.Local, projectDir, "")
+	core.AssertTrue(t, result.OK)
+	cfg := result.Value.(*build.BuildConfig)
+	core.AssertEqual(t, "demo", cfg.Project.Binary)
+}
+
+func TestCmdApple_loadAppleBuildConfig_Bad(t *core.T) {
+	// An explicit but non-existent config path is reported as not found.
+	projectDir := t.TempDir()
+	result := loadAppleBuildConfig(storage.Local, projectDir, "missing.yaml")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "build config not found")
+}
+
+func TestCmdApple_loadAppleBuildConfig_Ugly(t *core.T) {
+	// Edge case: an explicit (relative) config path that exists is loaded from
+	// the project directory.
+	projectDir := t.TempDir()
+	requireBuildCmdOK(t, ax.WriteFile(ax.Join(projectDir, "custom.yaml"), []byte(`version: 1
+project:
+  name: Custom
+  binary: custom
+`), 0o644))
+
+	result := loadAppleBuildConfig(storage.Local, projectDir, "custom.yaml")
+	core.AssertTrue(t, result.OK)
+	cfg := result.Value.(*build.BuildConfig)
+	core.AssertEqual(t, "custom", cfg.Project.Binary)
+}
+
+// --- validateAppleBuildNumber (cmd_apple.go) ---
+
+func TestCmdApple_validateAppleBuildNumber_Good(t *core.T) {
+	core.AssertTrue(t, validateAppleBuildNumber("42").OK)
+}
+
+func TestCmdApple_validateAppleBuildNumber_Bad(t *core.T) {
+	// Non-numeric build numbers are rejected.
+	result := validateAppleBuildNumber("1.2.3")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "positive integer")
+}
+
+func TestCmdApple_validateAppleBuildNumber_Ugly(t *core.T) {
+	// Edge case: an empty string and a value with whitespace are both invalid.
+	core.AssertFalse(t, validateAppleBuildNumber("").OK)
+	core.AssertFalse(t, validateAppleBuildNumber("12 ").OK)
+}
 
 func TestBuildCmd_resolveAppleCommandOptions_Good(t *testing.T) {
 	cfg := &build.BuildConfig{
@@ -339,30 +401,51 @@ var (
 	stdlibAssertElementsMatch = testassert.ElementsMatch
 )
 
-// --- v0.9.0 generated compliance triplets ---
+// --- AddAppleCommand (meaningful) ---
+
 func TestCmdApple_AddAppleCommand_Good(t *core.T) {
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddAppleCommand(core.New())
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+	c := core.New()
+	result := AddAppleCommand(c)
+	core.AssertTrue(t, result.OK)
+	registered := c.Command("build/apple")
+	core.AssertTrue(t, registered.OK)
+	cmd := registered.Value.(*core.Command)
+	core.AssertEqual(t, "cmd.build.apple.long", cmd.Description)
+	core.AssertNotNil(t, cmd.Action)
 }
 
 func TestCmdApple_AddAppleCommand_Bad(t *core.T) {
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddAppleCommand(core.New())
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+	// Re-registering the same executable command path is rejected.
+	c := core.New()
+	core.AssertTrue(t, AddAppleCommand(c).OK)
+	result := AddAppleCommand(c)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "already registered")
 }
 
 func TestCmdApple_AddAppleCommand_Ugly(t *core.T) {
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddAppleCommand(core.New())
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+	// Edge case: build/apple coexists with an unrelated pre-registered command.
+	c := core.New()
+	core.AssertTrue(t, c.Command("build/other", core.Command{
+		Action: func(core.Options) core.Result { return core.Ok(nil) },
+	}).OK)
+	core.AssertTrue(t, AddAppleCommand(c).OK)
+	core.AssertTrue(t, c.Command("build/apple").OK)
+	core.AssertTrue(t, c.Command("build/other").OK)
+}
+
+// TestCmdApple_AddAppleCommand_ActionWired drives the registered build/apple
+// action (and thus runAppleBuild) through to the BuildApple call. The test
+// working directory has no Apple configuration, so the build fails fast with a
+// configuration error rather than invoking the macOS toolchain.
+func TestCmdApple_AddAppleCommand_ActionWired(t *core.T) {
+	c := core.New()
+	core.AssertTrue(t, AddAppleCommand(c).OK)
+	captureBuildStdout(t)
+
+	result := c.Command("build/apple").Value.(*core.Command).Run(core.NewOptions(
+		core.Option{Key: "version", Value: "v1.0.0"},
+	))
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "bundle_id is required")
 }

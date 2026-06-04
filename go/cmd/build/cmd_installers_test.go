@@ -206,30 +206,94 @@ func TestBuild_GenerateInstallerWrappersGood(t *testing.T) {
 
 }
 
-// --- v0.9.0 generated compliance triplets ---
+// --- AddInstallersCommand (meaningful) ---
+
 func TestCmdInstallers_AddInstallersCommand_Good(t *core.T) {
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddInstallersCommand(core.New())
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+	c := core.New()
+	result := AddInstallersCommand(c)
+	core.AssertTrue(t, result.OK)
+	registered := c.Command("build/installers")
+	core.AssertTrue(t, registered.OK)
+	core.AssertNotNil(t, registered.Value.(*core.Command).Action)
 }
 
 func TestCmdInstallers_AddInstallersCommand_Bad(t *core.T) {
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddInstallersCommand(core.New())
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+	c := core.New()
+	core.AssertTrue(t, AddInstallersCommand(c).OK)
+	result := AddInstallersCommand(c)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "already registered")
 }
 
 func TestCmdInstallers_AddInstallersCommand_Ugly(t *core.T) {
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddInstallersCommand(core.New())
-		uglyCalls++
+	// Edge case: build/installers coexists with an unrelated pre-registered cmd.
+	c := core.New()
+	core.AssertTrue(t, c.Command("build/other", core.Command{
+		Action: func(core.Options) core.Result { return core.Ok(nil) },
+	}).OK)
+	core.AssertTrue(t, AddInstallersCommand(c).OK)
+	core.AssertTrue(t, c.Command("build/installers").OK)
+}
+
+// --- runBuildInstallers (working-directory wrapper) ---
+
+func TestCmdInstallers_runBuildInstallers_Good(t *core.T) {
+	originalGetwd := getInstallersWorkingDir
+	t.Cleanup(func() { getInstallersWorkingDir = originalGetwd })
+
+	projectDir := t.TempDir()
+	requireBuildCmdOK(t, storage.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	requireBuildCmdOK(t, storage.Local.Write(ax.Join(projectDir, ".core", "build.yaml"), `version: 1
+project:
+  binary: corex
+`))
+	requireBuildCmdOK(t, storage.Local.Write(ax.Join(projectDir, ".core", "release.yaml"), `version: 1
+project:
+  repository: dappcore/core
+`))
+	getInstallersWorkingDir = func() core.Result { return core.Ok(projectDir) }
+	captureBuildStdout(t)
+
+	result := runBuildInstallers(BuildInstallersRequest{Context: context.Background(), Version: "v1.2.3"})
+	core.AssertTrue(t, result.OK)
+	// The wrapper resolved cwd and generated the installer scripts on disk.
+	requireBuildCmdOK(t, ax.Stat(ax.Join(projectDir, "dist", "installers", "setup.sh")))
+}
+
+func TestCmdInstallers_runBuildInstallers_Bad(t *core.T) {
+	// Working-directory failure short-circuits before any generation.
+	originalGetwd := getInstallersWorkingDir
+	t.Cleanup(func() { getInstallersWorkingDir = originalGetwd })
+	getInstallersWorkingDir = func() core.Result { return core.Fail(core.NewError("no-cwd")) }
+
+	result := runBuildInstallers(BuildInstallersRequest{Context: context.Background()})
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "failed to get working directory")
+}
+
+func TestCmdInstallers_runBuildInstallers_Ugly(t *core.T) {
+	// Edge case: an unknown installer variant is rejected by the InDir layer the
+	// wrapper delegates to.
+	originalGetwd := getInstallersWorkingDir
+	t.Cleanup(func() { getInstallersWorkingDir = originalGetwd })
+
+	projectDir := t.TempDir()
+	requireBuildCmdOK(t, storage.Local.EnsureDir(ax.Join(projectDir, ".core")))
+	requireBuildCmdOK(t, storage.Local.Write(ax.Join(projectDir, ".core", "build.yaml"), `version: 1
+project:
+  binary: corex
+`))
+	requireBuildCmdOK(t, storage.Local.Write(ax.Join(projectDir, ".core", "release.yaml"), `version: 1
+project:
+  repository: dappcore/core
+`))
+	getInstallersWorkingDir = func() core.Result { return core.Ok(projectDir) }
+	captureBuildStdout(t)
+
+	result := runBuildInstallers(BuildInstallersRequest{
+		Context: context.Background(),
+		Variant: "does-not-exist",
+		Version: "v1.2.3",
 	})
-	core.AssertEqual(t, 1, uglyCalls)
+	core.AssertFalse(t, result.OK)
 }

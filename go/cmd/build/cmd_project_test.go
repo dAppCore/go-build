@@ -962,3 +962,38 @@ func TestBuildCmd_runProjectBuild_NoConfigGoArchiveRequestUsesPipeline_Good(t *t
 	requireBuildCmdOK(t, ax.Stat(ax.Join(projectDir, "dist", buildName+"_linux_amd64.tar.gz")))
 
 }
+
+// --- formatTargets / formatProjectTypes (cmd_project.go) ---
+
+func TestCmdProject_formatTargets_Good(t *core.T) {
+	out := formatTargets([]build.Target{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "darwin", Arch: "arm64"},
+	})
+	core.AssertEqual(t, "linux/amd64, darwin/arm64", out)
+}
+
+func TestCmdProject_formatTargets_Bad(t *core.T) {
+	// An empty target slice renders an empty string (no separators).
+	core.AssertEqual(t, "", formatTargets(nil))
+}
+
+func TestCmdProject_formatTargets_Ugly(t *core.T) {
+	// Edge case: a single target has no trailing separator.
+	core.AssertEqual(t, "windows/arm64", formatTargets([]build.Target{{OS: "windows", Arch: "arm64"}}))
+}
+
+func TestCmdProject_formatProjectTypes_Good(t *core.T) {
+	out := formatProjectTypes([]build.ProjectType{build.ProjectTypeGo, build.ProjectTypeNode, build.ProjectTypePHP})
+	core.AssertEqual(t, "go, node, php", out)
+}
+
+func TestCmdProject_formatProjectTypes_Bad(t *core.T) {
+	// An empty slice short-circuits to an empty string.
+	core.AssertEqual(t, "", formatProjectTypes(nil))
+}
+
+func TestCmdProject_formatProjectTypes_Ugly(t *core.T) {
+	// Edge case: a single project type renders without a separator.
+	core.AssertEqual(t, "rust", formatProjectTypes([]build.ProjectType{build.ProjectTypeRust}))
+}

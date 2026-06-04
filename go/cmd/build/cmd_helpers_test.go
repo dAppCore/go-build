@@ -4,8 +4,24 @@ import (
 	"testing"
 
 	"dappco.re/go"
+	"dappco.re/go/build/internal/cli"
 	"dappco.re/go/build/pkg/build"
 )
+
+// captureBuildStdout redirects cli output into a buffer for the test duration so
+// assertions can inspect rendered CLI output instead of leaking it into the test
+// log. The original writers are restored on cleanup.
+func captureBuildStdout(t testing.TB) *core.Buffer {
+	t.Helper()
+	buf := core.NewBuffer()
+	cli.SetStdout(buf)
+	cli.SetStderr(buf)
+	t.Cleanup(func() {
+		cli.SetStdout(nil)
+		cli.SetStderr(nil)
+	})
+	return buf
+}
 
 func requireBuildCmdOK(t testing.TB, result core.Result) {
 	t.Helper()

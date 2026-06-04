@@ -315,30 +315,71 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 	})
 }
 
-// --- v0.9.0 generated compliance triplets ---
+// --- AddWorkflowCommand (meaningful) ---
+
 func TestCmdWorkflow_AddWorkflowCommand_Good(t *core.T) {
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddWorkflowCommand(core.New())
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+	c := core.New()
+	result := AddWorkflowCommand(c)
+	core.AssertTrue(t, result.OK)
+	registered := c.Command("build/workflow")
+	core.AssertTrue(t, registered.OK)
+	cmd := registered.Value.(*core.Command)
+	core.AssertEqual(t, "cmd.build.workflow.long", cmd.Description)
+	core.AssertNotNil(t, cmd.Action)
 }
 
 func TestCmdWorkflow_AddWorkflowCommand_Bad(t *core.T) {
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddWorkflowCommand(core.New())
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+	// Re-registering the same executable path is rejected.
+	c := core.New()
+	core.AssertTrue(t, AddWorkflowCommand(c).OK)
+	result := AddWorkflowCommand(c)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "already registered")
 }
 
 func TestCmdWorkflow_AddWorkflowCommand_Ugly(t *core.T) {
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		AddWorkflowCommand(core.New())
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+	// Edge case: an invalid (empty) command path can never be registered; the
+	// build/workflow path coexists with an unrelated pre-registered command.
+	c := core.New()
+	core.AssertTrue(t, c.Command("build/other", core.Command{
+		Action: func(core.Options) core.Result { return core.Ok(nil) },
+	}).OK)
+	core.AssertTrue(t, AddWorkflowCommand(c).OK)
+	core.AssertTrue(t, c.Command("build/workflow").OK)
+	core.AssertTrue(t, c.Command("build/other").OK)
+}
+
+// --- resolveReleaseWorkflowTargetPath (cmd_workflow.go) ---
+
+func TestCmdWorkflow_resolveReleaseWorkflowTargetPath_Good(t *core.T) {
+	dir := t.TempDir()
+	inputs := releaseWorkflowRequestInputs{pathInput: "ci/release.yml"}
+	result := inputs.resolveReleaseWorkflowTargetPath(dir, storage.Local)
+	core.AssertTrue(t, result.OK)
+	core.AssertEqual(t, core.PathJoin(dir, "ci/release.yml"), result.Value.(string))
+}
+
+func TestCmdWorkflow_resolveReleaseWorkflowTargetPath_Bad(t *core.T) {
+	// Conflicting workflow path aliases (different locations) are rejected.
+	dir := t.TempDir()
+	inputs := releaseWorkflowRequestInputs{
+		pathInput:         "ci/a.yml",
+		workflowPathInput: "ci/b.yml",
+	}
+	result := inputs.resolveReleaseWorkflowTargetPath(dir, storage.Local)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "workflow path aliases specify different locations")
+}
+
+func TestCmdWorkflow_resolveReleaseWorkflowTargetPath_Ugly(t *core.T) {
+	// Edge case: conflicting workflow OUTPUT aliases are rejected at the output
+	// resolution step (distinct from the input-path conflict).
+	dir := t.TempDir()
+	inputs := releaseWorkflowRequestInputs{
+		outputPathInput:         "ci/out-a.yml",
+		workflowOutputPathInput: "ci/out-b.yml",
+	}
+	result := inputs.resolveReleaseWorkflowTargetPath(dir, storage.Local)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "workflow output aliases specify different locations")
 }
