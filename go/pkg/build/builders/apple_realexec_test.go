@@ -56,3 +56,54 @@ func TestApple_NewAppleBuilder_DefaultRunnerNonNil(t *core.T) {
 	b := NewAppleBuilder(WithAppleHostOS("linux")) // linux => safe, no execution
 	core.AssertNotNil(t, b.runner)
 }
+
+// containsArg reports whether want appears among args.
+func containsArg(args []string, want string) bool {
+	for _, arg := range args {
+		if arg == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestApple_CreateDMG_ConstructsHdiutilSequence(t *core.T) {
+	rec := newRecordingAppleRunner()
+	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
+	fs := coreio.NewMemoryMedium()
+	fs.EnsureDir("/a/Core.app")
+	r := b.CreateDMG(context.Background(), fs, "/a/Core.app", AppleDMGConfig{OutputPath: "/dist/Core.dmg", VolumeName: "Core"})
+	core.AssertTrue(t, r.OK)
+	core.AssertLen(t, rec.calls, 4)
+	core.AssertEqual(t, "hdiutil", rec.calls[0].Command)
+	core.AssertEqual(t, "create", rec.calls[0].Args[0])
+	core.AssertEqual(t, "attach", rec.calls[1].Args[0])
+	core.AssertEqual(t, "detach", rec.calls[2].Args[0])
+	core.AssertEqual(t, "convert", rec.calls[3].Args[0])
+	core.AssertTrue(t, containsArg(rec.calls[3].Args, "/dist/Core.dmg")) // convert targets the real output
+}
+
+func TestApple_CreateDMG_NoPlaceholderOnDarwin(t *core.T) {
+	rec := newRecordingAppleRunner()
+	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
+	fs := coreio.NewMemoryMedium()
+	fs.EnsureDir("/a/Core.app")
+	r := b.CreateDMG(context.Background(), fs, "/a/Core.app", AppleDMGConfig{OutputPath: "/dist/Core.dmg", VolumeName: "Core"})
+	core.AssertTrue(t, r.OK)
+	read := fs.Read("/dist/Core.dmg")
+	if read.OK {
+		// hdiutil convert is the artifact on darwin; a skeleton marker would mean we clobbered it.
+		core.AssertFalse(t, core.Contains(read.Value.(string), "AppleBuilder DMG skeleton"))
+	}
+}
+
+func TestApple_CreateDMG_WritesPlaceholderOffDarwin(t *core.T) {
+	b := NewAppleBuilder(WithAppleHostOS("linux"))
+	fs := coreio.NewMemoryMedium()
+	fs.EnsureDir("/a/Core.app")
+	r := b.CreateDMG(context.Background(), fs, "/a/Core.app", AppleDMGConfig{OutputPath: "/dist/Core.dmg", VolumeName: "Core"})
+	core.AssertTrue(t, r.OK)
+	read := fs.Read("/dist/Core.dmg")
+	core.AssertTrue(t, read.OK) // off-darwin hdiutil never ran, so the skeleton stands in
+	core.AssertTrue(t, core.Contains(read.Value.(string), "AppleBuilder DMG skeleton"))
+}

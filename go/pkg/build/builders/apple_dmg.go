@@ -2,6 +2,7 @@ package builders
 
 import (
 	"context"
+	"runtime"
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -94,15 +95,18 @@ func (b *AppleBuilder) CreateDMG(ctx context.Context, filesystem coreio.Medium, 
 		return converted
 	}
 
-	placeholder := core.Sprintf(
-		"AppleBuilder DMG skeleton\napp=%s\nvolume=%s\nbackground=%s\n",
-		appPath,
-		cfg.VolumeName,
-		cfg.BackgroundPath,
-	)
-	written := filesystem.WriteMode(cfg.OutputPath, placeholder, 0o644)
-	if !written.OK {
-		return core.Fail(core.E("AppleBuilder.CreateDMG", "failed to write placeholder DMG", core.NewError(written.Error())))
+	// On non-darwin hosts hdiutil did not execute; write a skeleton marker so
+	// downstream lanes still receive a file. On darwin the real hdiutil convert
+	// output above is the artifact and must not be overwritten.
+	if firstNonEmptyApple(b.hostOS, runtime.GOOS) != "darwin" {
+		placeholder := core.Sprintf(
+			"AppleBuilder DMG skeleton\napp=%s\nvolume=%s\nbackground=%s\n",
+			appPath, cfg.VolumeName, cfg.BackgroundPath,
+		)
+		written := filesystem.WriteMode(cfg.OutputPath, placeholder, 0o644)
+		if !written.OK {
+			return core.Fail(core.E("AppleBuilder.CreateDMG", "failed to write placeholder DMG", written))
+		}
 	}
 
 	return core.Ok(nil)
