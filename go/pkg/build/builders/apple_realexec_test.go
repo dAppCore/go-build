@@ -107,3 +107,38 @@ func TestApple_CreateDMG_WritesPlaceholderOffDarwin(t *core.T) {
 	core.AssertTrue(t, read.OK) // off-darwin hdiutil never ran, so the skeleton stands in
 	core.AssertTrue(t, core.Contains(read.Value.(string), "AppleBuilder DMG skeleton"))
 }
+
+func TestApple_CreateUniversal_ConstructsLipoCreate(t *core.T) {
+	rec := newRecordingAppleRunner()
+	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
+	fs := coreio.NewMemoryMedium()
+	fs.EnsureDir("/a/arm64.app")
+	r := b.CreateUniversal(context.Background(), nil, fs, "/a/arm64.app", "/a/amd64.app", "/a/Core.app", "Core")
+	core.AssertTrue(t, r.OK)
+	core.AssertLen(t, rec.calls, 1)
+	core.AssertEqual(t, "lipo", rec.calls[0].Command)
+	core.AssertEqual(t, "-create", rec.calls[0].Args[0])
+	core.AssertTrue(t, containsArg(rec.calls[0].Args, "/a/Core.app/Contents/MacOS/Core"))  // -output target
+	core.AssertTrue(t, containsArg(rec.calls[0].Args, "/a/arm64.app/Contents/MacOS/Core")) // arm64 slice
+	core.AssertTrue(t, containsArg(rec.calls[0].Args, "/a/amd64.app/Contents/MacOS/Core")) // amd64 slice
+}
+
+func TestApple_CreateUniversal_RunnerFailureBubbles(t *core.T) {
+	rec := newRecordingAppleRunner()
+	rec.result = core.Fail(core.E("test", "lipo boom", nil))
+	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
+	fs := coreio.NewMemoryMedium()
+	fs.EnsureDir("/a/arm64.app")
+	r := b.CreateUniversal(context.Background(), nil, fs, "/a/arm64.app", "/a/amd64.app", "/a/Core.app", "Core")
+	core.AssertFalse(t, r.OK) // a failing lipo run must surface, not be swallowed
+}
+
+func TestApple_CreateUniversal_RecordsOnlyOffDarwin(t *core.T) {
+	rec := newRecordingAppleRunner()
+	b := NewAppleBuilder(WithAppleHostOS("linux"), WithAppleCommandRunner(rec))
+	fs := coreio.NewMemoryMedium()
+	fs.EnsureDir("/a/arm64.app")
+	r := b.CreateUniversal(context.Background(), nil, fs, "/a/arm64.app", "/a/amd64.app", "/a/Core.app", "Core")
+	core.AssertTrue(t, r.OK)               // off-darwin copies arm64 + records, succeeds by design
+	core.AssertEqual(t, 0, len(rec.calls)) // ...but lipo is never dispatched
+}
