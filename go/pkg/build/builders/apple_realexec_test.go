@@ -4,6 +4,7 @@ import (
 	"context"
 
 	core "dappco.re/go"
+	"dappco.re/go/build/pkg/build"
 	coreio "dappco.re/go/build/pkg/storage"
 )
 
@@ -141,4 +142,51 @@ func TestApple_CreateUniversal_RecordsOnlyOffDarwin(t *core.T) {
 	r := b.CreateUniversal(context.Background(), nil, fs, "/a/arm64.app", "/a/amd64.app", "/a/Core.app", "Core")
 	core.AssertTrue(t, r.OK)               // off-darwin copies arm64 + records, succeeds by design
 	core.AssertEqual(t, 0, len(rec.calls)) // ...but lipo is never dispatched
+}
+
+// envContains reports whether want appears among env entries.
+func envContains(env []string, want string) bool {
+	for _, entry := range env {
+		if entry == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestApple_BuildWailsMacOS_ConstructsWails3Build(t *core.T) {
+	rec := newRecordingAppleRunner()
+	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
+	fs := coreio.NewMemoryMedium()
+	cfg := &build.Config{ProjectDir: "/proj", BuildTags: []string{"mlx"}}
+	r := b.BuildWailsMacOS(context.Background(), fs, cfg, "/proj/dist/apple", "Core", "arm64")
+	core.AssertTrue(t, r.OK)
+	core.AssertLen(t, rec.calls, 1)
+	core.AssertEqual(t, "wails3", rec.calls[0].Command)
+	core.AssertEqual(t, "build", rec.calls[0].Args[0])
+	core.AssertTrue(t, containsArg(rec.calls[0].Args, "darwin/arm64"))               // -platform target
+	core.AssertTrue(t, containsArg(rec.calls[0].Args, "mlx"))                        // build tag forwarded
+	core.AssertTrue(t, envContains(rec.calls[0].Env, "OUTPUT_DIR=/proj/dist/apple")) // wails3 v3 output dir
+}
+
+func TestApple_BuildWailsMacOS_NoSkeletonOnDarwin(t *core.T) {
+	rec := newRecordingAppleRunner()
+	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
+	fs := coreio.NewMemoryMedium()
+	cfg := &build.Config{ProjectDir: "/proj"}
+	r := b.BuildWailsMacOS(context.Background(), fs, cfg, "/proj/dist/apple", "Core", "arm64")
+	core.AssertTrue(t, r.OK)
+	// On darwin the real wails3 build is the artifact; the placeholder executable
+	// must not be written or it would shadow the genuine binary.
+	core.AssertFalse(t, fs.Exists("/proj/dist/apple/Core.app/Contents/MacOS/Core"))
+}
+
+func TestApple_BuildWailsMacOS_WritesSkeletonOffDarwin(t *core.T) {
+	b := NewAppleBuilder(WithAppleHostOS("linux"))
+	fs := coreio.NewMemoryMedium()
+	cfg := &build.Config{ProjectDir: "/proj"}
+	r := b.BuildWailsMacOS(context.Background(), fs, cfg, "/proj/dist/apple", "Core", "arm64")
+	core.AssertTrue(t, r.OK)
+	// Off-darwin wails3 never ran, so the skeleton bundle stands in for downstream lanes.
+	core.AssertTrue(t, fs.Exists("/proj/dist/apple/Core.app/Contents/MacOS/Core"))
 }

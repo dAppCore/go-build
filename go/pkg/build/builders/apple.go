@@ -344,16 +344,21 @@ func (b *AppleBuilder) BuildWailsMacOS(ctx context.Context, filesystem coreio.Me
 		Command: "wails3",
 		Args:    args,
 		Dir:     cfg.ProjectDir,
-		Env:     build.BuildEnvironment(cfg, "GOOS=darwin", "GOARCH="+arch, "CGO_ENABLED=1"),
+		Env:     build.BuildEnvironment(cfg, "GOOS=darwin", "GOARCH="+arch, "CGO_ENABLED=1", "OUTPUT_DIR="+outputDir),
 	})
 	if !ran.OK {
 		return ran
 	}
 
 	bundlePath := ax.Join(outputDir, name+".app")
-	createdBundle := createAppleBundleSkeleton(filesystem, bundlePath, name, arch)
-	if !createdBundle.OK {
-		return createdBundle
+	// On darwin the real wails3 build above produced the .app at OUTPUT_DIR;
+	// writing the placeholder skeleton would shadow that genuine bundle. Off
+	// darwin wails3 did not execute, so the skeleton stands in for downstream lanes.
+	if firstNonEmptyApple(b.hostOS, runtime.GOOS) != "darwin" {
+		createdBundle := createAppleBundleSkeleton(filesystem, bundlePath, name, arch)
+		if !createdBundle.OK {
+			return createdBundle
+		}
 	}
 	return core.Ok(bundlePath)
 }

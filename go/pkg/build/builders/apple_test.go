@@ -19,6 +19,17 @@ func TestAppleBuilder_Good(t *testing.T) {
 		t.Fatalf("unexpected error: %v", result.Error())
 	}
 
+	// On darwin BuildWailsMacOS no longer writes a placeholder skeleton: the real
+	// wails3 build produces each per-arch .app at OUTPUT_DIR. The recording runner
+	// stubs wails3 out, so seed the bundles it would have created here, otherwise
+	// CreateUniversal has no arm64/amd64 source to lipo together.
+	for _, arch := range []string{"arm64", "amd64"} {
+		exe := ax.Join(outputDir, arch, "Core.app", "Contents", "MacOS", "Core")
+		if result := ax.WriteFile(exe, []byte("#!/usr/bin/env sh\nexit 0\n"), 0o755); !result.OK {
+			t.Fatalf("unexpected error: %v", result.Error())
+		}
+	}
+
 	todo := core.NewBuffer()
 	runner := newRecordingAppleRunner()
 	builder := NewAppleBuilder(
