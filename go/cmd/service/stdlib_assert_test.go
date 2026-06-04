@@ -6,8 +6,8 @@ import (
 )
 
 var (
-	stdlibAssertEqual         = testassert.Equal
-	stdlibAssertContains      = testassert.Contains
+	stdlibAssertEqual    = testassert.Equal
+	stdlibAssertContains = testassert.Contains
 )
 
 type serviceCmdFatal interface {
