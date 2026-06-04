@@ -9,7 +9,7 @@ import (
 
 func TestAppleDmg_AppleBuilder_CreateDMG_Good(t *core.T) {
 	fs := coreio.NewMemoryMedium()
-	runner := &recordingAppleRunner{}
+	runner := newRecordingAppleRunner()
 	builder := NewAppleBuilder(WithAppleCommandRunner(runner))
 
 	result := builder.CreateDMG(context.Background(), fs, "dist/Core.app", AppleDMGConfig{OutputPath: "dist/Core.dmg", VolumeName: "Core"})
@@ -19,14 +19,14 @@ func TestAppleDmg_AppleBuilder_CreateDMG_Good(t *core.T) {
 }
 
 func TestAppleDmg_AppleBuilder_CreateDMG_Bad(t *core.T) {
-	builder := NewAppleBuilder(WithAppleCommandRunner(&recordingAppleRunner{}))
+	builder := NewAppleBuilder(WithAppleCommandRunner(newRecordingAppleRunner()))
 	result := builder.CreateDMG(context.Background(), coreio.NewMemoryMedium(), "", AppleDMGConfig{OutputPath: "dist/Core.dmg"})
 	core.AssertFalse(t, result.OK)
 }
 
 func TestAppleDmg_AppleBuilder_CreateDMG_Ugly(t *core.T) {
 	fs := coreio.NewMemoryMedium()
-	builder := NewAppleBuilder(WithAppleCommandRunner(&recordingAppleRunner{}))
+	builder := NewAppleBuilder(WithAppleCommandRunner(newRecordingAppleRunner()))
 
 	result := builder.CreateDMG(context.Background(), fs, "dist/Edge.app", AppleDMGConfig{OutputPath: "Core.dmg"})
 	core.RequireTrue(t, result.OK)

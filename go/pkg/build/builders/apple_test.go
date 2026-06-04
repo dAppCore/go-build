@@ -12,15 +12,6 @@ import (
 
 var _ build.Builder = (*AppleBuilder)(nil)
 
-type recordingAppleRunner struct {
-	calls []RunOptions
-}
-
-func (runner *recordingAppleRunner) Run(ctx context.Context, opts RunOptions) core.Result {
-	runner.calls = append(runner.calls, opts)
-	return core.Ok("ok")
-}
-
 func TestAppleBuilder_Good(t *testing.T) {
 	projectDir := t.TempDir()
 	outputDir := ax.Join(projectDir, "dist", "apple")
@@ -29,7 +20,7 @@ func TestAppleBuilder_Good(t *testing.T) {
 	}
 
 	todo := core.NewBuffer()
-	runner := &recordingAppleRunner{}
+	runner := newRecordingAppleRunner()
 	builder := NewAppleBuilder(
 		WithAppleHostOS("darwin"),
 		WithAppleCommandRunner(runner),
@@ -159,7 +150,7 @@ func TestAppleBuilder_Ugly(t *testing.T) {
 	}
 
 	todo := core.NewBuffer()
-	runner := &recordingAppleRunner{}
+	runner := newRecordingAppleRunner()
 	builder := NewAppleBuilder(
 		WithAppleHostOS("linux"),
 		WithAppleCommandRunner(runner),
@@ -526,7 +517,7 @@ func TestApple_AppleBuilder_Build_Ugly(t *core.T) {
 func TestApple_AppleBuilder_BuildWailsMacOS_Good(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	subject := NewAppleBuilder(WithAppleTODOWriter(nil))
+	subject := NewAppleBuilder(WithAppleHostOS("linux"), WithAppleTODOWriter(nil))
 	cfg := &build.Config{ProjectDir: t.TempDir()}
 	goodCalls := 0
 	core.AssertNotPanics(t, func() {
@@ -539,7 +530,7 @@ func TestApple_AppleBuilder_BuildWailsMacOS_Good(t *core.T) {
 func TestApple_AppleBuilder_BuildWailsMacOS_Bad(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	subject := NewAppleBuilder(WithAppleTODOWriter(nil))
+	subject := NewAppleBuilder(WithAppleHostOS("linux"), WithAppleTODOWriter(nil))
 	cfg := &build.Config{ProjectDir: t.TempDir()}
 	badCalls := 0
 	core.AssertNotPanics(t, func() {
@@ -552,7 +543,7 @@ func TestApple_AppleBuilder_BuildWailsMacOS_Bad(t *core.T) {
 func TestApple_AppleBuilder_BuildWailsMacOS_Ugly(t *core.T) {
 	ctx, cancel := core.WithCancel(core.Background())
 	cancel()
-	subject := NewAppleBuilder(WithAppleTODOWriter(nil))
+	subject := NewAppleBuilder(WithAppleHostOS("linux"), WithAppleTODOWriter(nil))
 	cfg := &build.Config{ProjectDir: t.TempDir()}
 	uglyCalls := 0
 	core.AssertNotPanics(t, func() {

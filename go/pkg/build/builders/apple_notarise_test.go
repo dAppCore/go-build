@@ -7,7 +7,7 @@ import (
 )
 
 func TestAppleNotarise_AppleBuilder_Notarise_Good(t *core.T) {
-	runner := &recordingAppleRunner{}
+	runner := newRecordingAppleRunner()
 	builder := NewAppleBuilder(WithAppleCommandRunner(runner))
 
 	result := builder.Notarise(context.Background(), "dist/Core.zip", AppleOptions{NotarisationProfile: "core-notary"})
@@ -17,13 +17,13 @@ func TestAppleNotarise_AppleBuilder_Notarise_Good(t *core.T) {
 }
 
 func TestAppleNotarise_AppleBuilder_Notarise_Bad(t *core.T) {
-	builder := NewAppleBuilder(WithAppleCommandRunner(&recordingAppleRunner{}))
+	builder := NewAppleBuilder(WithAppleCommandRunner(newRecordingAppleRunner()))
 	result := builder.Notarise(context.Background(), "", AppleOptions{})
 	core.AssertFalse(t, result.OK)
 }
 
 func TestAppleNotarise_AppleBuilder_Notarise_Ugly(t *core.T) {
-	runner := &recordingAppleRunner{}
+	runner := newRecordingAppleRunner()
 	builder := NewAppleBuilder(WithAppleCommandRunner(runner))
 
 	result := builder.Notarise(context.Background(), "dist/Core.zip", AppleOptions{APIKeyID: "KEY", APIKeyIssuerID: "ISSUER", APIKeyPath: "AuthKey.p8"})

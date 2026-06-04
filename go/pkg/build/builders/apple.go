@@ -132,6 +132,7 @@ type AppleBuilderOption func(*AppleBuilder)
 func NewAppleBuilder(options ...AppleBuilderOption) *AppleBuilder {
 	builder := &AppleBuilder{
 		Options:    DefaultAppleBuilderOptions(),
+		runner:     GoProcessAppleRunner{},
 		hostOS:     runtime.GOOS,
 		todoWriter: core.Stdout(),
 	}
