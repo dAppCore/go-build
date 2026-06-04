@@ -27,6 +27,8 @@ type ServiceOptions struct{}
 // holding a live buildservice.Manager and registers it under "build"
 // via core.WithService.
 //
+// Usage example:
+//
 //	core.WithService(build.NewService(build.ServiceOptions{}))
 //
 // The Manager is always wired (no credentials needed) so consumers can
