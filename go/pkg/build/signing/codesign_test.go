@@ -185,192 +185,191 @@ func TestCodesign_ResolveXcrunCliBad(t *testing.T) {
 
 }
 
-// --- v0.9.0 generated compliance triplets ---
+// --- AX-7 triplets (meaningful) ---
+//
+// MacOSSigner.Available/Sign gate on core.Env("GOOS") (not runtime.GOOS), so
+// these tests set GOOS=darwin and supply fake codesign/zip/xcrun tools on PATH
+// to drive the real command-construction paths deterministically on any host.
+
 func TestCodesign_NewMacOSSigner_Good(t *core.T) {
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = NewMacOSSigner(MacOSConfig{})
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+	signer := NewMacOSSigner(MacOSConfig{Identity: "Developer ID Application: Acme (TEAM123)", Notarize: true})
+	core.AssertNotNil(t, signer)
+	core.AssertEqual(t, "codesign", signer.Name())
+	core.AssertTrue(t, signer.ShouldNotarize())
 }
 
 func TestCodesign_NewMacOSSigner_Bad(t *core.T) {
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = NewMacOSSigner(MacOSConfig{})
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+	// An empty config yields a signer that never notarises and is unavailable.
+	signer := NewMacOSSigner(MacOSConfig{})
+	core.AssertFalse(t, signer.ShouldNotarize())
+	core.AssertFalse(t, signer.Available())
 }
 
 func TestCodesign_NewMacOSSigner_Ugly(t *core.T) {
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = NewMacOSSigner(MacOSConfig{})
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+	// Edge case: an identity without notarisation credentials still constructs
+	// a named signer; notarisation stays opt-in via the Notarize flag.
+	signer := NewMacOSSigner(MacOSConfig{Identity: "Developer ID"})
+	core.AssertEqual(t, "codesign", signer.Name())
+	core.AssertFalse(t, signer.ShouldNotarize())
 }
 
-func TestCodesign_MacOSSigner_Name_Good(t *core.T) {
-	subject := &MacOSSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Name()
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestCodesign_Available_Good(t *core.T) {
+	// On (simulated) macOS with an identity and a resolvable codesign, the
+	// signer reports available.
+	t.Setenv("GOOS", "darwin")
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "codesign", fakeToolSuccess)
+	t.Setenv("PATH", bin)
+
+	core.AssertTrue(t, NewMacOSSigner(MacOSConfig{Identity: "Developer ID"}).Available())
 }
 
-func TestCodesign_MacOSSigner_Name_Bad(t *core.T) {
-	subject := &MacOSSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Name()
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestCodesign_Available_Bad(t *core.T) {
+	// Off macOS the signer is never available, even with an identity set.
+	t.Setenv("GOOS", "linux")
+	core.AssertFalse(t, NewMacOSSigner(MacOSConfig{Identity: "Developer ID"}).Available())
 }
 
-func TestCodesign_MacOSSigner_Name_Ugly(t *core.T) {
-	subject := &MacOSSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Name()
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestCodesign_Available_Ugly(t *core.T) {
+	// Edge case: on macOS but with no identity configured -> unavailable, the
+	// identity check short-circuits before resolving the tool.
+	t.Setenv("GOOS", "darwin")
+	core.AssertFalse(t, NewMacOSSigner(MacOSConfig{}).Available())
 }
 
-func TestCodesign_MacOSSigner_Available_Good(t *core.T) {
-	subject := &MacOSSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Available()
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestCodesign_Sign_Good(t *core.T) {
+	// Happy path: codesign resolves and exits 0.
+	t.Setenv("GOOS", "darwin")
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "codesign", fakeToolSuccess)
+	t.Setenv("PATH", bin)
+
+	target := writeSigningTarget(t, "myapp")
+	result := NewMacOSSigner(MacOSConfig{Identity: "Developer ID Application: Acme"}).
+		Sign(core.Background(), storage.Local, target)
+	core.AssertTrue(t, result.OK)
 }
 
-func TestCodesign_MacOSSigner_Available_Bad(t *core.T) {
-	subject := &MacOSSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Available()
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestCodesign_Sign_Bad(t *core.T) {
+	// Failure path: not on macOS -> the platform guard error is returned and no
+	// tool is invoked.
+	t.Setenv("GOOS", "linux")
+	result := NewMacOSSigner(MacOSConfig{Identity: "Developer ID"}).
+		Sign(core.Background(), storage.Local, "myapp")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "only available on macOS")
 }
 
-func TestCodesign_MacOSSigner_Available_Ugly(t *core.T) {
-	subject := &MacOSSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Available()
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestCodesign_Sign_Ugly(t *core.T) {
+	// Edge case: on macOS with an identity, but codesign exits non-zero (e.g.
+	// the identity is not in the keychain) — the tool failure is surfaced.
+	t.Setenv("GOOS", "darwin")
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "codesign", "#!/bin/sh\necho 'error: no identity found' >&2\nexit 1\n")
+	t.Setenv("PATH", bin)
+
+	target := writeSigningTarget(t, "myapp")
+	result := NewMacOSSigner(MacOSConfig{Identity: "Missing Identity"}).
+		Sign(core.Background(), storage.Local, target)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "codesign.Sign")
 }
 
-func TestCodesign_MacOSSigner_Sign_Good(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &MacOSSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestCodesign_Sign_NoIdentity(t *core.T) {
+	// On macOS with no identity, Sign reports the missing-identity error before
+	// attempting any execution.
+	t.Setenv("GOOS", "darwin")
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "codesign", fakeToolSuccess)
+	t.Setenv("PATH", bin)
+
+	result := NewMacOSSigner(MacOSConfig{}).Sign(core.Background(), storage.Local, "myapp")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "identity not configured")
 }
 
-func TestCodesign_MacOSSigner_Sign_Bad(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &MacOSSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, storage.NewMemoryMedium(), "")
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestCodesign_Notarize_Good(t *core.T) {
+	// Happy path: full zip -> notarytool submit -> stapler staple, all exiting 0.
+	t.Setenv("GOOS", "darwin")
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "zip", fakeToolSuccess)
+	writeFakeSigningTool(t, bin, "xcrun", fakeToolSuccess)
+	t.Setenv("PATH", bin)
+
+	target := writeSigningTarget(t, "myapp")
+	result := NewMacOSSigner(MacOSConfig{
+		AppleID: "dev@example.com", TeamID: "TEAM123", AppPassword: "app-specific",
+	}).Notarize(core.Background(), storage.Local, target)
+	core.AssertTrue(t, result.OK)
 }
 
-func TestCodesign_MacOSSigner_Sign_Ugly(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &MacOSSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestCodesign_Notarize_Bad(t *core.T) {
+	// Failure path: missing Apple credentials short-circuits before any exec.
+	result := NewMacOSSigner(MacOSConfig{}).Notarize(core.Background(), storage.Local, "myapp")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "missing Apple credentials")
 }
 
-func TestCodesign_MacOSSigner_Notarize_Good(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &MacOSSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Notarize(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestCodesign_Notarize_Ugly(t *core.T) {
+	// Edge case: credentials present and the zip succeeds, but notarytool exits
+	// non-zero (rejected submission) — the notarisation error is surfaced.
+	t.Setenv("GOOS", "darwin")
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "zip", fakeToolSuccess)
+	writeFakeSigningTool(t, bin, "xcrun", "#!/bin/sh\necho 'notarytool: rejected' >&2\nexit 1\n")
+	t.Setenv("PATH", bin)
+
+	target := writeSigningTarget(t, "myapp")
+	result := NewMacOSSigner(MacOSConfig{
+		AppleID: "dev@example.com", TeamID: "TEAM123", AppPassword: "app-specific",
+	}).Notarize(core.Background(), storage.Local, target)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "notarization failed")
 }
 
-func TestCodesign_MacOSSigner_Notarize_Bad(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &MacOSSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Notarize(ctx, storage.NewMemoryMedium(), "")
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestCodesign_Notarize_StaplerFails(t *core.T) {
+	// Submission succeeds but stapling the ticket fails: the staple error is
+	// surfaced. The fake xcrun succeeds for notarytool and fails for stapler.
+	t.Setenv("GOOS", "darwin")
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "zip", fakeToolSuccess)
+	writeFakeSigningTool(t, bin, "xcrun",
+		"#!/bin/sh\ncase \"$1\" in\n  stapler) echo 'stapler: ticket not found' >&2; exit 1;;\n  *) exit 0;;\nesac\n")
+	t.Setenv("PATH", bin)
+
+	target := writeSigningTarget(t, "myapp")
+	result := NewMacOSSigner(MacOSConfig{
+		AppleID: "dev@example.com", TeamID: "TEAM123", AppPassword: "app-specific",
+	}).Notarize(core.Background(), storage.Local, target)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "failed to staple")
 }
 
-func TestCodesign_MacOSSigner_Notarize_Ugly(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &MacOSSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Notarize(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestCodesign_Notarize_ZipMissing(t *core.T) {
+	// With credentials present but no zip tool resolvable, notarisation fails at
+	// the packaging step.
+	t.Setenv("GOOS", "darwin")
+	t.Setenv("PATH", t.TempDir()) // empty: defeats fallback for zip? see below
+	result := NewMacOSSigner(MacOSConfig{
+		AppleID: "dev@example.com", TeamID: "TEAM123", AppPassword: "app-specific",
+	}).Notarize(core.Background(), storage.Local, "myapp")
+	// zip and xcrun resolve via hard-coded fallbacks on a real macOS host, so we
+	// only assert the outcome is a failure originating from notarisation rather
+	// than asserting a specific missing-tool message.
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "codesign.Notarize")
 }
 
-func TestCodesign_MacOSSigner_ShouldNotarize_Good(t *core.T) {
-	subject := &MacOSSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.ShouldNotarize()
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestCodesign_ShouldNotarize_Good(t *core.T) {
+	core.AssertTrue(t, NewMacOSSigner(MacOSConfig{Notarize: true}).ShouldNotarize())
 }
 
-func TestCodesign_MacOSSigner_ShouldNotarize_Bad(t *core.T) {
-	subject := &MacOSSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.ShouldNotarize()
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestCodesign_ShouldNotarize_Bad(t *core.T) {
+	core.AssertFalse(t, NewMacOSSigner(MacOSConfig{Notarize: false}).ShouldNotarize())
 }
 
-func TestCodesign_MacOSSigner_ShouldNotarize_Ugly(t *core.T) {
-	subject := &MacOSSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.ShouldNotarize()
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestCodesign_ShouldNotarize_Ugly(t *core.T) {
+	// Edge case: a zero-value signer (no constructor) defaults to not notarising.
+	signer := &MacOSSigner{}
+	core.AssertFalse(t, signer.ShouldNotarize())
 }

@@ -75,6 +75,34 @@ func TestSigner_WindowsConfig_SetSigntool_Ugly(t *core.T) {
 	core.AssertTrue(t, cfg.signtoolEnabled())
 }
 
+// --- expandEnv parser edge cases (signer.go) ---
+
+func TestSigner_expandEnv_Good(t *core.T) {
+	// Both $VAR and ${VAR} forms expand; surrounding literals are preserved.
+	clearSigningEnv(t, "EE_TOKEN")
+	setSigningEnv(t, "EE_TOKEN", "xyz")
+	defer clearSigningEnv(t, "EE_TOKEN")
+
+	core.AssertEqual(t, "pre-xyz-post", expandEnv("pre-$EE_TOKEN-post"))
+	core.AssertEqual(t, "[xyz]", expandEnv("[${EE_TOKEN}]"))
+}
+
+func TestSigner_expandEnv_Bad(t *core.T) {
+	// A string with no '$' is returned unchanged (fast path), and an unknown
+	// variable expands to empty.
+	clearSigningEnv(t, "EE_UNSET_VAR")
+	core.AssertEqual(t, "plain text", expandEnv("plain text"))
+	core.AssertEqual(t, "()", expandEnv("($EE_UNSET_VAR)"))
+}
+
+func TestSigner_expandEnv_Ugly(t *core.T) {
+	// Malformed/degenerate uses of '$' are preserved literally: an unclosed
+	// brace, a '$' before a non-identifier byte, and a trailing '$'.
+	core.AssertEqual(t, "${UNCLOSED", expandEnv("${UNCLOSED"))
+	core.AssertEqual(t, "a$!b", expandEnv("a$!b"))
+	core.AssertEqual(t, "end$", expandEnv("end$"))
+}
+
 func setSigningEnv(t *core.T, key, value string) {
 	t.Helper()
 	setenv := core.Setenv

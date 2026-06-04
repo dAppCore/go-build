@@ -128,99 +128,79 @@ func TestSigntool_ResolveSigntoolCliBad(t *testing.T) {
 
 }
 
-// --- v0.9.0 generated compliance triplets ---
-func TestSigntool_WindowsSigner_Name_Good(t *core.T) {
-	subject := &WindowsSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Name()
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+// --- AX-7 triplets (meaningful) ---
+//
+// WindowsSigner.Available/Sign gate on runtime.GOOS == "windows", which cannot
+// be overridden in-process. On non-Windows hosts the signer is always
+// unavailable and Sign returns the platform guard; the real signtool execution
+// path is therefore covered only on Windows and is skipped here (see report).
+// These tests assert the host-independent logic: the signtool toggle, the
+// certificate requirement, naming, and the validation/error branches.
+
+func TestSigntool_NewWindowsSigner_Constructed_Good(t *core.T) {
+	signer := NewWindowsSigner(WindowsConfig{Signtool: true, Certificate: "cert.pfx", Password: "secret"})
+	core.AssertNotNil(t, signer)
+	core.AssertEqual(t, "signtool", signer.Name())
 }
 
-func TestSigntool_WindowsSigner_Name_Bad(t *core.T) {
-	subject := &WindowsSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Name()
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestSigntool_Name_Good(t *core.T) {
+	core.AssertEqual(t, "signtool", NewWindowsSigner(WindowsConfig{Certificate: "cert.pfx"}).Name())
 }
 
-func TestSigntool_WindowsSigner_Name_Ugly(t *core.T) {
-	subject := &WindowsSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Name()
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestSigntool_Name_Bad(t *core.T) {
+	// Name is configuration-independent: a disabled signer still names itself.
+	signer := NewWindowsSigner(WindowsConfig{})
+	signer.config.SetSigntool(false)
+	core.AssertEqual(t, "signtool", signer.Name())
 }
 
-func TestSigntool_WindowsSigner_Available_Good(t *core.T) {
-	subject := &WindowsSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Available()
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestSigntool_Name_Ugly(t *core.T) {
+	// Edge case: a zero-value struct names itself without a constructor.
+	core.AssertEqual(t, "signtool", (&WindowsSigner{}).Name())
 }
 
-func TestSigntool_WindowsSigner_Available_Bad(t *core.T) {
-	subject := &WindowsSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Available()
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestSigntool_Available_Disabled_Bad(t *core.T) {
+	// The explicit signtool toggle disables availability regardless of OS.
+	signer := NewWindowsSigner(WindowsConfig{Certificate: "cert.pfx"})
+	signer.config.SetSigntool(false)
+	core.AssertFalse(t, signer.Available())
 }
 
-func TestSigntool_WindowsSigner_Available_Ugly(t *core.T) {
-	subject := &WindowsSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Available()
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestSigntool_Available_NoCertificate_Ugly(t *core.T) {
+	// With signtool enabled but no certificate, the signer is unavailable; on a
+	// non-Windows host it is unavailable in any case, so the result is false
+	// either way.
+	core.AssertFalse(t, NewWindowsSigner(WindowsConfig{Signtool: true}).Available())
 }
 
-func TestSigntool_WindowsSigner_Sign_Good(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &WindowsSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestSigntool_Available_TracksResolution_Good(t *core.T) {
+	// On a non-Windows host the signer is never available even when fully
+	// configured; on Windows availability tracks signtool resolution. The
+	// assertion is pinned to the host so it holds on both.
+	signer := NewWindowsSigner(WindowsConfig{Signtool: true, Certificate: "cert.pfx"})
+	if runtime.GOOS != "windows" {
+		core.AssertFalse(t, signer.Available())
+		return
+	}
+	core.AssertEqual(t, resolveSigntoolCli().OK, signer.Available())
 }
 
-func TestSigntool_WindowsSigner_Sign_Bad(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &WindowsSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, storage.NewMemoryMedium(), "")
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestSigntool_Sign_ToggleDisabled_Bad(t *core.T) {
+	// The explicit toggle off makes the signer unavailable; Sign then reports a
+	// guard error rather than attempting to run signtool.
+	signer := NewWindowsSigner(WindowsConfig{Certificate: "cert.pfx"})
+	signer.config.SetSigntool(false)
+	result := signer.Sign(context.Background(), storage.Local, "app.exe")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "signtool")
 }
 
-func TestSigntool_WindowsSigner_Sign_Ugly(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &WindowsSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestSigntool_Sign_NoCertificate_Ugly(t *core.T) {
+	// Edge case: enabled with no certificate. On non-Windows the platform guard
+	// fires first; on Windows the missing-certificate guard fires. Both are
+	// failures with a signtool-prefixed error.
+	signer := NewWindowsSigner(WindowsConfig{Signtool: true})
+	result := signer.Sign(context.Background(), storage.Local, "app.exe")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "signtool.Sign")
 }

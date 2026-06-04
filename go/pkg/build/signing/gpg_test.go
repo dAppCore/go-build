@@ -84,126 +84,96 @@ func TestGPG_ResolveGpgCliBad(t *testing.T) {
 
 }
 
-// --- v0.9.0 generated compliance triplets ---
+// --- AX-7 triplets (meaningful) ---
+
 func TestGpg_NewGPGSigner_Good(t *core.T) {
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = NewGPGSigner("agent")
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+	// Constructor stores the supplied key id and yields a usable signer name.
+	signer := NewGPGSigner("ABCD1234")
+	core.AssertNotNil(t, signer)
+	core.AssertEqual(t, "ABCD1234", signer.KeyID)
+	core.AssertEqual(t, "gpg", signer.Name())
 }
 
 func TestGpg_NewGPGSigner_Bad(t *core.T) {
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = NewGPGSigner("")
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+	// An empty key id produces a signer that reports itself unavailable.
+	signer := NewGPGSigner("")
+	core.AssertEqual(t, "", signer.KeyID)
+	core.AssertFalse(t, signer.Available())
 }
 
 func TestGpg_NewGPGSigner_Ugly(t *core.T) {
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = NewGPGSigner("agent")
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+	// Edge case: a fingerprint-style key with spaces is preserved verbatim —
+	// the signer does not normalise or trim it.
+	const fingerprint = "ABCD 1234 EF56 7890"
+	signer := NewGPGSigner(fingerprint)
+	core.AssertEqual(t, fingerprint, signer.KeyID)
 }
 
-func TestGpg_GPGSigner_Name_Good(t *core.T) {
-	subject := &GPGSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Name()
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestGpg_Name_Good(t *core.T) {
+	core.AssertEqual(t, "gpg", NewGPGSigner("KEY").Name())
 }
 
-func TestGpg_GPGSigner_Name_Bad(t *core.T) {
-	subject := &GPGSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Name()
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestGpg_Name_Bad(t *core.T) {
+	// Name is identity-independent: even a keyless signer reports "gpg".
+	core.AssertEqual(t, "gpg", NewGPGSigner("").Name())
 }
 
-func TestGpg_GPGSigner_Name_Ugly(t *core.T) {
-	subject := &GPGSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Name()
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestGpg_Name_Ugly(t *core.T) {
+	// Edge case: a zero-value struct (no constructor) still names itself.
+	signer := &GPGSigner{}
+	core.AssertEqual(t, "gpg", signer.Name())
 }
 
-func TestGpg_GPGSigner_Available_Good(t *core.T) {
-	subject := &GPGSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Available()
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestGpg_Available_Good(t *core.T) {
+	// With a key configured and a resolvable gpg on PATH, the signer is
+	// available.
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "gpg", fakeToolSuccess)
+	t.Setenv("PATH", bin)
+
+	core.AssertTrue(t, NewGPGSigner("ABCD1234").Available())
 }
 
-func TestGpg_GPGSigner_Available_Bad(t *core.T) {
-	subject := &GPGSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Available()
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestGpg_Available_Bad(t *core.T) {
+	// No key -> unavailable, regardless of whether gpg is installed.
+	core.AssertFalse(t, NewGPGSigner("").Available())
 }
 
-func TestGpg_GPGSigner_Available_Ugly(t *core.T) {
-	subject := &GPGSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Available()
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestGpg_Available_Ugly(t *core.T) {
+	// Edge case: with a key configured, availability is governed entirely by
+	// whether the gpg CLI resolves. Tie the assertion to the real resolver so
+	// it holds whether or not gpg is installed on the host.
+	signer := NewGPGSigner("ABCD1234")
+	core.AssertEqual(t, resolveGpgCli().OK, signer.Available())
 }
 
-func TestGpg_GPGSigner_Sign_Good(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &GPGSigner{}
-	goodCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
-		goodCalls++
-	})
-	core.AssertEqual(t, 1, goodCalls)
+func TestGpg_Sign_Good(t *core.T) {
+	// Happy path: a resolvable gpg that exits 0 produces a successful signature.
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "gpg", fakeToolSuccess)
+	t.Setenv("PATH", bin)
+
+	target := writeSigningTarget(t, "CHECKSUMS.txt")
+	result := NewGPGSigner("ABCD1234").Sign(core.Background(), storage.Local, target)
+	core.AssertTrue(t, result.OK)
 }
 
-func TestGpg_GPGSigner_Sign_Bad(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &GPGSigner{}
-	badCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, storage.NewMemoryMedium(), "")
-		badCalls++
-	})
-	core.AssertEqual(t, 1, badCalls)
+func TestGpg_Sign_Bad(t *core.T) {
+	// Failure path: no key configured short-circuits before any exec.
+	result := NewGPGSigner("").Sign(core.Background(), storage.Local, "anything.txt")
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "not available or key not configured")
 }
 
-func TestGpg_GPGSigner_Sign_Ugly(t *core.T) {
-	ctx, cancel := core.WithCancel(core.Background())
-	cancel()
-	subject := &GPGSigner{}
-	uglyCalls := 0
-	core.AssertNotPanics(t, func() {
-		_ = subject.Sign(ctx, storage.NewMemoryMedium(), core.Path(t.TempDir(), "go-build-compliance"))
-		uglyCalls++
-	})
-	core.AssertEqual(t, 1, uglyCalls)
+func TestGpg_Sign_Ugly(t *core.T) {
+	// Edge case: gpg resolves but exits non-zero (e.g. unknown key) — the tool's
+	// failure is surfaced as a signing error.
+	bin := t.TempDir()
+	writeFakeSigningTool(t, bin, "gpg", "#!/bin/sh\necho 'gpg: signing failed: no secret key' >&2\nexit 2\n")
+	t.Setenv("PATH", bin)
+
+	target := writeSigningTarget(t, "CHECKSUMS.txt")
+	result := NewGPGSigner("MISSINGKEY").Sign(core.Background(), storage.Local, target)
+	core.AssertFalse(t, result.OK)
+	core.AssertContains(t, result.Error(), "gpg.Sign")
 }

@@ -484,3 +484,30 @@ var (
 	stdlibAssertContains      = testassert.Contains
 	stdlibAssertElementsMatch = testassert.ElementsMatch
 )
+
+// fakeToolSuccess is a shell stub that exits 0, standing in for an external
+// signing tool whose invocation should succeed.
+const fakeToolSuccess = "#!/bin/sh\nexit 0\n"
+
+// writeFakeSigningTool writes an executable shell stub named tool into dir.
+// Combined with t.Setenv("PATH", dir) it lets the signers resolve and invoke a
+// deterministic stand-in for gpg/codesign/zip/xcrun without the real toolchain.
+func writeFakeSigningTool(t *core.T, dir, tool, body string) string {
+	t.Helper()
+	path := core.PathJoin(dir, tool)
+	if r := storage.Local.WriteMode(path, body, 0o755); !r.OK {
+		t.Fatalf("failed to write fake %s: %v", tool, r.Error())
+	}
+	return path
+}
+
+// writeSigningTarget creates a small file to be signed inside a fresh temp dir
+// and returns its absolute path.
+func writeSigningTarget(t *core.T, name string) string {
+	t.Helper()
+	path := core.PathJoin(t.TempDir(), name)
+	if r := storage.Local.WriteMode(path, "payload\n", 0o644); !r.OK {
+		t.Fatalf("failed to write signing target: %v", r.Error())
+	}
+	return path
+}
