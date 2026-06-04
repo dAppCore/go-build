@@ -18,7 +18,7 @@ require (
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
-	dappco.re/go v0.9.0
+	dappco.re/go v0.10.3
 	github.com/TwiN/go-color v1.4.1 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
