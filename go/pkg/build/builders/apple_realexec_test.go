@@ -2,8 +2,10 @@ package builders
 
 import (
 	"context"
+	"runtime"
 
 	core "dappco.re/go"
+	"dappco.re/go/build/internal/ax"
 	"dappco.re/go/build/pkg/build"
 	coreio "dappco.re/go/build/pkg/storage"
 )
@@ -189,4 +191,82 @@ func TestApple_BuildWailsMacOS_WritesSkeletonOffDarwin(t *core.T) {
 	core.AssertTrue(t, r.OK)
 	// Off-darwin wails3 never ran, so the skeleton bundle stands in for downstream lanes.
 	core.AssertTrue(t, fs.Exists("/proj/dist/apple/Core.app/Contents/MacOS/Core"))
+}
+
+// fatBinaryArchs returns the architectures in a Mach-O file via real lipo, or an
+// empty slice if the file is thin / lipo errors.
+func fatBinaryArchs(ctx core.Context, path string) []string {
+	out := ax.Run(ctx, "lipo", "-archs", path)
+	if !out.OK {
+		return nil
+	}
+	var archs []string
+	for _, tok := range core.Split(core.Trim(out.Value.(string)), " ") {
+		if core.Trim(tok) != "" {
+			archs = append(archs, tok)
+		}
+	}
+	return archs
+}
+
+// TestApple_CreateUniversal_RealLipo proves the default executing runner
+// (GoProcessAppleRunner -> ax.ExecWithEnv) drives a genuine lipo merge through
+// CreateUniversal, with NO recording runner injected.
+//
+// Approach: the PRIMARY plan (stage real thin slices from a universal system
+// binary, then merge them via CreateUniversal). The plan suggested thinning to
+// literal arm64/x86_64, but modern macOS system binaries ship x86_64 + arm64e
+// (pointer-auth ABI), so we read the fixture's ACTUAL archs and extract the
+// first two by their real names — keeping the test robust across Macs. Every
+// failure mode (non-darwin, missing lipo, non-fat fixture, extraction failure)
+// is a clean t.Skip so CI/linux and credential-free machines stay green.
+func TestApple_CreateUniversal_RealLipo(t *core.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("requires darwin")
+	}
+	if !ax.ResolveCommand("lipo").OK {
+		t.Skip("requires lipo")
+	}
+	ctx := context.Background()
+
+	// Find a universal system binary with at least two slices to extract.
+	var sysBin string
+	var archs []string
+	for _, candidate := range []string{"/bin/ls", "/usr/bin/true", "/bin/cp"} {
+		if found := fatBinaryArchs(ctx, candidate); len(found) >= 2 {
+			sysBin = candidate
+			archs = found
+			break
+		}
+	}
+	if sysBin == "" {
+		t.Skip("no universal (multi-arch) system binary available to stage from")
+	}
+	archA, archB := archs[0], archs[1]
+
+	tmp := t.TempDir()
+	armApp := ax.Join(tmp, "arm64.app")
+	amdApp := ax.Join(tmp, "amd64.app")
+	outApp := ax.Join(tmp, "Core.app")
+
+	// Stage two real thin binaries, one per slice, at the bundle's executable path.
+	for app, arch := range map[string]string{armApp: archA, amdApp: archB} {
+		macosDir := ax.Join(app, "Contents", "MacOS")
+		if !ax.MkdirAll(macosDir, 0o755).OK {
+			t.Skip("could not create staging bundle dir " + macosDir)
+		}
+		thin := ax.Run(ctx, "lipo", sysBin, "-thin", arch, "-output", ax.Join(macosDir, "Core"))
+		if !thin.OK {
+			t.Skip("could not extract " + arch + " slice from " + sysBin + ": " + thin.Error())
+		}
+	}
+
+	// Default executing runner — the whole point: no WithAppleCommandRunner here.
+	b := NewAppleBuilder(WithAppleHostOS("darwin"))
+	r := b.CreateUniversal(ctx, nil, coreio.Local, armApp, amdApp, outApp, "Core")
+	core.AssertTrue(t, r.OK)
+
+	mergedArchs := fatBinaryArchs(ctx, ax.Join(outApp, "Contents", "MacOS", "Core"))
+	core.AssertTrue(t, containsArg(mergedArchs, archA)) // first slice survived the real lipo -create
+	core.AssertTrue(t, containsArg(mergedArchs, archB)) // second slice survived too => genuinely universal
 }
