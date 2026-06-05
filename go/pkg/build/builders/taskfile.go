@@ -77,8 +77,15 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 			return ran
 		}
 
-		// Try to find artifacts for this target
+		// Try to find artifacts for this target. Wails v3 Taskfiles write to the
+		// project's bin/ (the wails convention), not the OUTPUT_DIR go-build
+		// passes, so when the output dir yields nothing fall back to bin/ +
+		// build/bin/ before reporting an empty build — a successful `task build`
+		// must not surface as "0 artifacts".
 		found := b.findArtifactsForTarget(cfg.FS, outputDir, target)
+		if len(found) == 0 {
+			found = b.findWailsConventionArtifacts(cfg.FS, cfg.ProjectDir, target)
+		}
 		artifacts = append(artifacts, found...)
 	}
 
@@ -286,6 +293,52 @@ func (b *TaskfileBuilder) findArtifactsForTarget(fs storage.Medium, outputDir st
 		}
 	}
 
+	return artifacts
+}
+
+// findWailsConventionArtifacts scans the wails v3 output dirs (bin/ then
+// build/bin/, relative to the project) for products the project's Taskfile
+// wrote there rather than to go-build's OUTPUT_DIR: the compiled executable and
+// any .app bundle. Used as a fallback when the OUTPUT_DIR scan is empty so a
+// successful `task build` is reported instead of "0 artifacts".
+func (b *TaskfileBuilder) findWailsConventionArtifacts(fs storage.Medium, projectDir string, target build.Target) []build.Artifact {
+	if fs == nil {
+		fs = storage.Local
+	}
+	var artifacts []build.Artifact
+	for _, dir := range []string{ax.Join(projectDir, "bin"), ax.Join(projectDir, "build", "bin")} {
+		entriesResult := fs.List(dir)
+		if !entriesResult.OK {
+			continue
+		}
+		for _, entry := range entriesResult.Value.([]stdfs.DirEntry) {
+			name := entry.Name()
+			if core.HasPrefix(name, ".") {
+				continue
+			}
+			path := ax.Join(dir, name)
+			if entry.IsDir() {
+				// A macOS .app bundle is a directory artifact.
+				if core.HasSuffix(name, ".app") {
+					artifacts = append(artifacts, build.Artifact{Path: path, OS: target.OS, Arch: target.Arch})
+				}
+				continue
+			}
+			// A plain build product is an executable file — skip loose
+			// non-executables (e.g. CHECKSUMS.txt) that share the dir.
+			infoResult := fs.Stat(path)
+			if !infoResult.OK {
+				continue
+			}
+			if infoResult.Value.(stdfs.FileInfo).Mode()&0o111 == 0 {
+				continue
+			}
+			artifacts = append(artifacts, build.Artifact{Path: path, OS: target.OS, Arch: target.Arch})
+		}
+		if len(artifacts) > 0 {
+			return artifacts
+		}
+	}
 	return artifacts
 }
 
