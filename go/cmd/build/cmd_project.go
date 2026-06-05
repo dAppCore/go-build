@@ -212,7 +212,7 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 	}
 
 	if req.Verbose && !req.CIMode {
-		cli.Print("%s %s\n", buildSuccessStyle.Render("Success"), core.Sprintf("Built %d artifacts", len(artifacts)))
+		cli.Print("%s %s\n", buildSuccessStyle.Render("Success"), core.Sprintf("Built %d %s", len(artifacts), artifactNoun(len(artifacts))))
 		cli.Blank()
 		for _, artifact := range artifacts {
 			relPath := artifact.Path
@@ -337,12 +337,41 @@ func runProjectBuild(req ProjectBuildRequest) (result core.Result) {
 		// Minimal output: just success with artifact count
 		cli.Print("%s %s %s\n",
 			buildSuccessStyle.Render("Success"),
-			core.Sprintf("Built %d artifacts", len(artifacts)),
-			buildDimStyle.Render(core.Sprintf("(%s)", plan.OutputDir)),
+			core.Sprintf("Built %d %s", len(artifacts), artifactNoun(len(artifacts))),
+			buildDimStyle.Render(core.Sprintf("(%s)", buildArtifactsDir(artifacts, plan.OutputDir, projectDir))),
 		)
 	}
 
 	return core.Ok(nil)
+}
+
+// artifactNoun returns the artifact noun pluralised for the count: "artifact"
+// for exactly one, "artifacts" otherwise.
+//
+//	core.Sprintf("Built %d %s", n, artifactNoun(n)) // "Built 1 artifact"
+func artifactNoun(n int) string {
+	if n == 1 {
+		return "artifact"
+	}
+	return "artifacts"
+}
+
+// buildArtifactsDir returns the short directory label for the success line: the
+// directory the artifacts actually landed in — which can be the project's bin/
+// (when a Taskfile owns the output) rather than the configured OUTPUT_DIR —
+// relative to the project when possible. Falls back to outputDir when there is
+// no artifact to point at.
+func buildArtifactsDir(artifacts []build.Artifact, outputDir, projectDir string) string {
+	dir := outputDir
+	if len(artifacts) > 0 {
+		dir = ax.Dir(artifacts[0].Path)
+	}
+	if rel := ax.Rel(projectDir, dir); rel.OK {
+		if shortened := rel.Value.(string); shortened != "" && shortened != "." {
+			return shortened
+		}
+	}
+	return dir
 }
 
 func resolveBuildSignConfig(base signing.SignConfig, req ProjectBuildRequest) signing.SignConfig {
