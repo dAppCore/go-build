@@ -723,18 +723,13 @@ func buildV3GoFlags(cfg *build.Config) core.Result {
 		flags = append(flags, "-tags="+core.Join(",", cfg.BuildTags...))
 	}
 
-	ldflags := append([]string{}, cfg.LDFlags...)
-	if cfg.Version != "" && !hasVersionLDFlag(ldflags) {
-		versionFlag := build.VersionLinkerFlag(cfg.Version)
-		if !versionFlag.OK {
-			return versionFlag
-		}
-		ldflags = append(ldflags, versionFlag.Value.(string))
-	}
-	if len(ldflags) > 0 {
-		flags = append(flags, "-ldflags="+core.Join(" ", ldflags...))
-	}
-
+	// GOFLAGS is space-tokenised and cannot carry a quoted or
+	// space-containing value, so -ldflags is deliberately omitted: a value
+	// like `-ldflags=-s -w -X main.version=v` shatters into non-flag tokens
+	// ("-w", "main.version=v") and `go` fails with "parsing $GOFLAGS:
+	// non-flag", breaking every go invocation in the build. The ldflags
+	// (including the version stamp) ride BUILD_FLAGS — a quoted task var —
+	// for Taskfiles that consume it; see buildV3BuildFlags.
 	return core.Ok(core.Join(" ", flags...))
 }
 

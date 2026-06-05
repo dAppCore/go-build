@@ -449,8 +449,15 @@ chmod +x "${OUTPUT_DIR}/${GOOS}_${GOARCH}/${name}"
 		if !stdlibAssertContains(string(content), "CGO_ENABLED=1") {
 			t.Fatalf("expected %v to contain %v", string(content), "CGO_ENABLED=1")
 		}
-		if !stdlibAssertContains(string(content), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3") {
-			t.Fatalf("expected %v to contain %v", string(content), "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
+		if !stdlibAssertContains(string(content), "GOFLAGS=-trimpath -tags=integration") {
+			t.Fatalf("expected %v to contain %v", string(content), "GOFLAGS=-trimpath -tags=integration")
+		}
+		// Regression: -ldflags must never enter GOFLAGS. It is space-tokenised,
+		// so a value like `-ldflags=-s -w -X main.version=v` shatters into
+		// non-flag tokens and breaks every `go` invocation. The ldflags ride
+		// the quoted BUILD_FLAGS task var (asserted below) instead.
+		if stdlibAssertContains(string(content), "GOFLAGS=-trimpath -tags=integration -ldflags") {
+			t.Fatalf("GOFLAGS must not carry -ldflags (space-tokenised, breaks go); got %v", string(content))
 		}
 		if !stdlibAssertContains(string(content), "EXTRA_TAGS=integration") {
 			t.Fatalf("expected %v to contain %v", string(content), "EXTRA_TAGS=integration")
@@ -1671,8 +1678,13 @@ func TestWails_WailsBuilderBuildV3FallbackGood(t *testing.T) {
 	if !stdlibAssertContains(joinedLines, `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -X main.version=v1.2.3"`) {
 		t.Fatalf("expected %v to contain %v", joinedLines, `BUILD_FLAGS=-tags production,integration -trimpath -buildvcs=false -ldflags="-s -w -X main.version=v1.2.3"`)
 	}
-	if !stdlibAssertContains(joinedLines, "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3") {
-		t.Fatalf("expected %v to contain %v", joinedLines, "GOFLAGS=-trimpath -tags=integration -ldflags=-s -w -X main.version=v1.2.3")
+	if !stdlibAssertContains(joinedLines, "GOFLAGS=-trimpath -tags=integration") {
+		t.Fatalf("expected %v to contain %v", joinedLines, "GOFLAGS=-trimpath -tags=integration")
+	}
+	// Regression: -ldflags must never enter GOFLAGS (space-tokenised — it
+	// shatters and breaks every `go` call). It rides the quoted BUILD_FLAGS.
+	if stdlibAssertContains(joinedLines, "GOFLAGS=-trimpath -tags=integration -ldflags") {
+		t.Fatalf("GOFLAGS must not carry -ldflags (space-tokenised, breaks go); got %v", joinedLines)
 	}
 	if !stdlibAssertContains(lines, "GOCACHE="+goCacheDir) {
 		t.Fatalf("expected %v to contain %v", lines, "GOCACHE="+goCacheDir)
