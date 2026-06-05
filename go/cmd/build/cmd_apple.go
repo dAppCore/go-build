@@ -2,6 +2,7 @@ package buildcmd
 
 import (
 	"context"
+	stdfs "io/fs"
 	"regexp"
 
 	"dappco.re/go"
@@ -127,6 +128,17 @@ func runAppleBuildInDir(ctx context.Context, projectDir string, opts appleCLIOpt
 	}
 
 	appleOptions := resolveAppleCommandOptions(buildConfig, opts)
+
+	// When the project ships its own Taskfile `package` target, defer macOS
+	// packaging to it — the same way `core build` defers to `task build`. That
+	// Taskfile owns this app's real .app assembly + signing (ad-hoc or
+	// Developer ID), engine bundling and LSUIElement plist that the generic
+	// pipeline below cannot know. Upload flows (notarise / TestFlight / App
+	// Store) still need the in-pipeline credential handling, so only the plain
+	// build+sign case delegates; everything else falls through to BuildApple.
+	if result, handled := tryTaskfileApplePackage(ctx, filesystem, projectDir, appleOptions, version); handled {
+		return result
+	}
 
 	name := buildConfig.Project.Binary
 	if name == "" {
@@ -263,4 +275,101 @@ func firstNonEmptyString(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// tryTaskfileApplePackage defers macOS packaging to the project's own Taskfile
+// `package` target when it ships one — the delegation `core build apple` makes
+// in parallel to `core build` → `task build`. It returns (result, true) when
+// the Taskfile owns the build, or (_, false) to fall through to the generic
+// build.BuildApple pipeline: when no Taskfile `package` target exists, or when
+// an upload flow (notarise / TestFlight / App Store) needs the in-pipeline
+// credential handling that the Taskfile path does not provide.
+//
+//	if result, handled := tryTaskfileApplePackage(ctx, fs, dir, opts, version); handled {
+//		return result
+//	}
+func tryTaskfileApplePackage(ctx context.Context, filesystem storage.Medium, projectDir string, options build.AppleOptions, version string) (core.Result, bool) {
+	if options.Notarise || options.TestFlight || options.AppStore {
+		return core.Ok(nil), false
+	}
+	if !taskfileDeclaresTarget(filesystem, projectDir, "package") {
+		return core.Ok(nil), false
+	}
+
+	taskCommand := ax.ResolveCommand("task", "/opt/homebrew/bin/task", "/usr/local/bin/task")
+	if !taskCommand.OK {
+		return core.Fail(core.E("build.apple", "task CLI not found for Taskfile packaging", core.NewError(taskCommand.Error()))), true
+	}
+
+	// Map the Apple options onto the Taskfile's signing variables. An empty
+	// SIGN_IDENTITY lets the Taskfile fall back to its ad-hoc default (no
+	// Developer ID required for a local build).
+	args := []string{"package"}
+	if options.Sign && core.Trim(options.CertIdentity) != "" {
+		args = append(args, "SIGN_IDENTITY="+options.CertIdentity)
+	}
+	if core.Trim(options.EntitlementsPath) != "" {
+		args = append(args, "ENTITLEMENTS="+options.EntitlementsPath)
+	}
+	if core.Trim(version) != "" {
+		args = append(args, "VERSION="+version)
+	}
+
+	cli.Print("%s\n", "Packaging via Taskfile (task package)…")
+	executed := ax.ExecWithEnv(ctx, projectDir, nil, taskCommand.Value.(string), args...)
+	if !executed.OK {
+		return core.Fail(core.E("build.apple", "task package failed: "+executed.Error(), core.NewError(executed.Error()))), true
+	}
+
+	bundle := findAppleBundleArtifact(filesystem, projectDir)
+	if !bundle.OK {
+		return bundle, true
+	}
+	bundlePath := bundle.Value.(string)
+	cli.Print("%s %s\n", buildSuccessStyle.Render("Success"), "Apple build completed (Taskfile)")
+	cli.Print("  %s %s\n", "bundle", buildTargetStyle.Render(bundlePath))
+	if core.Trim(version) != "" {
+		cli.Print("  %s %s\n", "version", buildTargetStyle.Render(version))
+	}
+	return core.Ok(nil), true
+}
+
+// taskfileDeclaresTarget reports whether the project's Taskfile declares the
+// named task target. A light line scan (the target as a top-level task key)
+// rather than a full YAML parse — enough to choose the Taskfile path and fall
+// back to the generic pipeline when the target is absent.
+func taskfileDeclaresTarget(filesystem storage.Medium, projectDir, target string) bool {
+	key := target + ":"
+	for _, name := range []string{"Taskfile.yml", "Taskfile.yaml", "Taskfile.dist.yml", "Taskfile.dist.yaml"} {
+		content := filesystem.Read(ax.Join(projectDir, name))
+		if !content.OK {
+			continue
+		}
+		for _, line := range core.Split(content.Value.(string), "\n") {
+			trimmed := core.Trim(line)
+			if trimmed == key || core.HasPrefix(trimmed, key+" ") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// findAppleBundleArtifact locates the packaged .app under the project's
+// wails-convention output dirs (bin/ then build/bin/). The Taskfile names the
+// bundle from its own APP_NAME, so this matches by the .app suffix rather than
+// a known name.
+func findAppleBundleArtifact(filesystem storage.Medium, projectDir string) core.Result {
+	for _, dir := range []string{ax.Join(projectDir, "bin"), ax.Join(projectDir, "build", "bin")} {
+		entriesResult := filesystem.List(dir)
+		if !entriesResult.OK {
+			continue
+		}
+		for _, entry := range entriesResult.Value.([]stdfs.DirEntry) {
+			if entry.IsDir() && core.HasSuffix(entry.Name(), ".app") {
+				return core.Ok(ax.Join(dir, entry.Name()))
+			}
+		}
+	}
+	return core.Fail(core.E("build.apple", "no .app bundle found under bin/ or build/bin after task package", nil))
 }
