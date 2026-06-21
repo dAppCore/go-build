@@ -60,6 +60,86 @@ func AddImageCommand(c *core.Core) core.Result {
 	})
 }
 
+// ImageResolveRequest groups the inputs for `core build image-resolve`.
+type ImageResolveRequest struct {
+	Context   context.Context
+	Base      string
+	VZAgent   string
+	OutputDir string
+	Rebuild   bool
+}
+
+// AddImageResolveCommand registers the VZ guest-image resolve command — the
+// non-stopgap source for core/agent's vzResolveImage. It builds (or reuses a
+// cached) kernel+initrd guest artefact set from the embedded core-dev-vz
+// definition with the cross-compiled vzagent baked in, then prints the artefact
+// directory on the last stdout line so a caller (core/agent) can capture it.
+func AddImageResolveCommand(c *core.Core) core.Result {
+	return c.Command("build/image-resolve", core.Command{
+		Description: "Resolve the VZ agent guest image (kernel+initrd artefact directory)",
+		Action: func(opts core.Options) core.Result {
+			return runResolveImage(ImageResolveRequest{
+				Context:   cmdutil.ContextOrBackground(),
+				Base:      cmdutil.OptionString(opts, "base", "name"),
+				VZAgent:   cmdutil.OptionString(opts, "vzagent", "agent"),
+				OutputDir: cmdutil.OptionString(opts, "output", "dir"),
+				Rebuild:   cmdutil.OptionBool(opts, "rebuild"),
+			})
+		},
+	})
+}
+
+// runResolveImage drives build.LinuxKitResolve and reports the artefact set.
+func runResolveImage(req ImageResolveRequest) core.Result {
+	ctx := req.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	projectDirResult := ax.Getwd()
+	projectDir := ""
+	if projectDirResult.OK {
+		projectDir = projectDirResult.Value.(string)
+	}
+
+	outputDir := req.OutputDir
+	if outputDir != "" && !ax.IsAbs(outputDir) && projectDir != "" {
+		outputDir = ax.Join(projectDir, outputDir)
+	}
+	vzAgent := req.VZAgent
+	if vzAgent != "" && !ax.IsAbs(vzAgent) && projectDir != "" {
+		vzAgent = ax.Join(projectDir, vzAgent)
+	}
+
+	resolved := build.LinuxKitResolve(ctx, build.LinuxKitResolveConfig{
+		FS:            coreio.Local,
+		BaseName:      req.Base,
+		VZAgentBinary: vzAgent,
+		OutputDir:     outputDir,
+		Rebuild:       req.Rebuild,
+		ProjectDir:    projectDir,
+	})
+	if !resolved.OK {
+		return resolved
+	}
+	result := resolved.Value.(build.LinuxKitResolveResult)
+
+	verb := "Built"
+	if result.Cached {
+		verb = "Cached"
+	}
+	cli.Print("%s %s\n", buildSuccessStyle.Render(verb), buildTargetStyle.Render("VZ guest image"))
+	cli.Print("  %s\n", result.Kernel)
+	cli.Print("  %s\n", result.Initrd)
+	if result.Cmdline != "" {
+		cli.Print("  %s\n", result.Cmdline)
+	}
+	// Final line is the artefact directory only — the machine-readable handle a
+	// caller (core/agent vzResolveImage) captures.
+	cli.Print("%s\n", result.Dir)
+	return core.Ok(nil)
+}
+
 func resolveImageBase(opts core.Options) string {
 	if base := cmdutil.OptionString(opts, "base", "name"); base != "" {
 		return base

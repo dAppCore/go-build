@@ -145,6 +145,9 @@ func AddBuildCommands(c *core.Core) core.Result {
 	if r := AddImageCommand(c); !r.OK {
 		return r
 	}
+	if r := AddImageResolveCommand(c); !r.OK {
+		return r
+	}
 	if r := AddInstallersCommand(c); !r.OK {
 		return r
 	}

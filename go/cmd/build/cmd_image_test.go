@@ -116,6 +116,30 @@ func TestBuildCmd_AddImageCommand_Good(t *testing.T) {
 
 }
 
+func TestBuildCmd_AddImageResolveCommand_Good(t *testing.T) {
+	c := core.New()
+
+	AddImageResolveCommand(c)
+	if !(c.Command("build/image-resolve").OK) {
+		t.Fatal("expected build/image-resolve to be registered")
+	}
+}
+
+func TestBuildCmd_runResolveImage_MissingVZAgent_Bad(t *testing.T) {
+	// Validation failure needs no linuxkit / network: a blank vzagent path is
+	// rejected by build.LinuxKitResolve before any build runs.
+	result := runResolveImage(ImageResolveRequest{
+		Context:   context.Background(),
+		OutputDir: t.TempDir(),
+	})
+	if result.OK {
+		t.Fatal("expected failure when vzagent binary path is missing")
+	}
+	if !stdlibAssertContains(result.Error(), "vzagent binary path is required") {
+		t.Fatalf("unexpected error: %v", result.Error())
+	}
+}
+
 func TestBuildCmd_parseImageFormats_Good(t *testing.T) {
 	if !stdlibAssertEqual([]string{"oci", "apple"}, parseImageFormats(" OCI , apple,Apple, oci ")) {
 		t.Fatalf("want %v, got %v", []string{"oci", "apple"}, parseImageFormats(" OCI , apple,Apple, oci "))

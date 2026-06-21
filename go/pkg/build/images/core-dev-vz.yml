@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: EUPL-1.2
+#
+# core-dev-vz — VZ agent guest LinuxKit definition (SP3 Unit 2).
+#
+# This is a RAW linuxkit definition (not a Go-template base image): it is
+# rendered by build.LinuxKitResolve, which substitutes {{ .VZAgentBinary }}
+# with the staged path of the cross-compiled vzagent binary and builds the
+# kernel+initrd output. It is embedded via images/*.yml but is intentionally
+# NOT registered in linuxKitBaseCatalog, so `core build image` / the legacy
+# Docker-service pipeline never picks it up.
+#
+# Build the agent first (from the go-container module root):
+#
+#   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o vzagent ./cmd/vzagent
+#
+# then resolve produces the §4 guest-artefact directory the VZProvider boots:
+#
+#   kernel + initrd.img + cmdline   (go-container vz.go vzResolveGuestArtefacts)
+#
+# Guest contract encoded below (RFC.vz.md §4/§5, core/agent dispatch_vz):
+#   - virtio-vsock guest support (CONFIG_VIRTIO_VSOCKETS=y) — standard in the
+#     linuxkit kernel image; AF_VSOCK bind fails without it.
+#   - virtio-fs support — the workspace share is mounted as a virtiofs device.
+#   - The `workspace` virtio-fs tag is mounted at /workspace before the agent
+#     runs, so the agent's git checkout under /workspace/repo and its commits +
+#     BLOCKED.md land on the host-visible directory.
+#   - vzagent listens on vsock port 1024 (vzproto.ControlPort); the host side
+#     is VZProvider.Exec / VZProvider.Stop. It needs CAP_SYS_BOOT to power the
+#     guest off on the stop verb.
+
+kernel:
+  # linuxkit arm64 kernel — carries CONFIG_VIRTIO_VSOCKETS + virtio-fs.
+  image: linuxkit/kernel:6.6.71
+  cmdline: "console=hvc0"
+
+init:
+  - linuxkit/init:8eea386739975a43af558eec757a7dcb3a3d2e7b
+  - linuxkit/runc:667e7ea2c426a2460ca21e3da065a57dbb3369c9
+
+onboot:
+  # Mount the host-visible workspace over virtio-fs at /workspace BEFORE the
+  # agent service comes up. The `workspace` tag matches core/agent's
+  # vzWorkspaceTag (the FSShare tag the host attaches). /workspace is created
+  # in the root filesystem via the files: section below so the mount target
+  # always exists.
+  - name: mount-workspace
+    image: alpine:3.21
+    binds:
+      - /workspace:/workspace:rshared,rbind
+    command: ["mount", "-t", "virtiofs", "workspace", "/workspace"]
+    capabilities:
+      - CAP_SYS_ADMIN
+
+services:
+  # vzagent — the §5 control channel. The cross-compiled static binary is
+  # injected into the root filesystem via files: and bind-mounted into a
+  # minimal service container holding the boot capability.
+  - name: vzagent
+    image: alpine:3.21
+    binds:
+      - /usr/bin/vzagent:/usr/bin/vzagent
+      - /workspace:/workspace:rshared,rbind
+    command: ["/usr/bin/vzagent"]
+    capabilities:
+      - CAP_SYS_BOOT
+    net: host
+
+# ── Agent toolchain layer (BUILD-HOST WORK — deferred, SP3-U2 task 4) ──────────
+#
+# The full agent guest also needs a node + agent-CLI toolchain so the dispatched
+# agent command (claude/codex/opencode) can run in-guest. That layer is heavy
+# (npm + Claude Code + core CLI, mirrors installers/templates/agent.sh.tmpl) and
+# is NOT baked by this minimal proof image. On the build host, add it as an
+# onboot/service container whose rootfs carries the toolchain, e.g.:
+#
+#   services:
+#     - name: agent-toolchain
+#       image: <registry>/core-agent-toolchain:<version>   # node + claude + core
+#       binds:
+#         - /workspace:/workspace:rshared,rbind
+#       net: host
+#
+# Build that image from installers/templates/agent.sh.tmpl (core CLI +
+# core-agent + Claude Code via npm). Until it exists, this image proves only the
+# VZ-boot + virtio-fs-mount + vsock-control path.
+
+files:
+  # Ensure the /workspace mount target exists in the root filesystem.
+  - path: workspace
+    directory: true
+    mode: "0755"
+
+  # The cross-compiled vzagent (CGO_ENABLED=0 GOOS=linux GOARCH=arm64). The
+  # source path is substituted by build.LinuxKitResolve at render time.
+  - path: usr/bin/vzagent
+    source: "{{ .VZAgentBinary }}"
+    mode: "0755"
+
+trust:
+  org:
+    - linuxkit
+    - library
