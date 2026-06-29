@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# agent.sh — Agent variant installer for {{.BinaryName}} {{.Version}}
+# Installs: core CLI + core-agent + Claude Code
+#
+# Usage:
+#   curl -sL {{.ScriptBaseURL}}/agent.sh | bash
+set -euo pipefail
+
+BINARY_NAME={{ shellQuote .BinaryName }}
+VERSION={{ shellQuote .Version }}
+REPO={{ shellQuote .Repo }}
+GITHUB_BASE="https://github.com/${REPO}"
+
+detect_os() {
+    case "$(uname -s)" in
+        Linux*)  echo "linux"  ;;
+        Darwin*) echo "darwin" ;;
+        *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+    esac
+}
+
+detect_arch() {
+    case "$(uname -m)" in
+        x86_64)        echo "amd64" ;;
+        aarch64|arm64) echo "arm64" ;;
+        *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+    esac
+}
+
+OS="$(detect_os)"
+ARCH="$(detect_arch)"
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+INSTALL_DIR="/usr/local/bin"
+USE_SUDO="sudo"
+if [ -w "${INSTALL_DIR}" ]; then USE_SUDO=""; fi
+
+# ── Install core CLI ──────────────────────────────────────────────────────────
+
+TARBALL="${BINARY_NAME}_${OS}_${ARCH}.tar.gz"
+echo "Downloading ${BINARY_NAME} ${VERSION}..."
+curl -fsSL "${GITHUB_BASE}/releases/download/${VERSION}/${TARBALL}" -o "${TMP_DIR}/${TARBALL}"
+tar -xzf "${TMP_DIR}/${TARBALL}" -C "${TMP_DIR}"
+${USE_SUDO} install -m 0755 "${TMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+echo "Installed ${BINARY_NAME} ${VERSION}"
+
+# ── Install core-agent ────────────────────────────────────────────────────────
+
+if ! command -v core-agent &>/dev/null; then
+    echo "Installing core-agent..."
+    AGENT_TARBALL="core-agent_${OS}_${ARCH}.tar.gz"
+    AGENT_URL="${GITHUB_BASE}/releases/download/${VERSION}/${AGENT_TARBALL}"
+    curl -fsSL "${AGENT_URL}" -o "${TMP_DIR}/${AGENT_TARBALL}" 2>/dev/null || {
+        echo "core-agent not bundled in this release, skipping."
+    }
+    if [ -f "${TMP_DIR}/${AGENT_TARBALL}" ]; then
+        tar -xzf "${TMP_DIR}/${AGENT_TARBALL}" -C "${TMP_DIR}"
+        ${USE_SUDO} install -m 0755 "${TMP_DIR}/core-agent" "${INSTALL_DIR}/core-agent"
+        echo "Installed core-agent"
+    fi
+else
+    echo "core-agent already installed"
+fi
+
+# ── Install Claude Code ───────────────────────────────────────────────────────
+
+if ! command -v claude &>/dev/null; then
+    if command -v npm &>/dev/null; then
+        echo "Installing Claude Code..."
+        npm install -g @anthropic-ai/claude-code
+        echo "Installed Claude Code"
+    else
+        echo "npm not found — skipping Claude Code installation. Install Node.js and run: npm install -g @anthropic-ai/claude-code"
+    fi
+else
+    echo "Claude Code already installed: $(claude --version 2>/dev/null | head -1)"
+fi
+
+# ── Verify ────────────────────────────────────────────────────────────────────
+
+echo ""
+"${BINARY_NAME}" --version
+echo "Agent variant installation complete."

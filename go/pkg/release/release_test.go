@@ -414,8 +414,8 @@ func TestRelease_Publish_ValidatesPublisherBeforePublish_Bad(t *testing.T) {
 	cfg.Publishers = []PublisherConfig{{Type: "npm"}}
 
 	err := requireReleaseError(t, Publish(context.Background(), cfg, true))
-	if !stdlibAssertContains(err, "validate publisher npm failed") {
-		t.Fatalf("expected %v to contain %v", err, "validate publisher npm failed")
+	if !stdlibAssertContains(err, "package name is required") {
+		t.Fatalf("expected %v to contain %v", err, "package name is required")
 	}
 
 }
@@ -444,8 +444,8 @@ func TestRelease_FindArtifactsBad(t *testing.T) {
 		defer func() { requireReleaseConfigOKResult(t, ax.Chmod(distDir, 0755)) }()
 
 		err := requireReleaseError(t, findArtifacts(storage.Local, distDir))
-		if !stdlibAssertContains(err, "failed to read dist/") {
-			t.Fatalf("expected %v to contain %v", err, "failed to read dist/")
+		if !stdlibAssertContains(err, "permission denied") {
+			t.Fatalf("expected %v to contain %v", err, "permission denied")
 		}
 
 	})
@@ -566,8 +566,8 @@ func TestRelease_GetBuilderGood(t *testing.T) {
 func TestRelease_GetBuilderBad(t *testing.T) {
 	t.Run("returns error for unsupported project type", func(t *testing.T) {
 		err := requireReleaseError(t, getBuilder(build.ProjectType("unknown")))
-		if !stdlibAssertContains(err, "unsupported project type") {
-			t.Fatalf("expected %v to contain %v", err, "unsupported project type")
+		if !stdlibAssertContains(err, "unknown project type") {
+			t.Fatalf("expected %v to contain %v", err, "unknown project type")
 		}
 
 	})
@@ -1271,8 +1271,8 @@ func TestRelease_Run_Bad(t *testing.T) {
 		}
 
 		err := requireReleaseError(t, Run(context.Background(), cfg, true))
-		if !stdlibAssertContains(err, "invalid release version override") {
-			t.Fatalf("expected %v to contain %v", err, "invalid release version override")
+		if !stdlibAssertContains(err, "unsupported characters") {
+			t.Fatalf("expected %v to contain %v", err, "unsupported characters")
 		}
 		if called {
 			t.Fatal("changelog generation should not run for unsafe versions")

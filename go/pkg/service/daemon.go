@@ -85,10 +85,12 @@ func Run(ctx context.Context, cfg Config) core.Result {
 		go agentic.Run(ctx)
 	}
 
+	// The build-event WebSocket is served by BuildProvider's "/events" route
+	// (streamEvents -> hub.HandleWebSocket, with a nil-hub guard). Do not also
+	// wire it engine-level via WithWSPath/WithWSHandler: that registers the same
+	// GET /api/v1/build/events twice and gin panics on the duplicate.
 	engineResult := newAPIEngine(
 		coreapi.WithAddr(cfg.APIAddr),
-		coreapi.WithWSPath("/api/v1/build/events"),
-		coreapi.WithWSHandler(hub.Handler()),
 	)
 	if !engineResult.OK {
 		stopped := daemon.Stop()

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# dev.sh — Dev variant installer for {{.BinaryName}} {{.Version}}
+# Installs: core CLI + pulls core-dev LinuxKit Docker image (~500MB)
+#
+# Usage:
+#   curl -sL {{.ScriptBaseURL}}/dev.sh | bash
+set -euo pipefail
+
+BINARY_NAME={{ shellQuote .BinaryName }}
+VERSION={{ shellQuote .Version }}
+REPO={{ shellQuote .Repo }}
+GITHUB_BASE="https://github.com/${REPO}"
+DEV_IMAGE_VERSION="${VERSION#v}"
+if [ -z "${DEV_IMAGE_VERSION}" ]; then
+    DEV_IMAGE_VERSION="latest"
+fi
+DEV_IMAGE="ghcr.io/dappcore/core-dev:${DEV_IMAGE_VERSION}"
+
+detect_os() {
+    case "$(uname -s)" in
+        Linux*)  echo "linux"  ;;
+        Darwin*) echo "darwin" ;;
+        *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+    esac
+}
+
+detect_arch() {
+    case "$(uname -m)" in
+        x86_64)        echo "amd64" ;;
+        aarch64|arm64) echo "arm64" ;;
+        *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+    esac
+}
+
+OS="$(detect_os)"
+ARCH="$(detect_arch)"
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+INSTALL_DIR="/usr/local/bin"
+USE_SUDO="sudo"
+if [ -w "${INSTALL_DIR}" ]; then USE_SUDO=""; fi
+
+# ── Install core CLI ──────────────────────────────────────────────────────────
+
+TARBALL="${BINARY_NAME}_${OS}_${ARCH}.tar.gz"
+echo "Downloading ${BINARY_NAME} ${VERSION}..."
+curl -fsSL "${GITHUB_BASE}/releases/download/${VERSION}/${TARBALL}" -o "${TMP_DIR}/${TARBALL}"
+tar -xzf "${TMP_DIR}/${TARBALL}" -C "${TMP_DIR}"
+${USE_SUDO} install -m 0755 "${TMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+echo "Installed ${BINARY_NAME} ${VERSION}"
+
+# ── Pull core-dev Docker image ────────────────────────────────────────────────
+
+if ! command -v docker &>/dev/null; then
+    echo "Docker not found — skipping core-dev image pull."
+    echo "Install Docker and run: docker pull ${DEV_IMAGE}"
+else
+    echo "Pulling core-dev image (this may take a while, ~500MB)..."
+    docker pull "${DEV_IMAGE}"
+    echo "Pulled ${DEV_IMAGE}"
+fi
+
+# ── Verify ────────────────────────────────────────────────────────────────────
+
+echo ""
+"${BINARY_NAME}" --version
+echo "Dev variant installation complete."
