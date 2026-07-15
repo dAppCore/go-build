@@ -1,0 +1,6 @@
+# graphify code-graph job — shared from dappcore/devops/build.
+# Indexes this repo into the fleet knowledge graph served at graphify.lthn.sh.
+include:
+  - project: 'dappcore/devops/build'
+    file: '/gitlab/graphify.yml'
+    ref: dev
