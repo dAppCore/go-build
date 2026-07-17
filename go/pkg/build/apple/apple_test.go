@@ -133,7 +133,8 @@ func TestAppleBuilder_Register_Good(t *testing.T) {
 	if !(c.Service("apple").OK) {
 		t.Fatal("expected true")
 	}
-	if !(c.RegistryOf("services").Has("apple")) {
+	registry := c.RegistryOf("services").Value.(*core.Registry[any])
+	if !(registry.Has("apple")) {
 		t.Fatal("expected true")
 	}
 

@@ -276,7 +276,7 @@ func snapshotFiles(cfg Config) core.Result {
 	snapshot := make(map[string]time.Time)
 
 	for _, root := range cfg.WatchPaths {
-		err := core.PathWalkDir(root, func(path string, entry core.FsDirEntry, walkErr error) error {
+		walked := core.PathWalkDir(root, func(path string, entry core.FsDirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
@@ -297,8 +297,8 @@ func snapshotFiles(cfg Config) core.Result {
 			snapshot[path] = info.ModTime()
 			return nil
 		})
-		if err != nil {
-			return core.Fail(err)
+		if !walked.OK {
+			return walked
 		}
 	}
 

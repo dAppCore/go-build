@@ -107,7 +107,8 @@ func Register(c *core.Core) core.Result {
 
 	builder := New()
 	builder.ServiceRuntime = core.NewServiceRuntime[AppleOptions](c, builder.options)
-	if r := c.RegistryOf("builders").Set("apple", builder); !r.OK {
+	registry := c.RegistryOf("builders").Value.(*core.Registry[any])
+	if r := registry.Set("apple", builder); !r.OK {
 		return r
 	}
 	if r := c.RegisterService("apple", builder); !r.OK {

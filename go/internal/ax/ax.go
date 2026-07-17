@@ -135,11 +135,11 @@ func Getwd() core.Result {
 //
 // Usage example: dir, err := ax.TempDir("core-build-*")
 func TempDir(prefix string) core.Result {
-	dir := (&core.Fs{}).NewUnrestricted().TempDir(prefix)
-	if dir == "" {
-		return core.Fail(core.E("ax.TempDir", "failed to create temporary directory", nil))
+	r := (&core.Fs{}).NewUnrestricted().TempDir(prefix)
+	if !r.OK {
+		return core.Fail(core.E("ax.TempDir", "failed to create temporary directory", core.NewError(r.Error())))
 	}
-	return core.Ok(dir)
+	return r
 }
 
 // MkdirTemp creates a temporary directory via Core's filesystem primitive.
