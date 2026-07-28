@@ -144,6 +144,12 @@ apple:
 		buildAppleFn = originalBuildApple
 	})
 
+	// resolveAppleBuildNumber prefers GITHUB_RUN_NUMBER over counting commits,
+	// so this test only agreed with itself where that variable was unset — it
+	// passed on a desk and failed in every Actions run, reporting the run
+	// number as the build number. Pinned, as cmd_apple_test.go already does.
+	t.Setenv("GITHUB_RUN_NUMBER", "")
+
 	getReleaseWorkingDir = func() core.Result { return core.Ok(projectDir) }
 	releaseConfigExistsFn = func(dir string) bool {
 		t.Fatalf("release config should not be required for apple-testflight target: %s", dir)
