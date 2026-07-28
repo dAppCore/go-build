@@ -12,7 +12,9 @@ import (
 func TestBuildCmd_AddDebCommand_Good(t *testing.T) {
 	c := core.New()
 
-	AddDebCommand(c)
+	if !AddDebCommand(c).OK {
+		t.Fatal("expected build/deb to register")
+	}
 	if !(c.Command("build/deb").OK) {
 		t.Fatal("expected build/deb to be registered")
 	}
