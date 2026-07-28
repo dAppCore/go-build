@@ -36,11 +36,31 @@ detect_arch() {
     esac
 }
 
+# Releases ship .zip on every platform. unzip is not present on a minimal Linux
+# image, so fall back to bsdtar (which reads zip, and is what macOS ships as
+# tar) and then to Python's zipfile module before giving up.
+extract_archive() {
+    archive="$1"
+    dest="$2"
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -q -o "${archive}" -d "${dest}"
+    elif command -v bsdtar >/dev/null 2>&1; then
+        bsdtar -xf "${archive}" -C "${dest}"
+    elif tar -xf "${archive}" -C "${dest}" 2>/dev/null; then
+        : # GNU tar cannot read zip; macOS tar can, and just did
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -m zipfile -e "${archive}" "${dest}"
+    else
+        echo "Need unzip, bsdtar or python3 to extract ${archive}" >&2
+        exit 1
+    fi
+}
+
 OS="$(detect_os)"
 ARCH="$(detect_arch)"
 
-TARBALL="${BINARY_NAME}_${OS}_${ARCH}.tar.gz"
-DOWNLOAD_URL="${GITHUB_BASE}/releases/download/${VERSION}/${TARBALL}"
+ARCHIVE="${BINARY_NAME}-${OS}-${ARCH}.zip"
+DOWNLOAD_URL="${GITHUB_BASE}/releases/download/${VERSION}/${ARCHIVE}"
 
 # ── Install path ─────────────────────────────────────────────────────────────
 
@@ -59,10 +79,10 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 echo "Downloading ${BINARY_NAME} ${VERSION} (${OS}/${ARCH})..."
-curl -fsSL "${DOWNLOAD_URL}" -o "${TMP_DIR}/${TARBALL}"
+curl -fsSL "${DOWNLOAD_URL}" -o "${TMP_DIR}/${ARCHIVE}"
 
 echo "Extracting..."
-tar -xzf "${TMP_DIR}/${TARBALL}" -C "${TMP_DIR}"
+extract_archive "${TMP_DIR}/${ARCHIVE}" "${TMP_DIR}"
 
 # ── Install binary ────────────────────────────────────────────────────────────
 
