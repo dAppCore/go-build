@@ -64,7 +64,12 @@ func DetermineVersionWithContext(ctx context.Context, dir string) core.Result {
 		// No tags exist, return default
 		return core.Ok("v0.0.1")
 	}
-	latestTag := latestTagResult.Value.(string)
+	// Normalised like the two branches above. This one was not, so a repository
+	// whose HEAD is untagged — every commit between releases, which is most of
+	// them — read its most recent tag raw and rejected go/v0.2.0 outright. The
+	// exact-match branch normalises, which is why this only failed in CI: a
+	// local checkout sitting on the tag never took this path.
+	latestTag := normalizeVersion(latestTagResult.Value.(string))
 	if !ValidateVersion(latestTag) {
 		return core.Fail(core.E("release.DetermineVersionWithContext", "unsafe release tag detected: "+latestTag, nil))
 	}

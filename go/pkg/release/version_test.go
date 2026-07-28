@@ -805,3 +805,31 @@ func TestVersion_CompareVersions_Bad(t *core.T) {
 	})
 	core.AssertEqual(t, 1, badCalls)
 }
+
+// A module in a subdirectory is tagged <subdir>/vX.Y.Z, and most commits sit
+// between releases with an untagged HEAD — so the latest-tag branch runs far
+// more often than the exact-match one. It was the only branch that did not
+// normalise, which is why this failed in CI and passed on a checkout that
+// happened to be sitting on the tag.
+func TestVersion_DetermineVersion_SubdirectoryTagOnUntaggedHead_Good(t *testing.T) {
+	dir := setupGitRepo(t)
+	createCommit(t, dir, "first")
+	createTag(t, dir, "go/v0.2.0")
+	createCommit(t, dir, "second") // HEAD is now past the tag
+
+	got := requireVersionString(t, DetermineVersion(dir))
+	if !stdlibAssertEqual("v0.2.1", got) {
+		t.Fatalf("want %v, got %v", "v0.2.1", got)
+	}
+}
+
+func TestVersion_DetermineVersion_SubdirectoryTagOnHead_Good(t *testing.T) {
+	dir := setupGitRepo(t)
+	createCommit(t, dir, "first")
+	createTag(t, dir, "go/v0.2.0")
+
+	got := requireVersionString(t, DetermineVersion(dir))
+	if !stdlibAssertEqual("v0.2.0", got) {
+		t.Fatalf("want %v, got %v", "v0.2.0", got)
+	}
+}
