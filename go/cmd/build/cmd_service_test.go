@@ -84,7 +84,7 @@ func stubResolvedServiceConfig(t *testing.T, projectDir string) {
 func TestService_AddServiceCommands_RegistersSubcommandsGood(t *testing.T) {
 	c := core.New()
 
-	AddBuildCommands(c)
+	_ = AddBuildCommands(c)
 	for _, path := range []string{
 		"service",
 		"service/install",

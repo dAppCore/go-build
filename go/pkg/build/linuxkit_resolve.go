@@ -6,7 +6,7 @@ import (
 	"bytes"         // AX-6 intrinsic: gzip kernel decompression buffer.
 	"compress/gzip" // AX-6 intrinsic: linuxkit emits a gzip kernel; VZ needs it raw.
 	"context"
-	stdio "io" // AX-6 intrinsic: stream the decompressed kernel.
+	stdio "io"      // AX-6 intrinsic: stream the decompressed kernel.
 	"text/template" // AX-6 intrinsic: no core template primitive.
 
 	core "dappco.re/go"
@@ -266,7 +266,7 @@ func linuxKitResolveBuild(ctx context.Context, fs storage.Medium, cfg LinuxKitRe
 		return core.Fail(core.E("build.LinuxKitResolve", "failed to create build staging directory", core.NewError(stageResult.Error())))
 	}
 	stageDir := stageResult.Value.(string)
-	defer ax.RemoveAll(stageDir)
+	defer func() { _ = ax.RemoveAll(stageDir) }()
 
 	buildDir := ax.Join(stageDir, "out")
 	if created := ax.MkdirAll(buildDir, 0o755); !created.OK {
@@ -374,7 +374,8 @@ func linuxKitResolveKernel(fs storage.Medium, sourcePath, destinationPath string
 	if err != nil {
 		return core.Fail(core.E("build.LinuxKitResolve", "open gzip kernel reader", err))
 	}
-	defer reader.Close()
+	// Read-only: a close error cannot mean lost data.
+	defer func() { _ = reader.Close() }()
 	decompressed, err := stdio.ReadAll(reader)
 	if err != nil {
 		return core.Fail(core.E("build.LinuxKitResolve", "decompress kernel", err))

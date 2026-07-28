@@ -52,14 +52,6 @@ func requireConfigError(t *testing.T, result core.Result) string {
 	return result.Error()
 }
 
-func requireConfigBytes(t *testing.T, result core.Result) []byte {
-	t.Helper()
-	if !result.OK {
-		t.Fatalf("unexpected error: %v", result.Error())
-	}
-	return result.Value.([]byte)
-}
-
 func requireConfigMap(t *testing.T, result core.Result) map[string]string {
 	t.Helper()
 	if !result.OK {
@@ -1474,12 +1466,10 @@ func TestConfig_LoadConfigTestdataGood(t *testing.T) {
 }
 
 var (
-	stdlibAssertEqual         = testassert.Equal
-	stdlibAssertNil           = testassert.Nil
-	stdlibAssertEmpty         = testassert.Empty
-	stdlibAssertZero          = testassert.Zero
-	stdlibAssertContains      = testassert.Contains
-	stdlibAssertElementsMatch = testassert.ElementsMatch
+	stdlibAssertEqual    = testassert.Equal
+	stdlibAssertNil      = testassert.Nil
+	stdlibAssertEmpty    = testassert.Empty
+	stdlibAssertContains = testassert.Contains
 )
 
 // --- v0.9.0 generated compliance triplets ---

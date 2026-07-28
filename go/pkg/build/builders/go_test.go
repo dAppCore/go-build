@@ -403,7 +403,7 @@ func TestGo_GoBuilderBuildGood(t *testing.T) {
 			1 {
 			t.Fatalf("want len %v, got %v", 1, len(artifacts))
 		}
-		if !(ax.Ext(artifacts[0].Path) == ".exe") {
+		if ax.Ext(artifacts[0].Path) != ".exe" {
 			t.Fatal("expected true")
 		}
 		if result := ax.Stat(artifacts[0].Path); !result.OK {
@@ -1248,7 +1248,6 @@ var (
 	stdlibAssertEmpty         = testassert.Empty
 	stdlibAssertZero          = testassert.Zero
 	stdlibAssertContains      = testassert.Contains
-	stdlibAssertElementsMatch = testassert.ElementsMatch
 )
 
 // --- v0.9.0 generated compliance triplets ---

@@ -623,12 +623,8 @@ func boolPtr(value bool) *bool {
 }
 
 var (
-	stdlibAssertEqual         = testassert.Equal
-	stdlibAssertNil           = testassert.Nil
-	stdlibAssertEmpty         = testassert.Empty
-	stdlibAssertZero          = testassert.Zero
-	stdlibAssertContains      = testassert.Contains
-	stdlibAssertElementsMatch = testassert.ElementsMatch
+	stdlibAssertEqual = testassert.Equal
+	stdlibAssertNil   = testassert.Nil
 )
 
 // --- v0.9.0 generated compliance triplets ---

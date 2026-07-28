@@ -151,6 +151,9 @@ func AddBuildCommands(c *core.Core) core.Result {
 	if r := AddInstallersCommand(c); !r.OK {
 		return r
 	}
+	if r := AddDebCommand(c); !r.OK {
+		return r
+	}
 	if r := AddReleaseCommand(c); !r.OK {
 		return r
 	}

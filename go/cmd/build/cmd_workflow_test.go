@@ -189,7 +189,7 @@ func TestBuildCmd_RunReleaseWorkflowGood(t *testing.T) {
 
 	t.Run("registers the build/workflow command", func(t *testing.T) {
 		c := core.New()
-		AddWorkflowCommand(c)
+		_ = AddWorkflowCommand(c)
 
 		result := c.Command("build/workflow")
 		if !(result.OK) {

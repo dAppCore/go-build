@@ -241,7 +241,7 @@ func Run(opts ...RunOption) core.Result {
 		return core.Fail(core.E("build.Run", "failed to create build staging directory", core.NewError(stage.Error())))
 	}
 	stageRoot := stage.Value.(string)
-	defer ax.RemoveAll(stageRoot)
+	defer func() { _ = ax.RemoveAll(stageRoot) }()
 
 	stageOutputDir := ax.Join(stageRoot, "dist")
 

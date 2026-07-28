@@ -34,7 +34,7 @@ func TestBuildCmd_applyReleaseArchiveFormatOverride_Bad(t *testing.T) {
 func TestBuildCmd_AddReleaseCommand_RegistersTopLevelAlias_Good(t *testing.T) {
 	c := core.New()
 
-	AddReleaseCommand(c)
+	_ = AddReleaseCommand(c)
 	if !(c.Command("build/release").OK) {
 		t.Fatal("expected true")
 	}

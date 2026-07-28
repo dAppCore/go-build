@@ -375,14 +375,15 @@ func BuildApple(ctx context.Context, cfg *Config, options AppleOptions, buildNum
 			return core.Fail(core.E("build.BuildApple", "failed to create arm64 temp directory", core.NewError(arm64Temp.Error())))
 		}
 		arm64Dir := arm64Temp.Value.(string)
-		defer ax.RemoveAll(arm64Dir)
+		// Temp directory: failing to remove it must not displace the build result.
+		defer func() { _ = ax.RemoveAll(arm64Dir) }()
 
 		amd64Temp := ax.TempDir("core-build-apple-amd64-*")
 		if !amd64Temp.OK {
 			return core.Fail(core.E("build.BuildApple", "failed to create amd64 temp directory", core.NewError(amd64Temp.Error())))
 		}
 		amd64Dir := amd64Temp.Value.(string)
-		defer ax.RemoveAll(amd64Dir)
+		defer func() { _ = ax.RemoveAll(amd64Dir) }()
 
 		arm64BundleResult := appleBuildWailsAppFn(ctx, WailsBuildConfig{
 			ProjectDir: cfg.ProjectDir,
@@ -1091,7 +1092,7 @@ func Notarise(ctx context.Context, cfg NotariseConfig) core.Result {
 		return core.Fail(core.E("build.Notarise", "failed to create notarisation temp directory", core.NewError(tempDirResult.Error())))
 	}
 	tempDir := tempDirResult.Value.(string)
-	defer ax.RemoveAll(tempDir)
+	defer func() { _ = ax.RemoveAll(tempDir) }()
 
 	zipPath := ax.Join(tempDir, ax.Base(cfg.AppPath)+".zip")
 	output := appleCombinedOutput(notariseCtx, "", nil, dittoCommand, "-c", "-k", "--keepParent", cfg.AppPath, zipPath)
@@ -1153,7 +1154,7 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) core.Result {
 		return core.Fail(core.E("build.CreateDMG", "failed to create DMG staging directory", core.NewError(tempDirResult.Error())))
 	}
 	tempDir := tempDirResult.Value.(string)
-	defer ax.RemoveAll(tempDir)
+	defer func() { _ = ax.RemoveAll(tempDir) }()
 
 	stageDir := ax.Join(tempDir, "stage")
 	mountDir := ax.Join(tempDir, "mount")
@@ -1224,7 +1225,9 @@ func CreateDMG(ctx context.Context, cfg DMGConfig) core.Result {
 	attached := false
 	defer func() {
 		if attached {
-			detachDMG(context.Background(), hdiutilCommand, mountDir)
+			// Best-effort unmount on the way out; the caller is already
+			// returning whatever the DMG work produced.
+			_ = detachDMG(context.Background(), hdiutilCommand, mountDir)
 		}
 	}()
 
@@ -2249,7 +2252,7 @@ func prepareASCAPIKeyEnv(apiKeyID, apiKeyPath string) core.Result {
 	return core.Ok(ascAPIKeyEnv{
 		env: []string{"API_PRIVATE_KEYS_DIR=" + tempDir},
 		cleanup: func() {
-			ax.RemoveAll(tempDir)
+			_ = ax.RemoveAll(tempDir)
 		},
 	})
 }

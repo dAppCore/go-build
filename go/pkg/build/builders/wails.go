@@ -178,7 +178,6 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 	if cfg.CGO {
 		env = append(env, "CGO_ENABLED=1")
 	}
-	cleanup := func() {}
 	if cfg.Obfuscate {
 		obfuscationResult := b.prepareV3Obfuscation(env)
 		if !obfuscationResult.OK {
@@ -186,8 +185,7 @@ func (b *WailsBuilder) buildV3Target(ctx context.Context, cfg *build.Config, tar
 		}
 		obfuscation := obfuscationResult.Value.(obfuscationEnv)
 		env = obfuscation.env
-		cleanup = obfuscation.cleanup
-		defer cleanup()
+		defer obfuscation.cleanup()
 	}
 
 	output := ax.CombinedOutput(ctx, cfg.ProjectDir, env, wailsCommand, args...)
@@ -834,7 +832,9 @@ func (b *WailsBuilder) prepareV3Obfuscation(env []string) core.Result {
 	return core.Ok(obfuscationEnv{
 		env: prependPathEnv(env, shimDir),
 		cleanup: func() {
-			ax.RemoveAll(shimDir)
+			// Best-effort: the shim directory is temporary, and failing to
+			// remove it must not mask the build's own result.
+			_ = ax.RemoveAll(shimDir)
 		},
 	})
 }
