@@ -135,7 +135,13 @@ func Getwd() core.Result {
 //
 // Usage example: dir, err := ax.TempDir("core-build-*")
 func TempDir(prefix string) core.Result {
-	dir := (&core.Fs{}).NewUnrestricted().TempDir(prefix)
+	// Fs.TempDir returns a core.Result from core/go v0.11.0 onward. It used to
+	// return a string, and comparing that to "" was how failure was detected.
+	created := (&core.Fs{}).NewUnrestricted().TempDir(prefix)
+	if !created.OK {
+		return core.Fail(core.E("ax.TempDir", "failed to create temporary directory", core.NewError(created.Error())))
+	}
+	dir, _ := created.Value.(string)
 	if dir == "" {
 		return core.Fail(core.E("ax.TempDir", "failed to create temporary directory", nil))
 	}

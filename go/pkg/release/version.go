@@ -201,7 +201,27 @@ func ValidateVersionIdentifier(version string) core.Result {
 }
 
 // normalizeVersion ensures the version starts with 'v'.
+// NormalizeVersion turns a git tag into a version string.
+//
+// Exported because the same normalisation is needed wherever a tag becomes a
+// version, and having it written twice is how one copy came to be wrong.
+//
+//	release.NormalizeVersion("go/v0.1.1") // "v0.1.1"
+//	release.NormalizeVersion("1.2.3")     // "v1.2.3"
+func NormalizeVersion(version string) string {
+	return normalizeVersion(version)
+}
+
 func normalizeVersion(version string) string {
+	// Go tags a module living in a subdirectory as <subdir>/vX.Y.Z, which is
+	// how every dappco.re module is released — go/v0.1.1, go/v0.12.1. Take the
+	// part after the last slash before deciding whether a leading v is
+	// missing: without this, "go/v0.1.1" became "vgo/v0.1.1" and was then
+	// rejected as an unsafe release tag, so a correctly tagged module could
+	// not determine its own version.
+	if i := core.LastIndex(version, "/"); i >= 0 {
+		version = version[i+1:]
+	}
 	if !core.HasPrefix(version, "v") {
 		return "v" + version
 	}

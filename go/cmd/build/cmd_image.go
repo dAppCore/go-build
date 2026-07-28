@@ -11,6 +11,7 @@ import (
 	"dappco.re/go/build/internal/cmdutil"
 	"dappco.re/go/build/pkg/build"
 	"dappco.re/go/build/pkg/build/builders"
+	"dappco.re/go/build/pkg/release"
 	coreio "dappco.re/go/build/pkg/storage"
 )
 
@@ -295,9 +296,10 @@ func resolveImmutableImageVersion(ctx context.Context, projectDir string) immuta
 	if tag == "" {
 		return immutableImageVersion{BuildVersion: "dev"}
 	}
-	if !core.HasPrefix(tag, "v") {
-		tag = "v" + tag
-	}
+	// A second copy of this normalisation used to live here, without the
+	// subdirectory handling — so a module tagged go/v0.1.1 produced
+	// "vgo/v0.1.1" and failed validation as an unsafe tag. One function now.
+	tag = release.NormalizeVersion(tag)
 
 	return immutableImageVersion{
 		BuildVersion:  tag,

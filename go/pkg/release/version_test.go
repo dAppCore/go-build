@@ -659,6 +659,16 @@ func TestVersion_NormalizeVersionGood(t *testing.T) {
 		{"v1.0.0", "v1.0.0"},
 		{"0.0.1", "v0.0.1"},
 		{"v10.20.30", "v10.20.30"},
+
+		// Go tags a module in a subdirectory as <subdir>/vX.Y.Z, which is how
+		// every dappco.re module is released. These used to gain a second v —
+		// "go/v0.1.1" became "vgo/v0.1.1" — and were then rejected as unsafe
+		// release tags, so a correctly tagged module could not read its own
+		// version.
+		{"go/v0.1.1", "v0.1.1"},
+		{"go/v0.12.1", "v0.12.1"},
+		{"go/1.2.3", "v1.2.3"},
+		{"nested/path/v2.0.0", "v2.0.0"},
 	}
 
 	for _, tc := range tests {

@@ -28,11 +28,11 @@ type processDaemon interface {
 	SetReady(ready bool)
 }
 
-	var (
-		newHub           = events.NewHub
-		newBuildProvider = func(projectDir string, hub *events.Hub) providerpkg.Provider {
-			return coreapi.NewProvider(projectDir, hub)
-		}
+var (
+	newHub           = events.NewHub
+	newBuildProvider = func(projectDir string, hub *events.Hub) providerpkg.Provider {
+		return coreapi.NewProvider(projectDir, hub)
+	}
 	newProviderRegistry    = providerpkg.NewRegistry
 	newAPIEngine           = func(opts ...coreapi.Option) core.Result { return coreapi.New(opts...) }
 	newMCPServer           = defaultNewMCPServer
@@ -276,7 +276,7 @@ func snapshotFiles(cfg Config) core.Result {
 	snapshot := make(map[string]time.Time)
 
 	for _, root := range cfg.WatchPaths {
-		err := core.PathWalkDir(root, func(path string, entry core.FsDirEntry, walkErr error) error {
+		walked := core.PathWalkDir(root, func(path string, entry core.FsDirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
@@ -297,8 +297,10 @@ func snapshotFiles(cfg Config) core.Result {
 			snapshot[path] = info.ModTime()
 			return nil
 		})
-		if err != nil {
-			return core.Fail(err)
+		// PathWalkDir returns a core.Result rather than an error from
+		// core/go v0.11.0 onward.
+		if !walked.OK {
+			return core.Fail(core.E("service.snapshotFiles", "walk "+root, core.NewError(walked.Error())))
 		}
 	}
 

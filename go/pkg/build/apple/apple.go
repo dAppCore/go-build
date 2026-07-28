@@ -107,9 +107,11 @@ func Register(c *core.Core) core.Result {
 
 	builder := New()
 	builder.ServiceRuntime = core.NewServiceRuntime[AppleOptions](c, builder.options)
-	if r := c.RegistryOf("builders").Set("apple", builder); !r.OK {
-		return r
-	}
+	// The "builders" registry is gone: RegistryOf now returns a Result and only
+	// answers for the registries core/go owns, and what it hands back is a
+	// read-only snapshot, so a Set on it would not persist even where the name
+	// resolved. Nothing in this module ever read it — RegisterService below is
+	// the registration that counts, and the test asserts that one.
 	if r := c.RegisterService("apple", builder); !r.OK {
 		return r
 	}
