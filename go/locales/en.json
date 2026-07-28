@@ -244,22 +244,28 @@
       "short": "Manage background build daemon services",
       "long": "Install, start, stop, uninstall, export, or run the background build daemon for the current project.",
       "install": {
-        "long": "Register the current project as a native OS service using the current executable and project directory."
+        "long": "Register the current project as a native OS service using the current executable and project directory.",
+        "short": "Install the service on this machine"
       },
       "start": {
-        "long": "Start the installed background build daemon service."
+        "long": "Start the installed background build daemon service.",
+        "short": "Start the installed service"
       },
       "stop": {
-        "long": "Stop the installed background build daemon service."
+        "long": "Stop the installed background build daemon service.",
+        "short": "Stop the running service"
       },
       "uninstall": {
-        "long": "Remove the installed background build daemon service from the OS service manager."
+        "long": "Remove the installed background build daemon service from the OS service manager.",
+        "short": "Remove the service from this machine"
       },
       "export": {
-        "long": "Generate the native service definition for the current platform, such as a launchd plist or systemd unit."
+        "long": "Generate the native service definition for the current platform, such as a launchd plist or systemd unit.",
+        "short": "Write the service definition to a file"
       },
       "run": {
-        "long": "Run the background build daemon in the foreground."
+        "long": "Run the background build daemon in the foreground.",
+        "short": "Run the service in the foreground"
       }
     }
   }
