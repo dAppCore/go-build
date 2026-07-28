@@ -39,7 +39,7 @@ func TestApple_NewAppleBuilder_DefaultRunnerExecutesOnDarwin(t *core.T) {
 	rec := newRecordingAppleRunner()
 	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
 	fs := coreio.NewMemoryMedium()
-	fs.EnsureDir("/a/arm64.app")
+	_ = fs.EnsureDir("/a/arm64.app")
 	r := b.CreateUniversal(context.Background(), nil, fs, "/a/arm64.app", "/a/amd64.app", "/a/out.app", "App")
 	core.AssertTrue(t, r.OK)
 	core.AssertLen(t, rec.calls, 1) // exactly one lipo call dispatched to the runner
@@ -49,7 +49,7 @@ func TestApple_NewAppleBuilder_DefaultRunnerRecordsOnlyOffDarwin(t *core.T) {
 	rec := newRecordingAppleRunner()
 	b := NewAppleBuilder(WithAppleHostOS("linux"), WithAppleCommandRunner(rec))
 	fs := coreio.NewMemoryMedium()
-	fs.EnsureDir("/a/arm64.app")
+	_ = fs.EnsureDir("/a/arm64.app")
 	r := b.CreateUniversal(context.Background(), nil, fs, "/a/arm64.app", "/a/amd64.app", "/a/out.app", "App")
 	core.AssertTrue(t, r.OK)               // off-darwin succeeds by design
 	core.AssertEqual(t, 0, len(rec.calls)) // ...but records only, no dispatch
@@ -74,7 +74,7 @@ func TestApple_CreateDMG_ConstructsHdiutilSequence(t *core.T) {
 	rec := newRecordingAppleRunner()
 	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
 	fs := coreio.NewMemoryMedium()
-	fs.EnsureDir("/a/Core.app")
+	_ = fs.EnsureDir("/a/Core.app")
 	r := b.CreateDMG(context.Background(), fs, "/a/Core.app", AppleDMGConfig{OutputPath: "/dist/Core.dmg", VolumeName: "Core"})
 	core.AssertTrue(t, r.OK)
 	core.AssertLen(t, rec.calls, 4)
@@ -90,7 +90,7 @@ func TestApple_CreateDMG_NoPlaceholderOnDarwin(t *core.T) {
 	rec := newRecordingAppleRunner()
 	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
 	fs := coreio.NewMemoryMedium()
-	fs.EnsureDir("/a/Core.app")
+	_ = fs.EnsureDir("/a/Core.app")
 	r := b.CreateDMG(context.Background(), fs, "/a/Core.app", AppleDMGConfig{OutputPath: "/dist/Core.dmg", VolumeName: "Core"})
 	core.AssertTrue(t, r.OK)
 	read := fs.Read("/dist/Core.dmg")
@@ -103,7 +103,7 @@ func TestApple_CreateDMG_NoPlaceholderOnDarwin(t *core.T) {
 func TestApple_CreateDMG_WritesPlaceholderOffDarwin(t *core.T) {
 	b := NewAppleBuilder(WithAppleHostOS("linux"))
 	fs := coreio.NewMemoryMedium()
-	fs.EnsureDir("/a/Core.app")
+	_ = fs.EnsureDir("/a/Core.app")
 	r := b.CreateDMG(context.Background(), fs, "/a/Core.app", AppleDMGConfig{OutputPath: "/dist/Core.dmg", VolumeName: "Core"})
 	core.AssertTrue(t, r.OK)
 	read := fs.Read("/dist/Core.dmg")
@@ -115,7 +115,7 @@ func TestApple_CreateUniversal_ConstructsLipoCreate(t *core.T) {
 	rec := newRecordingAppleRunner()
 	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
 	fs := coreio.NewMemoryMedium()
-	fs.EnsureDir("/a/arm64.app")
+	_ = fs.EnsureDir("/a/arm64.app")
 	r := b.CreateUniversal(context.Background(), nil, fs, "/a/arm64.app", "/a/amd64.app", "/a/Core.app", "Core")
 	core.AssertTrue(t, r.OK)
 	core.AssertLen(t, rec.calls, 1)
@@ -131,7 +131,7 @@ func TestApple_CreateUniversal_RunnerFailureBubbles(t *core.T) {
 	rec.result = core.Fail(core.E("test", "lipo boom", nil))
 	b := NewAppleBuilder(WithAppleHostOS("darwin"), WithAppleCommandRunner(rec))
 	fs := coreio.NewMemoryMedium()
-	fs.EnsureDir("/a/arm64.app")
+	_ = fs.EnsureDir("/a/arm64.app")
 	r := b.CreateUniversal(context.Background(), nil, fs, "/a/arm64.app", "/a/amd64.app", "/a/Core.app", "Core")
 	core.AssertFalse(t, r.OK) // a failing lipo run must surface, not be swallowed
 }
@@ -140,7 +140,7 @@ func TestApple_CreateUniversal_RecordsOnlyOffDarwin(t *core.T) {
 	rec := newRecordingAppleRunner()
 	b := NewAppleBuilder(WithAppleHostOS("linux"), WithAppleCommandRunner(rec))
 	fs := coreio.NewMemoryMedium()
-	fs.EnsureDir("/a/arm64.app")
+	_ = fs.EnsureDir("/a/arm64.app")
 	r := b.CreateUniversal(context.Background(), nil, fs, "/a/arm64.app", "/a/amd64.app", "/a/Core.app", "Core")
 	core.AssertTrue(t, r.OK)               // off-darwin copies arm64 + records, succeeds by design
 	core.AssertEqual(t, 0, len(rec.calls)) // ...but lipo is never dispatched

@@ -109,7 +109,7 @@ esac
 func TestBuildCmd_AddImageCommand_Good(t *testing.T) {
 	c := core.New()
 
-	AddImageCommand(c)
+	_ = AddImageCommand(c)
 	if !(c.Command("build/image").OK) {
 		t.Fatal("expected true")
 	}
@@ -119,7 +119,7 @@ func TestBuildCmd_AddImageCommand_Good(t *testing.T) {
 func TestBuildCmd_AddImageResolveCommand_Good(t *testing.T) {
 	c := core.New()
 
-	AddImageResolveCommand(c)
+	_ = AddImageResolveCommand(c)
 	if !(c.Command("build/image-resolve").OK) {
 		t.Fatal("expected build/image-resolve to be registered")
 	}
@@ -149,7 +149,7 @@ func TestBuildCmd_parseImageFormats_Good(t *testing.T) {
 
 func TestBuildCmd_buildPwaCommandAcceptsPathGood(t *testing.T) {
 	c := core.New()
-	AddBuildCommands(c)
+	_ = AddBuildCommands(c)
 
 	command := c.Command("build/pwa").Value.(*core.Command)
 

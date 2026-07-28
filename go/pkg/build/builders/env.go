@@ -162,7 +162,8 @@ func prepareStagedOutput(outputDir string, artifactFS storage.Medium, tempPatter
 	stageDir := stageDirResult.Value.(string)
 	stage.commandOutputDir = stageDir
 	stage.commandFS = storage.Local
-	stage.cleanup = func() { ax.RemoveAll(stageDir) }
+	// Best-effort: the stage directory is temporary.
+	stage.cleanup = func() { _ = ax.RemoveAll(stageDir) }
 	return core.Ok(stage)
 }
 
@@ -179,12 +180,28 @@ func bundleZipTree(fs storage.Medium, rootDir, bundlePath, operation string, exc
 		return core.Fail(core.E(operation, "failed to create bundle file", core.NewError(fileResult.Error())))
 	}
 	file := fileResult.Value.(core.WriteCloser)
-	defer file.Close()
-
 	writer := zip.NewWriter(file)
-	defer writer.Close()
 
-	return writeZipTree(fs, writer, rootDir, rootDir, operation, exclude)
+	written := writeZipTree(fs, writer, rootDir, rootDir, operation, exclude)
+	if !written.OK {
+		_ = writer.Close()
+		_ = file.Close()
+		return written
+	}
+
+	// Closed and checked here rather than deferred. A zip writer flushes its
+	// central directory on Close, so a failure at that point means a truncated
+	// archive — and a deferred close runs after the return value is fixed, so
+	// the bundle would have been reported as built.
+	if err := writer.Close(); err != nil {
+		_ = file.Close()
+		return core.Fail(core.E(operation, "failed to close zip writer", err))
+	}
+	if err := file.Close(); err != nil {
+		return core.Fail(core.E(operation, "failed to close bundle file", err))
+	}
+
+	return core.Ok(nil)
 }
 
 func writeZipTree(fs storage.Medium, writer *zip.Writer, rootDir, currentDir, operation string, exclude zipExcludeFunc) core.Result {
@@ -246,7 +263,9 @@ func writeZipEntry(fs storage.Medium, writer *zip.Writer, rootDir, entryPath, op
 	}
 	header.Name = core.Replace(relPath, ax.DS(), "/")
 	header.Method = zip.Deflate
-	header.SetModTime(deterministicZipTime)
+	// Modified rather than SetModTime, deprecated since Go 1.10. Same fixed
+	// timestamp, so archives stay byte-identical between builds.
+	header.Modified = deterministicZipTime
 
 	zipEntry, err := writer.CreateHeader(header)
 	if err != nil {

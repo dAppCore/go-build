@@ -105,7 +105,8 @@ func (b *LinuxKitImageBuilder) Build(ctx context.Context, cfg *build.Config) cor
 	if !written.OK {
 		return core.Fail(core.E("LinuxKitImageBuilder.Build", "failed to write LinuxKit template", core.NewError(written.Error())))
 	}
-	defer func() { stage.commandFS.Delete(templatePath) }()
+	// Best-effort: a generated template left behind is untidy, not a failure.
+	defer func() { _ = stage.commandFS.Delete(templatePath) }()
 
 	linuxkitCommandResult := (&LinuxKitBuilder{}).resolveLinuxKitCli()
 	if !linuxkitCommandResult.OK {
@@ -263,7 +264,7 @@ func (b *LinuxKitImageBuilder) prepareServiceImage(ctx context.Context, projectD
 	tempDir := tempDirResult.Value.(string)
 
 	cleanup := func() {
-		ax.RemoveAll(tempDir)
+		_ = ax.RemoveAll(tempDir)
 	}
 
 	contentHash := linuxKitServiceImageContentHash(baseImage, cfg)

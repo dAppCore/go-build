@@ -14,7 +14,7 @@ import (
 func TestBuildCmd_AddInstallersCommand_Good(t *testing.T) {
 	c := core.New()
 
-	AddInstallersCommand(c)
+	_ = AddInstallersCommand(c)
 	if !(c.Command("build/installers").OK) {
 		t.Fatal("expected true")
 	}

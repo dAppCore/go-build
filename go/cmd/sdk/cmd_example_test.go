@@ -6,7 +6,7 @@ import (
 
 // --- v0.9.0 generated usage examples ---
 func ExampleAddSDKCommands() {
-	AddSDKCommands(core.New())
+	_ = AddSDKCommands(core.New())
 	core.Println("AddSDKCommands")
 	// Output: AddSDKCommands
 }

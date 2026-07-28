@@ -332,12 +332,9 @@ func TestInstaller_OutputName_Good(t *testing.T) {
 }
 
 var (
-	stdlibAssertEqual         = testassert.Equal
-	stdlibAssertNil           = testassert.Nil
-	stdlibAssertEmpty         = testassert.Empty
-	stdlibAssertZero          = testassert.Zero
-	stdlibAssertContains      = testassert.Contains
-	stdlibAssertElementsMatch = testassert.ElementsMatch
+	stdlibAssertEqual    = testassert.Equal
+	stdlibAssertEmpty    = testassert.Empty
+	stdlibAssertContains = testassert.Contains
 )
 
 // --- v0.9.0 generated compliance triplets ---

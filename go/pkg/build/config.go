@@ -1058,7 +1058,10 @@ func (cfg *BuildConfig) TargetsIter() iter.Seq[TargetConfig] {
 func (cfg *BuildConfig) ToTargets() []Target {
 	targets := make([]Target, len(cfg.Targets))
 	for i, t := range cfg.Targets {
-		targets[i] = Target{OS: t.OS, Arch: t.Arch}
+		// Conversion rather than field-by-field: identical shapes, and
+		// this stops compiling if TargetConfig gains a field, which the
+		// explicit form would silently drop.
+		targets[i] = Target(t)
 	}
 	return targets
 }

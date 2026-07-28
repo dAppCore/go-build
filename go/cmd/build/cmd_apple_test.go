@@ -174,7 +174,7 @@ func TestBuildCmd_resolveAppleBuildNumber_Good(t *testing.T) {
 
 func TestBuildCmd_AddAppleCommand_Good(t *testing.T) {
 	c := core.New()
-	AddAppleCommand(c)
+	_ = AddAppleCommand(c)
 
 	result := c.Command("build/apple")
 	if !(result.OK) {

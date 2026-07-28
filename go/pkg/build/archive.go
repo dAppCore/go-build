@@ -220,8 +220,10 @@ func createTarGzArchive(fs io_interface.Medium, src, dst string) core.Result {
 
 	written := writeTarTree(fs, tarWriter, src, src)
 	if !written.OK {
-		tarWriter.Close()
-		gzWriter.Close()
+		// Discarded deliberately: the archive is already being abandoned, and
+		// a close error here would displace the failure worth reporting.
+		_ = tarWriter.Close()
+		_ = gzWriter.Close()
 		return written
 	}
 	if err := tarWriter.Close(); err != nil {
@@ -243,7 +245,9 @@ func createZipArchive(fs io_interface.Medium, src, dst string) core.Result {
 
 	written := writeZipTree(fs, zipWriter, src, src)
 	if !written.OK {
-		zipWriter.Close()
+		// See createTarGzArchive: the failure being returned outranks
+		// anything close has to say about an archive already abandoned.
+		_ = zipWriter.Close()
 		return written
 	}
 	if err := zipWriter.Close(); err != nil {
@@ -303,7 +307,8 @@ func writeTarTree(fs io_interface.Medium, writer *tar.Writer, rootPath, currentP
 		return core.Fail(core.E("build.writeTarTree", "failed to open archive entry", core.NewError(source.Error())))
 	}
 	stream := source.Value.(core.FsFile)
-	defer stream.Close()
+	// Read-only: a close error cannot mean lost data, unlike on a writer.
+	defer func() { _ = stream.Close() }()
 
 	if _, err := stdio.Copy(writer, stream); err != nil {
 		return core.Fail(core.E("build.writeTarTree", "failed to write file content to tar", err))

@@ -38,7 +38,7 @@ func TestRunSDKValidate_Good(t *testing.T) {
 func TestAddSDKCommands_RegistersGenerateAliasGood(t *testing.T) {
 	c := core.New()
 
-	AddSDKCommands(c)
+	_ = AddSDKCommands(c)
 	if !(c.Command("sdk").OK) {
 		t.Fatal("expected true")
 	}

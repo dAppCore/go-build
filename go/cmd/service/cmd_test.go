@@ -48,7 +48,7 @@ func (s stubManager) Uninstall(cfg buildservice.Config) core.Result {
 func TestAddServiceCommands_RegistersSubcommandsGood(t *testing.T) {
 	c := core.New()
 
-	AddServiceCommands(c)
+	_ = AddServiceCommands(c)
 	if !(c.Command("service").OK) {
 		t.Fatal("expected true")
 	}

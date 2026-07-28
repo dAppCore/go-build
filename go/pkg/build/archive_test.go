@@ -34,11 +34,6 @@ func archiveRequireNoError(t *testing.T, err any) {
 	}
 }
 
-func archiveAssertNoError(t *testing.T, err any) {
-	t.Helper()
-	archiveRequireNoError(t, err)
-}
-
 func archiveAssertError(t *testing.T, err any) {
 	t.Helper()
 	switch value := err.(type) {
@@ -53,14 +48,6 @@ func archiveAssertError(t *testing.T, err any) {
 	default:
 		t.Fatal("expected error")
 	}
-}
-
-func archiveResultError(t *testing.T, result core.Result) string {
-	t.Helper()
-	if result.OK {
-		t.Fatal("expected error")
-	}
-	return result.Error()
 }
 
 func archiveRequireArtifact(t *testing.T, result core.Result) Artifact {
@@ -125,13 +112,6 @@ func archiveAssertContains(t *testing.T, value, contains any) {
 	t.Helper()
 	if !stdlibAssertContains(value, contains) {
 		t.Fatalf("expected %v to contain %v", value, contains)
-	}
-}
-
-func archiveAssertEmpty(t *testing.T, value any) {
-	t.Helper()
-	if !stdlibAssertEmpty(value) {
-		t.Fatalf("expected empty, got %v", value)
 	}
 }
 

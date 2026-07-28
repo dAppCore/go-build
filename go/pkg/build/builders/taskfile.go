@@ -94,6 +94,14 @@ func (b *TaskfileBuilder) Build(ctx context.Context, cfg *build.Config, targets 
 
 // runTask executes the Taskfile build task.
 func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCommand string, outputDir string, target build.Target) core.Result {
+	// Checked here rather than eleven lines further down, where an
+	// `if cfg != nil` guard sat behind three dereferences of cfg that would
+	// already have panicked. Everything below needs a config, so a nil one is
+	// a coded failure, not something to work around.
+	if cfg == nil {
+		return core.Fail(core.E("builders.runTask", "no build config", nil))
+	}
+
 	// Build task command
 	args := []string{"build"}
 	env := build.BuildEnvironment(cfg)
@@ -109,18 +117,14 @@ func (b *TaskfileBuilder) runTask(ctx context.Context, cfg *build.Config, taskCo
 	args = append(args, values...)
 	env = append(env, values...)
 
-	cleanup := func() {}
-	if cfg != nil {
-		surfaceResult := b.applyWailsV3BuildSurface(cfg, target, args, env)
-		if !surfaceResult.OK {
-			return surfaceResult
-		}
-		surface := surfaceResult.Value.(taskBuildSurface)
-		args = surface.args
-		env = surface.env
-		cleanup = surface.cleanup
+	surfaceResult := b.applyWailsV3BuildSurface(cfg, target, args, env)
+	if !surfaceResult.OK {
+		return surfaceResult
 	}
-	defer cleanup()
+	surface := surfaceResult.Value.(taskBuildSurface)
+	args = surface.args
+	env = surface.env
+	defer surface.cleanup()
 
 	if target.OS != "" && target.Arch != "" {
 		core.Print(nil, "Running task build for %s/%s", target.OS, target.Arch)

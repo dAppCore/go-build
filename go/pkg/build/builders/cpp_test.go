@@ -123,7 +123,7 @@ func TestCPP_CPPBuilderDetectGood(t *testing.T) {
 func TestCPP_CPPBuilderBuildBad(t *testing.T) {
 	t.Run("returns error for nil config", func(t *testing.T) {
 		builder := NewCPPBuilder()
-		result := builder.Build(nil, nil, []build.Target{{OS: "linux", Arch: "amd64"}})
+		result := builder.Build(context.TODO(), nil, []build.Target{{OS: "linux", Arch: "amd64"}})
 		if result.OK {
 			t.Fatal("expected error")
 		}
