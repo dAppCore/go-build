@@ -20,6 +20,11 @@ __pycache__/
 venv/
 node_modules/
 dist/
+# ...except the one the go:embed in pkg/api needs. Without a file here the
+# package does not compile, for us or for anyone who `go get`s the module —
+# `dist/` above had been quietly swallowing it.
+!go/pkg/api/ui/dist/
+!go/pkg/api/ui/dist/**
 /build/
 *.exe
 *.dll
