@@ -49,6 +49,14 @@ jobs:
           files: go/coverage.out
           flags: unittests
           fail_ci_if_error: false
+      # Published so the Sonar job can read it instead of running the suite a
+      # second time for the same numbers.
+      - name: Publish the coverage profile
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: go/coverage.out
+          retention-days: 1
 
   lint:
     name: golangci-lint
@@ -72,12 +80,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v6
+      # No Go toolchain and no second test run: this job needs the coverage
+      # profile, not the ability to produce one. `needs: test` already
+      # guarantees it exists.
+      - name: Fetch the coverage profile
+        uses: actions/download-artifact@v4
         with:
-          go-version: '1.26'
-      - name: Test for coverage
-        working-directory: go
-        run: go test -coverprofile=coverage.out -covermode=atomic -count=1 ./...
+          name: coverage
+          path: go
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
