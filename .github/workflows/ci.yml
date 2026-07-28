@@ -11,6 +11,9 @@ permissions:
 
 env:
   GOFLAGS: -buildvcs=false
+  # There is no go.work any more; dependencies resolve from go/go.mod
+  # tags. Kept explicit so a workspace reappearing locally cannot change
+  # what CI builds.
   GOWORK: "off"
   GOPROXY: "direct"
   GOSUMDB: "off"

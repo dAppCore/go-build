@@ -8,7 +8,7 @@ description: Building, testing, and contributing to go-build.
 ## Prerequisites
 
 - **Go 1.26+** (the module declares `go 1.26.0`)
-- **Go workspace** -- this module is part of the workspace at `~/Code/go.work`. After cloning, run `go work sync` to ensure local replacements resolve correctly.
+- **No workspace** -- dependencies resolve from tags in `go/go.mod`. There is no `go.work` and no `external/` submodule: a clone builds as-is, and what you build is what CI builds.
 - `GOPRIVATE=forge.lthn.ai/*` must be set for private module fetching.
 
 ## Building
