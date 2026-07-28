@@ -2,6 +2,12 @@
 .vscode/
 *.log
 .core/
+# ...except fixtures. testdata deliberately contains a .core/build.yaml for the
+# loader tests to parse, and `.core/` above was silently swallowing it — a
+# `git add` appeared to work and committed nothing, so the test passed locally
+# and failed in CI. Same shape as the pkg/api/ui/dist case below.
+!go/pkg/build/testdata/**/.core/
+!go/pkg/build/testdata/**/.core/**
 .gocache-build/
 .DS_Store
 Thumbs.db

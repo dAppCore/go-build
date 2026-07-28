@@ -1,0 +1,30 @@
+# Fixture for TestConfig_LoadConfigTestdataGood.
+#
+# Every other directory under testdata/ describes a project shape for detection
+# to read. This one is different: it is a real .core/build.yaml, so the test
+# exercises LoadConfig parsing rather than the loader's missing-file path —
+# which returns DefaultConfig() and would satisfy nothing the test asserts.
+
+version: 1
+
+project:
+  name: example-cli
+  description: An example CLI application
+  main: ./cmd/example
+  binary: example
+
+build:
+  cgo: false
+  flags:
+    - -trimpath
+  ldflags:
+    - -s
+    - -w
+
+targets:
+  - os: linux
+    arch: amd64
+  - os: darwin
+    arch: arm64
+  - os: windows
+    arch: amd64

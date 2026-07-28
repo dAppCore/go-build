@@ -159,6 +159,12 @@ func TestAppleBuilder_Detect_Good(t *testing.T) {
 }
 
 func TestAppleBuilder_Build_Good(t *testing.T) {
+	// resolveBuildNumber prefers GITHUB_RUN_NUMBER over counting commits, so
+	// the runDirFn stub below is never reached in an Actions run and the
+	// assertion sees the run number instead. Pinned so the test measures the
+	// path it is stubbing.
+	t.Setenv("GITHUB_RUN_NUMBER", "")
+
 	projectDir := t.TempDir()
 
 	oldLoadConfig := loadConfigFn
@@ -263,6 +269,12 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 }
 
 func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t *testing.T) {
+	// resolveBuildNumber prefers GITHUB_RUN_NUMBER over counting commits, so
+	// the runDirFn stub below is never reached in an Actions run and the
+	// assertion sees the run number instead. Pinned so the test measures the
+	// path it is stubbing.
+	t.Setenv("GITHUB_RUN_NUMBER", "")
+
 	projectDir := t.TempDir()
 
 	oldLoadConfig := loadConfigFn
@@ -347,6 +359,12 @@ func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t
 }
 
 func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
+	// resolveBuildNumber prefers GITHUB_RUN_NUMBER over counting commits, so
+	// the runDirFn stub below is never reached in an Actions run and the
+	// assertion sees the run number instead. Pinned so the test measures the
+	// path it is stubbing.
+	t.Setenv("GITHUB_RUN_NUMBER", "")
+
 	projectDir := t.TempDir()
 
 	oldLoadConfig := loadConfigFn
@@ -426,6 +444,12 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 }
 
 func TestAppleBuilder_Build_WritesXcodeCloudScripts_Good(t *testing.T) {
+	// resolveBuildNumber prefers GITHUB_RUN_NUMBER over counting commits, so
+	// the runDirFn stub below is never reached in an Actions run and the
+	// assertion sees the run number instead. Pinned so the test measures the
+	// path it is stubbing.
+	t.Setenv("GITHUB_RUN_NUMBER", "")
+
 	projectDir := t.TempDir()
 
 	oldLoadConfig := loadConfigFn
