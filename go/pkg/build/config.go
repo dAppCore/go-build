@@ -4,6 +4,7 @@ package build
 
 import (
 	"iter"
+	"maps"
 	"reflect"
 
 	"dappco.re/go"
@@ -36,24 +37,24 @@ type BuildConfig struct {
 	// Build contains build settings.
 	Build Build `json:"build" yaml:"build"`
 	// Apple contains macOS Apple pipeline settings.
-	Apple AppleConfig `json:"apple,omitempty" yaml:"apple,omitempty"`
+	Apple AppleConfig `json:"apple" yaml:"apple,omitempty"`
 	// PreBuild contains declarative frontend build hooks such as Deno or npm.
-	PreBuild PreBuild `json:"pre_build,omitempty" yaml:"pre_build,omitempty"`
+	PreBuild PreBuild `json:"pre_build" yaml:"pre_build,omitempty"`
 	// Targets defines the build targets.
 	Targets []TargetConfig `json:"targets" yaml:"targets"`
 	// Sign contains code signing configuration.
-	Sign signing.SignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
+	Sign signing.SignConfig `json:"sign" yaml:"sign,omitempty"`
 	// SDK contains OpenAPI SDK generation configuration.
 	SDK *sdk.Config `json:"sdk,omitempty" yaml:"sdk,omitempty"`
 	// LinuxKit contains immutable image configuration for `core build image`.
-	LinuxKit LinuxKitConfig `json:"linuxkit,omitempty" yaml:"linuxkit,omitempty"`
+	LinuxKit LinuxKitConfig `json:"linuxkit" yaml:"linuxkit,omitempty"`
 }
 
 type rawSignConfig struct {
 	Enabled *bool                `json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	GPG     signing.GPGConfig    `json:"gpg,omitempty" yaml:"gpg,omitempty"`
-	MacOS   signing.MacOSConfig  `json:"macos,omitempty" yaml:"macos,omitempty"`
-	Windows rawWindowsSignConfig `json:"windows,omitempty" yaml:"windows,omitempty"`
+	GPG     signing.GPGConfig    `json:"gpg" yaml:"gpg,omitempty"`
+	MacOS   signing.MacOSConfig  `json:"macos" yaml:"macos,omitempty"`
+	Windows rawWindowsSignConfig `json:"windows" yaml:"windows,omitempty"`
 }
 
 type rawWindowsSignConfig struct {
@@ -106,7 +107,7 @@ type Build struct {
 	// Env are additional environment variables.
 	Env []string `json:"env" yaml:"env"`
 	// Cache controls build cache setup.
-	Cache CacheConfig `json:"cache,omitempty" yaml:"cache,omitempty"`
+	Cache CacheConfig `json:"cache" yaml:"cache,omitempty"`
 	// Dockerfile is the path to the Dockerfile used by Docker builds.
 	Dockerfile string `json:"dockerfile,omitempty" yaml:"dockerfile,omitempty"`
 	// Registry is the container registry used for Docker image references.
@@ -170,7 +171,7 @@ type AppleConfig struct {
 	DMGBackground     string           `json:"dmg_background,omitempty" yaml:"dmg_background,omitempty"`
 	DMGVolumeName     string           `json:"dmg_volume_name,omitempty" yaml:"dmg_volume_name,omitempty"`
 	EntitlementsPath  string           `json:"entitlements_path,omitempty" yaml:"entitlements_path,omitempty"`
-	XcodeCloud        XcodeCloudConfig `json:"xcode_cloud,omitempty" yaml:"xcode_cloud,omitempty"`
+	XcodeCloud        XcodeCloudConfig `json:"xcode_cloud" yaml:"xcode_cloud,omitempty"`
 }
 
 // XcodeCloudConfig defines the Xcode Cloud workflow metadata stored in build config.
@@ -221,12 +222,12 @@ type buildConfigYAML struct {
 	Project  Project            `json:"project" yaml:"project"`
 	Build    buildYAML          `json:"build" yaml:"build"`
 	Cache    *CacheConfig       `json:"cache,omitempty" yaml:"cache,omitempty"`
-	Apple    AppleConfig        `json:"apple,omitempty" yaml:"apple,omitempty"`
+	Apple    AppleConfig        `json:"apple" yaml:"apple,omitempty"`
 	PreBuild *PreBuild          `json:"pre_build,omitempty" yaml:"pre_build,omitempty"`
 	Targets  []TargetConfig     `json:"targets" yaml:"targets"`
-	Sign     signing.SignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
+	Sign     signing.SignConfig `json:"sign" yaml:"sign,omitempty"`
 	SDK      *sdk.Config        `json:"sdk,omitempty" yaml:"sdk,omitempty"`
-	LinuxKit LinuxKitConfig     `json:"linuxkit,omitempty" yaml:"linuxkit,omitempty"`
+	LinuxKit LinuxKitConfig     `json:"linuxkit" yaml:"linuxkit,omitempty"`
 }
 
 type buildYAML struct {
@@ -261,13 +262,13 @@ func (cfg *BuildConfig) UnmarshalYAML(value *yaml.Node) core.Result {
 		Version  int            `json:"version" yaml:"version"`
 		Project  Project        `json:"project" yaml:"project"`
 		Build    Build          `json:"build" yaml:"build"`
-		Cache    CacheConfig    `json:"cache,omitempty" yaml:"cache,omitempty"`
-		Apple    AppleConfig    `json:"apple,omitempty" yaml:"apple,omitempty"`
-		PreBuild PreBuild       `json:"pre_build,omitempty" yaml:"pre_build,omitempty"`
+		Cache    CacheConfig    `json:"cache" yaml:"cache,omitempty"`
+		Apple    AppleConfig    `json:"apple" yaml:"apple,omitempty"`
+		PreBuild PreBuild       `json:"pre_build" yaml:"pre_build,omitempty"`
 		Targets  []TargetConfig `json:"targets" yaml:"targets"`
 		Sign     *rawSignConfig `json:"sign,omitempty" yaml:"sign,omitempty"`
-		SDK      yaml.Node      `json:"sdk,omitempty" yaml:"sdk,omitempty"`
-		LinuxKit LinuxKitConfig `json:"linuxkit,omitempty" yaml:"linuxkit,omitempty"`
+		SDK      yaml.Node      `json:"sdk" yaml:"sdk,omitempty"`
+		LinuxKit LinuxKitConfig `json:"linuxkit" yaml:"linuxkit,omitempty"`
 	}
 
 	var raw rawBuildConfig
@@ -868,9 +869,7 @@ func CloneStringMap(values map[string]string) map[string]string {
 	}
 
 	result := make(map[string]string, len(values))
-	for key, value := range values {
-		result[key] = value
-	}
+	maps.Copy(result, values)
 	return result
 }
 

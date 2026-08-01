@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	stdlibAssertEqual         = testassert.Equal
-	stdlibAssertNil           = testassert.Nil
-	stdlibAssertContains      = testassert.Contains
+	stdlibAssertEqual    = testassert.Equal
+	stdlibAssertNil      = testassert.Nil
+	stdlibAssertContains = testassert.Contains
 )
 
 type serviceFatal interface {

@@ -2,6 +2,7 @@ package cmdutil
 
 import (
 	"context"
+	"slices"
 	"strconv"
 
 	"dappco.re/go"
@@ -68,13 +69,7 @@ func OptionBool(opts core.Options, keys ...string) bool {
 
 // OptionHas reports whether any of the provided keys was supplied.
 func OptionHas(opts core.Options, keys ...string) bool {
-	for _, key := range keys {
-		if opts.Has(key) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(keys, opts.Has)
 }
 
 // ResultFromError adapts a Go error into a Core result.

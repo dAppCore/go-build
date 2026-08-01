@@ -10,6 +10,7 @@ import (
 	// Note: AX-6 — context.Context is the command cancellation contract; core has no equivalent API.
 	"context"
 	"io/fs"
+	"slices"
 	// Note: AX-6 — net/http is required for PWA downloads; core has no HTTP client primitive.
 	"net/http"
 	// Note: AX-6 — net/url is required for standards-compliant URL parsing/resolution; core has only path/string primitives here.
@@ -236,12 +237,7 @@ func extractHTMLMetadataAndAssets(htmlContent, baseURL string) core.Result {
 // relIncludesManifest reports whether a rel attribute declares a manifest link.
 // HTML allows multiple space-separated tokens and case-insensitive values.
 func relIncludesManifest(rel string) bool {
-	for _, token := range parseRelTokens(rel) {
-		if token == "manifest" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(parseRelTokens(rel), "manifest")
 }
 
 // fetchManifest downloads and parses a PWA manifest.
@@ -602,10 +598,8 @@ func parseRelTokens(value string) []string {
 
 func relHasAny(tokens []string, candidates ...string) bool {
 	for _, token := range tokens {
-		for _, candidate := range candidates {
-			if token == candidate {
-				return true
-			}
+		if slices.Contains(candidates, token) {
+			return true
 		}
 	}
 	return false

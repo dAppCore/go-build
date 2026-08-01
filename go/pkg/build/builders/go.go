@@ -3,6 +3,7 @@ package builders
 
 import (
 	"context"
+	"slices"
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -255,12 +256,7 @@ func hasVersionLDFlag(ldflags []string) bool {
 
 // containsString reports whether a slice contains the given string.
 func containsString(values []string, needle string) bool {
-	for _, value := range values {
-		if value == needle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, needle)
 }
 
 // Ensure GoBuilder implements the Builder interface.

@@ -314,12 +314,9 @@ func comparePrereleaseVersions(a, b string) int {
 
 	aParts := core.Split(a, ".")
 	bParts := core.Split(b, ".")
-	limit := len(aParts)
-	if len(bParts) < limit {
-		limit = len(bParts)
-	}
+	limit := min(len(bParts), len(aParts))
 
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		if aParts[i] == bParts[i] {
 			continue
 		}

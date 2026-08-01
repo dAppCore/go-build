@@ -2,6 +2,7 @@ package publishers
 
 import (
 	"context"
+	"slices"
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -222,10 +223,8 @@ func linuxKitCloudProvidersForFormats(formats []string) []string {
 }
 
 func appendLinuxKitProvider(providers []string, provider string) []string {
-	for _, existing := range providers {
-		if existing == provider {
-			return providers
-		}
+	if slices.Contains(providers, provider) {
+		return providers
 	}
 	return append(providers, provider)
 }

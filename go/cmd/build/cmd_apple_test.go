@@ -78,7 +78,7 @@ func TestBuildCmd_resolveAppleCommandOptions_Good(t *testing.T) {
 		Apple: build.AppleConfig{
 			BundleID: "ai.lthn.core",
 			Arch:     "arm64",
-			Sign:     boolPtr(false),
+			Sign:     new(false),
 		},
 		Sign: signing.SignConfig{
 			MacOS: signing.MacOSConfig{
@@ -389,8 +389,9 @@ apple:
 
 }
 
+//go:fix inline
 func boolPtr(value bool) *bool {
-	return &value
+	return new(value)
 }
 
 var (

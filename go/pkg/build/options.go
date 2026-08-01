@@ -3,6 +3,7 @@
 package build
 
 import (
+	"slices"
 	"strconv"
 
 	"dappco.re/go"
@@ -96,10 +97,8 @@ func InjectWebKitTag(tags []string, distro string) []string {
 	}
 
 	// Check if tag is already present
-	for _, tag := range tags {
-		if tag == "webkit2_41" {
-			return tags
-		}
+	if slices.Contains(tags, "webkit2_41") {
+		return tags
 	}
 
 	return append([]string{"webkit2_41"}, tags...)
@@ -159,13 +158,7 @@ func shouldInjectWebKitTag(cfg *BuildConfig, discovery *DiscoveryResult) bool {
 		return true
 	}
 
-	for _, projectType := range discovery.Types {
-		if projectType == ProjectTypeWails {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(discovery.Types, ProjectTypeWails)
 }
 
 // isUbuntu2404OrNewer checks if the distro version string represents Ubuntu 24.04+.

@@ -3,6 +3,7 @@ package builders
 import (
 	"context"
 	"runtime"
+	"slices"
 
 	core "dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -62,12 +63,7 @@ func TestApple_NewAppleBuilder_DefaultRunnerNonNil(t *core.T) {
 
 // containsArg reports whether want appears among args.
 func containsArg(args []string, want string) bool {
-	for _, arg := range args {
-		if arg == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, want)
 }
 
 func TestApple_CreateDMG_ConstructsHdiutilSequence(t *core.T) {
@@ -148,12 +144,7 @@ func TestApple_CreateUniversal_RecordsOnlyOffDarwin(t *core.T) {
 
 // envContains reports whether want appears among env entries.
 func envContains(env []string, want string) bool {
-	for _, entry := range env {
-		if entry == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(env, want)
 }
 
 func TestApple_BuildWailsMacOS_ConstructsWails3Build(t *core.T) {

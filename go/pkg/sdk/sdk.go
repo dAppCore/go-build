@@ -25,11 +25,11 @@ type Config struct {
 	// SkipUnavailable skips generators that are unavailable on this machine.
 	SkipUnavailable bool `json:"skip_unavailable,omitempty" yaml:"skip_unavailable,omitempty"`
 	// Package naming configuration.
-	Package PackageConfig `json:"package,omitempty" yaml:"package,omitempty"`
+	Package PackageConfig `json:"package" yaml:"package,omitempty"`
 	// Diff configuration for breaking change detection.
-	Diff DiffConfig `json:"diff,omitempty" yaml:"diff,omitempty"`
+	Diff DiffConfig `json:"diff" yaml:"diff,omitempty"`
 	// Publish configuration for monorepo publishing.
-	Publish PublishConfig `json:"publish,omitempty" yaml:"publish,omitempty"`
+	Publish PublishConfig `json:"publish" yaml:"publish,omitempty"`
 }
 
 // PackageConfig holds package naming configuration.

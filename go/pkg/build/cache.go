@@ -3,6 +3,8 @@
 package build
 
 import (
+	"slices"
+
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
 	storage "dappco.re/go/build/pkg/storage"
@@ -318,10 +320,8 @@ func cacheEnvironmentName(path string) string {
 }
 
 func appendIfMissing(values []string, value string) []string {
-	for _, current := range values {
-		if current == value {
-			return values
-		}
+	if slices.Contains(values, value) {
+		return values
 	}
 	return append(values, value)
 }

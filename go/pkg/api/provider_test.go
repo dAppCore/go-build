@@ -753,7 +753,6 @@ func TestProvider_GenerateReleaseWorkflowGood(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			assertProviderReleaseWorkflow(t, tc)
 		})

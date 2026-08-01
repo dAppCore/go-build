@@ -66,9 +66,9 @@ func TestXcodeCloud_GenerateXcodeCloudScripts_Good(t *testing.T) {
 			BundleID: "ai.lthn.core",
 			TeamID:   "ABC123DEF4",
 			Arch:     "universal",
-			Notarise: boolPtr(false),
-			DMG:      boolPtr(true),
-			AppStore: boolPtr(true),
+			Notarise: new(false),
+			DMG:      new(true),
+			AppStore: new(true),
 		},
 	})
 	if len(scripts) != 3 {
@@ -214,8 +214,9 @@ func TestXcodeCloud_WriteXcodeCloudScripts_Bad(t *testing.T) {
 
 }
 
+//go:fix inline
 func boolPtr(value bool) *bool {
-	return &value
+	return new(value)
 }
 
 // --- v0.9.0 generated compliance triplets ---

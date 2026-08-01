@@ -193,7 +193,7 @@ func buildDataArchive(binary, installPath string) core.Result {
 	// dpkg wants every parent directory declared before the file inside it.
 	segments := core.Split(core.TrimPrefix(installPath, "/"), "/")
 	prefix := "."
-	for index := 0; index < len(segments)-1; index++ {
+	for index := range len(segments) - 1 {
 		prefix = core.Concat(prefix, "/", segments[index])
 		entries = append(entries, tarEntry{Name: prefix + "/", Mode: 0o755, Dir: true})
 	}

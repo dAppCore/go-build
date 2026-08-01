@@ -8,10 +8,10 @@ import (
 )
 
 var (
-	stdlibAssertEqual         = testassert.Equal
-	stdlibAssertNil           = testassert.Nil
-	stdlibAssertEmpty         = testassert.Empty
-	stdlibAssertContains      = testassert.Contains
+	stdlibAssertEqual    = testassert.Equal
+	stdlibAssertNil      = testassert.Nil
+	stdlibAssertEmpty    = testassert.Empty
+	stdlibAssertContains = testassert.Contains
 )
 
 func requirePublisherOK(t *testing.T, result core.Result) {

@@ -1826,7 +1826,6 @@ func TestDiscovery_DiscoverFull_Good(t *testing.T) {
 			markers: []string{"Taskfile.yaml"},
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			result := assertDiscoverFullStack(t, fs, tc.setup(t), tc.want, tc.stack, tc.markers...)
 			if tc.check != nil {

@@ -579,7 +579,6 @@ func TestWails_WailsBuilderResolveFrontendDirGood(t *testing.T) {
 		{name: "ignores frontends deeper than depth 2", frontend: []string{"apps", "marketing", "web"}, marker: "package.json", wantEmpty: true},
 		{name: "falls back to frontend directory when DENO_ENABLE is set", frontend: []string{"frontend"}, denoEnable: true},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.denoEnable {
 				t.Setenv("DENO_ENABLE", "true")
@@ -851,7 +850,6 @@ func TestWails_WailsBuilderBuildV2_RespectsConfiguredOutputNameGood(t *testing.T
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			binDir := t.TempDir()
 			setupFakeWailsToolchain(t, binDir)
@@ -1082,7 +1080,6 @@ func TestWails_WailsBuilderPreBuildGood(t *testing.T) {
 		{name: "uses bun when bun.lockb exists", command: "bun", lock: "bun.lockb"},
 		{name: "uses pnpm when pnpm-lock.yaml exists", command: "pnpm", lock: "pnpm-lock.yaml"},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			binDir := t.TempDir()
 			setupFakeFrontendCommand(t, binDir, tc.command)
@@ -1456,7 +1453,6 @@ func TestWails_DetectPackageManagerGood(t *testing.T) {
 		},
 		{name: "normalises package manager version pins", files: map[string]string{"package.json": `{"packageManager":"npm@10.8.2"}`}, want: "npm"},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			for path, content := range tc.files {

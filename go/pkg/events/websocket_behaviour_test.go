@@ -97,8 +97,7 @@ func TestEvents_WebSocket_Upgrade_Bad(t *core.T) {
 	// A plain HTTP GET (no Upgrade headers) against a live hub fails the gorilla
 	// upgrade and never registers a client.
 	hub := NewHub()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go hub.Run(ctx)
 	server := httptest.NewServer(hub.Handler())
 	defer server.Close()

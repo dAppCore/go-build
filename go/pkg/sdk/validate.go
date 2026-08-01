@@ -4,7 +4,7 @@ import (
 	"context"
 
 	core "dappco.re/go"
-	"github.com/oasdiff/kin-openapi/openapi3"
+	"github.com/getkin/kin-openapi/openapi3"
 )
 
 // ValidateSpec detects and validates the OpenAPI specification for this SDK.

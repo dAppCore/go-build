@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"runtime"
+	"slices"
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -219,10 +220,5 @@ func builtinHasVersionLDFlag(ldflags []string) bool {
 }
 
 func builtinContainsString(values []string, needle string) bool {
-	for _, value := range values {
-		if value == needle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, needle)
 }

@@ -86,7 +86,7 @@ func Contains(container, elem any) bool {
 			return v.MapIndex(key.Convert(v.Type().Key())).IsValid()
 		}
 	case reflect.Array, reflect.Slice:
-		for i := 0; i < v.Len(); i++ {
+		for i := range v.Len() {
 			if reflect.DeepEqual(v.Index(i).Interface(), elem) {
 				return true
 			}
@@ -112,10 +112,10 @@ func ElementsMatch(want, got any) bool {
 	}
 
 	used := make([]bool, gotValue.Len())
-	for i := 0; i < wantValue.Len(); i++ {
+	for i := range wantValue.Len() {
 		found := false
 		wantElem := wantValue.Index(i).Interface()
-		for j := 0; j < gotValue.Len(); j++ {
+		for j := range gotValue.Len() {
 			if used[j] {
 				continue
 			}

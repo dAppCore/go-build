@@ -2,6 +2,7 @@ package build
 
 import (
 	"runtime"
+	"slices"
 
 	"dappco.re/go"
 	"dappco.re/go/build/internal/ax"
@@ -576,12 +577,7 @@ func ResolveLinuxPackages(types []ProjectType, distro string) []string {
 }
 
 func containsProjectType(types []ProjectType, projectType ProjectType) bool {
-	for _, candidate := range types {
-		if candidate == projectType {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(types, projectType)
 }
 
 // hasFrontendManifest reports whether a frontend directory contains a supported manifest.

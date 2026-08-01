@@ -2,6 +2,7 @@ package publishers
 
 import (
 	"context"
+	"maps"
 	"testing"
 
 	core "dappco.re/go"
@@ -1268,9 +1269,7 @@ func runLinuxKitPublishFixture(t *testing.T, formats []string, linuxKitMode stri
 		"formats":   formatValues,
 		"platforms": []any{"linux/amd64"},
 	}
-	for key, value := range extended {
-		ext[key] = value
-	}
+	maps.Copy(ext, extended)
 
 	release := &Release{
 		Version:    "v1.2.3",

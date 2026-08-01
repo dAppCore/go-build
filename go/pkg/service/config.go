@@ -1,6 +1,7 @@
 package service
 
 import (
+	"maps"
 	"runtime"
 	"strconv"
 	"time"
@@ -184,9 +185,7 @@ func (cfg Config) Normalized() Config {
 	}
 
 	env := make(map[string]string, len(cfg.Environment)+6)
-	for key, value := range cfg.Environment {
-		env[key] = value
-	}
+	maps.Copy(env, cfg.Environment)
 	setDefaultEnv(env, "CORE_BUILD_SERVICE", "1")
 	setDefaultEnv(env, "CORE_BUILD_PROJECT_DIR", cfg.ProjectDir)
 	setDefaultEnv(env, "CORE_BUILD_API_ADDR", cfg.APIAddr)

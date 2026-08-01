@@ -201,7 +201,7 @@ func TestAppleBuilder_Build_Good(t *testing.T) {
 			},
 			Apple: build.AppleConfig{
 				BundleID: "ai.lthn.core",
-				Sign:     boolPtr(false),
+				Sign:     new(false),
 			},
 			Sign: signing.SignConfig{
 				MacOS: signing.MacOSConfig{
@@ -306,7 +306,7 @@ func TestAppleBuilder_Build_PartialRuntimeOptionsPreservePipelineDefaults_Good(t
 			},
 			Apple: build.AppleConfig{
 				BundleID: "ai.lthn.core",
-				DMG:      boolPtr(true),
+				DMG:      new(true),
 			},
 			Sign: signing.SignConfig{
 				MacOS: signing.MacOSConfig{
@@ -405,7 +405,7 @@ func TestAppleBuilder_Build_SetsUpBuildCache_Good(t *testing.T) {
 			},
 			Apple: build.AppleConfig{
 				BundleID: "ai.lthn.core",
-				Sign:     boolPtr(false),
+				Sign:     new(false),
 			},
 		})
 	}
@@ -483,7 +483,7 @@ func TestAppleBuilder_Build_WritesXcodeCloudScripts_Good(t *testing.T) {
 			},
 			Apple: build.AppleConfig{
 				BundleID: "ai.lthn.core",
-				Sign:     boolPtr(false),
+				Sign:     new(false),
 				XcodeCloud: build.XcodeCloudConfig{
 					Workflow: "CoreGUI Release",
 				},
@@ -537,7 +537,7 @@ func TestAppleBuilder_resolveOptions_BoolOnlyRuntimeOverride_Good(t *testing.T) 
 	options := builder.resolveOptions(&build.BuildConfig{
 		Apple: build.AppleConfig{
 			BundleID: "ai.lthn.core",
-			DMG:      boolPtr(true),
+			DMG:      new(true),
 		},
 	}, &AppleOptions{
 		Sign:     false,
@@ -618,8 +618,9 @@ func TestApple_BuildWailsApp_UsesCurrentDirectoryAndStringLDFlags_Good(t *testin
 
 }
 
+//go:fix inline
 func boolPtr(value bool) *bool {
-	return &value
+	return new(value)
 }
 
 var (

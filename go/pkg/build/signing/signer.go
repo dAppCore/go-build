@@ -26,9 +26,9 @@ type Signer interface {
 // cfg := signing.DefaultSignConfig()
 type SignConfig struct {
 	Enabled bool          `json:"enabled" yaml:"enabled"`
-	GPG     GPGConfig     `json:"gpg,omitempty" yaml:"gpg,omitempty"`
-	MacOS   MacOSConfig   `json:"macos,omitempty" yaml:"macos,omitempty"`
-	Windows WindowsConfig `json:"windows,omitempty" yaml:"windows,omitempty"`
+	GPG     GPGConfig     `json:"gpg" yaml:"gpg,omitempty"`
+	MacOS   MacOSConfig   `json:"macos" yaml:"macos,omitempty"`
+	Windows WindowsConfig `json:"windows" yaml:"windows,omitempty"`
 }
 
 // GPGConfig holds GPG signing configuration.

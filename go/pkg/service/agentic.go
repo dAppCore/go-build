@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"maps"
 
 	providerpkg "dappco.re/go/build/pkg/api/provider"
 	events "dappco.re/go/build/pkg/events"
@@ -112,9 +113,7 @@ func cloneAgenticPayload(payload any) map[string]any {
 	}
 
 	cloned := make(map[string]any, len(typed))
-	for key, value := range typed {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, typed)
 	return cloned
 }
 

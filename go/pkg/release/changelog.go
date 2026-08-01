@@ -391,10 +391,5 @@ func ParseCommitType(subject string) string {
 }
 
 func containsCommitType(types []string, target string) bool {
-	for _, item := range types {
-		if item == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(types, target)
 }

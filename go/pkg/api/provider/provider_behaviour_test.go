@@ -13,10 +13,10 @@ type registryStreamableProvider struct {
 	channels []string
 }
 
-func (p registryStreamableProvider) Name() string                   { return p.name }
-func (p registryStreamableProvider) BasePath() string               { return p.basePath }
+func (p registryStreamableProvider) Name() string                    { return p.name }
+func (p registryStreamableProvider) BasePath() string                { return p.basePath }
 func (p registryStreamableProvider) RegisterRoutes(*gin.RouterGroup) {}
-func (p registryStreamableProvider) Channels() []string             { return p.channels }
+func (p registryStreamableProvider) Channels() []string              { return p.channels }
 
 func TestProvider_Registry_Info_Streamable_Ugly(t *core.T) {
 	registry := NewRegistry()

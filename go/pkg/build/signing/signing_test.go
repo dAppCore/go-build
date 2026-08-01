@@ -477,8 +477,8 @@ func TestSigning_ExpandEnv_Good(t *testing.T) {
 }
 
 var (
-	stdlibAssertEqual         = testassert.Equal
-	stdlibAssertContains      = testassert.Contains
+	stdlibAssertEqual    = testassert.Equal
+	stdlibAssertContains = testassert.Contains
 )
 
 // fakeToolSuccess is a shell stub that exits 0, standing in for an external

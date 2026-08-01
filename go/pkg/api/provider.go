@@ -56,13 +56,13 @@ const (
 )
 
 var (
-	providerGetBuilder         = getBuilder
-	providerDetermineVersion   = release.DetermineVersionWithContext
-	providerLoadReleaseConfig  = release.LoadConfig
-	providerRunRelease         = release.Run
-	providerSignBinaries       = signing.SignBinaries
-	providerNotarizeBinaries   = signing.NotarizeBinaries
-	providerSignChecksums      = signing.SignChecksums
+	providerGetBuilder        = getBuilder
+	providerDetermineVersion  = release.DetermineVersionWithContext
+	providerLoadReleaseConfig = release.LoadConfig
+	providerRunRelease        = release.Run
+	providerSignBinaries      = signing.SignBinaries
+	providerNotarizeBinaries  = signing.NotarizeBinaries
+	providerSignChecksums     = signing.SignChecksums
 )
 
 // compile-time interface checks

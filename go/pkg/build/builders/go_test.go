@@ -1243,11 +1243,11 @@ func TestGo_GoBuilderInterfaceGood(t *testing.T) {
 }
 
 var (
-	stdlibAssertEqual         = testassert.Equal
-	stdlibAssertNil           = testassert.Nil
-	stdlibAssertEmpty         = testassert.Empty
-	stdlibAssertZero          = testassert.Zero
-	stdlibAssertContains      = testassert.Contains
+	stdlibAssertEqual    = testassert.Equal
+	stdlibAssertNil      = testassert.Nil
+	stdlibAssertEmpty    = testassert.Empty
+	stdlibAssertZero     = testassert.Zero
+	stdlibAssertContains = testassert.Contains
 )
 
 // --- v0.9.0 generated compliance triplets ---

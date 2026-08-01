@@ -6,6 +6,7 @@ import (
 	"dappco.re/go/build/internal/ax"
 	coreio "dappco.re/go/build/pkg/storage"
 )
+
 func resolveReleaseOutputMedium(cfg *Config) coreio.Medium {
 	if cfg == nil || cfg.output == nil {
 		return coreio.Local

@@ -1347,18 +1347,12 @@ func dmgLayoutPositions(windowSize [2]int, iconSize int) (int, int, int, int) {
 		iconSize = defaultDMGIconSize
 	}
 
-	appX := width / 4
-	if appX < iconSize+32 {
-		appX = iconSize + 32
-	}
+	appX := max(width/4, iconSize+32)
 	applicationsX := (width * 3) / 4
 	if applicationsX <= appX {
 		applicationsX = appX + iconSize + 96
 	}
-	appY := height / 2
-	if appY < iconSize+32 {
-		appY = iconSize + 32
-	}
+	appY := max(height/2, iconSize+32)
 
 	return appX, appY, applicationsX, appY
 }
@@ -2071,12 +2065,9 @@ func compareAppleVersion(left, right string) int {
 	leftParts := appleVersionParts(left)
 	rightParts := appleVersionParts(right)
 
-	maxLen := len(leftParts)
-	if len(rightParts) > maxLen {
-		maxLen = len(rightParts)
-	}
+	maxLen := max(len(rightParts), len(leftParts))
 
-	for i := 0; i < maxLen; i++ {
+	for i := range maxLen {
 		var leftValue, rightValue int
 		if i < len(leftParts) {
 			leftValue = leftParts[i]

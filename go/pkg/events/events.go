@@ -22,7 +22,7 @@ type Message struct {
 	Channel   string      `json:"channel,omitempty"`
 	ProcessID string      `json:"processId,omitempty"`
 	Data      any         `json:"data,omitempty"`
-	Timestamp time.Time   `json:"timestamp,omitempty"`
+	Timestamp time.Time   `json:"timestamp"`
 }
 
 type Hub struct {
