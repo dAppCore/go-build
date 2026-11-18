@@ -3,8 +3,8 @@ package publishers
 import (
 	"context"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 func (p *LinuxKitPublisher) publishLinuxKitArtifact(ctx context.Context, release *Release, cfg LinuxKitConfig, format, artifactPath string) core.Result {

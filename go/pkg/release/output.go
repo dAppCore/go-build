@@ -3,8 +3,8 @@ package release
 import (
 	"reflect"
 
-	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go-build/go/internal/ax"
+	coreio "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 func resolveReleaseOutputMedium(cfg *Config) coreio.Medium {

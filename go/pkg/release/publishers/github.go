@@ -9,9 +9,9 @@ import (
 	"net/url"  // Note: AX-6 — parses GitHub remote URLs using the structured URL parser.
 	"sort"     // Note: AX-6 — keeps remote selection deterministic with origin first.
 
-	"dappco.re/go"                          // Note: AX-6 — approved string helpers and Core error joining.
-	"dappco.re/go/build/internal/ax"        // Note: AX-6 — Core-backed command, path, JSON, and temp helpers.
-	coreio "dappco.re/go/build/pkg/storage" // Note: AX-6 — Core Medium abstraction for artifact filesystem access.
+	"github.com/dappcore/go"                          // Note: AX-6 — approved string helpers and Core error joining.
+	"github.com/dappcore/go-build/go/internal/ax"        // Note: AX-6 — Core-backed command, path, JSON, and temp helpers.
+	coreio "github.com/dappcore/go-build/go/pkg/storage" // Note: AX-6 — Core Medium abstraction for artifact filesystem access.
 )
 
 // GitHubPublisher publishes releases to GitHub using the gh CLI.

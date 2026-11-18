@@ -1,5 +1,5 @@
 ---
-module: dappco.re/go/build
+module: github.com/dappcore/go-build/go
 repo: core/go-build
 lang: go
 tier: lib
@@ -18,7 +18,7 @@ tags:
 > An agent should be able to implement any component from this document alone.
 
 **Repository:** `core/go-build` (build/release), `core/cli` (CLI commands)
-**Module:** `dappco.re/go/build`
+**Module:** `github.com/dappcore/go-build/go`
 **Sub-specs:** [Models](RFC.models.md) | [Commands](RFC.commands.md) | [Build Pipeline](RFC.build-pipeline.md) | [Release Pipeline](RFC.release-pipeline.md) | [SDK Generation](RFC.sdk-generation.md) | [API Provider](RFC.api-provider.md) | [CI Workflow](RFC.ci-workflow.md) | [cmd build](RFC.cmd-build.md) | [cmd sdk](RFC.cmd-sdk.md) | [Action Port](RFC.action-port.md) | [Installer CDN](RFC.installer-cdn.md)
 
 ---
@@ -996,7 +996,7 @@ build.Run(build.WithOutput(io.S3("releases.lthn.io/v0.8.0")))
 
 | Resource | Location |
 |----------|----------|
-| go-build repo | `dappco.re/go/build` |
+| go-build repo | `github.com/dappcore/go-build/go` |
 | Core Go RFC | `code/core/go/RFC.md` |
 | I/O Medium interface | `code/core/go/io/RFC.md` |
 | Build pipeline sub-spec | `code/core/go/build/RFC.build-pipeline.md` |

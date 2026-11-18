@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleValidateVersionString references ValidateVersionString on this package API surface.
 func ExampleValidateVersionString() {

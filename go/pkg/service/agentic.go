@@ -4,8 +4,8 @@ import (
 	"context"
 	"maps"
 
-	providerpkg "dappco.re/go/build/pkg/api/provider"
-	events "dappco.re/go/build/pkg/events"
+	providerpkg "github.com/dappcore/go-build/go/pkg/api/provider"
+	events "github.com/dappcore/go-build/go/pkg/events"
 )
 
 type agenticOrchestrator interface {

@@ -3,7 +3,7 @@ package publishers
 import (
 	"context"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 func (p *LinuxKitPublisher) publishRaw(ctx context.Context, release *Release, artifactPath string) core.Result {

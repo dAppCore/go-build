@@ -6,8 +6,8 @@ import (
 	"compress/gzip"
 	stdio "io"
 
-	core "dappco.re/go"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 func newDebFS(t *core.T) (storage.Medium, string) {

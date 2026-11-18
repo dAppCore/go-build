@@ -1,10 +1,10 @@
 package sdk
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 func requireSDKDiff(t *testing.T, basePath, revPath string) *DiffResult {

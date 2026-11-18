@@ -5,9 +5,9 @@ import (
 	"context"
 	"reflect"
 
-	"dappco.re/go"
-	"dappco.re/go/build/pkg/build"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/pkg/build"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // Release represents a release to be published.

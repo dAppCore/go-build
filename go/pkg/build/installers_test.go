@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestInstallers_GenerateInstallerScript_Good(t *core.T) {
 	result := GenerateInstallerScript(VariantCI, "v1.2.3", "dappcore/core")

@@ -1,6 +1,6 @@
 package installers
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleVariants references Variants on this package API surface.
 func ExampleVariants() {

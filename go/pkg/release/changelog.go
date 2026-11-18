@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"slices"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )

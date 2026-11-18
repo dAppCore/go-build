@@ -1,9 +1,9 @@
 package buildcmd
 
 import (
-	"dappco.re/go"
-	"dappco.re/go/build/internal/cli"
-	"dappco.re/go/build/pkg/build"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/cli"
+	"github.com/dappcore/go-build/go/pkg/build"
 )
 
 func emitCIErrorAnnotation(result core.Result) {

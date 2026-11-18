@@ -1,7 +1,7 @@
 package api
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	gin "github.com/gin-gonic/gin"
 )
 

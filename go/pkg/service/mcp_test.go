@@ -2,15 +2,15 @@ package service
 
 import (
 	"context"
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
-	coreapi "dappco.re/go/build/pkg/api"
-	providerpkg "dappco.re/go/build/pkg/api/provider"
+	"github.com/dappcore/go-build/go/internal/ax"
+	coreapi "github.com/dappcore/go-build/go/pkg/api"
+	providerpkg "github.com/dappcore/go-build/go/pkg/api/provider"
 )
 
 func TestMCP_DefaultNewMCPServer_ExposesDaemonToolsGood(t *testing.T) {

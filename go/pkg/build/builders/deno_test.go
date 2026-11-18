@@ -1,10 +1,10 @@
 package builders
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"testing"
 
-	"dappco.re/go/build/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/build"
 )
 
 func requireDenoCommandSpec(t *testing.T, result core.Result) commandSpec {

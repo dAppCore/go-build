@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestBuild_Target_String_Good(t *core.T) {
 	target := Target{OS: "linux", Arch: "amd64"}

@@ -8,13 +8,13 @@ import (
 	stdfs "io/fs"
 	"slices" // Note: AX-6 — sorts discovered release artifacts deterministically.
 
-	"dappco.re/go"                              // Note: AX-6 — provides approved string and formatting helpers.
-	"dappco.re/go/build/internal/ax"            // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
-	"dappco.re/go/build/pkg/build"              // Note: AX-6 — release pipeline depends on build config, artifacts, and checksum helpers.
-	"dappco.re/go/build/pkg/build/builders"     // Note: AX-6 — resolves project builders for release artifact generation.
-	"dappco.re/go/build/pkg/build/signing"      // Note: AX-6 — wires release signing and notarization hooks.
-	"dappco.re/go/build/pkg/release/publishers" // Note: AX-6 — publishes completed release artifacts to configured targets.
-	storage "dappco.re/go/build/pkg/storage"    // Note: AX-6 — Medium abstraction for release filesystem access.
+	"github.com/dappcore/go"                              // Note: AX-6 — provides approved string and formatting helpers.
+	"github.com/dappcore/go-build/go/internal/ax"            // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
+	"github.com/dappcore/go-build/go/pkg/build"              // Note: AX-6 — release pipeline depends on build config, artifacts, and checksum helpers.
+	"github.com/dappcore/go-build/go/pkg/build/builders"     // Note: AX-6 — resolves project builders for release artifact generation.
+	"github.com/dappcore/go-build/go/pkg/build/signing"      // Note: AX-6 — wires release signing and notarization hooks.
+	"github.com/dappcore/go-build/go/pkg/release/publishers" // Note: AX-6 — publishes completed release artifacts to configured targets.
+	storage "github.com/dappcore/go-build/go/pkg/storage"    // Note: AX-6 — Medium abstraction for release filesystem access.
 )
 
 // release signing hooks allow tests to observe the release pipeline without

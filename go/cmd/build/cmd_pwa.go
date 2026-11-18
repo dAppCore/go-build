@@ -18,8 +18,8 @@ import (
 	// Note: AX-6 — unicode preserves Fields/slug whitespace semantics; core has no rune category primitive.
 	"unicode"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 	"github.com/leaanthony/debme"
 	"github.com/leaanthony/gosod"
 	"golang.org/x/net/html"

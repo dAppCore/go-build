@@ -3,8 +3,8 @@ package publishers
 import (
 	"testing"
 
-	"dappco.re/go/build/pkg/build"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go-build/go/pkg/build"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 func TestAssets_BuildChecksumMap_ParsesRFCArchiveNamesGood(t *testing.T) {

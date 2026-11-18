@@ -4,8 +4,8 @@ import (
 	"context"
 	"slices"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 func (p *LinuxKitPublisher) publishAWS(ctx context.Context, release *Release, cfg LinuxKitConfig, artifactPath string) core.Result {

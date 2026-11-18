@@ -6,9 +6,9 @@ import (
 	"embed"         // Note: AX-6 — embeds npm templates for release publishing.
 	"text/template" // Note: AX-6 — renders npm package templates.
 
-	"dappco.re/go"                          // Note: AX-6 — provides approved string and formatting helpers.
-	"dappco.re/go/build/internal/ax"        // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
-	coreio "dappco.re/go/build/pkg/storage" // Note: AX-6 — Core Medium abstraction for release filesystem access.
+	"github.com/dappcore/go"                          // Note: AX-6 — provides approved string and formatting helpers.
+	"github.com/dappcore/go-build/go/internal/ax"        // Note: AX-6 — Core-backed path and filesystem helpers replace banned stdlib calls.
+	coreio "github.com/dappcore/go-build/go/pkg/storage" // Note: AX-6 — Core Medium abstraction for release filesystem access.
 )
 
 //go:embed templates/npm/*.tmpl

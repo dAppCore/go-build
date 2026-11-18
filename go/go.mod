@@ -1,4 +1,4 @@
-module dappco.re/go/build
+module github.com/dappcore/go-build/go
 
 go 1.26.0
 
@@ -18,12 +18,12 @@ require (
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
-	dappco.re/go v0.12.0
 	github.com/TwiN/go-color v1.4.1 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.2 // indirect
 	github.com/bytedance/sonic/loader v0.5.2 // indirect
 	github.com/cloudwego/base64x v0.1.7 // indirect
+	github.com/dappcore/go v0.14.0
 	github.com/gabriel-vasile/mimetype v1.4.15 // indirect
 	github.com/gin-contrib/sse v1.1.1 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect

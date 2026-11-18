@@ -9,10 +9,10 @@ import (
 	"reflect"
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go-build/go/internal/ax"
 
-	core "dappco.re/go"
-	io_interface "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	io_interface "github.com/dappcore/go-build/go/pkg/storage"
 	"github.com/Snider/Borg/pkg/compress"
 )
 

@@ -8,12 +8,12 @@ package buildcmd
 import (
 	"context"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/internal/cli"
-	"dappco.re/go/build/internal/sdkcfg"
-	"dappco.re/go/build/pkg/sdk"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/internal/cli"
+	"github.com/dappcore/go-build/go/internal/sdkcfg"
+	"github.com/dappcore/go-build/go/pkg/sdk"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // runBuildSDK handles the `core build sdk` command.

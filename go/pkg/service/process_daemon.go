@@ -3,7 +3,7 @@ package service
 import (
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 type daemonOptions struct {

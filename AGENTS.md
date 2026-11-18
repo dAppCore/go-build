@@ -2,14 +2,14 @@
 
 This repository contains the Go implementation of the dAppCore build,
 release, SDK, API, and service tooling. The module path is
-`dappco.re/go/build`; public packages are intended to be consumed by other
+`github.com/dappcore/go-build/go`; public packages are intended to be consumed by other
 Core projects, while `cmd/*` packages wire those capabilities into CLI
 commands.
 
 The repository is organized around a small set of product areas:
 
 - `cmd/build`, `cmd/ci`, `cmd/sdk`, and `cmd/service` register CLI commands
-  against `dappco.re/go` command primitives.
+  against `github.com/dappcore/go` command primitives.
 - `pkg/build` owns project discovery, build configuration, builders,
   artifact packaging, checksums, installer scripts, workflows, Apple
   packaging, LinuxKit images, and Xcode Cloud helpers.
@@ -31,11 +31,11 @@ The repository is organized around a small set of product areas:
 Keep tests beside the source file they exercise. Public functions and methods
 use the AX-7 triplet shape `Test<File>_<Symbol>_{Good,Bad,Ugly}` in the
 matching `<file>_test.go`; usage examples live in matching
-`<file>_example_test.go` files and print through `dappco.re/go` helpers.
+`<file>_example_test.go` files and print through `github.com/dappcore/go` helpers.
 Avoid new monolithic test files because the compliance audit is file-aware.
 
 Do not import banned standard-library convenience packages directly in Go
-files. Use the Core wrappers from `dappco.re/go` and the compatibility modules
+files. Use the Core wrappers from `github.com/dappcore/go` and the compatibility modules
 under `.compat/` when a legacy package path is still required by consumers.
 The audit gate treats tests, examples, CLI code, internal packages, and
 compatibility shims the same way.

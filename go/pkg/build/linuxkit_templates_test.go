@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestLinuxkitTemplates_LinuxKitBaseImages_Good(t *core.T) {
 	images := LinuxKitBaseImages()

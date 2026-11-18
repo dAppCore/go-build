@@ -1,8 +1,8 @@
 package publishers
 
 import (
-	core "dappco.re/go"
-	coreio "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // --- v0.9.0 generated compliance triplets ---

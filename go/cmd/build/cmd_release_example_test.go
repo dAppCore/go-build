@@ -1,6 +1,6 @@
 package buildcmd
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleAddReleaseCommand references AddReleaseCommand on this package API surface.
 func ExampleAddReleaseCommand() {

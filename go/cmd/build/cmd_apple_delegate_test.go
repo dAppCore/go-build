@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/build"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/pkg/build"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 const taskfileWithPackage = `version: '3'

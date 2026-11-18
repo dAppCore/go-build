@@ -6,9 +6,9 @@ import (
 	"regexp"
 	"strconv"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/build"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/pkg/build"
 )
 
 // semverRegex matches semantic version strings with or without 'v' prefix.

@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleTargetConfig_MarshalYAML references TargetConfig.MarshalYAML on this package API surface.
 func ExampleTargetConfig_MarshalYAML() {

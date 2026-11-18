@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExamplePipeline_Plan references Pipeline.Plan on this package API surface.
 func ExamplePipeline_Plan() {

@@ -15,8 +15,8 @@ import (
 	"encoding/hex"
 	"strconv"
 
-	core "dappco.re/go"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // DebSpec describes a Debian package to build.

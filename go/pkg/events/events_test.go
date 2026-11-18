@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestEvents_NewHub_Good(t *core.T) {

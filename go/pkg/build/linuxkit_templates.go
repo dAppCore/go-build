@@ -3,7 +3,7 @@ package build
 import (
 	"embed"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 //go:embed images/*.yml

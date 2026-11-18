@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleDiscover references Discover on this package API surface.
 func ExampleDiscover() {

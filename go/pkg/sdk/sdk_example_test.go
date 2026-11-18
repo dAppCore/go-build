@@ -1,7 +1,7 @@
 package sdk
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	yaml "gopkg.in/yaml.v3"
 )
 

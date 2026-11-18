@@ -4,9 +4,9 @@ package sdk
 import (
 	"context"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/sdk/generators"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/pkg/sdk/generators"
 	"gopkg.in/yaml.v3"
 )
 

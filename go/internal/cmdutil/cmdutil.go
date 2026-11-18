@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strconv"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/cli"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/cli"
 )
 
 // ContextOrBackground returns the active CLI context when available.

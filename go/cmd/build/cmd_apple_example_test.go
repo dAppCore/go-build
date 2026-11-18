@@ -1,6 +1,6 @@
 package buildcmd
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleAddAppleCommand references AddAppleCommand on this package API surface.
 func ExampleAddAppleCommand() {

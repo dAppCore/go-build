@@ -3,7 +3,7 @@ package sdk
 import (
 	"context"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 

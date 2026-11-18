@@ -3,9 +3,9 @@ package servicecmd
 import (
 	"time"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/cmdutil"
-	buildservice "dappco.re/go/build/pkg/service"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/cmdutil"
+	buildservice "github.com/dappcore/go-build/go/pkg/service"
 )
 
 // Request bundles the inputs the `core service install/start/stop/status`

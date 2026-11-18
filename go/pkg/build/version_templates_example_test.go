@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleExpandVersionTemplate references ExpandVersionTemplate on this package API surface.
 func ExampleExpandVersionTemplate() {

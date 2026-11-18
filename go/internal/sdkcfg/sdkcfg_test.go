@@ -3,12 +3,12 @@ package sdkcfg
 import (
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/build/pkg/sdk"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/release"
+	"github.com/dappcore/go-build/go/pkg/sdk"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 func requireSDKCfgOK(t *testing.T, result core.Result) {

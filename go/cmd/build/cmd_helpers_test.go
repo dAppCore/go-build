@@ -3,9 +3,9 @@ package buildcmd
 import (
 	"testing"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/cli"
-	"dappco.re/go/build/pkg/build"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/cli"
+	"github.com/dappcore/go-build/go/pkg/build"
 )
 
 // captureBuildStdout redirects cli output into a buffer for the test duration so

@@ -18,8 +18,8 @@
 package build
 
 import (
-	core "dappco.re/go"
-	buildservice "dappco.re/go/build/pkg/service"
+	core "github.com/dappcore/go"
+	buildservice "github.com/dappcore/go-build/go/pkg/service"
 )
 
 // Service is the root build service handle — composes the existing

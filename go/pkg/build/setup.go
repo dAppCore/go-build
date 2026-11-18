@@ -3,9 +3,9 @@ package build
 import (
 	"sort"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // SetupTool identifies a toolchain or installer surface required by the

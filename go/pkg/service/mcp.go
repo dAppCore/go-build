@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"sort"
 
-	coreapi "dappco.re/go/build/pkg/api"
-	providerpkg "dappco.re/go/build/pkg/api/provider"
-	"dappco.re/go/build/pkg/build"
-	events "dappco.re/go/build/pkg/events"
+	coreapi "github.com/dappcore/go-build/go/pkg/api"
+	providerpkg "github.com/dappcore/go-build/go/pkg/api/provider"
+	"github.com/dappcore/go-build/go/pkg/build"
+	events "github.com/dappcore/go-build/go/pkg/events"
 	"github.com/gin-gonic/gin"
 )
 

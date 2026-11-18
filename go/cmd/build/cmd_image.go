@@ -5,14 +5,14 @@ import (
 	"io/fs" // AX-6: fs.FileMode is structural for core/io.Medium.WriteMode.
 	"slices"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/internal/cli"
-	"dappco.re/go/build/internal/cmdutil"
-	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/build/pkg/build/builders"
-	"dappco.re/go/build/pkg/release"
-	coreio "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/internal/cli"
+	"github.com/dappcore/go-build/go/internal/cmdutil"
+	"github.com/dappcore/go-build/go/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/build/builders"
+	"github.com/dappcore/go-build/go/pkg/release"
+	coreio "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 type immutableImageVersion struct {

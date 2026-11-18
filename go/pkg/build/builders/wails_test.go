@@ -6,10 +6,10 @@ import (
 	"runtime"
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/build"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/pkg/build"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // setupWailsTestProject creates a minimal Wails project structure for testing.

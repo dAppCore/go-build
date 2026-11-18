@@ -1,11 +1,11 @@
 package sdkcfg
 
 import (
-	"dappco.re/go"
-	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/build/pkg/sdk"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/release"
+	"github.com/dappcore/go-build/go/pkg/sdk"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // LoadProjectConfig resolves SDK settings from build config first, then falls

@@ -1,7 +1,7 @@
 package cmdutil
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Behaviour tests drive the real option-resolution branches rather than the

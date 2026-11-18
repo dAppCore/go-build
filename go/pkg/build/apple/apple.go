@@ -4,11 +4,11 @@ import (
 	"context"
 	"regexp"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	build "dappco.re/go/build/pkg/build"
-	"dappco.re/go/build/pkg/release"
-	coreio "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	build "github.com/dappcore/go-build/go/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/release"
+	coreio "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // AppleOptions aliases the core Apple pipeline options.

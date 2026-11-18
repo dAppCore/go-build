@@ -3,7 +3,7 @@ package service
 import (
 	"maps"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	nativeservice "github.com/kardianos/service"
 )
 

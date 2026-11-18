@@ -4,8 +4,8 @@ import (
 	"context"
 	"runtime"
 
-	"dappco.re/go"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // Artifact represents a build output that can be signed.

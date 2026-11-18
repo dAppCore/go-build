@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
-	coreapi "dappco.re/go/build/pkg/api"
-	providerpkg "dappco.re/go/build/pkg/api/provider"
-	events "dappco.re/go/build/pkg/events"
+	core "github.com/dappcore/go"
+	coreapi "github.com/dappcore/go-build/go/pkg/api"
+	providerpkg "github.com/dappcore/go-build/go/pkg/api/provider"
+	events "github.com/dappcore/go-build/go/pkg/events"
 )
 
 type stubAPIEngine struct {

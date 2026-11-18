@@ -8,9 +8,9 @@ import (
 	"context"
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // gzipBytes returns body wrapped in a gzip stream — used to mimic linuxkit's

@@ -4,7 +4,7 @@ import (
 	"encoding/xml"
 	"strconv"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Export renders a native service definition for cfg.

@@ -1,7 +1,7 @@
 package buildtest
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Behaviour tests drive the internal counting logic directly. The Fatalf

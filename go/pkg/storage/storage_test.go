@@ -3,7 +3,7 @@ package storage
 import (
 	"io/fs"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestStorage_Copy_Good(t *core.T) {

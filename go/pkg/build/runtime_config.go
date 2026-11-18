@@ -1,8 +1,8 @@
 package build
 
 import (
-	core "dappco.re/go"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // RuntimeConfigFromBuildConfig maps persisted build settings onto a runtime

@@ -1,6 +1,6 @@
 package buildcmd
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleProjectBuildRequest shows the ProjectBuildRequest type in the local build API.
 func ExampleProjectBuildRequest() {

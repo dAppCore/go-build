@@ -1,7 +1,7 @@
 package buildcmd
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestCmdBuild_AddBuildCommands_Good(t *core.T) {

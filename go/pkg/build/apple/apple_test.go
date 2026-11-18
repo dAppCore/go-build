@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/internal/testassert"
-	build "dappco.re/go/build/pkg/build"
-	"dappco.re/go/build/pkg/build/signing"
-	coreio "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/internal/testassert"
+	build "github.com/dappcore/go-build/go/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/build/signing"
+	coreio "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 func requireAppleOKResult(t *testing.T, result core.Result) {

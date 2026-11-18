@@ -12,12 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/build"
-	events "dappco.re/go/build/pkg/events"
-	"dappco.re/go/build/pkg/release"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/pkg/build"
+	events "github.com/dappcore/go-build/go/pkg/events"
+	"github.com/dappcore/go-build/go/pkg/release"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 	"github.com/gorilla/websocket"
 )
 

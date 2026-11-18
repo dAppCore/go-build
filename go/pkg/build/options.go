@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strconv"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 // BuildOptions holds computed build flags from config + discovery.

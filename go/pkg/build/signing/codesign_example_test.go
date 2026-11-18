@@ -1,6 +1,6 @@
 package signing
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleNewMacOSSigner references NewMacOSSigner on this package API surface.
 func ExampleNewMacOSSigner() {

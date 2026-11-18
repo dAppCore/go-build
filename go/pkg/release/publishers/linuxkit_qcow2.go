@@ -3,7 +3,7 @@ package publishers
 import (
 	"context"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 func (p *LinuxKitPublisher) publishQcow2(ctx context.Context, release *Release, cfg LinuxKitConfig, artifactPath string) core.Result {

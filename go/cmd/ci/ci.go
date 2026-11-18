@@ -3,11 +3,11 @@ package ci
 import (
 	"context"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/internal/cli"
-	"dappco.re/go/build/internal/cmdutil"
-	"dappco.re/go/build/pkg/release"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/internal/cli"
+	"github.com/dappcore/go-build/go/internal/cmdutil"
+	"github.com/dappcore/go-build/go/pkg/release"
 )
 
 // Style aliases used by CI command output.

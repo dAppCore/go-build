@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleParseArchiveFormat references ParseArchiveFormat on this package API surface.
 func ExampleParseArchiveFormat() {

@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleDefaultAppleOptions references DefaultAppleOptions on this package API surface.
 func ExampleDefaultAppleOptions() {
