@@ -1,8 +1,8 @@
 package servicecmd
 
 import (
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/testassert"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/testassert"
 )
 
 var (

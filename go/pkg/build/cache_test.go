@@ -3,8 +3,8 @@ package build
 import (
 	"testing"
 
-	core "dappco.re/go"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 	yaml "gopkg.in/yaml.v3"
 )
 

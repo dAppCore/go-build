@@ -7,9 +7,9 @@ import (
 	"time"
 	"unicode"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/pkg/build"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/pkg/build"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 const (

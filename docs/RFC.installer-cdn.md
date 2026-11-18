@@ -1,6 +1,6 @@
 ---
 Status: Aspirational
-module: dappco.re/go/build
+module: github.com/dappcore/go-build/go
 repo: core/go-build
 lang: go
 tier: lib

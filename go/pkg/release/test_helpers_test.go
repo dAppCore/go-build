@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 func runGit(t *testing.T, dir string, args ...string) {

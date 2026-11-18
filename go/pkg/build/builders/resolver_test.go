@@ -3,8 +3,8 @@ package builders
 import (
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/pkg/build"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/pkg/build"
 )
 
 func TestResolveBuilder_Good(t *testing.T) {

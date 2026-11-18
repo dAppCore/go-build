@@ -1,6 +1,6 @@
 package builders
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleAppleBuilder_CreateDMG references AppleBuilder.CreateDMG on this package API surface.
 func ExampleAppleBuilder_CreateDMG() {

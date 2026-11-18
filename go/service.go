@@ -11,8 +11,8 @@
 package build
 
 import (
-	core "dappco.re/go"
-	buildservice "dappco.re/go/build/pkg/service"
+	core "github.com/dappcore/go"
+	buildservice "github.com/dappcore/go-build/go/pkg/service"
 )
 
 // ServiceOptions configures the root build service. v1 has no fields —

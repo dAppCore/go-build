@@ -4,9 +4,9 @@ import (
 	"context"
 	"runtime"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	coreio "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	coreio "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 func TestBuiltinResolver_GoBuilder_Name_Good(t *core.T) {

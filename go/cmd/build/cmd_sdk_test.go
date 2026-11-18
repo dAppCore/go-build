@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 const validBuildOpenAPISpec = `openapi: "3.0.0"

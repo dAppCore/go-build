@@ -4,7 +4,7 @@ package testassert
 import (
 	"reflect"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Equal reports whether want and got are deeply equal.

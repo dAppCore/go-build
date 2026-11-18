@@ -1,7 +1,7 @@
 package service
 
 import (
-	providerpkg "dappco.re/go/build/pkg/api/provider"
+	providerpkg "github.com/dappcore/go-build/go/pkg/api/provider"
 	"github.com/gin-gonic/gin"
 )
 

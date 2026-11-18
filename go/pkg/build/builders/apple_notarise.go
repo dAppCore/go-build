@@ -3,7 +3,7 @@ package builders
 import (
 	"context"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 // AppleNotariseConfig defines a notarisation request for a built Apple artifact.

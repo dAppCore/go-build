@@ -3,8 +3,8 @@ package generators
 import (
 	"context"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 // PHPGenerator generates PHP SDKs from OpenAPI specs.

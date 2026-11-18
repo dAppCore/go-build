@@ -3,7 +3,7 @@ package cli
 import (
 	"io"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // failingWriter always reports a write error so the !written.OK return branches

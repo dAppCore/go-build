@@ -4,7 +4,7 @@ Agent guidance for `core/go-build`.
 
 ## Project Overview
 
-`dappco.re/go/build` is a command-registration and library module for:
+`github.com/dappcore/go-build/go` is a command-registration and library module for:
 
 - `core build`
 - `core build apple`
@@ -28,7 +28,7 @@ go test ./pkg/build/... -run TestApple_
 
 ```
 core/go-build/
-├── go/                                ← Go module root (module dappco.re/go/build)
+├── go/                                ← Go module root (module github.com/dappcore/go-build/go)
 │   ├── cmd/                           ← CLI entry points
 │   ├── internal/                      ← Go internal packages
 │   ├── pkg/                           ← Go library packages

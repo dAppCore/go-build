@@ -4,8 +4,8 @@ package publishers
 import (
 	"context"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 // LinuxKitConfig holds configuration for the LinuxKit publisher.

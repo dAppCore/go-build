@@ -3,8 +3,8 @@ package installers
 import (
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/testassert"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/testassert"
 )
 
 // validConfig is a fully populated InstallerConfig used as the happy-path baseline.

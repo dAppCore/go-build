@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	storage "dappco.re/go/build/pkg/storage"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 func TestPublishers_PublishRejectsUnsafeVersionGood(t *testing.T) {

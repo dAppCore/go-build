@@ -3,8 +3,8 @@
 package builders
 
 import (
-	"dappco.re/go"
-	"dappco.re/go/build/pkg/build"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/pkg/build"
 )
 
 func init() {

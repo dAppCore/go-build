@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleWriteReleaseWorkflow references WriteReleaseWorkflow on this package API surface.
 func ExampleWriteReleaseWorkflow() {

@@ -3,7 +3,7 @@
 package build
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestBuild_Service_Good(t *core.T) {

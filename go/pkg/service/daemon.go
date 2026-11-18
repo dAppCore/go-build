@@ -6,15 +6,15 @@ import (
 	"sort"
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	coreapi "dappco.re/go/build/pkg/api"
-	providerpkg "dappco.re/go/build/pkg/api/provider"
-	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/build/pkg/build/builders"
-	"dappco.re/go/build/pkg/events"
-	"dappco.re/go/build/pkg/release"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	coreapi "github.com/dappcore/go-build/go/pkg/api"
+	providerpkg "github.com/dappcore/go-build/go/pkg/api/provider"
+	"github.com/dappcore/go-build/go/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/build/builders"
+	"github.com/dappcore/go-build/go/pkg/events"
+	"github.com/dappcore/go-build/go/pkg/release"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 type apiEngine interface {

@@ -1,7 +1,7 @@
 package service
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 type Agentic = daemonAgentic

@@ -12,14 +12,14 @@ import (
 	"context"
 	"runtime"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/internal/cli"
-	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/build/pkg/build/builders"
-	"dappco.re/go/build/pkg/build/signing"
-	"dappco.re/go/build/pkg/release"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/internal/cli"
+	"github.com/dappcore/go-build/go/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/build/builders"
+	"github.com/dappcore/go-build/go/pkg/build/signing"
+	"github.com/dappcore/go-build/go/pkg/release"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 var getProjectBuildWorkingDir = ax.Getwd

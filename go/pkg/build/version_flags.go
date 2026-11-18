@@ -1,7 +1,7 @@
 package build
 
 import (
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 // VersionLinkerFlag returns a safe -X linker flag for injecting the build version.

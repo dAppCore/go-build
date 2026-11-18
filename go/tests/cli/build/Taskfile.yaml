@@ -58,7 +58,7 @@ tasks:
           export GOCACHE="$cache_dir/gocache"
           export GOMODCACHE="$cache_dir/gomodcache"
           export GOPATH="$cache_dir/gopath"
-          export GONOSUMDB="${GONOSUMDB:-dappco.re/*,forge.lthn.ai/*}"
+          export GONOSUMDB="${GONOSUMDB:-github.com/dappcore/*,forge.lthn.ai/*}"
           export DIR_HOME="$work/home"
           export HOME="$work/home"
           export NO_COLOR=1
@@ -69,10 +69,10 @@ tasks:
 
           go 1.26.0
 
-          require dappco.re/go/build v0.0.0
+          require github.com/dappcore/go-build/go v0.0.0
 
-          replace dappco.re/go/build => $repo_root
-          replace dappco.re/go/core => $core_root
+          replace github.com/dappcore/go-build/go => $repo_root
+          replace github.com/dappcore/go => $core_root
           EOM
 
           cat >"$module_dir/main.go" <<'EOGO'
@@ -82,8 +82,8 @@ tasks:
           	"fmt"
           	"os"
 
-          	buildcmd "dappco.re/go/build/cmd/build"
-          	"dappco.re/go/core"
+          	buildcmd "github.com/dappcore/go-build/go/cmd/build"
+          	"github.com/dappcore/go"
           )
 
           const version = "0.0.0-test"

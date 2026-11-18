@@ -1,6 +1,6 @@
 package apple
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleRegister references Register on this package API surface.
 func ExampleRegister() {

@@ -1,6 +1,6 @@
 package builders
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleAppleCommandRunnerFunc_Run references AppleCommandRunnerFunc.Run on this package API surface.
 func ExampleAppleCommandRunnerFunc_Run() {

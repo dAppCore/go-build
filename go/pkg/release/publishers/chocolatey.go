@@ -6,9 +6,9 @@ import (
 	"embed"
 	"text/template"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 //go:embed templates/chocolatey/*.tmpl templates/chocolatey/tools/*.tmpl

@@ -1,6 +1,6 @@
 package cli
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestCli_Style_Render_Good(t *core.T) {
 	style := Style{}

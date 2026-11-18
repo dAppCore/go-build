@@ -1,6 +1,6 @@
 package buildcmd
 
-import "dappco.re/go/build/pkg/build"
+import "github.com/dappcore/go-build/go/pkg/build"
 
 func emitCIAnnotationForTest(err error) string {
 	if err == nil {

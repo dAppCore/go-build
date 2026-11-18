@@ -3,9 +3,9 @@ package build
 import (
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // setupChecksumTestFile creates a test file with known content.

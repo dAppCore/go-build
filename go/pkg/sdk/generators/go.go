@@ -3,8 +3,8 @@ package generators
 import (
 	"context"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 // GoGenerator generates Go SDKs from OpenAPI specs.

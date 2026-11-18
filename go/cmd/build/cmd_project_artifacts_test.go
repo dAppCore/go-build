@@ -3,8 +3,8 @@ package buildcmd
 import (
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/build"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/pkg/build"
 )
 
 // artifactNoun is singular only for exactly one artifact.

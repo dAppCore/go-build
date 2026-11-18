@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 func TestPython_PythonGeneratorAvailableGood(t *testing.T) {

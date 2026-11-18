@@ -1,7 +1,7 @@
 package ci
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // noopCIAction is a placeholder executable action used to pre-occupy command

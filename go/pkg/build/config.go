@@ -7,11 +7,11 @@ import (
 	"maps"
 	"reflect"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/build/signing"
-	"dappco.re/go/build/pkg/sdk"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/pkg/build/signing"
+	"github.com/dappcore/go-build/go/pkg/sdk"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 	"gopkg.in/yaml.v3" // Note: AX-6 — no core YAMLUnmarshal yet.
 )
 

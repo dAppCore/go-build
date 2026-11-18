@@ -4,7 +4,7 @@ import (
 	goio "io"
 	"io/fs"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Behaviour tests exercise the real filesystem-backed Local medium, which the

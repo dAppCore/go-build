@@ -9,9 +9,9 @@ import (
 	stdio "io"      // AX-6 intrinsic: stream the decompressed kernel.
 	"text/template" // AX-6 intrinsic: no core template primitive.
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // vzGuestKernel is the canonical kernel filename inside a resolved artefact

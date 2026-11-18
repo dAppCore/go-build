@@ -4,10 +4,10 @@ import (
 	"runtime"
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go-build/go/internal/ax"
 
-	core "dappco.re/go"
-	storage "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // setupTestDir creates a temporary directory with the specified marker files.

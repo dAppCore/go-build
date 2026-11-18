@@ -1,7 +1,7 @@
 package testassert
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Behaviour tests exercise the real branches of each predicate rather than the

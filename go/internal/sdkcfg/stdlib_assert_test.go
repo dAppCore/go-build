@@ -1,6 +1,6 @@
 package sdkcfg
 
-import "dappco.re/go/build/internal/testassert"
+import "github.com/dappcore/go-build/go/internal/testassert"
 
 var (
 	stdlibAssertEqual = testassert.Equal

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go-build/go/internal/ax"
 
-	"dappco.re/go/build/pkg/sdk/generators"
+	"github.com/dappcore/go-build/go/pkg/sdk/generators"
 )
 
 // --- SDK Generation Orchestration Tests ---

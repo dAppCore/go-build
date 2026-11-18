@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"slices"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 // Options holds common generation options.

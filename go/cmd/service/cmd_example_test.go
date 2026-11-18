@@ -1,7 +1,7 @@
 package servicecmd
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // --- v0.9.0 generated usage examples ---

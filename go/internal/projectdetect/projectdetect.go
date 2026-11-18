@@ -1,10 +1,10 @@
 package projectdetect
 
 import (
-	"dappco.re/go"
-	"dappco.re/go/build/pkg/build"
-	"dappco.re/go/build/pkg/build/builders"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/build/builders"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 type detector struct {

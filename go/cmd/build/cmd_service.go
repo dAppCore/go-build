@@ -6,12 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/internal/cli"
-	"dappco.re/go/build/internal/cmdutil"
-	servicecommon "dappco.re/go/build/internal/servicecmd"
-	buildservice "dappco.re/go/build/pkg/service"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/internal/cli"
+	"github.com/dappcore/go-build/go/internal/cmdutil"
+	servicecommon "github.com/dappcore/go-build/go/internal/servicecmd"
+	buildservice "github.com/dappcore/go-build/go/pkg/service"
 )
 
 var (

@@ -3,8 +3,8 @@ package sdk
 import (
 	"context"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
 )
 
 // commonSpecPaths are checked in order when no spec is configured.

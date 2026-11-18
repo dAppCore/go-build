@@ -1,6 +1,6 @@
 package publishers
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleChecksumMap() {
 	checksums := ChecksumMap{

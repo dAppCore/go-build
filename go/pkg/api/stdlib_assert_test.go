@@ -1,9 +1,9 @@
 package api
 
 import (
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/testassert"
-	"dappco.re/go/build/pkg/build"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/testassert"
+	"github.com/dappcore/go-build/go/pkg/build"
 )
 
 var (

@@ -3,12 +3,12 @@ package build
 import (
 	"testing"
 
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/internal/testassert"
-	"dappco.re/go/build/pkg/sdk"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/internal/testassert"
+	"github.com/dappcore/go-build/go/pkg/sdk"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"gopkg.in/yaml.v3"
 )
 

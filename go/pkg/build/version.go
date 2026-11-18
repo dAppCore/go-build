@@ -3,7 +3,7 @@ package build
 import (
 	"regexp"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 var safeVersionString = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)

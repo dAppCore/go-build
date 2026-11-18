@@ -1,8 +1,8 @@
 package servicecmd
 
 import (
-	core "dappco.re/go"
-	buildservice "dappco.re/go/build/pkg/service"
+	core "github.com/dappcore/go"
+	buildservice "github.com/dappcore/go-build/go/pkg/service"
 )
 
 // --- v0.9.0 generated usage examples ---

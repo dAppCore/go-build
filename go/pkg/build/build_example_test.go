@@ -1,6 +1,6 @@
 package build
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleTarget_String references Target.String on this package API surface.
 func ExampleTarget_String() {

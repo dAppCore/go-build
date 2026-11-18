@@ -16,7 +16,7 @@
 [![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](https://eupl.eu/1.2/en/)
 
 
-`dappco.re/go/build` is the build, release, SDK, Apple packaging, and workflow toolkit behind `core build`, `core release`, `core sdk`, `core ci`, and the public `dAppCore/build@v3` GitHub Action surface.
+`github.com/dappcore/go-build/go` is the build, release, SDK, Apple packaging, and workflow toolkit behind `core build`, `core release`, `core sdk`, `core ci`, and the public `dAppCore/build@v3` GitHub Action surface.
 
 ## What It Covers
 
@@ -55,7 +55,7 @@ core ci
 ## Module
 
 ```go
-import "dappco.re/go/build/pkg/build"
+import "github.com/dappcore/go-build/go/pkg/build"
 ```
 
 The repository is a library/command-registration module. It does not ship its own standalone binary.

@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/internal/cli"
-	buildservice "dappco.re/go/build/pkg/service"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/internal/cli"
+	buildservice "github.com/dappcore/go-build/go/pkg/service"
 )
 
 type stubManager struct {

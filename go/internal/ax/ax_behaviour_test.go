@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Behaviour tests exercise the real path/env/exec branches that the generated

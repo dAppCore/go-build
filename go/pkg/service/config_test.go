@@ -1,11 +1,11 @@
 package service
 
 import (
-	"dappco.re/go/build/internal/ax"
+	"github.com/dappcore/go-build/go/internal/ax"
 	"testing"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	nativeservice "github.com/kardianos/service"
 )
 

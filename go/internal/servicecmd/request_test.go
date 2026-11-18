@@ -3,8 +3,8 @@ package servicecmd
 import (
 	"time"
 
-	core "dappco.re/go"
-	buildservice "dappco.re/go/build/pkg/service"
+	core "github.com/dappcore/go"
+	buildservice "github.com/dappcore/go-build/go/pkg/service"
 )
 
 // okGetwd returns a getwd stub that always resolves to dir.

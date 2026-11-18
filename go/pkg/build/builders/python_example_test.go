@@ -1,6 +1,6 @@
 package builders
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // ExampleNewPythonBuilder references NewPythonBuilder on this package API surface.
 func ExampleNewPythonBuilder() {

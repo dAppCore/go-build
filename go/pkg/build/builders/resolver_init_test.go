@@ -3,7 +3,7 @@ package builders
 import (
 	"testing"
 
-	"dappco.re/go/build/pkg/build"
+	"github.com/dappcore/go-build/go/pkg/build"
 )
 
 func TestResolver_InitRegistersDefaultBuilderResolverGood(t *testing.T) {

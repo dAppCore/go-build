@@ -5,10 +5,10 @@ import (
 	"runtime"
 	"slices"
 
-	core "dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/pkg/build"
-	coreio "dappco.re/go/build/pkg/storage"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/pkg/build"
+	coreio "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // recordingAppleRunner captures every RunOptions dispatched to it and returns a

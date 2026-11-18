@@ -4,8 +4,8 @@ package signing
 import (
 	"context"
 
-	"dappco.re/go"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // Signer defines the interface for code signing implementations.

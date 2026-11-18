@@ -3,15 +3,15 @@ package buildcmd
 import (
 	"context"
 
-	"dappco.re/go"
-	"dappco.re/go/build/internal/ax"
-	"dappco.re/go/build/internal/cli"
-	"dappco.re/go/build/internal/cmdutil"
-	"dappco.re/go/build/pkg/build"
-	buildinstallers "dappco.re/go/build/pkg/build/installers"
-	"dappco.re/go/build/pkg/release"
-	"dappco.re/go/build/pkg/release/publishers"
-	storage "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-build/go/internal/ax"
+	"github.com/dappcore/go-build/go/internal/cli"
+	"github.com/dappcore/go-build/go/internal/cmdutil"
+	"github.com/dappcore/go-build/go/pkg/build"
+	buildinstallers "github.com/dappcore/go-build/go/pkg/build/installers"
+	"github.com/dappcore/go-build/go/pkg/release"
+	"github.com/dappcore/go-build/go/pkg/release/publishers"
+	storage "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 var (

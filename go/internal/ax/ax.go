@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"dappco.re/go"
-	coreio "dappco.re/go/build/pkg/storage"
+	"github.com/dappcore/go"
+	coreio "github.com/dappcore/go-build/go/pkg/storage"
 )
 
 // DS returns the current platform directory separator.

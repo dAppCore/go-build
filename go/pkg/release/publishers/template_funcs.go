@@ -4,7 +4,7 @@ import (
 	"html"
 	"text/template"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func publisherTemplateFuncs() template.FuncMap {
